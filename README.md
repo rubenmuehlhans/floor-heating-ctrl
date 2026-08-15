@@ -1,30 +1,31 @@
 # Ventilsteuerung Fußbodenheizung
 
-Eigenbau-Ersatz für einen **Homematic IP FALMOT** — den motorischen
-Fußbodenheizungsaktor, der die Stellantriebe am Heizkreisverteiler ansteuert.
-Angesteuert werden weiterhin die originalen **HmIP-VDMOT**-Stellantriebe; nur
-die Steuerung dahinter ist ersetzt. Die Firmware läuft nativ auf ESP-IDF,
-bindet Home Assistant über MQTT ein und ist vollständig über eine
-Weboberfläche auf dem Gerät einzurichten.
+Steuerung für elf motorische Stellantriebe an einem Heizkreisverteiler, auf
+eigener Platine mit ESP32. Räume und Kreiszuordnung sind über eine
+Weboberfläche auf dem Gerät einzurichten, die Anbindung an Home Assistant läuft
+über MQTT, die Raumtemperaturen kommen direkt über Bluetooth.
 
 ![Übersicht der Weboberfläche](docs/screenshots/uebersicht.png)
 
-## Warum
+## Einordnung
 
-Die HmIP-VDMOT sind gute Stellantriebe: motorisch statt thermisch, damit
-schnell und stromsparend, und ohne Endschalter — die Endlage erkennt die
-Steuerung an der Gegenspannung des blockierenden Motors. Gebunden sind sie
-allerdings an den FALMOT und damit an die Homematic-Welt.
+Ein privates Bastelprojekt für die eigene Heizungsanlage. Es steht in keiner
+Verbindung zu einem Hersteller und implementiert kein Funkprotokoll: die
+Antriebe werden über eigene H-Brücken elektrisch angesteuert, also durch
+Anlegen der Motorspannung. Verwendete Produktbezeichnungen dienen allein der
+Angabe, welche Bauteile verbaut sind.
 
-Dieses Projekt behält die Antriebe und ersetzt die Steuerung durch eine eigene
-Platine mit ESP32. Damit ist die Anlage frei konfigurierbar, spricht direkt
-MQTT, holt die Raumtemperaturen selbst über Bluetooth und regelt auch dann
-weiter, wenn Netzwerk oder Home Assistant ausfallen.
+## Hintergrund
 
-Vorgänger dieser Firmware war eine ESPHome-Konfiguration mit rund 1750 Zeilen
-YAML, in der die eigentliche Regel- und Endlagenlogik bereits vollständig in
-Lambda-Blöcken steckte. Räume und Kanalzuordnung waren dort fest verdrahtet;
-jede Änderung erforderte Neuübersetzung und Flashen.
+Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
+Endschalter: die Endlage ist daran zu erkennen, dass der Motor am Anschlag
+blockiert und die Spannung über dem Messwiderstand deutlich steigt. Genau das
+leistet diese Firmware, dazu die Raumregelung darüber.
+
+Vorgänger war eine ESPHome-Konfiguration mit rund 1750 Zeilen YAML, in der die
+Regel- und Endlagenlogik bereits vollständig in Lambda-Blöcken steckte. Räume
+und Kanalzuordnung waren dort fest verdrahtet; jede Änderung erforderte
+Neuübersetzung und Flashen. Das war der Anlass für die Portierung.
 
 ## Hardware
 
@@ -34,7 +35,7 @@ gesteckt und lässt sich damit ohne Löten tauschen.
 
 | Baugruppe | Umsetzung |
 |---|---|
-| Stellantriebe | 11 × HmIP-VDMOT, motorisch, ohne Endschalter |
+| Stellantriebe | 11 × motorisch, ohne Endschalter (HmIP-VDMOT) |
 | Ansteuerung | 11 × L9110s H-Brücke, bidirektional |
 | Kanalauswahl | 3 × SN74HC595 Schieberegister über SPI2, 22 der 24 Ausgänge belegt |
 | Endlagenerkennung | Shunt je Messgruppe an ADC1, 6 Messgruppen |
@@ -77,7 +78,7 @@ Durchgesetzt wird das von der Gruppensperre in
 
 ### Endlagenerkennung
 
-Die VDMOT haben keine Endschalter. Im Lauf zieht der Motor eine kleine Spannung
+Die Antriebe haben keine Endschalter. Im Lauf zieht der Motor eine kleine Spannung
 über den Shunt; erreicht das Ventil den Anschlag, blockiert er und die Spannung
 steigt deutlich. Überschreitet der gleitende Median die Schwelle, gilt die
 Endlage als erreicht und die Position wird auf 0 beziehungsweise 100 % gesetzt.
@@ -319,8 +320,9 @@ zu sehen. `tools/screenshots.sh` erzeugt daraus die Aufnahmen dieser Seite.
   WLAN sprengt das Flash-Budget. Wird Matter gebraucht, reicht Home Assistant
   die vorhandenen MQTT-Entities über seine eigene Matter-Bridge weiter.
 
-## Rechtliches
+## Marken
 
-Homematic IP, HmIP-VDMOT und HmIP-FALMOT sind Bezeichnungen der eQ-3 AG.
-Dieses Projekt steht in keiner Verbindung zu eQ-3 und verwendet die Namen nur,
-um die eingesetzten Stellantriebe und das ersetzte Gerät zu benennen.
+HmIP und Homematic IP sind Marken der eQ-3 AG. Sie werden hier ausschließlich
+genannt, um die verbauten Stellantriebe zu bezeichnen. Es besteht keine
+Verbindung zu eQ-3, und es wird weder eine Kompatibilität noch eine Freigabe
+behauptet.
