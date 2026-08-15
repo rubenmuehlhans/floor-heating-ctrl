@@ -14,6 +14,7 @@
 #include "esp_app_desc.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
@@ -281,6 +282,21 @@ static esp_err_t state_get(httpd_req_t *req)
 
     const esp_app_desc_t *desc = esp_app_get_description();
     cJSON_AddStringToObject(root, "version", desc->version);
+
+    /* Stabile Kennung der Anlage. Home Assistant braucht sie, um ein Geraet
+     * ueber wechselnde Adressen hinweg wiederzuerkennen. */
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char buf[24];
+    cJSON *dev = cJSON_AddObjectToObject(root, "device");
+    snprintf(buf, sizeof(buf), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
+    cJSON_AddStringToObject(dev, "id", buf);
+    snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3],
+             mac[4], mac[5]);
+    cJSON_AddStringToObject(dev, "mac", buf);
+    cJSON_AddStringToObject(dev, "site", cfg.site);
+    cJSON_AddStringToObject(dev, "model", "ESP32 Ventilsteuerung, 11 Heizkreise");
+    cJSON_AddNumberToObject(dev, "channels", HW_CHANNEL_COUNT);
 
     cJSON *jnet = cJSON_AddObjectToObject(root, "net");
     cJSON_AddBoolToObject(jnet, "connected", net.sta_connected);

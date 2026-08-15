@@ -14,3 +14,7 @@ test/host/*.dSYM/
 # Gehäuse
 case/.venv
 case/__pycache__/
+
+# Python
+__pycache__/
+*.pyc

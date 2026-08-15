@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ventilsteuerung hinzufügen",
+        "description": "Adresse des Geräts im Netzwerk. Sie steht in der Kopfzeile der Weboberfläche.",
+        "data": {
+          "host": "Adresse oder Gerätename"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Das Gerät ist unter dieser Adresse nicht erreichbar.",
+      "firmware_too_old": "Die Firmware des Geräts meldet keine Gerätekennung. Bitte zuerst aktualisieren."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits eingerichtet."
+    }
+  }
+}

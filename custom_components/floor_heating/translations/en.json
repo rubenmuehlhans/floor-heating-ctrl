@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add valve controller",
+        "description": "Network address of the device. It is shown in the header of its web interface.",
+        "data": {
+          "host": "Address or host name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "The device cannot be reached at this address.",
+      "firmware_too_old": "The device firmware does not report a device id. Please update it first."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}

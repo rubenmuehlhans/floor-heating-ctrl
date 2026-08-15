@@ -1,23 +1,28 @@
 # Ventilsteuerung Fußbodenheizung
 
-Steuerung für elf motorische Stellantriebe an einem Heizkreisverteiler, auf
-eigener Platine mit ESP32. Räume und Kreiszuordnung sind über eine
-Weboberfläche auf dem Gerät einzurichten, die Anbindung an Home Assistant läuft
-über MQTT, die Raumtemperaturen kommen direkt über Bluetooth.
+Diese Firmware steuert elf motorische Stellantriebe an einem Heizkreisverteiler
+und regelt darüber die Raumtemperaturen einer Fußbodenheizung. Sie läuft auf
+einem ESP32 auf einer selbst entworfenen Platine und richtet sich an alle, die
+ihre Heizkreise mit eigener Hardware ansteuern wollen.
+
+Räume und die Zuordnung der Heizkreise werden über eine Weboberfläche auf dem
+Gerät eingerichtet. Die Raumtemperaturen empfängt das Gerät über Bluetooth,
+die Anbindung an Home Assistant läuft über MQTT.
 
 ![Übersicht der Weboberfläche](docs/screenshots/uebersicht.png)
 
 Das Gerät übernimmt vier Aufgaben:
 
 - **Ventile fahren.** Elf Stellantriebe werden über H-Brücken bidirektional
-  angesteuert; die Endlage wird an der Gegenspannung des blockierenden Motors
+  angesteuert. Die Endlage wird an der Gegenspannung des blockierenden Motors
   erkannt, weil die Antriebe keine Endschalter haben.
-- **Räume regeln.** Je Raum ein Sollwert, ein Thermometer und beliebig viele
-  Heizkreise; die Ventilstellung folgt der Regelabweichung proportional.
-- **Bedienen.** Weboberfläche auf dem Gerät, dazu Anzeige und drei Tasten am
-  Gehäuse.
-- **Anbinden.** MQTT-Discovery für Home Assistant, Raumtemperaturen über
-  Bluetooth Low Energy.
+- **Räume regeln.** Jeder Raum hat einen Sollwert, ein Thermometer und beliebig
+  viele Heizkreise; die Ventilstellung folgt der Regelabweichung proportional.
+- **Bedienen.** Bedient wird das Gerät über die Weboberfläche sowie über die
+  Anzeige und drei Tasten am Gehäuse.
+- **Anbinden.** Die Entitäten für Home Assistant meldet das Gerät über
+  MQTT-Discovery an; die Raumtemperaturen empfängt es über Bluetooth Low
+  Energy.
 
 Der Quelltextbestand enthält neben der Firmware auch die Fertigungsdaten der
 Platine ([`board/`](board/)) und die Konstruktion des Gehäuses
@@ -25,28 +30,60 @@ Platine ([`board/`](board/)) und die Konstruktion des Gehäuses
 
 ## Einordnung
 
-Ein privates Bastelprojekt für die eigene Heizungsanlage. Es steht in keiner
-Verbindung zu einem Hersteller und implementiert kein Funkprotokoll: die
-Antriebe werden über eigene H-Brücken elektrisch angesteuert, also durch
-Anlegen der Motorspannung. Verwendete Produktbezeichnungen dienen allein der
-Angabe, welche Bauteile verbaut sind.
+Dies ist ein privates Bastelprojekt für die eigene Heizungsanlage. Es entsteht
+in der Freizeit; eine laufende Betreuung, Unterstützung bei der Nachnutzung
+oder Bearbeitung von Anfragen wird nicht zugesagt.
 
-## Hintergrund
+Das Projekt steht in keiner Verbindung zu einem Hersteller und implementiert
+kein Funkprotokoll: Die Antriebe werden über eigene H-Brücken elektrisch
+angesteuert, also durch Anlegen der Motorspannung. Verwendete
+Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 
-Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
-Endschalter: die Endlage ist daran zu erkennen, dass der Motor am Anschlag
-blockiert und die Spannung über dem Messwiderstand deutlich steigt. Genau das
-leistet diese Firmware, dazu die Raumregelung darüber.
+## Inhalt
 
-Vorgänger war eine ESPHome-Konfiguration mit rund 1750 Zeilen YAML, in der die
-Regel- und Endlagenlogik bereits vollständig in Lambda-Blöcken steckte. Räume
-und Kanalzuordnung waren dort fest verdrahtet; jede Änderung erforderte
-Neuübersetzung und Flashen. Das war der Anlass für die Portierung.
+- [Voraussetzungen](#voraussetzungen)
+- [Hardware](#hardware)
+- [Übersetzen und Einspielen](#übersetzen-und-einspielen)
+- [Erste Inbetriebnahme](#erste-inbetriebnahme)
+- [Weboberfläche](#weboberfläche)
+- [Home Assistant](#home-assistant)
+- [Funktionsweise](#funktionsweise)
+- [Vorgabewerte](#vorgabewerte)
+- [Fehlersuche](#fehlersuche)
+- [Aufbau des Quelltextbestands](#aufbau-des-quelltextbestands)
+- [Entwicklung ohne Hardware](#entwicklung-ohne-hardware)
+- [Prüfungen](#prüfungen)
+- [Stand der Erprobung](#stand-der-erprobung)
+- [Vorgängerkonfiguration](#vorgängerkonfiguration)
+- [Offene Punkte](#offene-punkte)
+- [Fremdkomponenten](#fremdkomponenten)
+- [Lizenz](#lizenz)
+- [Marken](#marken)
+
+## Voraussetzungen
+
+- **Steuergerät.** Benötigt werden die Steuerplatine aus [`board/`](board/)
+  und ein darauf gesteckter ESP32-DevKitC mit WROOM-32.
+- **Stellantriebe.** Vorausgesetzt werden bis zu elf motorische Stellantriebe
+  ohne Endschalter am Heizkreisverteiler.
+- **Raumtemperatur.** Je Raum wird ein Xiaomi-Thermometer mit ATC- oder
+  pvvx-Firmware benötigt, das seine Messwerte als Rundruf sendet.
+- **Netz.** Das Gerät benötigt ein WLAN-Netz. Für die Anbindung an Home
+  Assistant kommt ein MQTT-Broker hinzu.
+- **Vorlauffühler.** Bis zu acht DS18B20 am 1-Wire-Bus sind möglich, aber
+  nicht erforderlich.
+- **Entwicklungsumgebung.** Zum Übersetzen wird ESP-IDF v6.0.2 vorausgesetzt.
+- **Arbeiten ohne Gerät.** Die Geräteattrappe benötigt Python 3, die
+  Erzeugung der Aufnahmen zusätzlich Google Chrome und ImageMagick.
 
 ## Hardware
 
+Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
+Endschalter; die Endlage ist daran zu erkennen, dass der Motor am Anschlag
+blockiert und die Spannung über dem Messwiderstand deutlich steigt.
+
 Die Steuerplatine ist selbst entworfen und bei **JLCPCB** gefertigt. Sie trägt
-keinen eigenen Mikrocontroller: ein **ESP32-DevKitC** wird auf Buchsenleisten
+keinen eigenen Mikrocontroller: Ein **ESP32-DevKitC** wird auf Buchsenleisten
 gesteckt und lässt sich damit ohne Löten tauschen. Fertigungsdaten, Gerber und
 Stückliste liegen in [`board/`](board/), das Druckgehäuse in
 [`case/`](case/).
@@ -56,7 +93,7 @@ Stückliste liegen in [`board/`](board/), das Druckgehäuse in
 | Stellantriebe | 11 × motorisch, ohne Endschalter (HmIP-VDMOT) |
 | Anschluss der Antriebe | 11 × 4P4C-Buchse (RJ11) an der Platinenkante |
 | Ansteuerung | 11 × L9110s H-Brücke, bidirektional |
-| Kanalauswahl | 3 × SN74HC595 Schieberegister über SPI2, 22 der 24 Ausgänge belegt |
+| Auswahl des Kreises | 3 × SN74HC595 Schieberegister über SPI2, 22 der 24 Ausgänge belegt |
 | Endlagenerkennung | Messwiderstand je Messgruppe an ADC1, 6 Messgruppen, Dämpfung 6 dB |
 | Anzeige | SSD1327, 128 × 128, 16 Graustufen, I²C |
 | Bedienung am Gerät | 3 kapazitive Tasten: Sollwert −, Sollwert +, Raumwahl |
@@ -82,7 +119,7 @@ Stückliste liegen in [`board/`](board/), das Druckgehäuse in
 
 Die Zuordnung steht ausschließlich in
 [`components/hw_map/`](components/hw_map/); alles andere arbeitet mit
-Kanalnummern 1 bis 11 und Gruppennummern 0 bis 5.
+Kreisnummern 1 bis 11 und Gruppennummern 0 bis 5.
 
 ### Messgruppen
 
@@ -97,136 +134,71 @@ Je zwei Heizkreise teilen sich einen Messeingang:
 | 5 | 32 | 9, 10 |
 | 6 | 33 | 11 |
 
-Daraus folgt die zentrale Betriebsregel: **innerhalb einer Messgruppe fährt
+Daraus folgt die zentrale Betriebsregel: **Innerhalb einer Messgruppe fährt
 immer nur ein Kreis.** Sonst liegt die Gegenspannung beider Motoren auf
 demselben Eingang und die Endlage ließe sich keinem Antrieb mehr zuordnen.
 Durchgesetzt wird das von der Gruppensperre in
 [`main/app_control.c`](main/app_control.c).
 
-## Funktionsweise
+## Übersetzen und Einspielen
 
-### Endlagenerkennung
+Vorausgesetzt wird ESP-IDF v6.0.2.
 
-Die Antriebe haben keine Endschalter. Im Lauf zieht der Motor eine kleine
-Spannung über den Messwiderstand; erreicht das Ventil den Anschlag, blockiert
-er und die Spannung steigt deutlich. Alle sechs Messgruppen werden alle 50 ms
-abgetastet, ausgewertet wird ein gleitender Median über fünf Werte. Erreicht er
-die Auslöseschwelle, gilt die Endlage als erreicht und die Position wird auf 0
-beziehungsweise 100 % gesetzt. Scharf ist die Auswertung nur für die Messgruppe
-eines gerade fahrenden Kreises; die Schwelle ist dann die des fahrenden Kreises.
-
-Nach dem Anlauf gilt eine Sperrzeit von zwei Sekunden, in der die Meldung
-verworfen wird — der Einschaltstrom sieht sonst wie ein Blockieren aus. Bleibt
-die Endlage aus, beendet die Maximallaufzeit die Fahrt.
-
-### Automatische Kalibrierung
-
-Die Auslöseschwelle hängt von Antrieb, Messwiderstand und Verkabelung ab. Statt
-sie von Hand zu suchen, fährt die Messfahrt den Kreis einmal ganz zu und einmal
-ganz auf und schreibt dabei den Spannungsverlauf mit. Das Blockieren wird
-**relativ** zum gemessenen Fahrniveau erkannt — eine vorhandene Schwelle geht
-nicht ein, sonst würde die Kalibrierung ihr eigenes Ergebnis voraussetzen.
-
-![Ergebnis einer Messfahrt](docs/screenshots/kalibrierung.png)
-
-Braun ist die Schließfahrt, blau die Öffnungsfahrt, dazwischen liegen drei
-Sekunden Ruhe. Die beiden Spitzen sind die Anschläge. Aus dem Verlauf ergeben
-sich Fahrzeiten, Maximallaufzeit (längste Fahrzeit plus rund 15 %),
-Auslöseschwelle (Mitte zwischen Fahrniveau und niedrigerer Spitze) und
-Hysterese; übernommen werden sie erst nach Bestätigung.
-
-Wird in einer Fahrtrichtung keine Endlage erkannt, bricht die Messfahrt mit
-einem Hinweis auf Verdrahtung und Messwiderstand ab.
-
-### Handsteuerung und Notfahrt
-
-Jeder Kreis lässt sich von Hand fahren, **unabhängig davon, welche Stellung die
-Steuerung ihm zuschreibt**. Das ist kein gewöhnlicher Fahrbefehl: `valve_goto`
-prüft die geschätzte Stellung und täte nichts, wenn das Ventil bereits als
-offen gilt; bei unbekannter Stellung führe es sogar erst eine Referenzfahrt
-gegen die untere Endlage aus — bei „auf" also zunächst zu. Für den Notfall ist
-beides falsch.
-
-`valve_force` fährt deshalb ohne Stellungsvergleich bis zum Anschlag. Beendet
-wird die Fahrt nur durch die Endlage, die Maximallaufzeit oder einen Halt. Über
-`/api/channel/all/cmd` gilt der Befehl für alle elf Kreise zugleich.
-
-Danach bleibt der Kreis im **Handbetrieb**: die Regelung fasst ihn nicht mehr
-an, bis er ausdrücklich wieder freigegeben wird. Ohne diesen Halt wäre eine von
-Hand erzwungene Stellung beim nächsten Regeldurchlauf nach spätestens einem
-Prüfintervall wieder verworfen. Denselben Halt setzt ein Stoppbefehl: von Hand
-angehalten bleibt von Hand angehalten. Die Freigabe erfolgt über den Befehl
-„Automatik", einzeln oder für alle Kreise; der zugehörige Raum wird sofort neu
-bewertet, statt bis zum nächsten Prüfintervall zu warten.
-
-Ein Fahrbefehl auf eine bestimmte Stellung setzt den Halt **nicht** — er wird
-von der Regelung nach spätestens einem Prüfintervall überschrieben.
-
-Die Gruppensperre gilt weiter: fährt in derselben Messgruppe bereits ein
-anderer Kreis, wartet der Befehl, bis sie frei ist.
-
-### Regelung
-
-Die Ventilstellung folgt der Regelabweichung proportional, über ein Band von
-±1 K (Vorgabe) von ganz zu bis ganz auf, gerastert auf Zehntel:
-
-```
-diff = soll − ist
-pos  = runden(((diff / band) + 1) / 2 / raster) × raster,   begrenzt auf 0 … 1
-gefahren wird, wenn |aktuell − pos| > Mindeständerung
+```bash
+. ~/esp/esp-idf-6.0.2/export.sh && idf.py set-target esp32 && idf.py build
 ```
 
-Band, Rasterung, Mindeständerung und Prüfintervall sind je Raum einstellbar.
-Der erste Regeldurchlauf findet erst 50 Sekunden nach dem Start statt, damit
-Messwerte und Netzwerk eingelaufen sind. Die Ventilstellungen werden höchstens
-einmal je Minute in den NVS geschrieben und beim Start wiederhergestellt.
+```bash
+idf.py -p /dev/cu.usbserial-0001 flash monitor
+```
 
-### Raumtemperatur
+Spätere Aktualisierungen laufen über die Weboberfläche (System → Firmware
+aktualisieren) oder direkt:
 
-Der ESP32 hört die Raumthermometer selbst mit — Xiaomi-Thermometer mit
-ATC- oder pvvx-Firmware senden ihre Messwerte offen als Rundruf. Es wird keine
-Verbindung aufgebaut und nichts gesendet. Damit hängt die Regelung nicht am
-Netzwerk.
+```bash
+curl -X POST --data-binary @build/floor-heating-ctrl.bin http://<adresse>/api/ota
+```
 
-Bleibt ein Messwert länger als eingestellt aus (Vorgabe 900 s), setzt die
-Regelung für diesen Raum aus und die Ventile bleiben stehen, statt mit einem
-veralteten Wert weiterzuregeln. Dasselbe gilt, solange für einen Raum noch kein
-Messwert eingegangen ist.
+Die Firmware belegt rund 1,2 MB. Die Partitionstabelle sieht zwei
+OTA-Bereiche zu je 1 966 080 Byte vor; rund 39 % bleiben frei. Eine frisch
+eingespielte Firmware wird erst bestätigt, wenn Konfiguration, Ausgangsstufe,
+Regelung und Weboberfläche angelaufen sind; andernfalls kehrt der Bootlader zur
+vorherigen zurück.
 
-### Vorgabewerte
+## Erste Inbetriebnahme
 
-Bis zur ersten Messfahrt und vor der Einrichtung gelten diese Werte. Sie
-stammen aus dem Betrieb der Vorgängerkonfiguration.
+1. Nach dem ersten Einspielen findet das Gerät kein WLAN und öffnet sofort
+   einen Zugangspunkt `floor-heating-XXXX` mit dem Kennwort `fussboden`. Die
+   vier Stellen sind die letzten beiden Bytes der MAC-Adresse.
+2. Beim Verbinden öffnet sich das Einrichtungsportal von selbst (Captive
+   Portal). Rufen Sie andernfalls `http://192.168.4.1` auf.
+3. Wählen Sie das Netz aus, tragen Sie das Kennwort ein und speichern Sie. Der
+   Zugangspunkt schließt sich, sobald die Verbindung steht und niemand mehr
+   daran hängt.
+4. Danach führt der Einrichtungsassistent in drei Schritten durch die Anlage:
+   Bezeichnung der Etage, Räume mit ihren Heizkreisen, Thermometer je Raum. Er
+   startet von selbst, solange keine Bezeichnung hinterlegt ist, und ist später
+   über **System → Einrichtung erneut durchlaufen** wieder erreichbar. Die
+   Thermometer erscheinen zur Auswahl, sobald ihr erster Rundruf empfangen
+   wurde.
+5. Starten Sie unter **Kreise** für jeden Kreis eine Messfahrt.
+6. Lesen Sie unter **Sensoren** die Rohwerte der Tasten in Ruhe und bei
+   Berührung ab und setzen Sie die Schwelle etwa mittig.
+7. Tragen Sie unter **System** die MQTT-Verbindung ein, falls Home Assistant
+   angebunden werden soll; ab Werk ist MQTT ausgeschaltet.
 
-| Größe | Vorgabe |
-|---|---|
-| Öffnungszeit / Schließzeit je Kreis | 39 s / 40 s |
-| Maximallaufzeit je Kreis | 45 s |
-| Auslöseschwelle / Hysterese | 190 mV / 30 mV |
-| Sperrzeit nach dem Anlauf | 2 s |
-| Solltemperatur je Raum | 20 °C |
-| Proportionalband | 1,0 K |
-| Rasterung / Mindeständerung | 0,1 / 0,01 |
-| Prüfintervall | 30 s |
-| Höchstalter eines Raummesswerts | 900 s |
-| Täglicher Neustart | 10:00 Uhr, Zeitzone `CET-1CEST,M3.5.0,M10.5.0/3` |
-| Gerätename | `floor-heating` |
-| Kennwort des Einrichtungs-Zugangspunkts | `fussboden` |
-| MQTT | ausgeschaltet, Präfix `fbh` |
-| Tastenschwellen | 1000, 870, 1000 |
+<img src="docs/screenshots/einrichtung.png" width="45%" alt="Einrichtungsportal">
 
-Ein täglicher Neustart wird verschoben, solange ein Stellantrieb fährt.
-
-## Oberfläche
+## Weboberfläche
 
 Räume, Kreiszuordnung, Thermometer und Regelparameter sind zur Laufzeit
-änderbar. Die Oberfläche liegt komprimiert im Programmabbild (rund 22 kB) und
-lädt ohne Internetzugang.
+änderbar. Die Weboberfläche liegt komprimiert im Programmabbild (rund 22 kB)
+und lädt ohne Internetzugang.
 
 | | |
 |---|---|
 | ![Räume](docs/screenshots/raeume.png) | ![Heizkreise](docs/screenshots/kreise.png) |
-| **Räume** — Kreise zuordnen, Thermometer wählen, Regelparameter | **Kreise** — Zustand, Handbedienung, Fahrzeiten und Schwellen |
+| **Räume** — Kreise zuordnen, Thermometer wählen, Regelparameter einstellen | **Kreise** — Zustand, Handsteuerung, Fahrzeiten und Schwellen |
 | ![Sensoren](docs/screenshots/sensoren.png) | ![System](docs/screenshots/system.png) |
 | **Sensoren** — empfangene Thermometer, Vorlauffühler, Tastenabgleich | **System** — Netzwerk, MQTT, Betrieb, Firmware |
 
@@ -254,57 +226,46 @@ Messwertalter und Laufzeit rechnet die Seite selbst weiter.
 Fährt ein Kreis 20 % der Zeit, ergibt das rund 20 Zustandsabfragen je Minute;
 Inhalt liefern davon nur die während der Fahrt und die nach einer Änderung.
 
-## Übersetzen und Flashen
-
-Vorausgesetzt wird ESP-IDF v6.0.2.
-
-```bash
-. ~/esp/esp-idf-6.0.2/export.sh && idf.py set-target esp32 && idf.py build
-```
-
-```bash
-idf.py -p /dev/cu.usbserial-0001 flash monitor
-```
-
-Spätere Aktualisierungen laufen über die Weboberfläche (System → Firmware
-aktualisieren) oder direkt:
-
-```bash
-curl -X POST --data-binary @build/floor-heating-ctrl.bin http://<adresse>/api/ota
-```
-
-Die Firmware belegt rund 1,2 MB. Die Partitionstabelle sieht zwei
-OTA-Bereiche zu je 1 966 080 Byte vor; rund 39 % bleiben frei. Eine frisch
-eingespielte Firmware wird erst bestätigt, wenn Konfiguration, Ausgangsstufe,
-Regelung und Weboberfläche angelaufen sind; andernfalls kehrt der Bootlader zur
-vorherigen zurück.
-
-## Erste Inbetriebnahme
-
-1. Nach dem Flashen findet das Gerät kein WLAN und öffnet sofort einen
-   Zugangspunkt `floor-heating-XXXX` (Kennwort `fussboden`). Die vier Stellen
-   sind die letzten beiden Bytes der MAC-Adresse.
-2. Beim Verbinden öffnet sich die Einrichtungsseite von selbst (Captive
-   Portal). Andernfalls `http://192.168.4.1` aufrufen.
-3. Netz wählen, Kennwort eintragen, speichern. Der Zugangspunkt schließt sich,
-   sobald die Verbindung steht und niemand mehr daran hängt.
-4. Danach führt der Einrichtungsassistent in drei Schritten durch die Anlage:
-   Bezeichnung der Etage, Räume mit ihren Heizkreisen, Thermometer je Raum. Er
-   startet von selbst, solange keine Bezeichnung hinterlegt ist, und ist später
-   über **System → Einrichtung erneut durchlaufen** wieder erreichbar. Die
-   Thermometer erscheinen zur Auswahl, sobald ihr erster Rundruf empfangen
-   wurde.
-5. Unter **Kreise** für jeden Kreis eine Messfahrt starten.
-6. Unter **Sensoren** die Rohwerte der Tasten in Ruhe und bei Berührung
-   ablesen und die Schwelle etwa mittig setzen.
-7. Unter **System** MQTT eintragen, falls Home Assistant angebunden werden
-   soll; ab Werk ist es ausgeschaltet.
-
-<img src="docs/screenshots/einrichtung.png" width="45%" alt="Einrichtungsportal">
-
 ## Home Assistant
 
-Die Entities werden per MQTT-Discovery angemeldet und bei jeder
+Es gibt zwei Wege. Beide führen zu denselben Entitäten; sie schließen einander
+nicht aus, sollten aber nicht gleichzeitig verwendet werden, weil sonst zwei
+Wege dieselben Werte setzen.
+
+### Eigene Integration
+
+Unter [`custom_components/floor_heating/`](custom_components/floor_heating/)
+liegt eine Integration, die unmittelbar mit dem Gerät spricht. Sie braucht
+keinen MQTT-Broker und wird über HACS als benutzerdefiniertes Repository
+hinzugefügt oder von Hand nach `config/custom_components/` kopiert. Eingerichtet
+wird sie über **Einstellungen → Geräte & Dienste → Integration hinzufügen**;
+gefragt wird nur nach der Adresse des Geräts.
+
+Zusätzlich zu den Entitäten stellt sie fünf Dienste bereit, die sich in
+Automatisierungen aufrufen lassen:
+
+| Dienst | Wirkung |
+|---|---|
+| `floor_heating.calibrate` | Messfahrt für einen Kreis starten |
+| `floor_heating.calibrate_accept` | Ergebnis der Messfahrt übernehmen |
+| `floor_heating.calibrate_abort` | laufende Messfahrt abbrechen |
+| `floor_heating.force` | Notfahrt auf, zu oder anhalten |
+| `floor_heating.release` | Handbetrieb eines Kreises aufheben |
+
+Der Zustand wird alle fünf Sekunden abgefragt. Da das Gerät seinen
+Änderungszähler als ETag mitgibt, bleibt die Abfrage im Ruhezustand ohne
+Inhalt (siehe [Abfragetakt](#abfragetakt)).
+
+Ob Schnittstelle und Integration zueinander passen, prüft
+`tools/check_api.py` ohne laufende Home-Assistant-Installation:
+
+```bash
+python3 tools/check_api.py 192.168.1.250
+```
+
+### MQTT-Discovery
+
+Die Entitäten werden per MQTT-Discovery angemeldet und bei jeder
 Konfigurationsänderung neu berechnet; entfallene Räume werden wieder entfernt.
 
 | Typ | Umfang |
@@ -315,24 +276,152 @@ Konfigurationsänderung neu berechnet; entfallene Räume werden wieder entfernt.
 | `sensor`, Diagnose | 6 Messgruppen in mV, erkannte Vorlauffühler, Schaltschrankklima, Laufzeit, WLAN-Empfang, freier Speicher |
 | `button` | Neustart, Regelung je Raum sofort auslösen |
 
-Öffnen, Schließen und Stopp über die Cover-Entities setzen den Handbetrieb-Halt
-und bleiben damit stehen; eine gesetzte Position tut das nicht und wird von der
-Regelung wieder überschrieben.
+Öffnen, Schließen und Stopp über die `cover`-Entitäten setzen den Halt des
+Handbetriebs und bleiben damit stehen; eine gesetzte Position tut das nicht und
+wird von der Regelung wieder überschrieben.
 
-Die 22 einzelnen H-Brücken-Eingänge werden bewusst **nicht** exportiert —
+Die 22 einzelnen H-Brücken-Eingänge werden bewusst **nicht** exportiert, denn
 direktes Schalten umginge Verriegelung und Gruppensperre.
 
-## Aufbau
+## Funktionsweise
 
+### Endlagenerkennung
+
+Im Lauf zieht der Motor eine kleine Spannung über den Messwiderstand; erreicht
+das Ventil den Anschlag, blockiert er und die Spannung steigt deutlich. Alle
+sechs Messgruppen werden alle 50 ms abgetastet, ausgewertet wird ein gleitender
+Median über fünf Werte. Erreicht er die Auslöseschwelle, gilt die Endlage als
+erreicht und die Position wird auf 0 beziehungsweise 100 % gesetzt. Scharf ist
+die Auswertung nur für die Messgruppe eines gerade fahrenden Kreises; die
+Schwelle ist dann die des fahrenden Kreises.
+
+Nach dem Anlauf gilt eine Sperrzeit von zwei Sekunden, in der die Meldung
+verworfen wird, denn der Einschaltstrom sieht sonst wie ein Blockieren aus.
+Bleibt die Endlage aus, beendet die Maximallaufzeit die Fahrt.
+
+### Messfahrt zur Schwellwertermittlung
+
+Die Auslöseschwelle hängt von Antrieb, Messwiderstand und Verkabelung ab.
+Statt sie von Hand zu suchen, fährt die Messfahrt den Kreis einmal ganz zu und
+einmal ganz auf und schreibt dabei den Spannungsverlauf mit. Das Blockieren
+wird **relativ** zum gemessenen Fahrniveau erkannt; eine vorhandene Schwelle
+geht nicht ein, sonst würde die Messfahrt ihr eigenes Ergebnis voraussetzen.
+
+![Ergebnis einer Messfahrt](docs/screenshots/kalibrierung.png)
+
+Braun ist die Schließfahrt, blau die Öffnungsfahrt, dazwischen liegen drei
+Sekunden Ruhe. Die beiden Spitzen sind die Anschläge. Aus dem Verlauf ergeben
+sich Fahrzeiten, Maximallaufzeit (längste Fahrzeit plus rund 15 %),
+Auslöseschwelle (Mitte zwischen Fahrniveau und niedrigerer Spitze) und
+Hysterese; übernommen werden sie erst nach Bestätigung.
+
+Wird in einer Fahrtrichtung keine Endlage erkannt, bricht die Messfahrt mit
+einem Hinweis auf Verdrahtung und Messwiderstand ab.
+
+### Handsteuerung und Notfahrt
+
+Jeder Kreis lässt sich von Hand fahren, **unabhängig davon, welche Stellung
+die Steuerung ihm zuschreibt**. Das ist kein gewöhnlicher Fahrbefehl:
+`valve_goto` prüft die geschätzte Stellung und täte nichts, wenn das Ventil
+bereits als offen gilt; bei unbekannter Stellung führe es sogar erst eine
+Referenzfahrt gegen die untere Endlage aus, bei „auf“ also zunächst zu. Für
+den Notfall ist beides falsch.
+
+`valve_force` fährt deshalb ohne Stellungsvergleich bis zum Anschlag. Beendet
+wird die Fahrt nur durch die Endlage, die Maximallaufzeit oder einen Halt. Über
+`/api/channel/all/cmd` gilt der Befehl für alle elf Kreise zugleich.
+
+Danach bleibt der Kreis im **Handbetrieb**: Die Regelung fasst ihn nicht mehr
+an, bis er ausdrücklich wieder freigegeben wird. Ohne diesen Halt wäre eine
+von Hand erzwungene Stellung beim nächsten Regeldurchlauf nach spätestens
+einem Prüfintervall wieder verworfen. Denselben Halt setzt ein Stoppbefehl:
+Von Hand angehalten bleibt von Hand angehalten. Die Freigabe erfolgt über den
+Befehl „Automatik“, einzeln oder für alle Kreise; der zugehörige Raum wird
+sofort neu bewertet, statt bis zum nächsten Prüfintervall zu warten.
+
+Ein Fahrbefehl auf eine bestimmte Stellung setzt den Halt **nicht** — er wird
+von der Regelung nach spätestens einem Prüfintervall überschrieben.
+
+Die Gruppensperre gilt weiter: Fährt in derselben Messgruppe bereits ein
+anderer Kreis, wartet der Befehl, bis sie frei ist.
+
+### Regelung
+
+Die Ventilstellung folgt der Regelabweichung proportional, über ein Band von
+±1 K (Vorgabe) von ganz zu bis ganz auf, gerastert auf Zehntel:
+
+```text
+diff = soll − ist
+pos  = runden(((diff / band) + 1) / 2 / raster) × raster,   begrenzt auf 0 … 1
+gefahren wird, wenn |aktuell − pos| > Mindeständerung
 ```
+
+Band, Rasterung, Mindeständerung und Prüfintervall sind je Raum einstellbar.
+Der erste Regeldurchlauf findet erst 50 Sekunden nach dem Start statt, damit
+Messwerte und Netzwerk eingelaufen sind. Die Ventilstellungen werden höchstens
+einmal je Minute in den NVS geschrieben und beim Start wiederhergestellt.
+
+### Raumtemperatur
+
+Der ESP32 hört die Raumthermometer selbst mit: Xiaomi-Thermometer mit ATC- oder
+pvvx-Firmware senden ihre Messwerte offen als Rundruf. Es wird keine Verbindung
+aufgebaut und nichts gesendet. Damit hängt die Regelung nicht am Netzwerk.
+
+Bleibt ein Messwert länger als eingestellt aus (Vorgabe 900 s), setzt die
+Regelung für diesen Raum aus und die Ventile bleiben stehen, statt mit einem
+veralteten Wert weiterzuregeln. Dasselbe gilt, solange für einen Raum noch kein
+Messwert eingegangen ist.
+
+## Vorgabewerte
+
+Bis zur ersten Messfahrt und vor der Einrichtung gelten diese Werte. Sie
+stammen aus dem Betrieb der Vorgängerkonfiguration.
+
+| Größe | Vorgabe |
+|---|---|
+| Öffnungszeit / Schließzeit je Kreis | 39 s / 40 s |
+| Maximallaufzeit je Kreis | 45 s |
+| Auslöseschwelle / Hysterese | 190 mV / 30 mV |
+| Sperrzeit nach dem Anlauf | 2 s |
+| Solltemperatur je Raum | 20 °C |
+| Proportionalband | 1,0 K |
+| Rasterung / Mindeständerung | 0,1 / 0,01 |
+| Prüfintervall | 30 s |
+| Höchstalter eines Raummesswerts | 900 s |
+| Täglicher Neustart | 10:00 Uhr, Zeitzone `CET-1CEST,M3.5.0,M10.5.0/3` |
+| Gerätename | `floor-heating` |
+| Kennwort des Einrichtungs-Zugangspunkts | `fussboden` |
+| MQTT | ausgeschaltet, Präfix `fbh` |
+| Tastenschwellen | 1000, 870, 1000 |
+
+Ein täglicher Neustart wird verschoben, solange ein Stellantrieb fährt.
+
+## Fehlersuche
+
+Die folgenden Fälle ergeben sich aus dem beschriebenen Verhalten des Geräts.
+
+| Beobachtung | Ursache | Abhilfe |
+|---|---|---|
+| Das Gerät verbindet sich nicht, ein Zugangspunkt `floor-heating-XXXX` erscheint | Es sind keine WLAN-Zugangsdaten hinterlegt | Über das Einrichtungsportal verbinden |
+| Das Einrichtungsportal öffnet sich beim Verbinden nicht von selbst | Das Betriebssystem erkennt das Captive Portal nicht | `http://192.168.4.1` aufrufen |
+| Ein Raum wird nicht geregelt, die Ventile stehen | Der Messwert ist älter als das eingestellte Höchstalter, oder es liegt noch keiner vor | Empfang unter **Sensoren** prüfen |
+| Die Messfahrt bricht mit einem Hinweis ab | In einer Fahrtrichtung wurde keine Endlage erkannt | Verdrahtung und Messwiderstand prüfen |
+| Ein Kreis folgt der Regelung nicht | Der Kreis steht im Handbetrieb | Befehl „Automatik“ für den Kreis oder für alle Kreise |
+| Ein Fahrbefehl wird erst verzögert ausgeführt | In derselben Messgruppe fährt bereits ein anderer Kreis | Abwarten; die Gruppensperre gibt den Befehl frei |
+| Die Tasten am Gehäuse lösen nicht aus | Die Tastenschwellen passen nicht zur Baugruppe | Rohwerte unter **Sensoren** ablesen, Schwelle mittig setzen |
+| Nach einer Aktualisierung läuft wieder die vorherige Firmware | Die neue Fassung ist nicht vollständig angelaufen und wurde nicht bestätigt | Ursache über `idf.py monitor` suchen |
+
+## Aufbau des Quelltextbestands
+
+```text
 main/
   main.c          Start der Bausteine
   app_control.c   Ventilzustände, Gruppensperre, Raumregelung   ← Kern
-  app_calib.c     Automatische Kalibrierung der Endlagenerkennung
+  app_calib.c     Messfahrt und Auswertung der Schwellwerte
   app_web.c       HTTP-Server, JSON-Schnittstelle, Captive Portal, OTA
   app_mqtt.c      Home-Assistant-Discovery und Zustände
   app_ui.c        Anzeige und Tasten am Gerät
-  www/index.html  Oberfläche, komprimiert ins Abbild gelegt
+  www/index.html  Weboberfläche, komprimiert ins Programmabbild gelegt
 components/
   hw_map/         Pin- und Gruppentabellen — einzige Stelle mit Hardwarewissen
   sr74hc595/      Schieberegister mit Verriegelung IA gegen IB
@@ -349,26 +438,29 @@ components/
 board/            Fertigungsdaten der Platine: Gerber, DXF, Stückliste
 case/             Druckgehäuse, mit CadQuery konstruiert (eigene README)
 test/host/        Prüfungen ohne IDF und ohne Hardware
-tools/            Geräteattrappe und Bildschirmaufnahmen
+tools/            Geräteattrappe, Bildschirmaufnahmen, Prüfung der Schnittstelle
+custom_components/
+                  Integration für Home Assistant (über HACS einzubinden)
 docs/screenshots/ Aufnahmen dieser Seite
 ```
 
 ## Entwicklung ohne Hardware
 
-Die Oberfläche lässt sich ohne Gerät bedienen. `tools/mock_device.py` liefert
-die echte Seite mit erfundenen Messwerten:
+Die Weboberfläche lässt sich ohne Gerät bedienen. `tools/mock_device.py`
+liefert die echte Seite mit erfundenen Messwerten aus:
 
 ```bash
 python3 tools/mock_device.py
 ```
 
-Danach `http://localhost:8321` aufrufen. `?theme=dark` erzwingt ein
-Farbschema, `#kreise` und die übrigen Anker öffnen einen Bereich direkt,
-`/mock/ap?on=1` schaltet in den Zugangspunkt-Betrieb, um das Einrichtungsportal
-zu sehen. `tools/screenshots.sh` erzeugt daraus die Aufnahmen dieser Seite;
-vorausgesetzt werden Google Chrome und ImageMagick.
+Rufen Sie danach `http://localhost:8321` auf. Der Parameter `?theme=dark`
+erzwingt ein Farbschema, `#kreise` und die übrigen Anker öffnen einen Bereich
+direkt. Mit `/mock/ap?on=1` schaltet die Attrappe in den Zugangspunkt-Betrieb,
+sodass sich das Einrichtungsportal ansehen lässt. Aus diesen Ansichten erzeugt
+`tools/screenshots.sh` die Aufnahmen dieser Seite; vorausgesetzt werden Google
+Chrome und ImageMagick.
 
-## Prüfen
+## Prüfungen
 
 Regelgesetz, Ventil-Zustandsmaschine und Hardwarezuordnung laufen ohne IDF und
 ohne Hardware:
@@ -379,19 +471,23 @@ make -C test/host
 
 Der Lauf umfasst 215 Prüfungen.
 
-An der Hardware:
+An der Hardware sind folgende Schritte vorgesehen:
 
-1. Schieberegister: alle 22 Ausgänge einzeln schalten, gegen die
-   L9110s-Eingänge messen, Verriegelung prüfen (IA und IB nie gleichzeitig).
-2. Einen Kreis ganz zu und ganz auf fahren; Laufzeit und Abschaltung über die
-   Endlage prüfen. Die Maximallaufzeit muss greifen, wenn die Endlage ausbleibt.
-3. Messfahrt eines Kreises, Verlauf gegen den Vorgabewert von 190 mV halten.
-4. Gruppensperre: Kreis 1 fahren lassen und währenddessen Kreis 2 anfordern —
-   Kreis 2 darf erst danach fahren.
-5. Tasten: unter **Sensoren** die Rohwerte in Ruhe und bei Berührung ablesen,
-   die Schwelle etwa mittig setzen.
-6. MQTT: Entities erscheinen in Home Assistant; einen Raum löschen und neu
-   anlegen — die Entities verschwinden und kommen wieder.
+1. **Schieberegister.** Schalten Sie alle 22 Ausgänge einzeln, messen Sie gegen
+   die L9110s-Eingänge und prüfen Sie die Verriegelung: IA und IB dürfen nie
+   gleichzeitig anliegen.
+2. **Ventilfahrt.** Fahren Sie einen Kreis ganz zu und ganz auf und prüfen Sie
+   Laufzeit und Abschaltung über die Endlage. Die Maximallaufzeit muss greifen,
+   wenn die Endlage ausbleibt.
+3. **Messfahrt.** Führen Sie eine Messfahrt eines Kreises durch und halten Sie
+   den Verlauf gegen den Vorgabewert von 190 mV.
+4. **Gruppensperre.** Lassen Sie Kreis 1 fahren und fordern Sie währenddessen
+   Kreis 2 an; Kreis 2 darf erst danach fahren.
+5. **Tasten.** Lesen Sie unter **Sensoren** die Rohwerte in Ruhe und bei
+   Berührung ab und setzen Sie die Schwelle etwa mittig.
+6. **MQTT.** Prüfen Sie, ob die Entitäten in Home Assistant erscheinen.
+   Löschen Sie einen Raum und legen Sie ihn neu an; die Entitäten müssen
+   verschwinden und wiederkommen.
 
 ## Stand der Erprobung
 
@@ -412,57 +508,79 @@ Nicht erprobt sind der Dauerbetrieb der Regelung über längere Zeit sowie
 Anzeige (SSD1327) und DS18B20-Fühler, weil beide nicht dauerhaft angeschlossen
 sind.
 
-## Abweichungen von der Vorgängerkonfiguration
+## Vorgängerkonfiguration
+
+Vorgänger war eine ESPHome-Konfiguration mit rund 1750 Zeilen YAML, in der die
+Regel- und Endlagenlogik bereits vollständig in Lambda-Blöcken steckte. Räume
+und Kreiszuordnung waren dort fest verdrahtet; jede Änderung erforderte
+Neuübersetzung und Einspielen. Das war der Anlass für die Portierung.
+
+### Bereinigte Unstimmigkeiten
 
 Vier Unstimmigkeiten der ESPHome-Fassung sind dabei bereinigt:
 
 1. **Endlagenzuordnung Kreis 9 bis 11.** Die Cover gaben `BEMF_4_sensor` an,
    gehören laut Verdrahtung aber zu Gruppe 5 beziehungsweise 6. Wirksam wurde
    die Endlage bisher nur über die `on_press`-Lambdas.
-2. **Belegtprüfung bei Kreis 5.** Geprüft wurde Kreis 4; Kreis 5 teilt sich die
-   Messgruppe jedoch mit Kreis 6.
-3. **Touch-Tasten.** Die Raumauswahl zählte 0 bis 3, die Tasten verglichen
+2. **Belegtprüfung bei Kreis 5.** Geprüft wurde Kreis 4; Kreis 5 teilt sich
+   die Messgruppe jedoch mit Kreis 6.
+3. **Kapazitive Tasten.** Die Raumauswahl zählte 0 bis 3, die Tasten verglichen
    gegen 10 bis 13 und lösten deshalb nie aus.
-4. **Abbruch statt Überspringen.** War ein Kreis gesperrt, brach die Prüfung des
-   gesamten Raums ab. Jetzt wird nur der betroffene Kreis übersprungen.
+4. **Abbruch statt Überspringen.** War ein Kreis gesperrt, brach die Prüfung
+   des gesamten Raums ab. Jetzt wird nur der betroffene Kreis übersprungen.
 
-Bewusst geändertes Verhalten:
+### Bewusst geändertes Verhalten
 
 - **Schnellere Endlagenerkennung.** ESPHome bildete den Median über fünf Werte
   und meldete nur jeden fünften, also alle 1,25 s. Jetzt wird bei 50 ms
   Abtastung ein gleitender Median bei jedem Wert ausgewertet.
 - **Ein Sollwert statt low/high.** Das Original mittelte ohnehin über beide.
-- **Ventilstellungen im NVS**, beim Start wiederhergestellt. Ist keine Stellung
-  bekannt, fährt der Kreis beim ersten Regeleingriff einmal auf Anschlag.
+- **Ventilstellungen im NVS.** Sie werden beim Start wiederhergestellt. Ist
+  keine Stellung bekannt, fährt der Kreis beim ersten Regeleingriff einmal auf
+  Anschlag.
 - **Veralteter Messwert setzt die Regelung aus.** Das Original hätte
   stillschweigend mit dem letzten bekannten Wert weitergeregelt.
-- **Raumtemperatur über BLE statt über Home Assistant.**
-- **Räume zur Laufzeit konfigurierbar** statt fest im YAML.
+- **Raumtemperatur über BLE statt über Home Assistant.** Die Regelung hängt
+  damit nicht mehr am Netzwerk.
+- **Räume zur Laufzeit konfigurierbar.** Sie stehen nicht mehr fest im YAML.
 
 ## Offene Punkte
 
-- **Touch-Schwellen** (1000, 870, 1000) stammen aus der ESPHome-Fassung. Die
+- **Tastenschwellen** (1000, 870, 1000) stammen aus der ESPHome-Fassung. Die
   Messdauer der neuen Treiberfassung weicht ab, sie sind nur ein Ausgangspunkt
   und unter **Sensoren** nachzustellen.
 - **MAC-Adressen der Thermometer** ergeben sich beim ersten BLE-Empfang.
 - **Matter und Thread** sind nicht umgesetzt. Thread scheidet auf dieser
   Platine aus, weil dem ESP32-WROOM-32 das 802.15.4-Funkteil fehlt. Matter über
   WLAN passt nicht in den verfügbaren Programmspeicher. Wird Matter gebraucht,
-  reicht Home Assistant die vorhandenen MQTT-Entities über seine eigene
+  reicht Home Assistant die vorhandenen MQTT-Entitäten über seine eigene
   Matter-Bridge weiter.
+
+## Fremdkomponenten
+
+Grundlage der Firmware ist das ESP-IDF von Espressif; der Empfang der
+Raumthermometer setzt auf NimBLE auf. Über die ESP-IDF-Registry werden zur
+Bauzeit vier Komponenten eingebunden, die eigenen Lizenzen unterliegen und
+nicht Teil dieses Quelltextbestands sind:
+
+| Komponente | Lizenz |
+|---|---|
+| `espressif/cjson` | MIT |
+| `espressif/mqtt` | Apache-2.0 |
+| `espressif/onewire_bus` | Apache-2.0 |
+| `espressif/ds18b20` | Apache-2.0 |
+
+Die Raumthermometer senden mit der freien Fremdfirmware ATC beziehungsweise
+pvvx. Das Gehäuse ist mit CadQuery konstruiert.
 
 ## Lizenz
 
 Apache License 2.0, siehe [LICENSE](LICENSE) und [NOTICE](NOTICE).
 
 Die Software wird ohne jede Gewährleistung bereitgestellt. Sie steuert eine
-Heizungsanlage: wer sie einsetzt, tut das auf eigenes Risiko und sollte die
-Prüfschritte oben an der eigenen Hardware durchgehen, bevor er sie unbeaufsichtigt
-laufen lässt.
-
-Über die ESP-IDF-Registry eingebundene Komponenten stehen unter eigenen
-Lizenzen (cJSON unter MIT, die übrigen unter Apache-2.0) und sind nicht Teil
-dieses Quelltextbestands.
+Heizungsanlage: Wenn Sie sie einsetzen, tun Sie das auf eigenes Risiko. Gehen
+Sie die [Prüfungen](#prüfungen) an der eigenen Hardware durch, bevor Sie die
+Anlage unbeaufsichtigt laufen lassen.
 
 ## Marken
 

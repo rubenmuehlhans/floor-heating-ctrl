@@ -1,0 +1,75 @@
+calibrate:
+  name: Messfahrt starten
+  description: >-
+    Fährt den Heizkreis einmal ganz zu und einmal ganz auf und ermittelt dabei
+    Fahrzeiten und Auslöseschwelle. Der Antrieb ist dabei mehrere Minuten in
+    Bewegung. Das Ergebnis wird erst mit "Messfahrt übernehmen" gespeichert.
+  fields:
+    channel:
+      name: Heizkreis
+      description: Nummer des Heizkreises am Verteiler.
+      required: true
+      example: 4
+      selector:
+        number:
+          min: 1
+          max: 11
+          mode: box
+
+calibrate_accept:
+  name: Messfahrt übernehmen
+  description: >-
+    Übernimmt das Ergebnis der zuletzt abgeschlossenen Messfahrt in die
+    Konfiguration des Geräts.
+
+calibrate_abort:
+  name: Messfahrt abbrechen
+  description: Bricht eine laufende Messfahrt ab und schaltet den Motor aus.
+
+force:
+  name: Notfahrt
+  description: >-
+    Fährt den Motor bis zum Anschlag, unabhängig von der geschätzten Stellung.
+    Der Heizkreis bleibt danach im Handbetrieb und wird nicht mehr geregelt,
+    bis er über "Handbetrieb aufheben" freigegeben wird.
+  fields:
+    channel:
+      name: Heizkreis
+      description: Nummer des Heizkreises am Verteiler.
+      required: true
+      example: 4
+      selector:
+        number:
+          min: 1
+          max: 11
+          mode: box
+    direction:
+      name: Richtung
+      description: Öffnen, schließen oder den Motor anhalten.
+      required: true
+      selector:
+        select:
+          options:
+            - label: Öffnen
+              value: open
+            - label: Schließen
+              value: close
+            - label: Anhalten
+              value: stop
+
+release:
+  name: Handbetrieb aufheben
+  description: >-
+    Gibt den Heizkreis wieder an die Regelung zurück und bewertet den
+    zugehörigen Raum sofort neu.
+  fields:
+    channel:
+      name: Heizkreis
+      description: Nummer des Heizkreises am Verteiler.
+      required: true
+      example: 4
+      selector:
+        number:
+          min: 1
+          max: 11
+          mode: box
