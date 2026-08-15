@@ -263,10 +263,12 @@ static esp_err_t state_get(httpd_req_t *req)
     }
     httpd_resp_set_hdr(req, "ETag", etag);
 
-    ctl_snapshot_t snap;
+    /* Zusammen rund 2,6 kB - der Stack der HTTP-Task traegt das nicht.
+     * Der Server arbeitet Anfragen in einer einzigen Task ab, ein statischer
+     * Puffer ist deshalb ausreichend. */
+    static ctl_snapshot_t snap;
+    static app_config_t cfg;
     control_snapshot(&snap);
-
-    app_config_t cfg;
     cfg_copy(&cfg);
 
     netmgr_status_t net;
@@ -345,7 +347,7 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddItemToArray(jtouch, cJSON_CreateNumber(touch[i]));
     }
 
-    sensors_snapshot_t sens;
+    static sensors_snapshot_t sens;
     sensors_get(&sens);
     cJSON *jsens = cJSON_AddObjectToObject(root, "local_sensors");
     cJSON *jds = cJSON_AddArrayToObject(jsens, "ds18b20");
@@ -373,7 +375,7 @@ static esp_err_t state_get(httpd_req_t *req)
 
 static esp_err_t config_get(httpd_req_t *req)
 {
-    app_config_t cfg;
+    static app_config_t cfg;
     cfg_copy(&cfg);
     char *json = cfg_to_json(&cfg, false);
     if (json == NULL) {
@@ -395,7 +397,7 @@ static esp_err_t config_put(httpd_req_t *req)
 
     /* Bestehende Zugangsdaten als Ausgangsbasis: die Oberflaeche bekommt sie
      * nie zu sehen und kann sie deshalb auch nicht zuruecksenden. */
-    app_config_t next;
+    static app_config_t next;
     cfg_copy(&next);
 
     char err[128] = {0};

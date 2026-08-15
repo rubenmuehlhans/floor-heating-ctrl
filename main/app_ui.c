@@ -8,6 +8,7 @@
 #include "driver/touch_sens.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "esp_timer.h"
 #include "freertos/task.h"
 #include "sensors_local.h"
 #include "ssd1327.h"
@@ -31,6 +32,18 @@ static touch_sensor_handle_t s_touch;
 static touch_channel_handle_t s_chan[HW_TOUCH_COUNT];
 static uint32_t s_raw[HW_TOUCH_COUNT];
 static bool s_pressed[HW_TOUCH_COUNT];
+/* Eine Taste zaehlt erst, nachdem sie einmal sauber als losgelassen gemessen
+ * wurde. Direkt nach dem Einschalten hat der Treiber seinen Bezugswert noch
+ * nicht gebildet und meldet Werte unterhalb der Schwelle - beim ersten
+ * Hardwaretest hat das sofort einen Sollwert verstellt. */
+static bool s_armed[HW_TOUCH_COUNT];
+static uint32_t s_touch_started_ms;
+#define TOUCH_SETTLE_MS 2000
+
+static inline uint32_t now_ms(void)
+{
+    return (uint32_t)(esp_timer_get_time() / 1000);
+}
 
 static uint8_t s_selected; /* Index in die Raumliste */
 static bool s_config_dirty;
@@ -169,7 +182,7 @@ static void draw_detail(const ctl_snapshot_t *snap)
     }
 
     /* Vorlauftemperatur des ersten Fuehlers, sofern vorhanden. */
-    sensors_snapshot_t sens;
+    static sensors_snapshot_t sens; /* nur aus der ui-Task benutzt */
     sensors_get(&sens);
     for (int i = 0; i < sens.ds_count; i++) {
         if (!sens.ds[i].valid) {
@@ -183,7 +196,9 @@ static void draw_detail(const ctl_snapshot_t *snap)
 
 static void draw(void)
 {
-    ctl_snapshot_t snap;
+    /* Über 1 kB gross - gehoert nicht auf den Stack. Die Anzeige laeuft
+     * ausschliesslich in der ui-Task, ein statischer Puffer genuegt. */
+    static ctl_snapshot_t snap;
     control_snapshot(&snap);
 
     if (snap.room_count > 0 && s_selected >= snap.room_count) {
@@ -202,7 +217,7 @@ static void draw(void)
 
 static void adjust_setpoint(float delta)
 {
-    ctl_snapshot_t snap;
+    static ctl_snapshot_t snap;
     control_snapshot(&snap);
     if (snap.room_count == 0 || s_selected >= snap.room_count) {
         return;
@@ -221,7 +236,7 @@ static void adjust_setpoint(float delta)
 
 static void on_press(int index)
 {
-    ctl_snapshot_t snap;
+    static ctl_snapshot_t snap;
     switch (index) {
     case 0:
         adjust_setpoint(-SETPOINT_STEP);
@@ -271,6 +286,7 @@ static esp_err_t touch_init(const app_config_t *cfg)
 
     touch_sensor_enable(s_touch);
     touch_sensor_start_continuous_scanning(s_touch);
+    s_touch_started_ms = now_ms();
     ESP_LOGI(TAG, "Tastenauswertung laeuft");
     return ESP_OK;
 }
@@ -282,6 +298,8 @@ static esp_err_t touch_init(const app_config_t *cfg)
  */
 static void poll_touch(const app_config_t *cfg)
 {
+    bool settled = (now_ms() - s_touch_started_ms) >= TOUCH_SETTLE_MS;
+
     for (int i = 0; i < HW_TOUCH_COUNT; i++) {
         if (s_chan[i] == NULL) {
             continue;
@@ -294,6 +312,19 @@ static void poll_touch(const app_config_t *cfg)
 
         /* Beim ESP32 sinkt der Messwert bei Beruehrung. */
         bool now_pressed = value > 0 && value < cfg->touch_thresh[i];
+
+        if (!s_armed[i]) {
+            /* Erst wenn die Taste einmal eindeutig losgelassen war, wird sie
+             * scharf. Damit fallen weder der unruhige Anlauf noch eine zu hoch
+             * eingestellte Schwelle als Dauerdruck ins Gewicht. */
+            if (settled && !now_pressed) {
+                s_armed[i] = true;
+                ESP_LOGD(TAG, "Taste %d scharf, Ruhewert %lu", i + 1, (unsigned long)value);
+            }
+            s_pressed[i] = now_pressed;
+            continue;
+        }
+
         if (now_pressed && !s_pressed[i]) {
             on_press(i);
         }
@@ -307,7 +338,7 @@ static void ui_task(void *arg)
 {
     (void)arg;
 
-    app_config_t cfg;
+    static app_config_t cfg; /* rund 1,5 kB, nicht auf den Stack */
     cfg_copy(&cfg);
 
     bool display_ok = ssd1327_init() == ESP_OK;
@@ -353,7 +384,7 @@ static void ui_task(void *arg)
 
 esp_err_t ui_start(void)
 {
-    BaseType_t ok = xTaskCreate(ui_task, "ui", 4096, NULL, 3, NULL);
+    BaseType_t ok = xTaskCreate(ui_task, "ui", 6144, NULL, 3, NULL);
     return ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 

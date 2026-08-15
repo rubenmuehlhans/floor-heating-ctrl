@@ -31,6 +31,34 @@ i2c_master_bus_handle_t i2cbus_get(void)
     return s_bus;
 }
 
+void i2cbus_scan(void)
+{
+    i2c_master_bus_handle_t bus = i2cbus_get();
+    if (bus == NULL) {
+        return;
+    }
+
+    char found[64] = {0};
+    size_t len = 0;
+    int count = 0;
+    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
+        if (i2c_master_probe(bus, addr, 50) != ESP_OK) {
+            continue;
+        }
+        count++;
+        if (len < sizeof(found) - 8) {
+            len += snprintf(found + len, sizeof(found) - len, "0x%02X ", addr);
+        }
+    }
+
+    if (count == 0) {
+        ESP_LOGW(TAG, "Kein Baustein am I2C-Bus (SDA %d, SCL %d)", HW_PIN_I2C_SDA,
+                 HW_PIN_I2C_SCL);
+    } else {
+        ESP_LOGI(TAG, "I2C-Bus: %d Baustein(e) auf %s", count, found);
+    }
+}
+
 bool i2cbus_probe(uint8_t address)
 {
     i2c_master_bus_handle_t bus = i2cbus_get();

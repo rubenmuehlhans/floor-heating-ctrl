@@ -13,6 +13,7 @@
 #include "atc_ble.h"
 #include "bemf.h"
 #include "config_store.h"
+#include "i2cbus.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -43,6 +44,10 @@ void app_main(void)
     ESP_ERROR_CHECK(sr595_init());
     ESP_ERROR_CHECK(sr595_all_off());
 
+    /* Zeigt beim Start, was am Bus haengt - eine fehlende Anzeige ist sonst
+     * nicht von einer falschen Adresse zu unterscheiden. */
+    i2cbus_scan();
+
     ESP_ERROR_CHECK(bemf_start());
     ESP_ERROR_CHECK(control_start());
 
@@ -55,7 +60,7 @@ void app_main(void)
         ESP_LOGW(TAG, "Bedienung am Geraet nicht verfuegbar");
     }
 
-    app_config_t cfg;
+    static app_config_t cfg;
     cfg_copy(&cfg);
     ESP_ERROR_CHECK(netmgr_start(&cfg));
     netmgr_set_reboot_guard(control_busy);

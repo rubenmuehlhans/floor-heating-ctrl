@@ -120,13 +120,22 @@ static bool group_busy(uint8_t channel)
 /* Konfiguration uebernehmen                                           */
 /* ------------------------------------------------------------------ */
 
+/*
+ * app_config_t ist rund 1,5 kB gross. Auf einem Task-Stack hat es nichts
+ * verloren - genau daran ist die Bedien-Task beim ersten Hardwaretest
+ * gescheitert. Alle groesseren Kopien liegen deshalb auf dem Heap.
+ */
 static void load_config_locked(void)
 {
-    app_config_t fresh;
-    cfg_copy(&fresh);
+    app_config_t *fresh = malloc(sizeof(*fresh));
+    if (fresh == NULL) {
+        ESP_LOGE(TAG, "Kein Speicher zum Einlesen der Konfiguration");
+        return;
+    }
+    cfg_copy(fresh);
 
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
-        const cfg_channel_t *c = &fresh.channels[i];
+        const cfg_channel_t *c = &fresh->channels[i];
         valve_cfg_t vc = {
             .open_ms = c->open_ms,
             .close_ms = c->close_ms,
@@ -138,11 +147,11 @@ static void load_config_locked(void)
 
     /* Raumlaufzeitdaten anhand der Kennung uebernehmen, damit ein
      * umbenannter Raum seinen Messwert behaelt. */
-    room_rt_t merged[CFG_MAX_ROOMS];
+    static room_rt_t merged[CFG_MAX_ROOMS]; /* nur unter dem Mutex benutzt */
     memset(merged, 0, sizeof(merged));
-    for (int i = 0; i < fresh.room_count; i++) {
+    for (int i = 0; i < fresh->room_count; i++) {
         for (int j = 0; j < s_cfg.room_count; j++) {
-            if (s_cfg.rooms[j].id == fresh.rooms[i].id) {
+            if (s_cfg.rooms[j].id == fresh->rooms[i].id) {
                 merged[i] = s_room[j];
                 break;
             }
@@ -150,7 +159,8 @@ static void load_config_locked(void)
     }
     memcpy(s_room, merged, sizeof(s_room));
 
-    s_cfg = fresh;
+    s_cfg = *fresh;
+    free(fresh);
     s_revision++;
 }
 
@@ -445,17 +455,22 @@ static int room_index(uint8_t room_id)
 /* Aendert einen Raum in der gespeicherten Konfiguration und uebernimmt ihn. */
 static void room_patch(uint8_t room_id, float target_c, const bool *mode_heat)
 {
-    app_config_t next;
-    cfg_copy(&next);
+    app_config_t *next = malloc(sizeof(*next));
+    if (next == NULL) {
+        ESP_LOGE(TAG, "Kein Speicher fuer die Raumaenderung");
+        return;
+    }
+    cfg_copy(next);
 
     cfg_room_t *r = NULL;
-    for (int i = 0; i < next.room_count; i++) {
-        if (next.rooms[i].id == room_id) {
-            r = &next.rooms[i];
+    for (int i = 0; i < next->room_count; i++) {
+        if (next->rooms[i].id == room_id) {
+            r = &next->rooms[i];
             break;
         }
     }
     if (r == NULL) {
+        free(next);
         return;
     }
     if (!isnan(target_c)) {
@@ -466,7 +481,9 @@ static void room_patch(uint8_t room_id, float target_c, const bool *mode_heat)
     }
 
     char err[128];
-    if (cfg_set(&next, err, sizeof(err)) != ESP_OK) {
+    esp_err_t rc = cfg_set(next, err, sizeof(err));
+    free(next);
+    if (rc != ESP_OK) {
         ESP_LOGW(TAG, "Raumaenderung abgelehnt: %s", err);
         return;
     }

@@ -222,7 +222,7 @@ static void retract(const char *component, const char *object)
 
 static void announce_all(void)
 {
-    ctl_snapshot_t snap;
+    static ctl_snapshot_t snap; /* nur aus der mqtt-Task benutzt */
     control_snapshot(&snap);
 
     /* Zuerst die Raeume abmelden, die es nicht mehr gibt. */
@@ -283,7 +283,7 @@ static void announce_all(void)
     }
     /* Fuehler auf der Platine. Die Anzahl steht erst nach der Suche am
      * 1-Wire-Bus fest, deshalb hier und nicht statisch. */
-    sensors_snapshot_t sens;
+    static sensors_snapshot_t sens;
     sensors_get(&sens);
     for (int i = 0; i < sens.ds_count; i++) {
         char slug[32], name[48], tpl[64];
@@ -328,7 +328,7 @@ static const char *cover_state_name(valve_op_t op, float position)
 
 static void publish_states(void)
 {
-    ctl_snapshot_t snap;
+    static ctl_snapshot_t snap;
     control_snapshot(&snap);
 
     char topic[TOPIC_LEN];
@@ -378,7 +378,7 @@ static void publish_states(void)
         cJSON_AddItemToArray(bemf, cJSON_CreateNumber(snap.bemf_mv[g]));
     }
 
-    sensors_snapshot_t sens;
+    static sensors_snapshot_t sens; /* nur aus der mqtt-Task benutzt */
     sensors_get(&sens);
     cJSON *ds = cJSON_AddArrayToObject(j, "ds");
     for (int i = 0; i < sens.ds_count; i++) {

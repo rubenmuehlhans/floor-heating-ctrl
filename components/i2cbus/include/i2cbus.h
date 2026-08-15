@@ -16,6 +16,10 @@ extern "C" {
  * NULL, wenn der Bus nicht verfuegbar ist. */
 i2c_master_bus_handle_t i2cbus_get(void);
 
+/* Listet alle antwortenden Adressen im Protokoll auf - hilft beim Suchen
+ * einer fehlenden Anzeige oder eines nicht bestueckten Sensors. */
+void i2cbus_scan(void);
+
 /* Prueft, ob ein Geraet auf die eigene Adresse antwortet. */
 bool i2cbus_probe(uint8_t address);
 

@@ -214,9 +214,9 @@ static void calib_task(void *arg)
 {
     (void)arg;
 
-    app_config_t cfg;
-    cfg_copy(&cfg);
-    uint32_t blank_ms = cfg.channels[s_st.channel - 1].blank_ms;
+    cfg_lock();
+    uint32_t blank_ms = cfg_peek()->channels[s_st.channel - 1].blank_ms;
+    cfg_unlock();
     if (blank_ms < 1000) {
         blank_ms = 1000;
     }
@@ -406,9 +406,13 @@ esp_err_t calib_accept(char *err, size_t err_len)
         return ESP_ERR_INVALID_STATE;
     }
 
-    app_config_t cfg;
-    cfg_copy(&cfg);
-    cfg_channel_t *c = &cfg.channels[s_st.channel - 1];
+    app_config_t *cfg = malloc(sizeof(*cfg));
+    if (cfg == NULL) {
+        snprintf(err, err_len, "Kein Speicher");
+        return ESP_ERR_NO_MEM;
+    }
+    cfg_copy(cfg);
+    cfg_channel_t *c = &cfg->channels[s_st.channel - 1];
     c->close_ms = s_st.suggest_close_ms;
     c->open_ms = s_st.suggest_open_ms;
     c->max_ms = s_st.suggest_max_ms;
@@ -416,7 +420,8 @@ esp_err_t calib_accept(char *err, size_t err_len)
     c->bemf_hyst_mv = s_st.suggest_hyst_mv;
     c->calibrated = true;
 
-    esp_err_t rc = cfg_set(&cfg, err, err_len);
+    esp_err_t rc = cfg_set(cfg, err, err_len);
+    free(cfg);
     if (rc == ESP_OK) {
         control_config_changed();
         ESP_LOGI(TAG, "CH%u kalibriert uebernommen", s_st.channel);
