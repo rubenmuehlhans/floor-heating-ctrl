@@ -1,0 +1,1258 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fußbodenheizung Erdgeschoss</title>
+<style>
+/* ------------------------------------------------------------------
+   Farben. Grundton kühles Grüngrau — die Farbe eines Schaltschranks,
+   nicht eines Wohnraums. Petrol trägt die Bedienung, der Wärmeton
+   ausschließlich den Zustand „heizt“.
+   ------------------------------------------------------------------ */
+:root{
+  --ground:#eef0ee; --surface:#fff; --sunken:#f6f8f6;
+  --ink:#141817; --muted:#697370; --faint:#98a19d;
+  --line:#dde1de; --line-strong:#c6ccc8;
+  --accent:#10646f; --accent-soft:#e3eef0; --accent-ink:#fff;
+  --heat:#d2542a; --heat-soft:#fbeae3;
+  --ok:#3e8a57; --warn:#96690f; --bad:#b3261e;
+  --pill-on:#fff;
+  --shadow:0 1px 2px rgba(20,24,23,.05), 0 8px 24px -12px rgba(20,24,23,.18);
+  --r:10px; --r-sm:7px;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  --data:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+    --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+    --line:#2b312f; --line-strong:#3b423f;
+    --accent:#57b6c2; --accent-soft:#173338; --accent-ink:#0d1717;
+    --heat:#e8794b; --heat-soft:#33201a;
+    --ok:#5fb37b; --warn:#c9993c; --bad:#e4695e;
+    --pill-on:#2e3533;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+  --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+  --line:#2b312f; --line-strong:#3b423f;
+  --accent:#57b6c2; --accent-soft:#173338; --accent-ink:#0d1717;
+  --heat:#e8794b; --heat-soft:#33201a;
+  --ok:#5fb37b; --warn:#c9993c; --bad:#e4695e;
+  --pill-on:#2e3533;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+
+/* Symbole erben Farbe und Schriftgröße vom Text, damit sie überall mitwachsen. */
+.ic{width:1.08em; height:1.08em; flex:none; fill:none; stroke:currentColor;
+  stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.16em}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font:15px/1.5 var(--ui); font-variant-numeric:tabular-nums;
+}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+
+/* ---------------- Kopf und Navigation ---------------- */
+
+header{
+  position:sticky; top:0; z-index:20; background:var(--surface);
+  border-bottom:1px solid var(--line); padding:.75rem 1rem .55rem;
+}
+.brand{display:flex; align-items:baseline; gap:.65rem; flex-wrap:wrap}
+.brand h1{margin:0; font-size:1rem; font-weight:600; letter-spacing:-.01em}
+.brand .place{font-size:.72rem; text-transform:uppercase; letter-spacing:.11em; color:var(--faint)}
+.status{display:flex; gap:.4rem .9rem; flex-wrap:wrap; margin-top:.4rem;
+  font:12px/1.4 var(--data); color:var(--muted)}
+.status b{font-weight:500; color:var(--ink)}
+.status .link{display:inline-flex; align-items:center}
+.status .link.ok{color:var(--ok)}
+.status .link.warn{color:var(--warn)}
+
+nav{position:sticky; top:0; z-index:19; background:var(--surface);
+  border-bottom:1px solid var(--line); padding:0 .6rem .6rem; overflow-x:auto}
+.tabs{display:inline-flex; gap:2px; padding:3px; background:var(--sunken);
+  border:1px solid var(--line); border-radius:99px}
+.tabs button{
+  border:none; background:none; color:var(--muted); cursor:pointer;
+  font:inherit; font-size:.88rem; padding:.34rem .85rem; border-radius:99px;
+  white-space:nowrap; transition:background .15s, color .15s;
+  display:inline-flex; align-items:center; gap:.4rem;
+}
+.tabs .ic{opacity:.75}
+.tabs button.on .ic{opacity:1; color:var(--accent)}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{background:var(--pill-on); color:var(--ink); font-weight:600; box-shadow:var(--shadow)}
+
+main{padding:1.1rem 1rem 3rem; max-width:1120px; margin:0 auto;
+  display:flex; flex-direction:column; gap:1.1rem}
+section{display:none; flex-direction:column; gap:1.1rem}
+section.on{display:flex}
+
+/* ---------------- Flächen ---------------- */
+
+.card{background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); padding:1.1rem; box-shadow:var(--shadow)}
+.card>h2{margin:0 0 .2rem; font-size:.95rem; font-weight:600; letter-spacing:-.01em}
+.card>h2+.lede{margin:0 0 1rem}
+.lede{color:var(--muted); font-size:.85rem; max-width:62ch; margin:0 0 .9rem}
+h3.sub{margin:1.3rem 0 .55rem; font-size:.7rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.1em; color:var(--faint)}
+h3.sub:first-child{margin-top:0}
+
+/* ---------------- Verteilerbalken ---------------- */
+
+.manifold{display:flex; gap:1.15rem; align-items:flex-end; overflow-x:auto; padding-bottom:.2rem}
+.mf-group{display:flex; flex-direction:column; gap:.45rem; flex:0 0 auto}
+.mf-bars{display:flex; gap:6px; align-items:flex-end; justify-content:center}
+.mf-ch{display:flex; flex-direction:column; align-items:center; gap:.3rem; width:26px}
+.gauge{width:100%; height:104px; background:var(--sunken); border:1px solid var(--line);
+  border-radius:var(--r-sm); position:relative; overflow:hidden}
+.gauge>i{position:absolute; left:0; right:0; bottom:0; background:var(--accent);
+  transition:height .6s cubic-bezier(.4,0,.2,1)}
+.gauge.hot>i{background:var(--heat)}
+.gauge.moving{border-color:var(--heat)}
+.gauge.moving>i{animation:breathe 1.6s ease-in-out infinite}
+.gauge.unknown{background:repeating-linear-gradient(135deg,var(--sunken) 0 4px,var(--line) 4px 5px)}
+@keyframes breathe{50%{opacity:.55}}
+.mf-ch span{font:11px/1 var(--data); color:var(--faint)}
+.mf-label{font-size:.74rem; color:var(--muted); text-align:center;
+  border-top:1px solid var(--line-strong); padding-top:.35rem;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mf-group.idle .mf-label{color:var(--faint)}
+
+/* ---------------- Raumkarten ---------------- */
+
+.rooms{display:grid; gap:1.1rem; grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.room{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column}
+.room-head{display:flex; justify-content:space-between; align-items:center; gap:.6rem;
+  padding:.85rem 1rem .6rem}
+.room-head h2{margin:0; font-size:.95rem; font-weight:600}
+.reading{padding:0 1rem; display:flex; align-items:baseline; gap:.55rem}
+.reading .big{font:600 2.55rem/1 var(--data); letter-spacing:-.03em}
+.reading .unit{font-size:1rem; color:var(--muted)}
+.reading .delta{margin-left:auto; font:12px/1 var(--data); color:var(--muted)}
+.reading .delta.cold{color:var(--heat)}
+.meta{padding:.45rem 1rem 0; font-size:.78rem; color:var(--muted)}
+.setpoint{display:flex; align-items:center; gap:.5rem; padding:.85rem 1rem}
+.step{width:34px; height:34px; border:1px solid var(--line-strong); background:var(--surface);
+  color:var(--ink); border-radius:var(--r-sm); font-size:1.1rem; line-height:1; cursor:pointer;
+  display:grid; place-items:center; transition:border-color .15s, background .15s}
+.step:hover{border-color:var(--accent); background:var(--accent-soft)}
+.target{font:600 1.05rem/1 var(--data); min-width:5.2rem; text-align:center}
+.target small{display:block; font:11px/1.6 var(--ui); font-weight:400; color:var(--faint);
+  text-transform:uppercase; letter-spacing:.09em}
+.room-circuits{border-top:1px solid var(--line); padding:.7rem 1rem .8rem;
+  display:flex; flex-direction:column; gap:.42rem; margin-top:auto}
+.circuit{display:grid; grid-template-columns:3.8rem 1fr 2.9rem; align-items:center; gap:.55rem}
+.circuit .id{font:11px/1 var(--data); color:var(--faint); white-space:nowrap}
+.circuit .pct{font:11px/1 var(--data); color:var(--muted); text-align:right}
+.track{height:7px; background:var(--sunken); border-radius:99px; overflow:hidden}
+.track>i{display:block; height:100%; background:var(--accent); border-radius:99px;
+  transition:width .6s cubic-bezier(.4,0,.2,1)}
+.track.hot>i{background:var(--heat)}
+.room-foot{padding:.55rem 1rem .8rem; font:11px/1.5 var(--data); color:var(--faint);
+  border-top:1px solid var(--line)}
+
+/* ---------------- Zustandsmarken ---------------- */
+
+.chip{display:inline-flex; align-items:center; gap:.32rem; font-size:.72rem; font-weight:500;
+  padding:.16rem .5rem; border-radius:99px; border:1px solid var(--line); color:var(--muted);
+  white-space:nowrap}
+.chip::before{content:""; width:5px; height:5px; border-radius:50%; background:currentColor}
+.chip.plain::before,.chip.ico::before{display:none}
+.chip .ic{stroke-width:2}
+.chip.heat{color:var(--heat); border-color:color-mix(in srgb,var(--heat) 35%,transparent);
+  background:var(--heat-soft)}
+.chip.ok{color:var(--ok); border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.chip.warn{color:var(--warn); border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.chip.bad{color:var(--bad); border-color:color-mix(in srgb,var(--bad) 38%,transparent)}
+
+/* ---------------- Bedienelemente ---------------- */
+
+button.btn{font:inherit; font-size:.85rem; padding:.4rem .8rem; border-radius:var(--r-sm);
+  border:1px solid transparent; background:var(--accent); color:var(--accent-ink);
+  cursor:pointer; transition:filter .15s, border-color .15s, background .15s}
+button.btn:hover{filter:brightness(1.08)}
+button.btn.quiet{background:var(--surface); color:var(--accent); border-color:var(--line-strong)}
+button.btn.quiet:hover{background:var(--accent-soft); border-color:var(--accent); filter:none}
+button.btn.risky{background:var(--surface); color:var(--bad);
+  border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+button.btn.risky:hover{background:color-mix(in srgb,var(--bad) 10%,transparent); filter:none}
+button.btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
+.row{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
+.actions{display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem;
+  padding-top:.9rem; border-top:1px solid var(--line)}
+
+input,select{font:inherit; font-size:.9rem; color:var(--ink); background:var(--sunken);
+  border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:.4rem .55rem;
+  max-width:100%; transition:border-color .15s}
+input:hover,select:hover{border-color:var(--accent)}
+input[type=number]{font-family:var(--data); width:6.5rem}
+input[type=checkbox]{accent-color:var(--accent); width:16px; height:16px}
+label.f{display:flex; flex-direction:column; gap:.22rem; margin:.6rem 0}
+label.f>span{font-size:.72rem; font-weight:500; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--faint)}
+label.inline{display:flex; align-items:center; gap:.45rem; margin:.7rem 0; font-size:.9rem}
+label.inline.dim{color:var(--faint)}
+label.inline.dim input{opacity:.4}
+input:disabled,select:disabled{color:var(--faint); border-color:var(--line)}
+.fields{display:flex; gap:.5rem 1.1rem; flex-wrap:wrap}
+
+/* ---------------- Tabellen ---------------- */
+
+.scroll{overflow-x:auto; margin:0 -.35rem}
+table{width:100%; border-collapse:collapse; font-size:.88rem}
+th{text-align:left; padding:.35rem .55rem .5rem; font-size:.68rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.09em; color:var(--faint);
+  border-bottom:1px solid var(--line-strong); white-space:nowrap}
+td{padding:.5rem .55rem; border-bottom:1px solid var(--line); vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--sunken)}
+td.num,th.num{font-family:var(--data); text-align:right}
+td.mono{font-family:var(--data); font-size:.82rem}
+td.empty{color:var(--muted); text-align:center; padding:1.4rem}
+
+/* ---------------- Kalibrierung ---------------- */
+
+canvas{width:100%; height:240px; display:block; background:var(--sunken);
+  border:1px solid var(--line); border-radius:var(--r-sm)}
+.result{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.8rem;
+  margin-top:1rem}
+.result div{background:var(--sunken); border:1px solid var(--line);
+  border-radius:var(--r-sm); padding:.55rem .7rem}
+.result dt{font-size:.68rem; font-weight:600; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--faint); margin:0}
+.result dd{margin:.2rem 0 0; font:600 1.05rem/1.2 var(--data)}
+
+/* ---------------- Einrichtung ---------------- */
+
+.setup{border-color:var(--accent); background:var(--accent-soft)}
+.setup h2{color:var(--accent); font-size:1rem}
+.setup p{margin:.45rem 0; font-size:.88rem; max-width:60ch}
+
+#toast{position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%) translateY(8px);
+  background:var(--ink); color:var(--surface); padding:.55rem 1rem; border-radius:99px;
+  font-size:.86rem; opacity:0; transition:opacity .2s, transform .2s;
+  pointer-events:none; z-index:40; box-shadow:var(--shadow); max-width:90vw}
+#toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+#toast.bad{background:var(--bad); color:#fff}
+
+@media (max-width:520px){
+  .reading .big{font-size:2.1rem}
+  main{padding:.9rem .7rem 3rem}
+  .card{padding:.9rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Symbolvorrat. Strichzeichnungen in einem 24er Raster, Farbe folgt dem
+     Text. Bewusst knapp gehalten: nur Navigation, Zustand und Verbindung. -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3.5 18a8.5 8.5 0 1 1 17 0"/><path d="M12 18l4.5-5.5"/><circle cx="12" cy="18" r="1.4"/></symbol>
+  <symbol id="i-rooms" viewBox="0 0 24 24"><path d="M3.5 4.5h17v15h-17z"/><path d="M3.5 12.5h7"/><path d="M10.5 4.5v15"/></symbol>
+  <symbol id="i-valve" viewBox="0 0 24 24"><path d="M4 8v8l7-4z"/><path d="M20 8v8l-7-4z"/><path d="M12 11V6"/><path d="M9 6h6"/></symbol>
+  <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 13.6V5a2 2 0 1 0-4 0v8.6a4 4 0 1 0 4 0z"/><path d="M12 9.5v5"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M3.5 7h9M16.5 7h4M3.5 12h3M10.5 12h10M3.5 17h11M18.5 17h2"/><circle cx="14.5" cy="7" r="1.7"/><circle cx="8.5" cy="12" r="1.7"/><circle cx="16.5" cy="17" r="1.7"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 21a6 6 0 0 0 6-6c0-5-6-12-6-12S6 10 6 15a6 6 0 0 0 6 6z"/><path d="M12 17.5a2.2 2.2 0 0 0 2.2-2.2c0-2-2.2-4.3-2.2-4.3s-2.2 2.3-2.2 4.3A2.2 2.2 0 0 0 12 17.5z"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.5v8"/><path d="M7.2 6.6a7.5 7.5 0 1 0 9.6 0"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.8 21 20H3z"/><path d="M12 10v4"/><path d="M12 17.2h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 7"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.5 8.8a15 15 0 0 1 19 0"/><path d="M5.6 12.4a10.4 10.4 0 0 1 12.8 0"/><path d="M8.7 16a5.6 5.6 0 0 1 6.6 0"/><path d="M12 19.4h.01"/></symbol>
+  <symbol id="i-ap" viewBox="0 0 24 24"><path d="M3.5 14.5h17v5h-17z"/><path d="M7 17h.01"/><path d="M8.5 10.5a5 5 0 0 1 7 0"/><path d="M5.5 7.5a9.5 9.5 0 0 1 13 0"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+</svg>
+
+<header>
+  <div class="brand">
+    <h1>Fußbodenheizung</h1>
+    <span class="place">Erdgeschoss</span>
+  </div>
+  <div class="status" id="status">verbindet …</div>
+</header>
+
+<nav><div class="tabs">
+  <button data-tab="ov" class="on"><svg class="ic"><use href="#i-gauge"/></svg>Übersicht</button>
+  <button data-tab="rooms"><svg class="ic"><use href="#i-rooms"/></svg>Räume</button>
+  <button data-tab="chans"><svg class="ic"><use href="#i-valve"/></svg>Kreise</button>
+  <button data-tab="sensors"><svg class="ic"><use href="#i-thermo"/></svg>Sensoren</button>
+  <button data-tab="sys"><svg class="ic"><use href="#i-sliders"/></svg>System</button>
+</div></nav>
+
+<main>
+  <div class="card setup" id="setup" hidden>
+    <h2>Gerät einrichten</h2>
+    <p>Dieses Gerät ist noch nicht mit Ihrem WLAN verbunden und hat dafür einen eigenen
+      Zugangspunkt geöffnet. Wählen Sie unten Ihr Netz, tragen Sie das Kennwort ein und
+      speichern Sie.</p>
+    <p class="lede">Der Zugangspunkt schließt sich, sobald die Verbindung steht. Das Gerät ist
+      dann unter seinem Gerätenamen im Heimnetz erreichbar. Ohne Netzwerk regelt es weiter —
+      Uhrzeit und Home-Assistant-Anbindung fehlen dann allerdings.</p>
+  </div>
+
+  <section id="ov" class="on">
+    <div class="card">
+      <h2>Verteiler</h2>
+      <p class="lede">Alle elf Heizkreise in der Reihenfolge am Verteilerbalken, nach Räumen
+        gruppiert. Die Füllung zeigt die Ventilstellung.</p>
+      <div class="manifold" id="manifold"></div>
+    </div>
+    <div class="rooms" id="rooms"></div>
+  </section>
+
+  <section id="rooms-tab">
+    <div class="card">
+      <h2>Räume und Kreiszuordnung</h2>
+      <p class="lede">Jeder Heizkreis gehört zu höchstens einem Raum. Nicht zugeordnete Kreise
+        bleiben stehen und lassen sich nur von Hand fahren.</p>
+      <div id="roomEdit"></div>
+      <div class="actions">
+        <button class="btn quiet" id="roomAdd">Raum hinzufügen</button>
+        <button class="btn" id="roomSave">Speichern</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="chans">
+    <div class="card">
+      <h2>Heizkreise</h2>
+      <p class="lede">Innerhalb einer Messgruppe fährt immer nur ein Kreis — sonst ließe sich
+        die gemessene Gegenspannung keinem Antrieb zuordnen.</p>
+      <div class="scroll"><table><thead><tr>
+        <th>Kreis</th><th>Raum</th><th class="num">Gruppe</th><th>Stellung</th>
+        <th>Zustand</th><th class="num">Gegenspannung</th><th>Bedienung</th>
+      </tr></thead><tbody id="chanBody"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Fahrzeiten und Schwellen</h2>
+      <p class="lede">Die Zuordnung Kreis zu Messgruppe ist verdrahtet und nicht änderbar.
+        Kalibrierte Werte stammen aus einer Messfahrt, alle anderen sind Vorgaben.</p>
+      <div class="scroll"><table><thead><tr>
+        <th>Kreis</th><th class="num">Öffnen s</th><th class="num">Schließen s</th>
+        <th class="num">Maximal s</th><th class="num">Sperrzeit s</th>
+        <th class="num">Schwelle mV</th><th class="num">Hysterese mV</th><th></th>
+      </tr></thead><tbody id="chanCfgBody"></tbody></table></div>
+      <div class="actions"><button class="btn" id="chanSave">Speichern</button></div>
+    </div>
+
+    <div class="card" id="calibCard">
+      <h2>Endlagen kalibrieren</h2>
+      <p class="lede">Der gewählte Kreis fährt einmal ganz zu und einmal ganz auf. Aus dem
+        Spannungsverlauf ergeben sich Fahrzeiten und Auslöseschwelle. Der Antrieb muss dabei
+        frei laufen können.</p>
+      <div class="row">
+        <select id="calibCh"></select>
+        <button class="btn" id="calibStart">Messfahrt starten</button>
+        <button class="btn quiet" id="calibAbort" disabled>Abbrechen</button>
+        <span class="chip plain" id="calibState" hidden></span>
+      </div>
+      <div style="margin-top:.85rem"><canvas id="calibChart" width="1000" height="240"></canvas></div>
+      <div id="calibResult"></div>
+    </div>
+  </section>
+
+  <section id="sensors">
+    <div class="card">
+      <h2>Raumthermometer</h2>
+      <p class="lede">Alle in Reichweite empfangenen Geräte mit ATC- oder pvvx-Firmware.
+        Zugeordnet werden sie unter „Räume“.</p>
+      <div class="scroll"><table><thead><tr>
+        <th>Adresse</th><th class="num">Temperatur</th><th class="num">Feuchte</th>
+        <th class="num">Batterie</th><th class="num">Empfang</th><th class="num">Pakete</th>
+        <th>Format</th><th>Raum</th>
+      </tr></thead><tbody id="bleBody"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Sensoren auf der Platine</h2>
+      <h3 class="sub">Vorlauffühler am 1-Wire-Bus</h3>
+      <div class="scroll"><table><thead><tr><th>Adresse</th><th class="num">Temperatur</th></tr></thead>
+        <tbody id="dsBody"></tbody></table></div>
+      <h3 class="sub">Schaltschrank</h3>
+      <div id="hdcInfo" class="lede" style="margin:0"></div>
+    </div>
+
+    <div class="card">
+      <h2>Tasten am Gerät</h2>
+      <p class="lede">Eine Taste gilt als berührt, sobald ihr Rohwert unter die Schwelle fällt.
+        Berühren Sie die Fläche, lesen Sie den Wert ab und setzen Sie die Schwelle etwa mittig
+        zwischen Ruhe- und Berührwert.</p>
+      <div class="scroll"><table><thead><tr>
+        <th>Taste</th><th>Funktion</th><th class="num">Rohwert</th><th class="num">Schwelle</th>
+      </tr></thead><tbody id="touchBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="sys">
+    <div class="card">
+      <h2>Netzwerk</h2>
+      <div class="row">
+        <button class="btn quiet" id="wifiScan">Netze suchen</button>
+        <select id="wifiList" style="min-width:15rem"><option value="">— Suchergebnis —</option></select>
+      </div>
+      <div class="fields">
+        <label class="f"><span>WLAN-Name</span><input id="sysSsid" style="width:15rem"></label>
+        <label class="f"><span>WLAN-Kennwort</span><input id="sysPass" type="password" style="width:15rem"></label>
+        <label class="f"><span>Gerätename im Netz</span><input id="sysHost" style="width:15rem"></label>
+        <label class="f"><span>Kennwort Zugangspunkt</span><input id="sysApPass" type="password" style="width:15rem"></label>
+      </div>
+      <p class="lede" style="margin:.4rem 0 0">Kennwortfelder leer lassen, um das gespeicherte
+        Kennwort beizubehalten.</p>
+    </div>
+
+    <div class="card">
+      <h2>Home Assistant über MQTT</h2>
+      <label class="inline"><input type="checkbox" id="sysMqttOn"> MQTT verwenden</label>
+      <div class="fields">
+        <label class="f"><span>Broker</span><input id="sysMqttUri" style="width:18rem"
+          placeholder="mqtt://192.168.1.10:1883"></label>
+        <label class="f"><span>Benutzer</span><input id="sysMqttUser" style="width:11rem"></label>
+        <label class="f"><span>Kennwort</span><input id="sysMqttPass" type="password" style="width:11rem"></label>
+        <label class="f"><span>Themenpräfix</span><input id="sysMqttPrefix" style="width:11rem"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Betrieb</h2>
+      <div class="fields">
+        <label class="f"><span>Zeitzone</span><input id="sysTz" style="width:18rem"></label>
+        <label class="f"><span>Messwert veraltet nach s</span>
+          <input id="sysTimeout" type="number" min="60" max="43200"></label>
+        <label class="f"><span>Neustart Stunde</span>
+          <input id="sysRebootH" type="number" min="-1" max="23"></label>
+        <label class="f"><span>Neustart Minute</span>
+          <input id="sysRebootM" type="number" min="0" max="59"></label>
+        <label class="f"><span>Helligkeit Anzeige %</span>
+          <input id="sysBright" type="number" min="0" max="100"></label>
+      </div>
+      <p class="lede" style="margin:.2rem 0 .6rem">Stunde auf −1 setzen, um den täglichen
+        Neustart abzuschalten. Er wird verschoben, solange ein Ventil fährt.</p>
+      <label class="inline"><input type="checkbox" id="sysTouchOn"> Tasten am Gerät verwenden</label>
+      <div class="fields" id="sysTouchThresh"></div>
+      <div class="actions">
+        <button class="btn" id="sysSave">Speichern</button>
+        <button class="btn quiet" id="sysRestart">Neu starten</button>
+        <button class="btn risky" id="sysFactory">Auf Werksvorgabe zurücksetzen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Firmware aktualisieren</h2>
+      <p class="lede">Datei <code>floor-heating-ctrl.bin</code> aus dem Build-Verzeichnis wählen.
+        Das Gerät startet nach der Übertragung neu.</p>
+      <div class="row">
+        <input type="file" id="otaFile" accept=".bin">
+        <button class="btn" id="otaGo">Übertragen</button>
+        <span class="chip plain" id="otaState" hidden></span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const CH_COUNT = 11;
+let state = null, config = null, ble = [], calibFrom = 0, calibSamples = [], calibInfo = null;
+
+/* Abfragetakt.
+   Nur eine laufende Ventilfahrt braucht frische Daten im Sekundentakt — dabei
+   ändert sich die Stellung um gut zwei Prozent je Sekunde. Im Ruhezustand
+   ändert sich am Gerät zwischen zwei Regeleingriffen (Vorgabe 30 s) und zwei
+   Thermometerpaketen (10 s und länger) nichts, was eine schnellere Abfrage
+   rechtfertigt. Restzeiten und Alter zählt die Seite lokal weiter, sie
+   brauchen dafür keine Anfrage. */
+const POLL_BUSY_MS = 1000;
+const POLL_IDLE_MS = 6000;
+const TICK_MS = 1000;
+
+let etag = null;      /* Änderungsstand der letzten vollen Antwort */
+let fetchedAt = 0;    /* Zeitpunkt dieser Antwort, für das lokale Weiterzählen */
+let pollTimer = null;
+
+/* Deutsche Schreibweise: Dezimalkomma. */
+const num = (v, d) => (v === undefined || v === null || isNaN(v)) ? "–" : v.toFixed(d).replace(".", ",");
+const pct = v => Math.round(v * 100);
+
+function toast(msg, bad) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("on");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.remove("on"), 3400);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* leere Antwort */ }
+  if (!r.ok) throw new Error((body && body.error) || ("Fehler " + r.status));
+  return body;
+}
+const post = (p, o) => api(p, {method:"POST", headers:{"Content-Type":"application/json"},
+                              body: JSON.stringify(o || {})});
+
+const TABS = ["ov", "rooms", "chans", "sensors", "sys"];
+
+function selectTab(id) {
+  if (!TABS.includes(id)) id = "ov";
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === id));
+  document.querySelectorAll("main section").forEach(s =>
+    s.classList.toggle("on", s.id === id || s.id === id + "-tab"));
+  if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+  if (id === "sensors") loadBle();
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
+
+/* Bereich aus der Adresse übernehmen, damit sich einzelne Seiten verlinken
+   lassen. Der Parameter theme= erzwingt ein Farbschema; ohne ihn folgt die
+   Seite der Einstellung des Geräts. */
+window.addEventListener("hashchange", () => selectTab(location.hash.slice(1)));
+if (location.hash) selectTab(location.hash.slice(1));
+const forcedTheme = new URLSearchParams(location.search).get("theme");
+if (forcedTheme === "dark" || forcedTheme === "light") {
+  document.documentElement.dataset.theme = forcedTheme;
+}
+
+/* ---------------- Kopfzeile ---------------- */
+
+/* Sekunden seit der letzten vollen Antwort — damit laufen Restzeiten und
+   Altersangaben weiter, auch wenn gerade nicht abgefragt wird. */
+const since = () => (Date.now() - fetchedAt) / 1000;
+
+function renderStatus() {
+  const n = state.net, up = state.uptime_s + since();
+  const upTxt = up >= 86400 ? (up/86400).toFixed(1) + " d"
+              : up >= 3600 ? (up/3600).toFixed(1) + " h" : Math.round(up/60) + " min";
+  const ic = i => `<svg class="ic" style="margin-right:.3rem"><use href="#i-${i}"/></svg>`;
+  const link = n.connected
+    ? `<span class="link ok">${ic("wifi")}${n.ip} · ${n.rssi} dBm</span>`
+    : (n.ap_active ? `<span class="link warn">${ic("ap")}Zugangspunkt ${n.ap_ip}</span>`
+                   : `<span class="link warn">${ic("ap")}ohne Netz</span>`);
+  $("#status").innerHTML =
+    `${link}<span>Laufzeit <b>${upTxt}</b></span>`
+    + `<span>Speicher <b>${Math.round(state.heap/1024)} kB</b></span>`
+    + `<span>Version <b>${state.version}</b></span>`;
+}
+
+/* ---------------- Verteilerbalken ---------------- */
+
+function renderManifold() {
+  const groups = [];
+  const claimed = new Set();
+  for (const r of state.rooms) {
+    groups.push({name: r.name, channels: r.channels, active: r.mode === "heat"});
+    r.channels.forEach(n => claimed.add(n));
+  }
+  const rest = [];
+  for (let n = 1; n <= CH_COUNT; n++) if (!claimed.has(n)) rest.push(n);
+  if (rest.length) groups.push({name: "ohne Raum", channels: rest, active: false});
+
+  $("#manifold").innerHTML = groups.map(g => {
+    const bars = g.channels.map(n => {
+      const c = state.channels[n - 1];
+      const cls = ["gauge"];
+      if (c.position > 0.005 && g.active) cls.push("hot");
+      if (c.op !== "idle") cls.push("moving");
+      if (!c.known) cls.push("unknown");
+      const title = `Kreis ${n}: ${pct(c.position)} %`
+        + (c.op === "idle" ? "" : c.op === "opening" ? ", öffnet" : ", schließt")
+        + (c.known ? "" : ", Stellung unbekannt");
+      return `<div class="mf-ch" title="${title}">
+        <div class="${cls.join(" ")}"><i style="height:${pct(c.position)}%"></i></div>
+        <span>${n}</span></div>`;
+    }).join("");
+    return `<div class="mf-group${g.active ? "" : " idle"}" style="--n:${g.channels.length}">
+      <div class="mf-bars">${bars}</div>
+      <div class="mf-label" title="${g.name}">${g.name}</div></div>`;
+  }).join("");
+}
+
+/* ---------------- Raumkarten ---------------- */
+
+const chip = (kind, icon, text) =>
+  `<span class="chip ico ${kind}"><svg class="ic"><use href="#i-${icon}"/></svg>${text}</span>`;
+
+function roomChip(r) {
+  if (r.mode !== "heat") return chip("", "power", "ausgeschaltet");
+  if (!r.sensor_set) return chip("bad", "alert", "kein Thermometer");
+  if (!r.temp_valid) return chip("warn", "alert", "Messwert veraltet");
+  return r.target_position > 0.005
+    ? chip("heat", "flame", "heizt")
+    : chip("ok", "check", "Sollwert erreicht");
+}
+
+function renderRooms() {
+  const el = $("#rooms");
+  if (!state.rooms.length) {
+    el.innerHTML = `<div class="card"><h2>Noch kein Raum eingerichtet</h2>
+      <p class="lede" style="margin:0">Legen Sie unter „Räume“ einen Raum an und ordnen Sie ihm
+      Heizkreise und ein Thermometer zu.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = state.rooms.map(r => {
+    const delta = r.temp_valid ? r.temp_c - r.target_c : null;
+    const deltaTxt = delta === null ? ""
+      : Math.abs(delta) < 0.05 ? '<span class="delta">auf Sollwert</span>'
+      : `<span class="delta${delta < 0 ? " cold" : ""}">${num(Math.abs(delta),1)} K ${
+          delta < 0 ? "unter" : "über"} Soll</span>`;
+
+    const circuits = r.channels.map(n => {
+      const c = state.channels[n - 1];
+      const hot = c.position > 0.005 && r.mode === "heat";
+      return `<div class="circuit">
+        <span class="id">Kreis ${n}</span>
+        <span class="track${hot ? " hot" : ""}"><i style="width:${pct(c.position)}%"></i></span>
+        <span class="pct">${pct(c.position)} %</span></div>`;
+    }).join("");
+
+    const t = roomTexts(r);
+
+    return `<article class="room" data-room="${r.id}">
+      <div class="room-head"><h2>${r.name}</h2>${roomChip(r)}</div>
+      <div class="reading">
+        <span class="big">${r.temp_valid ? num(r.temp_c,1) : "––,–"}</span>
+        <span class="unit">°C</span>${deltaTxt}
+      </div>
+      <div class="meta">${t.meta}</div>
+      <div class="setpoint">
+        <button class="step" onclick="setTarget(${r.id},${(r.target_c-0.5).toFixed(1)})"
+          aria-label="Sollwert senken">−</button>
+        <span class="target">${num(r.target_c,1)} °C<small>Sollwert</small></span>
+        <button class="step" onclick="setTarget(${r.id},${(r.target_c+0.5).toFixed(1)})"
+          aria-label="Sollwert erhöhen">+</button>
+        <button class="btn quiet" style="margin-left:auto"
+          onclick="setMode(${r.id},'${r.mode === "heat" ? "off" : "heat"}')">${
+          r.mode === "heat" ? "Ausschalten" : "Einschalten"}</button>
+      </div>
+      <div class="room-circuits">${circuits}</div>
+      <div class="room-foot">${t.foot}</div>
+    </article>`;
+  }).join("");
+}
+
+/* Die beiden zeitabhängigen Zeilen einer Raumkarte. Sie werden im
+   Sekundentakt fortgeschrieben, ohne dafür das Gerät zu fragen. */
+function roomTexts(r) {
+  const age = Math.round(r.temp_age_s + since());
+  const next = Math.max(0, Math.round(r.next_check_s - since()));
+  return {
+    meta: !r.sensor_set ? "Ohne zugeordnetes Thermometer wird nicht geregelt."
+        : !r.temp_valid ? "Seit über einer Viertelstunde kein Messwert — die Regelung ruht."
+        : `Luftfeuchte ${num(r.humidity,0)} %, Batterie ${r.battery} %, Messwert ${age} s alt`,
+    foot: r.mode === "heat" && r.temp_valid
+        ? `Zielstellung ${pct(r.target_position)} % · nächste Prüfung in ${next} s`
+        : " ",
+  };
+}
+
+/* Sekundentakt: nur die Stellen anfassen, die sich rechnerisch ändern.
+   Ein vollständiger Neuaufbau würde Mauszeiger- und Eingabezustand
+   zerstören und liefe ohne neue Daten ins Leere. */
+function tickLocal() {
+  if (!state) return;
+  renderStatus();
+  for (const r of state.rooms) {
+    const el = document.querySelector(`.room[data-room="${r.id}"]`);
+    if (!el) continue;
+    const t = roomTexts(r);
+    el.querySelector(".meta").textContent = t.meta;
+    el.querySelector(".room-foot").textContent = t.foot;
+  }
+}
+
+async function setTarget(id, c) {
+  try { await post(`/api/room/${id}/target`, {target_c: parseFloat(c)}); await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+async function setMode(id, mode) {
+  try { await post(`/api/room/${id}/mode`, {mode}); await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+
+/* ---------------- Raumeditor ---------------- */
+
+function sensorOptions(mac) {
+  let html = `<option value=""${mac ? "" : " selected"}>— kein Thermometer —</option>`;
+  let seen = false;
+  for (const d of ble) {
+    const on = d.mac === mac;
+    if (on) seen = true;
+    html += `<option value="${d.mac}"${on ? " selected" : ""}>`
+          + `${d.mac} · ${num(d.temp_c,1)} °C · ${d.rssi} dBm</option>`;
+  }
+  /* Ein zugeordnetes, gerade nicht empfangenes Gerät muss sichtbar bleiben,
+     sonst geht die Zuordnung beim nächsten Speichern verloren. */
+  if (mac && !seen) html += `<option value="${mac}" selected>${mac} · nicht in Reichweite</option>`;
+  return html;
+}
+
+function renderRoomEditor() {
+  if (!config) return;
+
+  $("#roomEdit").innerHTML = config.rooms.map((r, i) => {
+    const taken = {};
+    config.rooms.forEach((o, j) => { if (j !== i) o.channels.forEach(n => taken[n] = o.name); });
+    const boxes = Array.from({length: CH_COUNT}, (_, k) => {
+      const n = k + 1, mine = r.channels.includes(n), blocked = taken[n] !== undefined;
+      return `<label class="inline${blocked ? " dim" : ""}" style="margin:.15rem 0"
+        title="${blocked ? "belegt durch " + taken[n] : ""}">
+        <input type="checkbox" data-room="${i}" data-ch="${n}" ${mine ? "checked" : ""}
+          ${blocked ? "disabled" : ""}>Kreis ${n}</label>`;
+    }).join("");
+
+    return `<div class="card" style="background:var(--sunken); box-shadow:none; margin-bottom:.9rem">
+      <div class="row" style="justify-content:space-between; align-items:flex-end">
+        <label class="f" style="margin:0"><span>Name</span>
+          <input data-room="${i}" data-k="name" value="${r.name}" style="width:15rem"></label>
+        <button class="btn risky" onclick="delRoom(${i})">Raum entfernen</button>
+      </div>
+      <h3 class="sub">Heizkreise</h3>
+      <div class="fields" style="gap:.1rem 1.1rem">${boxes}</div>
+      <h3 class="sub">Thermometer</h3>
+      <select data-room="${i}" data-k="sensor_mac" style="min-width:20rem">${sensorOptions(r.sensor_mac)}</select>
+      <h3 class="sub">Regelung</h3>
+      <div class="fields">
+        <label class="f"><span>Sollwert °C</span>
+          <input type="number" step="0.1" data-room="${i}" data-k="target_c" value="${r.target_c}"></label>
+        <label class="f"><span>Proportionalband K</span>
+          <input type="number" step="0.1" data-room="${i}" data-k="p_band_k" value="${r.p_band_k}"></label>
+        <label class="f"><span>Prüfintervall s</span>
+          <input type="number" data-room="${i}" data-k="interval_s" value="${r.interval_s}"></label>
+        <label class="f"><span>Rasterung</span>
+          <input type="number" step="0.01" data-room="${i}" data-k="step" value="${r.step}"></label>
+        <label class="f"><span>Mindeständerung</span>
+          <input type="number" step="0.01" data-room="${i}" data-k="min_delta" value="${r.min_delta}"></label>
+        <label class="f"><span>Betriebsart</span>
+          <select data-room="${i}" data-k="mode">
+            <option value="heat"${r.mode === "heat" ? " selected" : ""}>Regelung aktiv</option>
+            <option value="off"${r.mode === "off" ? " selected" : ""}>ausgeschaltet</option>
+          </select></label>
+      </div>
+    </div>`;
+  }).join("") || '<p class="lede">Noch kein Raum eingerichtet.</p>';
+
+  $("#roomEdit").querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
+    const r = config.rooms[+el.dataset.room], k = el.dataset.k;
+    r[k] = el.type === "number" ? parseFloat(el.value) : el.value;
+    if (k === "sensor_mac" && !el.value) r.sensor_mac = null;
+  });
+  $("#roomEdit").querySelectorAll("[data-ch]").forEach(el => el.onchange = () => {
+    const r = config.rooms[+el.dataset.room], n = +el.dataset.ch;
+    r.channels = el.checked ? r.channels.concat([n]).sort((a,b) => a-b)
+                            : r.channels.filter(x => x !== n);
+    renderRoomEditor();
+  });
+}
+
+function delRoom(i) {
+  if (!confirm(`Raum „${config.rooms[i].name}“ entfernen? Seine Heizkreise bleiben stehen.`)) return;
+  config.rooms.splice(i, 1);
+  renderRoomEditor();
+}
+
+$("#roomAdd").onclick = () => {
+  const ids = config.rooms.map(r => r.id);
+  let id = 1; while (ids.includes(id)) id++;
+  config.rooms.push({id, name: "Neuer Raum", channels: [], sensor_mac: null, mode: "heat",
+                     target_c: 20, p_band_k: 1, interval_s: 30, min_delta: 0.01, step: 0.1});
+  renderRoomEditor();
+};
+$("#roomSave").onclick = () => saveConfig();
+
+/* ---------------- Heizkreise ---------------- */
+
+const roomOfChannel = n => {
+  const r = (state ? state.rooms : []).find(r => r.channels.includes(n));
+  return r ? r.name : '<span class="chip">frei</span>';
+};
+
+function renderChannels() {
+  $("#chanBody").innerHTML = state.channels.map(c => {
+    const marks = [];
+    if (c.op !== "idle") marks.push(chip("heat", "flame", c.op === "opening" ? "öffnet" : "schließt"));
+    else marks.push('<span class="chip plain">steht</span>');
+    if (!c.known) marks.push(chip("bad", "alert", "Stellung unbekannt"));
+    if (c.reserved) marks.push(chip("warn", "gauge", "Messfahrt"));
+    if (c.pending) marks.push(chip("warn", "clock", "wartet auf Gruppe"));
+    if (!c.calibrated) marks.push('<span class="chip plain">nicht kalibriert</span>');
+
+    return `<tr>
+      <td><b>${c.id}</b></td>
+      <td>${roomOfChannel(c.id)}</td>
+      <td class="num">${c.group}</td>
+      <td><div class="row" style="gap:.5rem; flex-wrap:nowrap">
+        <span class="track${c.position > 0.005 ? " hot" : ""}" style="width:74px">
+          <i style="width:${pct(c.position)}%"></i></span>
+        <span class="pct" style="font-family:var(--data); font-size:.8rem; white-space:nowrap"
+          >${pct(c.position)} %</span>
+      </div></td>
+      <td><div class="row" style="gap:.3rem">${marks.join("")}</div></td>
+      <td class="num">${c.bemf_mv} mV</td>
+      <td><div class="row" style="gap:.3rem; flex-wrap:nowrap">
+        <button class="btn quiet" onclick="chanCmd(${c.id},'open')">Auf</button>
+        <button class="btn quiet" onclick="chanCmd(${c.id},'close')">Zu</button>
+        <button class="btn quiet" onclick="chanCmd(${c.id},'stop')">Stopp</button>
+        <button class="btn quiet" onclick="chanPos(${c.id})">%</button>
+      </div></td></tr>`;
+  }).join("");
+}
+
+async function chanCmd(n, cmd) {
+  try { await post(`/api/channel/${n}/cmd`, {cmd}); await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+async function chanPos(n) {
+  const v = prompt(`Stellung für Kreis ${n} in Prozent (0 = zu, 100 = auf)`, "50");
+  if (v === null) return;
+  try { await post(`/api/channel/${n}/cmd`, {cmd:"position", position: parseFloat(v)/100});
+        await refresh(); }
+  catch (e) { toast(e.message, true); }
+}
+
+function renderChannelConfig() {
+  if (!config) return;
+  const f = (k, i, v, step) => `<td class="num"><input type="number" ${step ? 'step="'+step+'"' : ""}
+      style="width:5.2rem" data-ch="${i}" data-k="${k}" value="${v}"></td>`;
+  $("#chanCfgBody").innerHTML = config.channels.map((c, i) => `<tr>
+    <td><b>${c.id}</b></td>
+    ${f("open_ms", i, (c.open_ms/1000).toFixed(1), "0.5")}
+    ${f("close_ms", i, (c.close_ms/1000).toFixed(1), "0.5")}
+    ${f("max_ms", i, (c.max_ms/1000).toFixed(1), "0.5")}
+    ${f("blank_ms", i, (c.blank_ms/1000).toFixed(1), "0.5")}
+    ${f("bemf_mv", i, c.bemf_mv)}
+    ${f("bemf_hyst_mv", i, c.bemf_hyst_mv)}
+    <td>${c.calibrated ? '<span class="chip ok">kalibriert</span>'
+                       : '<span class="chip">Vorgabe</span>'}</td></tr>`).join("");
+
+  $("#chanCfgBody").querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
+    const c = config.channels[+el.dataset.ch], k = el.dataset.k;
+    c[k] = k.endsWith("_ms") ? Math.round(parseFloat(el.value) * 1000) : parseInt(el.value, 10);
+  });
+}
+$("#chanSave").onclick = () => saveConfig();
+
+/* ---------------- Kalibrierung ---------------- */
+
+$("#calibCh").innerHTML = Array.from({length: CH_COUNT},
+  (_, i) => `<option value="${i+1}">Kreis ${i+1}</option>`).join("");
+
+$("#calibStart").onclick = async () => {
+  const n = $("#calibCh").value;
+  if (!confirm(`Messfahrt für Kreis ${n} starten? Der Antrieb fährt zweimal auf Anschlag und ist `
+             + `dabei bis zu drei Minuten in Bewegung.`)) return;
+  calibFrom = 0; calibSamples = [];
+  try { await post(`/api/calib/${n}/start`); toast("Messfahrt läuft"); }
+  catch (e) { toast(e.message, true); }
+};
+$("#calibAbort").onclick = () => post("/api/calib/abort").catch(e => toast(e.message, true));
+
+/* Die Messreihe liegt im Gerät, nicht im Browser. Nach einem Neuladen wird sie
+   deshalb einmal vollständig nachgeholt — sonst stünde zu einem fertigen
+   Ergebnis ein leeres Diagramm. */
+async function loadCalibSamples() {
+  if (!calibInfo || calibInfo.state === "idle" || calibSamples.length) return;
+  while (calibFrom < calibInfo.sample_count) {
+    const d = await api(`/api/calib?from=${calibFrom}`);
+    if (!d.samples || !d.samples.length) break;
+    calibSamples = calibSamples.concat(d.samples);
+    calibFrom += d.samples.length;
+  }
+  renderCalib();
+}
+
+async function pollCalib() {
+  try {
+    const d = await api(`/api/calib?from=${calibFrom}`);
+    calibInfo = d.calib;
+    if (d.samples && d.samples.length) {
+      calibSamples = calibSamples.concat(d.samples);
+      calibFrom += d.samples.length;
+    }
+    renderCalib();
+  } catch (e) { /* Netz kurz weg, beim nächsten Durchlauf erneut */ }
+}
+
+const PHASES = ["", "schließt", "Ruhepause", "öffnet"];
+
+function renderCalib() {
+  const c = calibInfo;
+  if (!c) return;
+  const running = c.state === "running";
+  $("#calibAbort").disabled = !running;
+  $("#calibStart").disabled = running;
+
+  const st = $("#calibState");
+  st.hidden = !(running || c.message);
+  st.className = "chip plain" + (running ? " heat" : c.state === "failed" ? " bad"
+                                 : c.state === "done" ? " ok" : "");
+  st.textContent = running
+    ? `Kreis ${c.channel}, Messgruppe ${c.group} — ${PHASES[c.phase] || ""}, ${c.sample_count} Werte`
+    : (c.message || "");
+
+  drawChart();
+
+  const res = $("#calibResult");
+  if (c.state === "done" && c.suggestion) {
+    const s = c.suggestion, m = c.marks;
+    const item = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+    res.innerHTML = `<h3 class="sub">Ergebnis für Kreis ${c.channel}</h3>
+      <dl class="result" style="margin:0">
+        ${item("Fahrzeit zu", (s.close_ms/1000).toFixed(1) + " s")}
+        ${item("Fahrzeit auf", (s.open_ms/1000).toFixed(1) + " s")}
+        ${item("Maximallaufzeit", (s.max_ms/1000).toFixed(1) + " s")}
+        ${item("Auslöseschwelle", s.bemf_mv + " mV")}
+        ${item("Hysterese", s.hyst_mv + " mV")}
+        ${item("Fahrniveau", m.baseline_close_mv + " / " + m.baseline_open_mv + " mV")}
+        ${item("Endlage", m.stall_close_mv + " / " + m.stall_open_mv + " mV")}
+      </dl>
+      <div class="actions">
+        <button class="btn" onclick="calibAccept()">Werte übernehmen</button>
+        <button class="btn quiet" onclick="calibDiscard()">Verwerfen</button>
+      </div>`;
+  } else if (c.state === "failed") {
+    res.innerHTML = `<div class="actions">
+      <button class="btn quiet" onclick="calibDiscard()">Verwerfen</button></div>`;
+  } else if (!running) {
+    res.innerHTML = "";
+  }
+}
+
+async function calibAccept() {
+  try { await post("/api/calib/accept"); toast("Werte übernommen");
+        await loadConfig(); calibDiscard(); }
+  catch (e) { toast(e.message, true); }
+}
+async function calibDiscard() {
+  await post("/api/calib/discard").catch(() => {});
+  calibSamples = []; calibFrom = 0; calibInfo = null;
+  $("#calibResult").innerHTML = ""; $("#calibState").hidden = true;
+  drawChart();
+}
+
+function drawChart() {
+  const cv = $("#calibChart"), ctx = cv.getContext("2d");
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = cv.clientWidth || 1000, H = 240;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = H * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const css = getComputedStyle(document.body);
+  const col = n => css.getPropertyValue(n).trim();
+
+  if (!calibSamples.length) {
+    ctx.fillStyle = col("--muted");
+    ctx.font = "13px " + col("--ui");
+    ctx.fillText("Noch keine Messreihe aufgezeichnet.", 16, 30);
+    return;
+  }
+
+  const pad = {l: 52, r: 12, t: 16, b: 26};
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const maxMv = Math.max(200, ...calibSamples) * 1.12;
+  const x = i => pad.l + (i / Math.max(1, calibSamples.length - 1)) * pw;
+  const y = mv => pad.t + ph - (mv / maxMv) * ph;
+
+  /* Fahrtabschnitte hinterlegen, damit Zu- und Aufwärtsfahrt unterscheidbar sind. */
+  const m = calibInfo && calibInfo.marks;
+  if (m) {
+    const band = (from, to, fill, label) => {
+      if (to <= from) return;
+      ctx.fillStyle = fill;
+      ctx.fillRect(x(from), pad.t, x(to) - x(from), ph);
+      ctx.fillStyle = col("--faint");
+      ctx.font = "10px " + col("--ui");
+      ctx.fillText(label, x(from) + 6, pad.t + 13);
+    };
+    const end = calibSamples.length;
+    band(m.close_from, m.close_to || end,
+         "color-mix(in srgb, " + col("--heat") + " 9%, transparent)", "schließt");
+    if (m.open_from) band(m.open_from, m.open_to || end,
+         "color-mix(in srgb, " + col("--accent") + " 9%, transparent)", "öffnet");
+  }
+
+  /* Raster und Achsenbeschriftung. */
+  ctx.strokeStyle = col("--line"); ctx.lineWidth = 1;
+  ctx.fillStyle = col("--faint"); ctx.font = "10px " + col("--data");
+  for (let k = 0; k <= 4; k++) {
+    const mv = maxMv * k / 4, yy = Math.round(y(mv)) + .5;
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+    ctx.fillText(mv.toFixed(0).padStart(4) + " mV", 4, yy + 3.5);
+  }
+  const period = (calibInfo && calibInfo.sample_period_ms) || 50;
+  const secs = (calibSamples.length * period) / 1000;
+  ctx.fillText("0 s", pad.l, H - 8);
+  const endTxt = secs.toFixed(0) + " s";
+  ctx.fillText(endTxt, W - pad.r - ctx.measureText(endTxt).width, H - 8);
+
+  /* Fläche unter der Kurve, dann die Kurve selbst. */
+  const line = new Path2D();
+  calibSamples.forEach((mv, i) => i ? line.lineTo(x(i), y(mv)) : line.moveTo(x(i), y(mv)));
+  const area = new Path2D(line);
+  area.lineTo(x(calibSamples.length - 1), pad.t + ph);
+  area.lineTo(x(0), pad.t + ph);
+  area.closePath();
+  ctx.fillStyle = "color-mix(in srgb, " + col("--accent") + " 12%, transparent)";
+  ctx.fill(area);
+  ctx.strokeStyle = col("--accent"); ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  ctx.stroke(line);
+
+  /* Ermittelte Schwelle als Bezugslinie. */
+  if (calibInfo && calibInfo.suggestion) {
+    const yy = Math.round(y(calibInfo.suggestion.bemf_mv)) + .5;
+    ctx.save();
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = col("--heat"); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = col("--heat"); ctx.font = "10px " + col("--data");
+    ctx.fillText("Schwelle " + calibInfo.suggestion.bemf_mv + " mV", pad.l + 8, yy - 5);
+  }
+}
+window.addEventListener("resize", () => drawChart());
+
+/* ---------------- Sensoren ---------------- */
+
+const TOUCH_NAMES = ["Sollwert senken", "Sollwert erhöhen", "Raum wählen"];
+
+async function loadBle() {
+  try {
+    const d = await api("/api/ble");
+    ble = d.devices.sort((a, b) => b.rssi - a.rssi);
+  } catch (e) { return; }
+  $("#bleBody").innerHTML = ble.map(d => {
+    const room = (config ? config.rooms : []).find(r => r.sensor_mac === d.mac);
+    return `<tr><td class="mono">${d.mac}</td>
+      <td class="num">${num(d.temp_c,2)} °C</td><td class="num">${num(d.humidity,1)} %</td>
+      <td class="num">${d.battery} % · ${d.battery_mv} mV</td>
+      <td class="num">${d.rssi} dBm</td><td class="num">${d.packets}</td>
+      <td>${d.format}</td>
+      <td>${room ? room.name : '<span class="chip">nicht zugeordnet</span>'}</td></tr>`;
+  }).join("") || '<tr><td colspan="8" class="empty">Noch kein Thermometer empfangen.</td></tr>';
+}
+
+function renderLocalSensors() {
+  const s = state.local_sensors;
+  $("#dsBody").innerHTML = (s.ds18b20 || []).map(d =>
+    `<tr><td class="mono">${d.address}</td>
+     <td class="num">${d.valid ? num(d.temp_c,1) + " °C"
+                               : '<span class="chip">kein Messwert</span>'}</td></tr>`
+  ).join("") || '<tr><td colspan="2" class="empty">Kein Fühler am Bus gefunden.</td></tr>';
+
+  $("#hdcInfo").textContent = s.hdc1080.valid
+    ? `${num(s.hdc1080.temp_c,1)} °C, ${num(s.hdc1080.humidity,0)} % relative Luftfeuchte`
+    : "Kein HDC1080 gefunden oder kein Messwert.";
+
+  const th = (config && config.touch) ? config.touch.thresholds : [0,0,0];
+  $("#touchBody").innerHTML = state.touch_raw.map((v, i) => {
+    const pressed = v > 0 && v < th[i];
+    return `<tr><td><b>${i+1}</b></td><td>${TOUCH_NAMES[i]}</td>
+      <td class="num">${v}${pressed ? ' <span class="chip heat">berührt</span>' : ""}</td>
+      <td class="num">${th[i]}</td></tr>`;
+  }).join("");
+}
+
+/* ---------------- System ---------------- */
+
+function renderTouchThresholds() {
+  if (!config || !config.touch) return;
+  $("#sysTouchThresh").innerHTML = config.touch.thresholds.map((v, i) =>
+    `<label class="f"><span>Schwelle Taste ${i+1}</span>
+     <input type="number" data-touch="${i}" value="${v}"></label>`).join("");
+  $("#sysTouchThresh").querySelectorAll("[data-touch]").forEach(el => el.onchange = () => {
+    config.touch.thresholds[+el.dataset.touch] = parseInt(el.value, 10);
+  });
+}
+
+function renderSystem() {
+  if (!config) return;
+  $("#sysSsid").value = config.wifi.ssid || "";
+  $("#sysHost").value = config.wifi.hostname || "";
+  $("#sysTz").value = config.timezone || "";
+  $("#sysTimeout").value = config.sensor_timeout_s;
+  $("#sysRebootH").value = config.reboot_hour;
+  $("#sysRebootM").value = config.reboot_minute;
+  $("#sysBright").value = config.display_brightness;
+  $("#sysTouchOn").checked = !!(config.touch && config.touch.enabled);
+  $("#sysMqttOn").checked = !!config.mqtt.enabled;
+  $("#sysMqttUri").value = config.mqtt.uri || "";
+  $("#sysMqttUser").value = config.mqtt.user || "";
+  $("#sysMqttPrefix").value = config.mqtt.prefix || "";
+  $("#sysPass").placeholder = config.wifi.pass_set ? "gespeichert" : "nicht gesetzt";
+  $("#sysMqttPass").placeholder = config.mqtt.pass_set ? "gespeichert" : "nicht gesetzt";
+  renderTouchThresholds();
+}
+
+$("#wifiScan").onclick = async () => {
+  const btn = $("#wifiScan");
+  btn.disabled = true; btn.textContent = "sucht …";
+  try {
+    const d = await api("/api/wifi/scan");
+    $("#wifiList").innerHTML = '<option value="">— bitte wählen —</option>' + d.networks
+      .sort((a,b) => b.rssi - a.rssi)
+      .map(n => `<option value="${n.ssid}">${n.ssid} · ${n.rssi} dBm · ${
+        n.secure ? "gesichert" : "offen"}</option>`).join("");
+    if (!d.networks.length) toast("Kein Netz gefunden", true);
+  } catch (e) { toast(e.message, true); }
+  btn.disabled = false; btn.textContent = "Netze suchen";
+};
+$("#wifiList").onchange = () => { if ($("#wifiList").value) $("#sysSsid").value = $("#wifiList").value; };
+
+$("#sysSave").onclick = () => {
+  config.wifi.ssid = $("#sysSsid").value;
+  config.wifi.hostname = $("#sysHost").value;
+  if ($("#sysPass").value) config.wifi.pass = $("#sysPass").value;
+  if ($("#sysApPass").value) config.wifi.ap_pass = $("#sysApPass").value;
+  config.timezone = $("#sysTz").value;
+  config.sensor_timeout_s = parseInt($("#sysTimeout").value, 10);
+  config.reboot_hour = parseInt($("#sysRebootH").value, 10);
+  config.reboot_minute = parseInt($("#sysRebootM").value, 10);
+  config.display_brightness = parseInt($("#sysBright").value, 10);
+  config.touch.enabled = $("#sysTouchOn").checked;
+  config.mqtt.enabled = $("#sysMqttOn").checked;
+  config.mqtt.uri = $("#sysMqttUri").value;
+  config.mqtt.user = $("#sysMqttUser").value;
+  config.mqtt.prefix = $("#sysMqttPrefix").value;
+  if ($("#sysMqttPass").value) config.mqtt.pass = $("#sysMqttPass").value;
+  saveConfig();
+};
+
+$("#sysRestart").onclick = async () => {
+  if (!confirm("Gerät jetzt neu starten?")) return;
+  await post("/api/system/restart").catch(() => {});
+  toast("Neustart ausgelöst");
+};
+$("#sysFactory").onclick = async () => {
+  if (!confirm("Alle Räume und Kreisparameter auf die Werksvorgabe zurücksetzen?")) return;
+  try { await post("/api/system/factory"); await loadConfig(); toast("Zurückgesetzt"); }
+  catch (e) { toast(e.message, true); }
+};
+
+$("#otaGo").onclick = async () => {
+  const f = $("#otaFile").files[0], st = $("#otaState");
+  st.hidden = false;
+  if (!f) { st.className = "chip plain bad"; st.textContent = "Bitte Datei wählen"; return; }
+  st.className = "chip plain heat";
+  st.textContent = `überträgt ${Math.round(f.size/1024)} kB …`;
+  try {
+    const r = await fetch("/api/ota", {method:"POST", body: f});
+    if (!r.ok) throw new Error("Fehler " + r.status);
+    st.className = "chip plain ok";
+    st.textContent = "übernommen, das Gerät startet neu";
+  } catch (e) {
+    st.className = "chip plain bad";
+    st.textContent = "fehlgeschlagen: " + e.message;
+  }
+};
+
+/* ---------------- Laden und Speichern ---------------- */
+
+async function saveConfig() {
+  try {
+    await api("/api/config", {method:"PUT", headers:{"Content-Type":"application/json"},
+                              body: JSON.stringify(config)});
+    toast("Gespeichert");
+    await loadConfig(); await refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadConfig() {
+  config = await api("/api/config");
+  renderRoomEditor(); renderChannelConfig(); renderSystem();
+}
+
+/* Bewegt sich am Gerät gerade etwas? Nur dann lohnt der schnelle Takt. */
+function busy() {
+  if (!state) return true;
+  if (calibInfo && calibInfo.state === "running") return true;
+  return state.channels.some(c => c.op !== "idle" || c.pending || c.reserved);
+}
+
+function schedule() {
+  clearTimeout(pollTimer);
+  if (document.hidden) return; /* im Hintergrund gar nicht abfragen */
+  pollTimer = setTimeout(poll, busy() ? POLL_BUSY_MS : POLL_IDLE_MS);
+}
+
+async function poll() {
+  /* Eine bereits geplante Abfrage verwerfen — sonst laufen nach einer
+     Bedienung zwei Ketten nebeneinander und die Last verdoppelt sich. */
+  clearTimeout(pollTimer);
+  pollTimer = null;
+
+  try {
+    const r = await fetch("/api/state", {
+      cache: "no-store",
+      headers: etag ? {"If-None-Match": etag} : {},
+    });
+
+    /* 304: Der Änderungsstand ist derselbe, das Gerät hat sich den Aufbau der
+       Antwort gespart. Die Anzeige zählt lokal weiter. */
+    if (r.status !== 304) {
+      if (!r.ok) throw new Error("Fehler " + r.status);
+      state = await r.json();
+      etag = r.headers.get("ETag");
+      fetchedAt = Date.now();
+      calibInfo = state.calib;
+      applySetupMode();
+      renderStatus(); renderManifold(); renderRooms();
+      renderChannels(); renderLocalSensors();
+      if (calibInfo && calibInfo.state !== "idle") renderCalib();
+    }
+  } catch (e) {
+    $("#status").textContent = "keine Verbindung zum Gerät";
+  }
+  schedule();
+}
+
+/* Nach einer Bedienung sofort und vollständig nachfragen. */
+async function refresh() {
+  etag = null;
+  await poll();
+}
+
+/* Ohne WLAN-Verbindung ist das Gerät nur über den eigenen Zugangspunkt
+   erreichbar. Dann ist die Einrichtung das Erste, was gebraucht wird —
+   nicht die Raumübersicht. */
+function applySetupMode() {
+  const on = state.net.ap_active && !state.net.connected;
+  $("#setup").hidden = !on;
+  if (on && !applySetupMode.done) {
+    applySetupMode.done = true;
+    selectTab("sys");
+    $("#wifiScan").click();
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) clearTimeout(pollTimer);
+  else poll();
+});
+
+async function boot() {
+  await poll();
+  await loadCalibSamples();
+  await loadBle();
+  await loadConfig();
+  setInterval(tickLocal, TICK_MS);
+  setInterval(() => { if (calibInfo && calibInfo.state === "running") pollCalib(); }, 400);
+  setInterval(() => { if (!document.hidden) loadBle(); }, 30000);
+}
+boot();
+</script>
+</body>
+</html>

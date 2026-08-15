@@ -1,0 +1,12 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# Prüfstand
+test/host/test_logic
+test/host/*.dSYM/
+
+# Betriebssystem
+.DS_Store
