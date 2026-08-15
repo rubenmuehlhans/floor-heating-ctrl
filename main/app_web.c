@@ -388,6 +388,24 @@ static esp_err_t config_get(httpd_req_t *req)
     return rc;
 }
 
+/*
+ * Neue WLAN-Zugangsdaten uebernehmen - aber erst, nachdem die Antwort auf die
+ * Anfrage draussen ist. Das Umschalten trennt die Verbindung, ueber die gerade
+ * gespeichert wurde; geschieht es zu frueh, wartet der Browser vergeblich und
+ * die Speicherung sieht wie ein Fehlschlag aus, obwohl sie geklappt hat.
+ */
+static void wifi_apply_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(600));
+
+    static app_config_t cfg;
+    cfg_copy(&cfg);
+    ESP_LOGI(TAG, "WLAN-Zugangsdaten geaendert, Verbindung wird neu aufgebaut");
+    netmgr_apply(&cfg);
+    vTaskDelete(NULL);
+}
+
 static esp_err_t config_put(httpd_req_t *req)
 {
     char *body = read_body(req);
@@ -398,7 +416,9 @@ static esp_err_t config_put(httpd_req_t *req)
     /* Bestehende Zugangsdaten als Ausgangsbasis: die Oberflaeche bekommt sie
      * nie zu sehen und kann sie deshalb auch nicht zuruecksenden. */
     static app_config_t next;
+    static cfg_wifi_t before;
     cfg_copy(&next);
+    before = next.wifi;
 
     char err[128] = {0};
     esp_err_t rc = cfg_from_json(body, &next, err, sizeof(err));
@@ -415,9 +435,20 @@ static esp_err_t config_put(httpd_req_t *req)
     control_config_changed();
     mqtt_config_changed();
     ui_config_changed();
-    netmgr_apply(&next);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Raeume", next.room_count);
-    return send_ok(req);
+
+    /* Nur bei tatsaechlich geaenderten Zugangsdaten ans Funkteil gehen. Wer
+     * Raeume oder Fahrzeiten speichert, soll deswegen nicht die Verbindung
+     * verlieren. */
+    bool wifi_changed = strcmp(before.ssid, next.wifi.ssid) != 0 ||
+                        strcmp(before.pass, next.wifi.pass) != 0 ||
+                        strcmp(before.hostname, next.wifi.hostname) != 0;
+
+    esp_err_t sent = send_ok(req);
+    if (wifi_changed) {
+        xTaskCreate(wifi_apply_task, "wifi_apply", 4096, NULL, 4, NULL);
+    }
+    return sent;
 }
 
 /* ------------------------------------------------------------------ */
