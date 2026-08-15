@@ -10,3 +10,7 @@ test/host/*.dSYM/
 
 # Betriebssystem
 .DS_Store
+
+# Gehäuse
+case/.venv
+case/__pycache__/

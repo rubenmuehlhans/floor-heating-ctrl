@@ -44,6 +44,7 @@ typedef struct {
     float pending_target; /* Ziel nach Abschluss der Referenzfahrt */
     bool referencing;     /* Referenzfahrt gegen die untere Endlage laeuft */
     bool pending_valid;
+    bool forcing;         /* Notfahrt: faehrt bis zum Anschlag durch */
 
     uint32_t move_start_ms;
     uint32_t last_ms;
@@ -78,6 +79,17 @@ bool valve_goto(valve_t *v, float target, float min_delta, uint32_t now_ms);
 
 void valve_open(valve_t *v, uint32_t now_ms);
 void valve_close(valve_t *v, uint32_t now_ms);
+
+/*
+ * Notfahrt bis zum Anschlag, unabhaengig von der geschaetzten Stellung.
+ *
+ * Anders als valve_goto prueft sie weder die aktuelle Stellung noch braucht
+ * sie eine Referenzfahrt: haelt die Zustandsmaschine das Ventil faelschlich
+ * fuer bereits offen, wuerde ein gewoehnlicher Fahrbefehl gar nichts tun.
+ * Beendet wird die Fahrt nur durch die Endlage, die Maximallaufzeit oder einen
+ * Halt-Befehl; danach gilt die Stellung als bekannt.
+ */
+void valve_force(valve_t *v, bool open, uint32_t now_ms);
 void valve_stop(valve_t *v, uint32_t now_ms);
 
 /* Rechnet die Position fort und beendet die Fahrt bei Ziel oder Zeitablauf.

@@ -101,6 +101,26 @@ Ruhepause. Die beiden Spitzen sind die Anschläge. Aus dem Verlauf ergeben sich
 Fahrzeiten, Maximallaufzeit, Auslöseschwelle und Hysterese; übernommen werden
 sie erst nach Bestätigung.
 
+### Handsteuerung und Notfahrt
+
+Jeder Kreis lässt sich von Hand fahren, **unabhängig davon, welche Stellung die
+Steuerung ihm zuschreibt**. Das ist kein gewöhnlicher Fahrbefehl: `valve_goto`
+prüft die geschätzte Stellung und täte nichts, wenn das Ventil bereits als
+offen gilt; bei unbekannter Stellung führe es sogar erst eine Referenzfahrt
+gegen die untere Endlage aus — bei „auf" also zunächst zu. Für den Notfall ist
+beides falsch.
+
+`valve_force` fährt deshalb ohne Stellungsvergleich bis zum Anschlag. Beendet
+wird die Fahrt nur durch die Endlage, die Maximallaufzeit oder einen Halt.
+
+Danach bleibt der Kreis im **Handbetrieb**: die Regelung fasst ihn nicht mehr
+an, bis er ausdrücklich wieder freigegeben wird. Ohne diesen Halt wäre eine von
+Hand erzwungene Stellung beim nächsten Regeldurchlauf nach spätestens einem
+Prüfintervall wieder verworfen.
+
+Die Gruppensperre gilt weiter: fährt in derselben Messgruppe bereits ein
+anderer Kreis, wartet der Befehl, bis sie frei ist.
+
 ### Regelung
 
 Die Ventilstellung folgt der Regelabweichung proportional, über ein Band von

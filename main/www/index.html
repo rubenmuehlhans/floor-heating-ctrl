@@ -274,6 +274,19 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
 .sensor-pick .val{margin-left:auto; font-family:var(--data); font-size:.82rem; color:var(--muted)}
 .taken{color:var(--warn); font-size:.72rem}
 
+.jog{display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem}
+.jog button{display:flex; align-items:center; justify-content:center; gap:.45rem;
+  padding:1rem .6rem; font-size:.95rem; font-weight:600; border-radius:var(--r)}
+.jog .ic{width:1.25em; height:1.25em; stroke-width:2.2}
+/* Hoehere Spezifitaet als button.btn - sonst gewinnt dort die Grundfarbe. */
+.jog button.jog-up{background:var(--heat)}
+.jog button.jog-down{background:var(--accent)}
+.jog button.jog-stop{background:var(--surface); color:var(--ink);
+  border:1px solid var(--line-strong)}
+.jog button.jog-stop:hover{background:var(--sunken); filter:none}
+.jog button.on{outline:3px solid color-mix(in srgb,currentColor 40%,transparent); outline-offset:2px}
+@media (max-width:520px){ .jog{grid-template-columns:1fr} }
+
 #toast{position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%) translateY(8px);
   background:var(--ink); color:var(--surface); padding:.55rem 1rem; border-radius:99px;
   font-size:.86rem; opacity:0; transition:opacity .2s, transform .2s;
@@ -304,6 +317,9 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 7"/></symbol>
   <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.5 8.8a15 15 0 0 1 19 0"/><path d="M5.6 12.4a10.4 10.4 0 0 1 12.8 0"/><path d="M8.7 16a5.6 5.6 0 0 1 6.6 0"/><path d="M12 19.4h.01"/></symbol>
   <symbol id="i-ap" viewBox="0 0 24 24"><path d="M3.5 14.5h17v5h-17z"/><path d="M7 17h.01"/><path d="M8.5 10.5a5 5 0 0 1 7 0"/><path d="M5.5 7.5a9.5 9.5 0 0 1 13 0"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="1.5"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
@@ -358,13 +374,48 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   </section>
 
   <section id="chans">
+    <div class="card" id="manualCard">
+      <h2>Handsteuerung</h2>
+      <p class="lede">Motor eines einzelnen Kreises von Hand fahren — unabhängig davon, welche
+        Stellung die Steuerung dem Ventil zuschreibt. Der Kreis bleibt danach im Handbetrieb,
+        bis Sie ihn wieder an die Regelung übergeben.</p>
+
+      <div class="row" style="margin-bottom:.9rem">
+        <select id="manCh"></select>
+        <span id="manState" class="muted"></span>
+      </div>
+
+      <div class="jog">
+        <button class="btn jog-up" onclick="manCmd('open')">
+          <svg class="ic"><use href="#i-up"/></svg>Motor auf</button>
+        <button class="btn jog-stop" onclick="manCmd('stop')">
+          <svg class="ic"><use href="#i-stop"/></svg>Motor aus</button>
+        <button class="btn jog-down" onclick="manCmd('close')">
+          <svg class="ic"><use href="#i-down"/></svg>Motor zu</button>
+      </div>
+
+      <p class="lede" id="manHint" style="margin:.9rem 0 0"></p>
+
+      <div class="actions">
+        <button class="btn quiet" onclick="manCmd('auto')">Wieder an die Regelung übergeben</button>
+      </div>
+
+      <h3 class="sub">Alle Kreise auf einmal</h3>
+      <div class="row">
+        <button class="btn risky" onclick="allCmd('open')">Alle auf</button>
+        <button class="btn risky" onclick="allCmd('close')">Alle zu</button>
+        <button class="btn quiet" onclick="allCmd('stop')">Alle aus</button>
+        <button class="btn quiet" onclick="allCmd('auto')">Alle an die Regelung</button>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Heizkreise</h2>
       <p class="lede">Innerhalb einer Messgruppe fährt immer nur ein Kreis — sonst ließe sich
         die gemessene Gegenspannung keinem Antrieb zuordnen.</p>
       <div class="scroll"><table><thead><tr>
         <th>Kreis</th><th>Raum</th><th class="num">Gruppe</th><th>Stellung</th>
-        <th>Zustand</th><th class="num">Gegenspannung</th><th>Bedienung</th>
+        <th>Zustand</th><th class="num">Gegenspannung</th><th>Bedienung / Notfahrt</th>
       </tr></thead><tbody id="chanBody"></tbody></table></div>
     </div>
 
@@ -718,6 +769,7 @@ function roomTexts(r) {
 function tickLocal() {
   if (!state) return;
   renderStatus();
+  renderManual();
   for (const r of state.rooms) {
     const el = document.querySelector(`.room[data-room="${r.id}"]`);
     if (!el) continue;
@@ -839,6 +891,7 @@ function renderChannels() {
     if (c.op !== "idle") marks.push(chip("heat", "flame", c.op === "opening" ? "öffnet" : "schließt"));
     else marks.push('<span class="chip plain">steht</span>');
     if (!c.known) marks.push(chip("bad", "alert", "Stellung unbekannt"));
+    if (c.manual) marks.push(chip("warn", "power", "Handbetrieb"));
     if (c.reserved) marks.push(chip("warn", "gauge", "Messfahrt"));
     if (c.pending) marks.push(chip("warn", "clock", "wartet auf Gruppe"));
     if (!c.calibrated) marks.push('<span class="chip plain">nicht kalibriert</span>');
@@ -860,8 +913,66 @@ function renderChannels() {
         <button class="btn quiet" onclick="chanCmd(${c.id},'close')">Zu</button>
         <button class="btn quiet" onclick="chanCmd(${c.id},'stop')">Stopp</button>
         <button class="btn quiet" onclick="chanPos(${c.id})">%</button>
+        ${c.manual ? `<button class="btn quiet" onclick="chanCmd(${c.id},'auto')"
+          title="Kreis wieder von der Regelung führen lassen">Regelung</button>` : ""}
       </div></td></tr>`;
   }).join("");
+}
+
+/* ---------------- Handsteuerung eines Kreises ---------------- */
+
+$("#manCh").innerHTML = Array.from({length: CH_COUNT},
+  (_, i) => `<option value="${i+1}">Kreis ${i+1}</option>`).join("");
+$("#manCh").onchange = () => renderManual();
+
+async function manCmd(cmd) {
+  const n = +$("#manCh").value;
+  if (cmd === "auto") {
+    try { await post(`/api/channel/${n}/cmd`, {cmd}); toast(`Kreis ${n} wieder unter Regelung`); }
+    catch (e) { toast(e.message, true); }
+    await refresh(); return;
+  }
+  try { await post(`/api/channel/${n}/cmd`, {cmd}); }
+  catch (e) { toast(e.message, true); }
+  await refresh();
+}
+
+/* Zustand des gewählten Kreises. Läuft im Sekundentakt mit, damit die
+   Rückmeldung beim Fahren unmittelbar ist. */
+function renderManual() {
+  if (!state) return;
+  const n = +$("#manCh").value;
+  const c = state.channels[n - 1];
+  if (!c) return;
+
+  const raum = roomOfChannel(n);
+  const richtung = c.op === "opening" ? "Motor läuft auf"
+                 : c.op === "closing" ? "Motor läuft zu" : "Motor aus";
+  $("#manState").innerHTML =
+    `<span class="chip plain">${typeof raum === "string" && raum.startsWith("<") ? "ohne Raum" : raum}</span>`
+    + ` <span class="chip ${c.op === "idle" ? "plain" : "heat"}">${richtung}</span>`
+    + ` <span class="chip plain">Stellung ${pct(c.position)} %</span>`
+    + ` <span class="chip plain">${c.bemf_mv} mV</span>`
+    + (c.manual ? ' <span class="chip warn">Handbetrieb</span>' : "")
+    + (c.known ? "" : ' <span class="chip bad">Stellung unbekannt</span>');
+
+  document.querySelector(".jog-up").classList.toggle("on", c.op === "opening");
+  document.querySelector(".jog-down").classList.toggle("on", c.op === "closing");
+
+  const cfgCh = config && config.channels[n - 1];
+  const max = cfgCh ? (cfgCh.max_ms / 1000).toFixed(0) : "?";
+  $("#manHint").textContent = c.pending
+    ? `Wartet — in Messgruppe ${c.group} fährt gerade ein anderer Kreis.`
+    : `Der Motor läuft, bis Sie ihn ausschalten, die Endlage erreicht ist oder die `
+      + `Maximallaufzeit von ${max} s abgelaufen ist. Zum Weiterfahren erneut drücken.`;
+}
+
+async function allCmd(cmd) {
+  const frage = {open: "Alle Kreise ganz öffnen?", close: "Alle Kreise ganz schließen?",
+                 stop: "Alle Kreise anhalten?", auto: "Alle Kreise wieder der Regelung übergeben?"};
+  if (!confirm(frage[cmd])) return;
+  try { await post("/api/channel/all/cmd", {cmd}); toast("Befehl angenommen"); await refresh(); }
+  catch (e) { toast(e.message, true); }
 }
 
 async function chanCmd(n, cmd) {
@@ -1482,7 +1593,7 @@ async function poll() {
       calibInfo = state.calib;
       applySetupMode();
       renderStatus(); renderManifold(); renderRooms();
-      renderChannels(); renderLocalSensors();
+      renderChannels(); renderLocalSensors(); renderManual();
       if (calibInfo && calibInfo.state !== "idle") renderCalib();
     }
   } catch (e) {

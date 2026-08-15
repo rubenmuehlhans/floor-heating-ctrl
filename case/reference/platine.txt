@@ -1,0 +1,44 @@
+Platine: 150.0 x 92.0 mm, Eckradius 3.0 mm
+  Gerber-Ursprung: X 7.000..157.000  Y 23.000..115.000
+  Nullpunktversatz fuer das Gehaeuse: (-7.0, -23.0)
+
+Befestigungsbohrungen (PTH >= 2 mm), auf Platinen-Nullpunkt bezogen:
+  Ø2.701  (  3.414,  53.200)
+  Ø2.701  ( 62.342,  87.236)
+  Ø2.701  (143.876,  87.490)
+  Ø2.701  (145.654,  46.850)
+
+NPTH >= 2 mm (Rastzapfen der RJ11-Buchsen), Anzahl je Reihe:
+  Ø2.501  24 Loecher auf Y = [6.99, 7.09, 63.85]
+
+Bauteile (Auszug: alles mit Bauhoehe), Nullpunkt = Platinenecke:
+           I2C-2  CONN-SMD_1.0T-4P                   ( 20.305,  53.835)    0°  Lage 1
+           I2C-1  CONN-SMD_1.0T-4P                   ( 30.084,  54.000)    0°  Lage 1
+         ONEWIRE  CONN-SMD_1.0T-4P                   ( 45.959,  54.000)    0°  Lage 1
+             220  CONN-TH_3P-P3.50_KF250-3.5-3P-2    (137.526,  74.916)  270°  Lage 1
+              U2  ESP32D DEVKITC V4                  ( 31.100,  74.155)   90°  Lage 1
+              H1  HDR-F-2.54_1X2                     ( 15.000,   3.064)   90°  Lage 1
+              H2  HDR-F-2.54_1X2                     ( 28.433,   3.191)   90°  Lage 1
+              H4  HDR-F-2.54_1X2                     ( 42.149,   3.191)   90°  Lage 1
+              H5  HDR-F-2.54_1X2                     ( 55.484,   3.064)   90°  Lage 1
+              H6  HDR-F-2.54_1X2                     ( 68.946,   3.318)   90°  Lage 1
+              H7  HDR-F-2.54_1X2                     ( 82.535,   3.318)   90°  Lage 1
+              H8  HDR-F-2.54_1X2                     ( 96.251,   3.445)   90°  Lage 1
+              H9  HDR-F-2.54_1X2                     (109.205,   3.318)   90°  Lage 1
+             H10  HDR-F-2.54_1X2                     (122.667,   3.445)   90°  Lage 1
+             H11  HDR-F-2.54_1X2                     (136.256,   3.318)   90°  Lage 1
+             H12  HDR-F-2.54_1X2                     (136.256,  11.065)   90°  Lage 1
+              U1  PWRM-TH_HLK-5M03                   (105.268,  75.045)  180°  Lage 1
+             RJ1  RJ11-TH_616-PCB-4P4C-90            (  8.367,  10.665)  270°  Lage 1
+             RJ2  RJ11-TH_616-PCB-4P4C-90            ( 21.702,  10.665)  270°  Lage 1
+             RJ3  RJ11-TH_616-PCB-4P4C-90            ( 35.291,  10.665)  270°  Lage 1
+             RJ4  RJ11-TH_616-PCB-4P4C-90            ( 48.880,  10.665)  270°  Lage 1
+             RJ5  RJ11-TH_616-PCB-4P4C-90            ( 62.342,  10.665)  270°  Lage 1
+    ONEWIRE_RJ11  RJ11-TH_616-PCB-4P4C-90            ( 75.677,  67.423)  270°  Lage 1
+             RJ6  RJ11-TH_616-PCB-4P4C-90            ( 75.804,  10.665)  270°  Lage 1
+             RJ7  RJ11-TH_616-PCB-4P4C-90            ( 89.266,  10.665)  270°  Lage 1
+             RJ8  RJ11-TH_616-PCB-4P4C-90            (102.601,  10.665)  270°  Lage 1
+             RJ9  RJ11-TH_616-PCB-4P4C-90            (115.936,  10.665)  270°  Lage 1
+            RJ10  RJ11-TH_616-PCB-4P4C-90            (129.398,  10.665)  270°  Lage 1
+            RJ11  RJ11-TH_616-PCB-4P4C-90            (142.987,  10.557)  270°  Lage 1
+         HDC1080  SENSOR-SMD_HDC1080DMBR             (  3.096,  45.199)  270°  Lage 1

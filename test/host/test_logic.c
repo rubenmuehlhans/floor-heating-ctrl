@@ -202,6 +202,68 @@ static void test_valve_reference_run(void)
     CHECK(CLOSE(v.position, 0.5f, 0.02f), "Endstellung nach der Referenzfahrt: %.3f", v.position);
 }
 
+static void test_valve_force(void)
+{
+    printf("Notfahrt\n");
+
+    valve_cfg_t cfg = {.open_ms = 10000, .close_ms = 10000, .max_ms = 12000, .blank_ms = 1000};
+    valve_t v;
+
+    /* Die Steuerung haelt das Ventil fuer ganz offen. Ein gewoehnlicher
+     * Fahrbefehl auf "auf" taete deshalb gar nichts - genau der Fall, fuer den
+     * es die Notfahrt gibt. */
+    valve_init(&v, &cfg);
+    valve_restore(&v, 1.0f);
+    CHECK(!valve_goto(&v, 1.0f, 0.0f, 0), "gewoehnlicher Fahrbefehl faehrt hier nicht");
+
+    valve_force(&v, true, 0);
+    CHECK(v.op == VALVE_OPENING, "Notfahrt muss trotzdem oeffnen");
+    CHECK(valve_drive(&v) == HW_DRIVE_OPEN, "Ausgang muss auf oeffnen stehen");
+
+    /* Sie darf nicht an der vermeintlich erreichten Stellung abbrechen. */
+    for (uint32_t t = 50; t <= 3000; t += 50) {
+        valve_tick(&v, t);
+    }
+    CHECK(valve_is_moving(&v), "Notfahrt darf nicht an der Zielstellung enden");
+
+    CHECK(valve_endstop(&v, 3000), "Endlage muss die Notfahrt beenden");
+    CHECK(!valve_is_moving(&v), "danach muss der Antrieb stehen");
+    CHECK(CLOSE(v.position, 1.0f, 0.0001f), "Stellung nach der Notfahrt: %.3f", v.position);
+    CHECK(v.position_known, "die Stellung gilt danach als bekannt");
+
+    /* Bei unbekannter Stellung darf keine Referenzfahrt dazwischenkommen: ein
+     * "auf" muss auf machen, nicht erst zu. */
+    valve_init(&v, &cfg);
+    CHECK(!v.position_known, "Ausgangslage: Stellung unbekannt");
+    valve_force(&v, true, 0);
+    CHECK(v.op == VALVE_OPENING, "Notfahrt auf darf nicht erst schliessen");
+
+    /* Ohne Endlagenmeldung beendet die Maximallaufzeit die Fahrt, und das
+     * Ventil steht dann mechanisch am Anschlag. */
+    uint32_t took = run_until_idle(&v, 0, 30000);
+    CHECK(CLOSE((float)took, 12000.0f, 100.0f), "Notfahrt endet nach der Maximallaufzeit: %u ms",
+          took);
+    CHECK(v.last_stop_reason == VALVE_STOP_TIMEOUT, "Grund muss die Maximallaufzeit sein");
+    CHECK(CLOSE(v.position, 1.0f, 0.0001f), "Stellung am Anschlag: %.3f", v.position);
+
+    /* Und in die Gegenrichtung ebenso. */
+    valve_init(&v, &cfg);
+    valve_restore(&v, 0.0f);
+    valve_force(&v, false, 0);
+    CHECK(v.op == VALVE_CLOSING, "Notfahrt zu muss schliessen, auch wenn schon zu");
+    run_until_idle(&v, 0, 30000);
+    CHECK(CLOSE(v.position, 0.0f, 0.0001f), "Stellung nach Notfahrt zu: %.3f", v.position);
+
+    /* Ein Halt beendet die Notfahrt. */
+    valve_init(&v, &cfg);
+    valve_restore(&v, 0.5f);
+    valve_force(&v, true, 0);
+    valve_tick(&v, 1000);
+    valve_stop(&v, 1000);
+    CHECK(!valve_is_moving(&v), "Halt muss die Notfahrt beenden");
+    CHECK(!v.forcing, "die Notfahrt darf danach nicht weiterlaufen");
+}
+
 /* ------------------------------------------------------------------ */
 
 static void test_hw_map(void)
@@ -256,6 +318,7 @@ int main(void)
     test_valve_endstop();
     test_valve_timeout();
     test_valve_reference_run();
+    test_valve_force();
     test_hw_map();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);

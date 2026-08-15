@@ -61,6 +61,7 @@ POSITIONS = [0.3, 0.3, 0.3, 0.7, 0.7, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0]
 TEMPS = {1: 20.6, 2: 20.2, 4: 21.4}
 
 AP_MODE = [False]   # ueber /mock/ap?on=1 umschaltbar
+MANUAL = set()      # Kreise im Handbetrieb (Notstellung)
 
 # Aenderungszaehler wie im Geraet: er steigt nur bei Ereignissen, nicht
 # fortlaufend. Waehrend einer Fahrt wird trotzdem immer voll geantwortet.
@@ -142,6 +143,7 @@ def state():
             "id": n, "position": POSITIONS[n - 1], "known": n <= 10,
             "op": "opening" if moving else "idle", "group": (n + 1) // 2,
             "reserved": CALIB["state"] == "running" and CALIB["channel"] == n,
+            "manual": n in MANUAL,
             "pending": False,
             "bemf_mv": 78 + int(random.uniform(0, 12)) if moving else int(random.uniform(2, 9)),
             "calibrated": n in (1, 2),
@@ -302,14 +304,20 @@ class Handler(BaseHTTPRequestHandler):
             bump()
             self._send({"ok": True})
         elif p.startswith("/api/channel/"):
-            n = int(p.split("/")[3])
+            seg = p.split("/")[3]
+            targets = list(range(1, 12)) if seg == "all" else [int(seg)]
             cmd = body.get("cmd")
-            if cmd == "open":
-                POSITIONS[n - 1] = 1.0
-            elif cmd == "close":
-                POSITIONS[n - 1] = 0.0
-            elif cmd == "position":
-                POSITIONS[n - 1] = round(float(body.get("position", 0)), 2)
+            for n in targets:
+                if cmd == "open":
+                    POSITIONS[n - 1] = 1.0; MANUAL.add(n)
+                elif cmd == "close":
+                    POSITIONS[n - 1] = 0.0; MANUAL.add(n)
+                elif cmd == "stop":
+                    MANUAL.add(n)
+                elif cmd == "auto":
+                    MANUAL.discard(n)
+                elif cmd == "position":
+                    POSITIONS[n - 1] = round(float(body.get("position", 0)), 2)
             bump()
             self._send({"ok": True})
         elif p.endswith("/start") and p.startswith("/api/calib/"):

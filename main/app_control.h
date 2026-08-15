@@ -24,6 +24,7 @@ typedef struct {
     valve_op_t op;
     uint8_t group;      /* 0..5 */
     bool reserved;      /* von der Autokalibrierung belegt */
+    bool manual_hold;   /* Notstellung: die Regelung laesst den Kreis in Ruhe */
     bool request_open;  /* Fahrbefehl liegt an, wartet auf die Gruppe */
     float request_target;
     uint32_t last_move_ms;
@@ -63,9 +64,26 @@ void control_snapshot(ctl_snapshot_t *out);
 /* Fahrbefehle. Sie werden gemerkt und ausgefuehrt, sobald die Messgruppe des
  * Kanals frei ist. */
 void control_cmd_position(uint8_t channel, float position);
+
+/*
+ * Notfahrt bis zum Anschlag, unabhaengig davon, welche Stellung die Steuerung
+ * dem Ventil zuschreibt. Der Kreis bleibt danach in Handbetrieb: die Regelung
+ * fasst ihn nicht mehr an, bis control_cmd_auto ihn wieder freigibt. Ohne
+ * diesen Halt waere die Notstellung beim naechsten Regeldurchlauf wieder weg.
+ */
 void control_cmd_open(uint8_t channel);
 void control_cmd_close(uint8_t channel);
+
+/* Haelt den Kreis an. Der Handbetrieb bleibt bestehen. */
 void control_cmd_stop(uint8_t channel);
+
+/* Gibt den Kreis wieder an die Regelung zurueck. */
+void control_cmd_auto(uint8_t channel);
+
+/* Notfahrt fuer alle Kreise. Sie laufen nacheinander, sobald ihre Messgruppe
+ * frei ist. */
+void control_cmd_all(bool open);
+void control_cmd_all_auto(void);
 
 void control_room_set_target(uint8_t room_id, float target_c);
 void control_room_set_mode(uint8_t room_id, bool heat);

@@ -325,6 +325,7 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddStringToObject(jc, "op", op_name(c->op));
         cJSON_AddNumberToObject(jc, "group", c->group + 1);
         cJSON_AddBoolToObject(jc, "reserved", c->reserved);
+        cJSON_AddBoolToObject(jc, "manual", c->manual_hold);
         cJSON_AddBoolToObject(jc, "pending", c->request_open);
         cJSON_AddNumberToObject(jc, "bemf_mv", snap.bemf_mv[c->group]);
         cJSON_AddBoolToObject(jc, "calibrated", cfg.channels[i].calibrated);
@@ -502,8 +503,11 @@ static esp_err_t room_post(httpd_req_t *req)
 
 static esp_err_t channel_post(httpd_req_t *req)
 {
-    int channel = segment_number(req->uri, 2);
-    if (!hw_channel_valid((uint8_t)channel)) {
+    /* /api/channel/all/cmd wirkt auf alle Kreise - fuer den Notfall, in dem
+     * die ganze Anlage auf oder zu soll. */
+    bool all = strstr(req->uri, "/channel/all/") != NULL;
+    int channel = all ? 0 : segment_number(req->uri, 2);
+    if (!all && !hw_channel_valid((uint8_t)channel)) {
         return send_error(req, "400 Bad Request", "Unbekannter Kanal");
     }
 
@@ -522,13 +526,22 @@ static esp_err_t channel_post(httpd_req_t *req)
     if (!cJSON_IsString(cmd)) {
         rc = send_error(req, "400 Bad Request", "Feld cmd fehlt");
     } else if (strcmp(cmd->valuestring, "open") == 0) {
-        control_cmd_open((uint8_t)channel);
+        if (all) { control_cmd_all(true); } else { control_cmd_open((uint8_t)channel); }
         rc = send_ok(req);
     } else if (strcmp(cmd->valuestring, "close") == 0) {
-        control_cmd_close((uint8_t)channel);
+        if (all) { control_cmd_all(false); } else { control_cmd_close((uint8_t)channel); }
+        rc = send_ok(req);
+    } else if (strcmp(cmd->valuestring, "auto") == 0) {
+        if (all) { control_cmd_all_auto(); } else { control_cmd_auto((uint8_t)channel); }
         rc = send_ok(req);
     } else if (strcmp(cmd->valuestring, "stop") == 0) {
-        control_cmd_stop((uint8_t)channel);
+        if (all) {
+            for (uint8_t n = 1; n <= HW_CHANNEL_COUNT; n++) {
+                control_cmd_stop(n);
+            }
+        } else {
+            control_cmd_stop((uint8_t)channel);
+        }
         rc = send_ok(req);
     } else if (strcmp(cmd->valuestring, "position") == 0) {
         const cJSON *p = cJSON_GetObjectItemCaseSensitive(root, "position");

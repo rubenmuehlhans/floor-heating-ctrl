@@ -24,6 +24,8 @@ typedef struct {
     bool req_valid;
     float req_target;
     float req_min_delta;
+    bool req_force;    /* Notfahrt bis zum Anschlag statt auf eine Stellung */
+    bool manual_hold;  /* die Regelung laesst diesen Kreis in Ruhe */
 } channel_rt_t;
 
 typedef struct {
@@ -230,8 +232,8 @@ static void room_run_check(int ri, uint32_t t)
             continue;
         }
         channel_rt_t *ch = &s_ch[n - 1];
-        if (ch->reserved) {
-            continue;
+        if (ch->reserved || ch->manual_hold) {
+            continue; /* Kalibrierung oder Notstellung von Hand */
         }
         if (!ch->valve.position_known ||
             roomctrl_needs_move(ch->valve.position, target, r->min_delta)) {
@@ -287,8 +289,16 @@ static void serve_requests(uint32_t t)
         if (valve_is_moving(&ch->valve) || group_busy(i + 1)) {
             continue;
         }
-        bool started = valve_goto(&ch->valve, ch->req_target, ch->req_min_delta, t);
+        bool started;
+        if (ch->req_force) {
+            valve_force(&ch->valve, ch->req_target >= 0.5f, t);
+            started = true;
+            ESP_LOGW(TAG, "CH%d Notfahrt %s", i + 1, ch->req_target >= 0.5f ? "auf" : "zu");
+        } else {
+            started = valve_goto(&ch->valve, ch->req_target, ch->req_min_delta, t);
+        }
         ch->req_valid = false;
+        ch->req_force = false;
         if (started) {
             apply_channel(i);
             s_revision++;
@@ -396,7 +406,7 @@ esp_err_t control_start(void)
 /* Schnittstelle nach aussen                                           */
 /* ------------------------------------------------------------------ */
 
-static void request(uint8_t channel, float target, float min_delta)
+static void request(uint8_t channel, float target, float min_delta, bool force)
 {
     if (!hw_channel_valid(channel)) {
         return;
@@ -407,6 +417,13 @@ static void request(uint8_t channel, float target, float min_delta)
         ch->req_valid = true;
         ch->req_target = target;
         ch->req_min_delta = min_delta;
+        ch->req_force = force;
+        if (force) {
+            /* Eine von Hand erzwungene Stellung soll stehen bleiben. Ohne
+             * diesen Halt haette der naechste Regeldurchlauf sie nach
+             * spaetestens einem Pruefintervall wieder verworfen. */
+            ch->manual_hold = true;
+        }
         s_revision++;
     }
     unlock();
@@ -414,17 +431,58 @@ static void request(uint8_t channel, float target, float min_delta)
 
 void control_cmd_position(uint8_t channel, float position)
 {
-    request(channel, position, 0.005f);
+    request(channel, position, 0.005f, false);
 }
 
 void control_cmd_open(uint8_t channel)
 {
-    request(channel, 1.0f, 0.0f);
+    request(channel, 1.0f, 0.0f, true);
 }
 
 void control_cmd_close(uint8_t channel)
 {
-    request(channel, 0.0f, 0.0f);
+    request(channel, 0.0f, 0.0f, true);
+}
+
+void control_cmd_auto(uint8_t channel)
+{
+    if (!hw_channel_valid(channel)) {
+        return;
+    }
+    lock();
+    s_ch[channel - 1].manual_hold = false;
+    s_revision++;
+    unlock();
+    ESP_LOGI(TAG, "CH%u wieder unter Regelung", channel);
+
+    /* Den zugehoerigen Raum gleich neu bewerten, statt bis zum naechsten
+     * Pruefintervall zu warten. */
+    app_config_t *cfg = malloc(sizeof(*cfg));
+    if (cfg == NULL) {
+        return;
+    }
+    cfg_copy(cfg);
+    const cfg_room_t *r = cfg_room_of_channel(cfg, channel);
+    uint8_t room_id = r ? r->id : 0;
+    free(cfg);
+    if (room_id) {
+        control_room_check_now(room_id);
+    }
+}
+
+void control_cmd_all(bool open)
+{
+    ESP_LOGW(TAG, "Notfahrt aller Kreise: %s", open ? "auf" : "zu");
+    for (uint8_t n = 1; n <= HW_CHANNEL_COUNT; n++) {
+        request(n, open ? 1.0f : 0.0f, 0.0f, true);
+    }
+}
+
+void control_cmd_all_auto(void)
+{
+    for (uint8_t n = 1; n <= HW_CHANNEL_COUNT; n++) {
+        control_cmd_auto(n);
+    }
 }
 
 void control_cmd_stop(uint8_t channel)
@@ -435,6 +493,8 @@ void control_cmd_stop(uint8_t channel)
     lock();
     channel_rt_t *ch = &s_ch[channel - 1];
     ch->req_valid = false;
+    ch->req_force = false;
+    ch->manual_hold = true; /* von Hand gestoppt bleibt von Hand gestoppt */
     valve_stop(&ch->valve, now_ms());
     apply_channel(channel - 1);
     s_positions_dirty = true;
@@ -619,6 +679,7 @@ void control_snapshot(ctl_snapshot_t *out)
         out->ch[i].op = rt->valve.op;
         out->ch[i].group = hw_group_of_channel(i + 1);
         out->ch[i].reserved = rt->reserved;
+        out->ch[i].manual_hold = rt->manual_hold;
         out->ch[i].request_open = rt->req_valid;
         out->ch[i].request_target = rt->req_target;
         out->ch[i].last_move_ms = rt->valve.last_move_ms;

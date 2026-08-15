@@ -108,10 +108,22 @@ void valve_close(valve_t *v, uint32_t now_ms)
     v->last_ms = now_ms;
 }
 
+void valve_force(valve_t *v, bool open, uint32_t now_ms)
+{
+    v->referencing = false;
+    v->pending_valid = false;
+    v->forcing = true;
+    v->target = open ? 1.0f : 0.0f;
+    v->op = open ? VALVE_OPENING : VALVE_CLOSING;
+    v->move_start_ms = now_ms;
+    v->last_ms = now_ms;
+}
+
 void valve_stop(valve_t *v, uint32_t now_ms)
 {
     v->referencing = false;
     v->pending_valid = false;
+    v->forcing = false;
     finish(v, now_ms, VALVE_STOP_COMMAND);
 }
 
@@ -148,14 +160,14 @@ bool valve_tick(valve_t *v, uint32_t now_ms)
 
     if (v->op == VALVE_OPENING) {
         v->position = clamp01(v->position + step);
-        if (v->position >= v->target - POS_EPS) {
+        if (!v->forcing && v->position >= v->target - POS_EPS) {
             v->position = v->target;
             finish(v, now_ms, VALVE_STOP_TARGET);
             return true;
         }
     } else {
         v->position = clamp01(v->position - step);
-        if (v->position <= v->target + POS_EPS) {
+        if (!v->forcing && v->position <= v->target + POS_EPS) {
             v->position = v->target;
             finish(v, now_ms, VALVE_STOP_TARGET);
             bool resumed = resume_pending(v, now_ms);
@@ -178,6 +190,7 @@ bool valve_tick(valve_t *v, uint32_t now_ms)
             v->position_known = true;
         }
         bool was_referencing = v->referencing;
+        v->forcing = false;
         finish(v, now_ms, VALVE_STOP_TIMEOUT);
         if (was_referencing) {
             resume_pending(v, now_ms);
@@ -205,6 +218,7 @@ bool valve_endstop(valve_t *v, uint32_t now_ms)
     v->position_known = true;
 
     bool was_referencing = v->referencing;
+    v->forcing = false;
     finish(v, now_ms, VALVE_STOP_ENDSTOP);
     if (was_referencing) {
         v->referencing = false;
