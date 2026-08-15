@@ -146,9 +146,23 @@ h3.sub:first-child{margin-top:0}
   color:var(--ink); border-radius:var(--r-sm); font-size:1.1rem; line-height:1; cursor:pointer;
   display:grid; place-items:center; transition:border-color .15s, background .15s}
 .step:hover{border-color:var(--accent); background:var(--accent-soft)}
-.target{font:600 1.05rem/1 var(--data); min-width:5.2rem; text-align:center}
+.target{text-align:center}
 .target small{display:block; font:11px/1.6 var(--ui); font-weight:400; color:var(--faint);
   text-transform:uppercase; letter-spacing:.09em}
+.target-in{display:inline-flex; align-items:baseline; gap:.15rem}
+.target-in input{font:600 1.05rem/1 var(--data); width:3.6rem; text-align:right;
+  padding:.3rem .35rem; background:transparent;
+  /* Nur unten eine Linie: erkennbar beschreibbar, ohne wie ein Kasten zu
+     wirken und die grosse Zahl zu erschlagen. */
+  border-color:transparent; border-bottom-color:var(--line-strong); border-radius:0}
+.target-in input:hover{background:var(--sunken); border-bottom-color:var(--accent)}
+.target-in input:focus{background:var(--surface); border-color:var(--accent);
+  border-radius:var(--r-sm)}
+/* Die Pfeilchen des Zahlenfelds stoeren hier nur - die Schritte liegen auf
+   den Schaltflaechen daneben. */
+.target-in input::-webkit-inner-spin-button{display:none}
+.target-in input{-moz-appearance:textfield; appearance:textfield}
+.target-in i{font:600 .8rem/1 var(--data); color:var(--muted); font-style:normal}
 .room-circuits{border-top:1px solid var(--line); padding:.7rem 1rem .8rem;
   display:flex; flex-direction:column; gap:.42rem; margin-top:auto}
 .circuit{display:grid; grid-template-columns:3.8rem 1fr 2.9rem; align-items:center; gap:.55rem}
@@ -699,6 +713,9 @@ function roomChip(r) {
 }
 
 function renderRooms() {
+  if (editingTarget()) {
+    return; /* Eingabe laeuft, Karten bleiben stehen */
+  }
   const el = $("#rooms");
   if (!state.rooms.length) {
     el.innerHTML = `<div class="card"><h2>Noch kein Raum eingerichtet</h2>
@@ -735,7 +752,11 @@ function renderRooms() {
       <div class="setpoint">
         <button class="step" onclick="setTarget(${r.id},${(r.target_c-0.5).toFixed(1)})"
           aria-label="Sollwert senken">−</button>
-        <span class="target">${num(r.target_c,1)} °C<small>Sollwert</small></span>
+        <label class="target">
+          <span class="target-in"><input type="number" step="0.5" min="5" max="35"
+            value="${r.target_c.toFixed(1)}" data-target="${r.id}"
+            aria-label="Solltemperatur"><i>°C</i></span>
+          <small>Sollwert</small></label>
         <button class="step" onclick="setTarget(${r.id},${(r.target_c+0.5).toFixed(1)})"
           aria-label="Sollwert erhöhen">+</button>
         <button class="btn quiet" style="margin-left:auto"
@@ -746,6 +767,8 @@ function renderRooms() {
       <div class="room-foot">${t.foot}</div>
     </article>`;
   }).join("");
+
+  bindTargets();
 }
 
 /* Die beiden zeitabhängigen Zeilen einer Raumkarte. Sie werden im
@@ -777,6 +800,29 @@ function tickLocal() {
     el.querySelector(".meta").textContent = t.meta;
     el.querySelector(".room-foot").textContent = t.foot;
   }
+}
+
+/* Wird gerade ein Sollwert getippt? Dann darf der Abfragetakt die Karten
+   nicht neu aufbauen - die Eingabe waere sonst nach spaetestens einer Sekunde
+   weg. */
+function editingTarget() {
+  const a = document.activeElement;
+  return !!(a && a.matches && a.matches('input[data-target]'));
+}
+
+function bindTargets() {
+  document.querySelectorAll("input[data-target]").forEach(el => {
+    el.onkeydown = e => { if (e.key === "Enter") el.blur(); };
+    el.onchange = () => {
+      const v = parseFloat(el.value.replace(",", "."));
+      if (isNaN(v) || v < 5 || v > 35) {
+        toast("Solltemperatur muss zwischen 5 und 35 Grad liegen", true);
+        refresh();
+        return;
+      }
+      setTarget(+el.dataset.target, v);
+    };
+  });
 }
 
 async function setTarget(id, c) {
