@@ -143,14 +143,16 @@ lädt ohne Internetzugang.
 
 ## Erste Inbetriebnahme
 
-1. Nach dem Flashen findet das Gerät kein WLAN und öffnet nach 30 s einen
-   Zugangspunkt `floor-heating-eg-XXXX` (Kennwort `fussboden`).
+1. Nach dem Flashen findet das Gerät kein WLAN und öffnet sofort einen
+   Zugangspunkt `floor-heating-XXXX` (Kennwort `fussboden`).
 2. Beim Verbinden öffnet sich die Einrichtungsseite von selbst (Captive
    Portal). Andernfalls `http://192.168.4.1` aufrufen.
 3. Netz wählen, Kennwort eintragen, speichern. Der Zugangspunkt schließt sich,
    sobald die Verbindung steht und niemand mehr daran hängt.
-4. Unter **Sensoren** prüfen, welche Thermometer empfangen werden, und unter
-   **Räume** je Raum eines zuordnen.
+4. Danach führt der Einrichtungsassistent in drei Schritten durch die Anlage:
+   Bezeichnung der Etage, Räume mit ihren Heizkreisen, Thermometer je Raum.
+   Er startet von selbst, solange keine Bezeichnung hinterlegt ist, und ist
+   später über **System → Einrichtung erneut durchlaufen** wieder erreichbar.
 5. Unter **Kreise** für jeden Kreis eine Messfahrt starten.
 
 <img src="docs/screenshots/einrichtung.png" width="45%" alt="Einrichtungsportal">

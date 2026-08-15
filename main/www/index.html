@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fußbodenheizung Erdgeschoss</title>
+<title>Fußbodenheizung</title>
 <style>
 /* ------------------------------------------------------------------
    Farben. Grundton kühles Grüngrau — die Farbe eines Schaltschranks,
@@ -238,6 +238,42 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
 .setup h2{color:var(--accent); font-size:1rem}
 .setup p{margin:.45rem 0; font-size:.88rem; max-width:60ch}
 
+/* ---------------- Einrichtungsassistent ---------------- */
+
+#wizard{position:fixed; inset:0; z-index:50; background:var(--ground);
+  overflow-y:auto; display:none}
+#wizard.on{display:block}
+.wiz{max-width:640px; margin:0 auto; padding:1.4rem 1rem 3rem;
+  display:flex; flex-direction:column; gap:1.1rem}
+.wiz-head{display:flex; flex-direction:column; gap:.5rem}
+.wiz-head h1{margin:0; font-size:1.35rem; font-weight:600; letter-spacing:-.02em}
+.wiz-steps{display:flex; gap:.4rem; align-items:center; font-size:.72rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--faint); flex-wrap:wrap}
+.wiz-steps b{color:var(--accent); font-weight:600}
+.wiz-bar{height:3px; background:var(--line); border-radius:99px; overflow:hidden}
+.wiz-bar>i{display:block; height:100%; background:var(--accent); transition:width .3s}
+.wiz-nav{display:flex; gap:.5rem; justify-content:space-between; align-items:center;
+  position:sticky; bottom:0; background:var(--ground); padding:.9rem 0 .2rem;
+  border-top:1px solid var(--line)}
+.pick{display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem}
+.pick button{font:inherit; font-size:.82rem; padding:.3rem .7rem; border-radius:99px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--ink);
+  cursor:pointer; transition:border-color .15s, background .15s}
+.pick button:hover{border-color:var(--accent); background:var(--accent-soft)}
+.wiz-room{background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-sm);
+  padding:.8rem; display:flex; flex-direction:column; gap:.5rem}
+.wiz-room .top{display:flex; gap:.5rem; align-items:center}
+.wiz-room .top input{flex:1}
+.sensor-pick{display:flex; flex-direction:column; gap:.35rem}
+.sensor-pick label{display:flex; align-items:center; gap:.5rem; padding:.4rem .55rem;
+  border:1px solid var(--line); border-radius:var(--r-sm); background:var(--surface);
+  cursor:pointer; font-size:.86rem}
+.sensor-pick label:hover{border-color:var(--accent)}
+.sensor-pick label.on{border-color:var(--accent); background:var(--accent-soft)}
+.sensor-pick .mac{font-family:var(--data); font-size:.78rem}
+.sensor-pick .val{margin-left:auto; font-family:var(--data); font-size:.82rem; color:var(--muted)}
+.taken{color:var(--warn); font-size:.72rem}
+
 #toast{position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%) translateY(8px);
   background:var(--ink); color:var(--surface); padding:.55rem 1rem; border-radius:99px;
   font-size:.86rem; opacity:0; transition:opacity .2s, transform .2s;
@@ -274,7 +310,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
 <header>
   <div class="brand">
     <h1>Fußbodenheizung</h1>
-    <span class="place">Erdgeschoss</span>
+    <span class="place" id="place"></span>
   </div>
   <div class="status" id="status">verbindet …</div>
 </header>
@@ -424,6 +460,8 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card">
       <h2>Betrieb</h2>
       <div class="fields">
+        <label class="f"><span>Bezeichnung der Anlage</span>
+          <input id="sysSite" style="width:14rem" placeholder="z. B. Erdgeschoss"></label>
         <label class="f"><span>Zeitzone</span><input id="sysTz" style="width:18rem"></label>
         <label class="f"><span>Messwert veraltet nach s</span>
           <input id="sysTimeout" type="number" min="60" max="43200"></label>
@@ -440,6 +478,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
       <div class="fields" id="sysTouchThresh"></div>
       <div class="actions">
         <button class="btn" id="sysSave">Speichern</button>
+        <button class="btn quiet" id="sysWizard">Einrichtung erneut durchlaufen</button>
         <button class="btn quiet" id="sysRestart">Neu starten</button>
         <button class="btn risky" id="sysFactory">Auf Werksvorgabe zurücksetzen</button>
       </div>
@@ -457,6 +496,20 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     </div>
   </section>
 </main>
+
+<div id="wizard"><div class="wiz">
+  <div class="wiz-head">
+    <div class="wiz-bar"><i id="wizBar" style="width:33%"></i></div>
+    <div class="wiz-steps" id="wizSteps"></div>
+    <h1 id="wizTitle"></h1>
+    <p class="lede" id="wizLede" style="margin:0"></p>
+  </div>
+  <div id="wizBody"></div>
+  <div class="wiz-nav">
+    <button class="btn quiet" id="wizBack">Zurück</button>
+    <button class="btn" id="wizNext">Weiter</button>
+  </div>
+</div></div>
 
 <div id="toast"></div>
 
@@ -1082,6 +1135,7 @@ function renderSystem() {
   if (!config) return;
   $("#sysSsid").value = config.wifi.ssid || "";
   $("#sysHost").value = config.wifi.hostname || "";
+  $("#sysSite").value = config.site || "";
   $("#sysTz").value = config.timezone || "";
   $("#sysTimeout").value = config.sensor_timeout_s;
   $("#sysRebootH").value = config.reboot_hour;
@@ -1117,6 +1171,7 @@ $("#sysSave").onclick = () => {
   config.wifi.hostname = $("#sysHost").value;
   if ($("#sysPass").value) config.wifi.pass = $("#sysPass").value;
   if ($("#sysApPass").value) config.wifi.ap_pass = $("#sysApPass").value;
+  config.site = $("#sysSite").value.trim();
   config.timezone = $("#sysTz").value;
   config.sensor_timeout_s = parseInt($("#sysTimeout").value, 10);
   config.reboot_hour = parseInt($("#sysRebootH").value, 10);
@@ -1130,6 +1185,8 @@ $("#sysSave").onclick = () => {
   if ($("#sysMqttPass").value) config.mqtt.pass = $("#sysMqttPass").value;
   saveConfig();
 };
+
+$("#sysWizard").onclick = () => openWizard();
 
 $("#sysRestart").onclick = async () => {
   if (!confirm("Gerät jetzt neu starten?")) return;
@@ -1159,6 +1216,217 @@ $("#otaGo").onclick = async () => {
   }
 };
 
+/* ---------------- Einrichtungsassistent ----------------
+   Die Etage gehoert zur Anlage, nicht in die Firmware: dasselbe Abbild laeuft
+   auf mehreren Platinen. Ohne Bezeichnung gilt die Einrichtung als offen und
+   der Assistent fuehrt durch Etage, Raeume und Thermometer. */
+
+const WIZ_STEPS = ["Etage", "Räume", "Thermometer"];
+const WIZ_TEMPLATE = [
+  {name: "Küche", channels: [1,2,3]},
+  {name: "Kinderzimmer", channels: [4,5]},
+  {name: "Flur/WC", channels: [6,7]},
+  {name: "Wohnzimmer", channels: [8,9,10]},
+];
+let wiz = null, wizTimer = null;
+
+function slug(s) {
+  return s.toLowerCase()
+    .replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").replace(/ß/g,"ss")
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "anlage";
+}
+
+function newRoom(name, channels) {
+  const used = wiz.rooms.map(r => r.id);
+  let id = 1; while (used.includes(id)) id++;
+  return {id, name: name || "", channels: channels || [], sensor_mac: null,
+          mode: "heat", target_c: 20, p_band_k: 1, interval_s: 30,
+          min_delta: 0.01, step: 0.1};
+}
+
+function openWizard() {
+  wiz = {step: 1, site: config.site || "", rooms: (config.rooms || []).map(r => ({...r}))};
+  $("#wizard").classList.add("on");
+  renderWizard();
+}
+
+function closeWizard() {
+  $("#wizard").classList.remove("on");
+  clearInterval(wizTimer); wizTimer = null;
+  wiz = null;
+}
+
+function renderWizard() {
+  if (!wiz) return;
+  $("#wizBar").style.width = (wiz.step / WIZ_STEPS.length * 100) + "%";
+  $("#wizSteps").innerHTML = WIZ_STEPS.map((s, i) =>
+    i + 1 === wiz.step ? `<b>${i+1}. ${s}</b>` : `<span>${i+1}. ${s}</span>`).join("<span>·</span>");
+  $("#wizBack").style.visibility = wiz.step === 1 ? "hidden" : "visible";
+  $("#wizNext").textContent = wiz.step === WIZ_STEPS.length ? "Einrichtung abschließen" : "Weiter";
+
+  clearInterval(wizTimer); wizTimer = null;
+
+  if (wiz.step === 1) wizStepSite();
+  else if (wiz.step === 2) wizStepRooms();
+  else wizStepSensors();
+}
+
+function wizStepSite() {
+  $("#wizTitle").textContent = "Welche Etage steuert dieses Gerät?";
+  $("#wizLede").textContent = "Die Bezeichnung steht in der Kopfzeile und im Gerätenamen für "
+    + "Home Assistant. Bei mehreren Platinen im Haus unterscheidet sie die Anlagen.";
+
+  $("#wizBody").innerHTML = `<div class="card">
+    <label class="f"><span>Bezeichnung der Anlage</span>
+      <input id="wizSite" value="${wiz.site}" placeholder="z. B. Erdgeschoss" style="width:100%"></label>
+    <div class="pick">${["Erdgeschoss","Obergeschoss","Dachgeschoss","Keller","Anbau"]
+      .map(s => `<button type="button" data-site="${s}">${s}</button>`).join("")}</div>
+    <p class="lede" id="wizDerived" style="margin:.9rem 0 0"></p>
+  </div>`;
+
+  const upd = () => {
+    wiz.site = $("#wizSite").value.trim();
+    const s = slug(wiz.site);
+    $("#wizDerived").textContent = wiz.site
+      ? `Gerätename im Netz: floor-heating-${s} · MQTT-Präfix: fbh_${s}`
+      : "Ohne Bezeichnung lässt sich die Einrichtung nicht abschließen.";
+  };
+  $("#wizSite").oninput = upd;
+  $("#wizBody").querySelectorAll("[data-site]").forEach(b => b.onclick = () => {
+    $("#wizSite").value = b.dataset.site; upd();
+  });
+  upd();
+}
+
+function wizStepRooms() {
+  $("#wizTitle").textContent = "Welche Räume versorgt der Verteiler?";
+  $("#wizLede").textContent = "Legen Sie je Raum einen Eintrag an und haken Sie die Heizkreise ab, "
+    + "die dorthin führen. Jeder Kreis gehört zu höchstens einem Raum; nicht zugeordnete Kreise "
+    + "bleiben stehen.";
+
+  const rows = wiz.rooms.map((r, i) => {
+    const taken = {};
+    wiz.rooms.forEach((o, j) => { if (j !== i) o.channels.forEach(n => taken[n] = o.name || "Raum " + (j+1)); });
+    const boxes = Array.from({length: CH_COUNT}, (_, k) => {
+      const n = k + 1, mine = r.channels.includes(n), blocked = taken[n] !== undefined;
+      return `<label class="inline${blocked ? " dim" : ""}" style="margin:.1rem 0"
+        title="${blocked ? "belegt durch " + taken[n] : ""}">
+        <input type="checkbox" data-r="${i}" data-ch="${n}" ${mine ? "checked" : ""}
+          ${blocked ? "disabled" : ""}>${n}</label>`;
+    }).join("");
+    return `<div class="wiz-room">
+      <div class="top">
+        <input data-r="${i}" data-k="name" value="${r.name}" placeholder="Name des Raums">
+        <button class="btn risky" data-del="${i}">Entfernen</button>
+      </div>
+      <div class="fields" style="gap:.1rem .8rem">${boxes}</div>
+    </div>`;
+  }).join("");
+
+  $("#wizBody").innerHTML = `<div class="card" style="display:flex; flex-direction:column; gap:.8rem">
+    ${rows || '<p class="lede" style="margin:0">Noch kein Raum angelegt.</p>'}
+    <div class="row">
+      <button class="btn quiet" id="wizAdd">Raum hinzufügen</button>
+      ${wiz.rooms.length ? "" : '<button class="btn quiet" id="wizTpl">Übliche Aufteilung übernehmen</button>'}
+    </div>
+  </div>`;
+
+  $("#wizBody").querySelectorAll("[data-k=name]").forEach(el => el.oninput = () => {
+    wiz.rooms[+el.dataset.r].name = el.value;
+  });
+  $("#wizBody").querySelectorAll("[data-ch]").forEach(el => el.onchange = () => {
+    const r = wiz.rooms[+el.dataset.r], n = +el.dataset.ch;
+    r.channels = el.checked ? r.channels.concat([n]).sort((a,b)=>a-b) : r.channels.filter(x => x !== n);
+    renderWizard();
+  });
+  $("#wizBody").querySelectorAll("[data-del]").forEach(el => el.onclick = () => {
+    wiz.rooms.splice(+el.dataset.del, 1); renderWizard();
+  });
+  $("#wizAdd").onclick = () => { wiz.rooms.push(newRoom()); renderWizard(); };
+  const tpl = $("#wizTpl");
+  if (tpl) tpl.onclick = () => {
+    wiz.rooms = WIZ_TEMPLATE.map(t => newRoom(t.name, t.channels.slice()));
+    renderWizard();
+  };
+}
+
+function wizStepSensors() {
+  $("#wizTitle").textContent = "Welches Thermometer misst in welchem Raum?";
+  $("#wizLede").textContent = "Die Liste zeigt alle empfangenen Geräte mit ihrem aktuellen Messwert "
+    + "und der Signalstärke; sie wird laufend aktualisiert. Wenn Sie unsicher sind, halten Sie ein "
+    + "Thermometer kurz in die Hand — sein Wert steigt dann sichtbar.";
+  drawSensorStep();
+  wizTimer = setInterval(async () => { await loadBle(); drawSensorStep(); }, 3000);
+}
+
+function drawSensorStep() {
+  if (!wiz || wiz.step !== 3) return;
+  const assigned = {};
+  wiz.rooms.forEach(r => { if (r.sensor_mac) assigned[r.sensor_mac] = r.name; });
+
+  $("#wizBody").innerHTML = wiz.rooms.map((r, i) => {
+    const opts = ble.map(d => {
+      const other = assigned[d.mac] && assigned[d.mac] !== r.name;
+      return `<label class="${r.sensor_mac === d.mac ? "on" : ""}">
+        <input type="radio" name="s${i}" data-r="${i}" data-mac="${d.mac}"
+          ${r.sensor_mac === d.mac ? "checked" : ""}>
+        <span class="mac">${d.mac}</span>
+        ${other ? `<span class="taken">→ ${assigned[d.mac]}</span>` : ""}
+        <span class="val">${num(d.temp_c,1)} °C · ${d.rssi} dBm</span></label>`;
+    }).join("");
+    return `<div class="card" style="margin-bottom:.9rem">
+      <h2>${r.name || "Raum " + (i+1)}</h2>
+      <p class="lede">Heizkreise ${r.channels.join(", ") || "—"}</p>
+      <div class="sensor-pick">
+        <label class="${r.sensor_mac ? "" : "on"}">
+          <input type="radio" name="s${i}" data-r="${i}" data-mac=""
+            ${r.sensor_mac ? "" : "checked"}>
+          <span>ohne Thermometer — dieser Raum wird nicht geregelt</span></label>
+        ${opts || '<p class="lede" style="margin:0">Noch kein Thermometer empfangen.</p>'}
+      </div>
+    </div>`;
+  }).join("") || '<div class="card"><p class="lede" style="margin:0">Kein Raum angelegt.</p></div>';
+
+  $("#wizBody").querySelectorAll("[data-mac]").forEach(el => el.onchange = () => {
+    wiz.rooms[+el.dataset.r].sensor_mac = el.dataset.mac || null;
+    drawSensorStep();
+  });
+}
+
+$("#wizBack").onclick = () => { if (wiz.step > 1) { wiz.step--; renderWizard(); } };
+
+$("#wizNext").onclick = async () => {
+  if (wiz.step === 1) {
+    if (!wiz.site) { toast("Bitte eine Bezeichnung eintragen", true); return; }
+    wiz.step = 2; renderWizard(); return;
+  }
+  if (wiz.step === 2) {
+    if (!wiz.rooms.length) { toast("Bitte mindestens einen Raum anlegen", true); return; }
+    const ohne = wiz.rooms.findIndex(r => !r.name.trim());
+    if (ohne >= 0) { toast(`Raum ${ohne+1} braucht einen Namen`, true); return; }
+    wiz.step = 3; renderWizard();
+    await loadBle(); drawSensorStep();
+    return;
+  }
+
+  const s = slug(wiz.site);
+  config.site = wiz.site;
+  config.rooms = wiz.rooms;
+  if (!config.wifi.hostname || config.wifi.hostname === "floor-heating") {
+    config.wifi.hostname = "floor-heating-" + s;
+  }
+  if (!config.mqtt.prefix || config.mqtt.prefix === "fbh") {
+    config.mqtt.prefix = "fbh_" + s;
+  }
+  try {
+    await api("/api/config", {method:"PUT", headers:{"Content-Type":"application/json"},
+                              body: JSON.stringify(config)});
+    closeWizard();
+    toast("Einrichtung abgeschlossen");
+    await loadConfig(); await refresh();
+  } catch (e) { toast(e.message, true); }
+};
+
 /* ---------------- Laden und Speichern ---------------- */
 
 async function saveConfig() {
@@ -1172,7 +1440,11 @@ async function saveConfig() {
 
 async function loadConfig() {
   config = await api("/api/config");
+  $("#place").textContent = config.site || "nicht eingerichtet";
+  document.title = config.site ? "Fußbodenheizung " + config.site : "Fußbodenheizung";
   renderRoomEditor(); renderChannelConfig(); renderSystem();
+  /* Ohne Bezeichnung der Anlage ist das Geraet noch nicht eingerichtet. */
+  if (!config.site && !wiz) openWizard();
 }
 
 /* Bewegt sich am Gerät gerade etwas? Nur dann lohnt der schnelle Takt. */

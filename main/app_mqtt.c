@@ -28,6 +28,7 @@ static bool s_connected;
 static bool s_discovery_pending;
 static char s_prefix[CFG_NAME_LEN];
 static char s_node[24]; /* eindeutige Kennung des Geraets, aus der MAC */
+static char s_device_name[64];
 static uint16_t s_announced_rooms[CFG_MAX_ROOMS];
 static uint8_t s_announced_room_count;
 
@@ -67,7 +68,7 @@ static void add_device(cJSON *cfg)
     cJSON *dev = cJSON_AddObjectToObject(cfg, "dev");
     cJSON *ids = cJSON_AddArrayToObject(dev, "ids");
     cJSON_AddItemToArray(ids, cJSON_CreateString(s_node));
-    cJSON_AddStringToObject(dev, "name", "Fussbodenheizung Erdgeschoss");
+    cJSON_AddStringToObject(dev, "name", s_device_name);
     cJSON_AddStringToObject(dev, "mf", "Eigenbau");
     cJSON_AddStringToObject(dev, "mdl", "ESP32 Ventilsteuerung, 11 Kanaele");
     cJSON_AddStringToObject(dev, "sw", esp_app_get_description()->version);
@@ -536,7 +537,9 @@ esp_err_t mqtt_start(void)
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     snprintf(s_node, sizeof(s_node), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
     snprintf(s_prefix, sizeof(s_prefix), "%s",
-             cfg.mqtt.prefix[0] ? cfg.mqtt.prefix : "fbh_eg");
+             cfg.mqtt.prefix[0] ? cfg.mqtt.prefix : "fbh");
+    snprintf(s_device_name, sizeof(s_device_name), "Fussbodenheizung %s",
+             cfg.site[0] ? cfg.site : "ohne Bezeichnung");
 
     char lwt[TOPIC_LEN];
     snprintf(lwt, sizeof(lwt), "%s/status", s_prefix);

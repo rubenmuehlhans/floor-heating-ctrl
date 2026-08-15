@@ -1,5 +1,5 @@
 /*
- * Ventilsteuerung Fussbodenheizung Erdgeschoss.
+ * Ventilsteuerung Fussbodenheizung.
  *
  * Portierung des ESPHome-Aufbaus floor-heating-ctrl-groundfloor.yaml auf
  * natives ESP-IDF. Raeume, Kanalzuordnung und Regelparameter sind zur Laufzeit
@@ -15,6 +15,7 @@
 #include "config_store.h"
 #include "i2cbus.h"
 #include "esp_app_desc.h"
+#include "esp_ota_ops.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -35,7 +36,8 @@ static void on_ble_measurement(const atc_device_t *dev, void *ctx)
 void app_main(void)
 {
     const esp_app_desc_t *desc = esp_app_get_description();
-    ESP_LOGI(TAG, "Ventilsteuerung EG, Version %s (%s %s)", desc->version, desc->date, desc->time);
+    ESP_LOGI(TAG, "Ventilsteuerung Fussbodenheizung, Version %s (%s %s)", desc->version,
+             desc->date, desc->time);
 
     ESP_ERROR_CHECK(cfg_init());
 
@@ -67,6 +69,21 @@ void app_main(void)
     ESP_ERROR_CHECK(atc_ble_start(on_ble_measurement, NULL));
     ESP_ERROR_CHECK(web_start());
     ESP_ERROR_CHECK(mqtt_start());
+
+    /*
+     * Der Bootlader haelt eine frisch eingespielte Firmware zunaechst nur auf
+     * Probe. Ohne diese Bestaetigung wuerde er beim naechsten Neustart auf die
+     * vorherige zurueckrollen. Sie steht bewusst am Ende: bis hierher sind
+     * Konfiguration, Ausgangsstufe, Regelung und Weboberflaeche angelaufen.
+     */
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    esp_ota_img_states_t state;
+    if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
+        state == ESP_OTA_IMG_PENDING_VERIFY) {
+        if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+            ESP_LOGI(TAG, "Neue Firmware bestaetigt, kein Ruecksprung");
+        }
+    }
 
     ESP_LOGI(TAG, "Start abgeschlossen");
 }

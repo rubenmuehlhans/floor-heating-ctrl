@@ -65,6 +65,12 @@ typedef struct {
 typedef struct {
     uint16_t version;
 
+    /* Bezeichnung der Anlage, ueblicherweise die Etage. Sie steht in der
+     * Kopfzeile und im Geraetenamen fuer Home Assistant. Ist sie leer, gilt
+     * die Einrichtung als offen und die Oberflaeche fuehrt durch den
+     * Einrichtungsassistenten. */
+    char site[CFG_NAME_LEN];
+
     uint8_t room_count;
     cfg_room_t rooms[CFG_MAX_ROOMS];
     cfg_channel_t channels[HW_CHANNEL_COUNT];

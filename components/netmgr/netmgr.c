@@ -111,16 +111,35 @@ void netmgr_set_timezone(const char *tz)
     }
 }
 
-static void apply_sta_config(const app_config_t *cfg)
+/*
+ * Zugangsdaten der Station uebernehmen.
+ *
+ * Kein ESP_ERROR_CHECK: laeuft gerade ein Verbindungsversuch, weist der
+ * Treiber die neue Beschreibung mit ESP_ERR_WIFI_STATE zurueck. Ein Abbruch
+ * waere hier die schlechteste Antwort - das Geraet startet sonst mitten im
+ * Speichern von Einstellungen neu.
+ */
+static esp_err_t apply_sta_config(const app_config_t *cfg)
 {
     wifi_config_t sta = {0};
     copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->wifi.ssid);
     copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->wifi.pass);
-    /* Das Netz im Original ist versteckt - ohne diese Angabe wird es nicht
-     * gefunden. */
+    /* Netze koennen versteckt sein - ohne vollstaendige Suche werden sie
+     * nicht gefunden. */
     sta.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
     sta.sta.threshold.authmode = WIFI_AUTH_OPEN;
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta));
+
+    esp_err_t rc = esp_wifi_set_config(WIFI_IF_STA, &sta);
+    if (rc == ESP_ERR_WIFI_STATE) {
+        /* Verbindungsversuch laeuft: abbrechen und einmal wiederholen. */
+        esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(200));
+        rc = esp_wifi_set_config(WIFI_IF_STA, &sta);
+    }
+    if (rc != ESP_OK) {
+        ESP_LOGE(TAG, "WLAN-Zugangsdaten nicht uebernommen: %s", esp_err_to_name(rc));
+    }
+    return rc;
 }
 
 /* Baut die Beschreibung des Einrichtungs-Zugangspunkts. Der Name traegt die
@@ -171,11 +190,23 @@ static void start_ap_fallback(const app_config_t *cfg)
     sta.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
     sta.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
-    ESP_ERROR_CHECK(esp_wifi_stop());
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    esp_err_t rc = esp_wifi_stop();
+    if (rc == ESP_OK) {
+        rc = esp_wifi_set_mode(WIFI_MODE_APSTA);
+    }
+    if (rc == ESP_OK) {
+        rc = esp_wifi_set_config(WIFI_IF_AP, &ap);
+    }
+    if (rc == ESP_OK) {
+        rc = esp_wifi_set_config(WIFI_IF_STA, &sta);
+    }
+    if (rc == ESP_OK) {
+        rc = esp_wifi_start();
+    }
+    if (rc != ESP_OK) {
+        ESP_LOGE(TAG, "Zugangspunkt nicht startbar: %s", esp_err_to_name(rc));
+        return;
+    }
 
     esp_netif_ip_info_t info;
     if (esp_netif_get_ip_info(s_netif_ap, &info) == ESP_OK) {
@@ -363,9 +394,24 @@ esp_err_t netmgr_apply(const app_config_t *cfg)
     if (cfg->wifi.hostname[0]) {
         esp_netif_set_hostname(s_netif_sta, cfg->wifi.hostname);
     }
-    apply_sta_config(cfg);
+
+    /* Erst trennen, dann beschreiben, dann verbinden - in dieser Reihenfolge
+     * ist der Treiber aufnahmebereit. */
     esp_wifi_disconnect();
-    return esp_wifi_connect();
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    esp_err_t rc = apply_sta_config(cfg);
+    if (rc != ESP_OK) {
+        return rc;
+    }
+    if (cfg->wifi.ssid[0] == '\0') {
+        return ESP_OK; /* nichts hinterlegt, der Zugangspunkt uebernimmt */
+    }
+    rc = esp_wifi_connect();
+    if (rc != ESP_OK) {
+        ESP_LOGW(TAG, "Verbindungsversuch nicht startbar: %s", esp_err_to_name(rc));
+    }
+    return rc;
 }
 
 void netmgr_status(netmgr_status_t *out)

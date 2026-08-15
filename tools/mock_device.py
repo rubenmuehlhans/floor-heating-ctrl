@@ -25,6 +25,7 @@ T0 = time.time()
 
 CFG = {
     "cfg_version": 1,
+    "site": "Erdgeschoss",
     "rooms": [
         {"id": 1, "name": "Küche", "channels": [1, 2, 3], "sensor_mac": "A4:C1:38:11:22:33",
          "mode": "heat", "target_c": 20.0, "p_band_k": 1.0, "interval_s": 30,
@@ -51,9 +52,9 @@ CFG = {
     "reboot_hour": 10,
     "reboot_minute": 0,
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
-    "wifi": {"ssid": "Heimnetz", "hostname": "floor-heating-eg", "pass_set": True},
+    "wifi": {"ssid": "Heimnetz", "hostname": "floor-heating", "pass_set": True},
     "mqtt": {"enabled": True, "uri": "mqtt://192.168.1.10:1883", "user": "esp",
-             "prefix": "fbh_eg", "pass_set": True},
+             "prefix": "fbh", "pass_set": True},
 }
 
 POSITIONS = [0.3, 0.3, 0.3, 0.7, 0.7, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0]
@@ -222,6 +223,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif u.path == "/mock/fresh":
+            CFG["site"] = ""
+            CFG["rooms"] = []
+            self._send({"site": CFG["site"], "rooms": 0})
         elif u.path == "/mock/ap":
             AP_MODE[0] = parse_qs(u.query).get("on", ["1"])[0] == "1"
             if AP_MODE[0]:

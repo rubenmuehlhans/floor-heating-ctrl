@@ -45,13 +45,12 @@ void cfg_defaults(app_config_t *out)
     memset(out, 0, sizeof(*out));
     out->version = CFG_VERSION;
 
-    /* Aufteilung wie im ESPHome-Aufbau des Erdgeschosses. */
-    out->room_count = 4;
-    room_defaults(&out->rooms[0], 1, "Kueche", CH(1) | CH(2) | CH(3));
-    room_defaults(&out->rooms[1], 2, "Kinderzimmer unten", CH(4) | CH(5));
-    room_defaults(&out->rooms[2], 3, "Flur/WC", CH(6) | CH(7));
-    room_defaults(&out->rooms[3], 4, "Wohnzimmer", CH(8) | CH(9) | CH(10));
-    /* CH11 bleibt unbenutzt. */
+    /* Ohne Raeume und ohne Anlagenbezeichnung: die Oberflaeche fuehrt dann
+     * durch die Einrichtung. Die Aufteilung des Erdgeschosses bietet sie
+     * dort als Vorlage an - fest eingetragen waere sie auf einem Geraet fuer
+     * eine andere Etage schlicht falsch. */
+    out->site[0] = '\0';
+    out->room_count = 0;
 
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         out->channels[i].open_ms = 39000;
@@ -76,11 +75,11 @@ void cfg_defaults(app_config_t *out)
     out->reboot_minute = 0;
     snprintf(out->timezone, sizeof(out->timezone), "CET-1CEST,M3.5.0,M10.5.0/3");
 
-    snprintf(out->wifi.hostname, sizeof(out->wifi.hostname), "floor-heating-eg");
+    snprintf(out->wifi.hostname, sizeof(out->wifi.hostname), "floor-heating");
     snprintf(out->wifi.ap_pass, sizeof(out->wifi.ap_pass), "fussboden");
 
     out->mqtt.enabled = false;
-    snprintf(out->mqtt.prefix, sizeof(out->mqtt.prefix), "fbh_eg");
+    snprintf(out->mqtt.prefix, sizeof(out->mqtt.prefix), "fbh");
 }
 
 #undef CH
@@ -216,6 +215,7 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
         return NULL;
     }
     cJSON_AddNumberToObject(root, "cfg_version", cfg->version);
+    cJSON_AddStringToObject(root, "site", cfg->site);
 
     cJSON *rooms = cJSON_AddArrayToObject(root, "rooms");
     for (int i = 0; i < cfg->room_count; i++) {
@@ -335,6 +335,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
      * Werte erhalten. Bestehende Zugangsdaten werden vom Aufrufer vorher in
      * out gelegt und nur bei ausdruecklicher Angabe ueberschrieben. */
     out->version = CFG_VERSION;
+    json_str(root, "site", out->site, sizeof(out->site));
 
     esp_err_t ret = ESP_OK;
 
