@@ -1,0 +1,17 @@
+Ventilsteuerung Fußbodenheizung
+Copyright 2026 Ruben Mühlhans
+
+Lizenziert unter der Apache License, Version 2.0. Der vollständige Lizenztext
+steht in der Datei LICENSE.
+
+HmIP und Homematic IP sind Marken der eQ-3 AG. Sie werden in diesem Projekt
+ausschließlich genannt, um die verbauten Stellantriebe zu bezeichnen. Es
+besteht keine Verbindung zu eQ-3.
+
+Dieses Projekt bindet zur Bauzeit Komponenten aus der ESP-IDF-Registry ein,
+die eigenen Lizenzen unterliegen und nicht Teil dieses Quelltextbestands sind:
+
+  espressif/cjson          (MIT)
+  espressif/mqtt           (Apache-2.0)
+  espressif/onewire_bus    (Apache-2.0)
+  espressif/ds18b20        (Apache-2.0)

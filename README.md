@@ -320,6 +320,19 @@ zu sehen. `tools/screenshots.sh` erzeugt daraus die Aufnahmen dieser Seite.
   WLAN sprengt das Flash-Budget. Wird Matter gebraucht, reicht Home Assistant
   die vorhandenen MQTT-Entities über seine eigene Matter-Bridge weiter.
 
+## Lizenz
+
+Apache License 2.0, siehe [LICENSE](LICENSE) und [NOTICE](NOTICE).
+
+Die Software wird ohne jede Gewährleistung bereitgestellt. Sie steuert eine
+Heizungsanlage: wer sie einsetzt, tut das auf eigenes Risiko und sollte die
+Prüfschritte oben an der eigenen Hardware durchgehen, bevor er sie unbeaufsichtigt
+laufen lässt.
+
+Über die ESP-IDF-Registry eingebundene Komponenten stehen unter eigenen
+Lizenzen (cJSON unter MIT, die übrigen unter Apache-2.0) und sind nicht Teil
+dieses Quelltextbestands.
+
 ## Marken
 
 HmIP und Homematic IP sind Marken der eQ-3 AG. Sie werden hier ausschließlich
