@@ -123,12 +123,10 @@ static void apply_sta_config(const app_config_t *cfg)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta));
 }
 
-static void start_ap_fallback(const app_config_t *cfg)
+/* Baut die Beschreibung des Einrichtungs-Zugangspunkts. Der Name traegt die
+ * letzten beiden Bytes der MAC, damit mehrere Geraete unterscheidbar sind. */
+static void build_ap_config(const app_config_t *cfg, wifi_config_t *out)
 {
-    if (s_status.ap_active) {
-        return;
-    }
-
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
 
@@ -136,19 +134,48 @@ static void start_ap_fallback(const app_config_t *cfg)
     snprintf(ssid, sizeof(ssid), "%.24s-%02X%02X",
              cfg->wifi.hostname[0] ? cfg->wifi.hostname : "floor-heating", mac[4], mac[5]);
 
-    wifi_config_t ap = {0};
-    ap.ap.ssid_len = (uint8_t)copy_str(ap.ap.ssid, sizeof(ap.ap.ssid), ssid);
-    ap.ap.channel = 1;
-    ap.ap.max_connection = 2;
+    memset(out, 0, sizeof(*out));
+    out->ap.ssid_len = (uint8_t)copy_str(out->ap.ssid, sizeof(out->ap.ssid), ssid);
+    out->ap.channel = 1;
+    out->ap.max_connection = 4;
+    out->ap.beacon_interval = 100;
     if (cfg->wifi.ap_pass[0] && strlen(cfg->wifi.ap_pass) >= 8) {
-        copy_str(ap.ap.password, sizeof(ap.ap.password), cfg->wifi.ap_pass);
-        ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        copy_str(out->ap.password, sizeof(out->ap.password), cfg->wifi.ap_pass);
+        out->ap.authmode = WIFI_AUTH_WPA2_PSK;
     } else {
-        ap.ap.authmode = WIFI_AUTH_OPEN;
+        out->ap.authmode = WIFI_AUTH_OPEN;
+    }
+}
+
+/*
+ * Zugangspunkt einschalten.
+ *
+ * Die Betriebsart darf nicht bei laufendem WLAN umgeschaltet werden: der
+ * Zugangspunkt geht dann mit noch leerem Netznamen auf Sendung, und die
+ * anschliessend gesetzte Beschreibung erreicht das Funkteil nicht mehr
+ * zuverlaessig - er ist dann fuer Geraete in Reichweite schlicht nicht zu
+ * finden. Deshalb anhalten, beides setzen, neu starten.
+ */
+static void start_ap_fallback(const app_config_t *cfg)
+{
+    if (s_status.ap_active) {
+        return;
     }
 
+    wifi_config_t ap;
+    build_ap_config(cfg, &ap);
+
+    wifi_config_t sta = {0};
+    copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->wifi.ssid);
+    copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->wifi.pass);
+    sta.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    sta.sta.threshold.authmode = WIFI_AUTH_OPEN;
+
+    ESP_ERROR_CHECK(esp_wifi_stop());
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta));
+    ESP_ERROR_CHECK(esp_wifi_start());
 
     esp_netif_ip_info_t info;
     if (esp_netif_get_ip_info(s_netif_ap, &info) == ESP_OK) {
@@ -289,11 +316,38 @@ esp_err_t netmgr_start(const app_config_t *cfg)
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_got_ip,
                                                         NULL, NULL));
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    /*
+     * Ohne hinterlegtes Netz wird der Zugangspunkt sofort mitgestartet - und
+     * zwar vollstaendig beschrieben, bevor das Funkteil anlaeuft. Ein
+     * Moduswechsel im laufenden Betrieb laesst ihn sonst mit leerem Netznamen
+     * hochkommen.
+     */
+    bool need_ap = cfg->wifi.ssid[0] == '\0';
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(need_ap ? WIFI_MODE_APSTA : WIFI_MODE_STA));
     apply_sta_config(cfg);
-    /* Sendeleistung leicht senken: BLE und WLAN teilen sich die Funkstufe. */
-    esp_wifi_set_max_tx_power(68);
+
+    wifi_config_t ap;
+    if (need_ap) {
+        build_ap_config(cfg, &ap);
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
+    }
+
     ESP_ERROR_CHECK(esp_wifi_start());
+
+    /* Erst nach dem Start wirksam: BLE und WLAN teilen sich die Funkstufe. */
+    esp_wifi_set_max_tx_power(68);
+
+    if (need_ap) {
+        esp_netif_ip_info_t info;
+        if (esp_netif_get_ip_info(s_netif_ap, &info) == ESP_OK) {
+            snprintf(s_status.ap_ip, sizeof(s_status.ap_ip), IPSTR, IP2STR(&info.ip));
+            captive_dns_start(info.ip.addr);
+        }
+        s_status.ap_active = true;
+        ESP_LOGW(TAG, "Kein WLAN hinterlegt - Einrichtungs-Zugangspunkt \"%s\" ist offen, "
+                      "Adresse %s", ap.ap.ssid, s_status.ap_ip);
+    }
 
     static app_config_t s_cfg_copy;
     s_cfg_copy = *cfg;
