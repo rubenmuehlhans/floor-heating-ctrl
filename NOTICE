@@ -1,10 +1,14 @@
 Ventilsteuerung Fußbodenheizung
 Copyright 2026 Ruben Mühlhans
 
-Dieses Programm ist freie Software: Sie können es unter den Bedingungen der
-GNU General Public License, Version 3, weitergeben und bearbeiten, wie sie von
-der Free Software Foundation veröffentlicht wurde. Der vollständige Lizenztext
-steht in der Datei LICENSE.
+Firmware, Werkzeuge, Dokumentation und das Gehäuse unter case/ sind freie
+Software: Sie können sie unter den Bedingungen der GNU General Public License,
+Version 3, weitergeben und bearbeiten, wie sie von der Free Software Foundation
+veröffentlicht wurde. Der vollständige Lizenztext steht in der Datei LICENSE.
+
+Die Entwurfsdaten der Platine unter board/ stehen unter der CERN Open Hardware
+Licence Version 2 -- Strongly Reciprocal; der Lizenztext steht in
+board/LICENSE, die Einordnung in board/README.md.
 
 Weitergegeben wird es in der Hoffnung, dass es nützlich ist, aber OHNE JEDE
 GEWÄHRLEISTUNG -- sogar ohne die stillschweigende Gewährleistung der
@@ -25,13 +29,13 @@ Urhebers:
 die Kanalauswahl über Schieberegister und das Regelgesetz in
 components/roomctrl.
 
-Die Platine unter board/ ist eine eigene Entwicklung. Vom Vorbild unterscheidet
-sie sich in der Kanalzahl (11 statt 8), der Stromversorgung (Netzteil auf der
-Platine statt USB-C oder 5 bis 12 V) sowie darin, dass Anzeige und
-Schaltschrankfühler mit auf der Platine sitzen. Die Entwurfsdaten des Vorbilds
-liegen bei OSHWLab und sind nicht in diesen Bestand eingeflossen. Gemeinsam ist
-das Konzept: gesteckter ESP32-Devkit, Kanalauswahl über Schieberegister,
-Endlagenerkennung über die Gegenspannung.
+Die Platine unter board/ ist eine eigene Entwicklung: in EasyEDA entworfen und
+von Hand geroutet. Vom Vorbild unterscheidet sie sich in der Kanalzahl (11 statt
+8), der Stromversorgung (Netzteil auf der Platine statt USB-C oder 5 bis 12 V)
+sowie darin, dass Anzeige und Schaltschrankfühler mit auf der Platine sitzen.
+Die Entwurfsdaten des Vorbilds liegen bei OSHWLab und sind nicht in diesen
+Bestand eingeflossen. Gemeinsam ist das Konzept: gesteckter ESP32-Devkit,
+Kanalauswahl über Schieberegister, Endlagenerkennung über die Gegenspannung.
 
 HmIP und Homematic IP sind Marken der eQ-3 AG. Sie werden in diesem Projekt
 ausschließlich genannt, um die verbauten Stellantriebe zu bezeichnen. Es

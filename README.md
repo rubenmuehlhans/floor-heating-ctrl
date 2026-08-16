@@ -112,7 +112,8 @@ Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
 Endschalter; die Endlage ist daran zu erkennen, dass der Motor am Anschlag
 blockiert und die Spannung über dem Messwiderstand deutlich steigt.
 
-Die Steuerplatine ist selbst entworfen und bei **JLCPCB** gefertigt. Sie trägt
+Die Steuerplatine ist in EasyEDA selbst entworfen, von Hand geroutet und bei
+**JLCPCB** gefertigt. Sie trägt
 keinen eigenen Mikrocontroller: Ein **ESP32-DevKitC** wird auf Buchsenleisten
 gesteckt und lässt sich damit ohne Löten tauschen. Fertigungsdaten, Gerber und
 Stückliste liegen in [`board/`](board/), das Druckgehäuse in
@@ -683,9 +684,20 @@ pvvx. Das Gehäuse ist mit CadQuery konstruiert.
 
 ## Lizenz
 
-GNU General Public License, Version 3, siehe [LICENSE](LICENSE) und
-[NOTICE](NOTICE). Die Wahl folgt der Vorlage, auf die dieses Projekt
-zurückgeht — siehe [Herkunft](#herkunft).
+| Teil | Lizenz |
+|---|---|
+| Firmware, Werkzeuge, Dokumentation, `case/` | GNU General Public License, Version 3 — [LICENSE](LICENSE) |
+| Entwurfsdaten der Platine, `board/` | CERN Open Hardware Licence v2, Strongly Reciprocal — [board/LICENSE](board/LICENSE) |
+
+Die GPL folgt der Vorlage, auf die dieses Projekt zurückgeht — siehe
+[Herkunft](#herkunft). Für die Platine passt sie nicht: Ihre Rückgabepflicht
+hängt am Weitergeben von Objektcode, und eine gefertigte Leiterplatte ist keine
+Kopie der Entwurfszeichnung. Die CERN-OHL knüpft dieselbe Pflicht an das
+Bereitstellen des Produkts. Die Haltung ist in beiden Fällen dieselbe: offen,
+mit Rückgabe. Einzelheiten in [board/README.md](board/README.md).
+
+Das Gehäuse unter `case/` ist ein CadQuery-Programm und bleibt deshalb bei der
+GPL.
 
 Die eingebundenen Fremdkomponenten stehen unter MIT und Apache-2.0. Beide
 lassen sich mit der GPL-3.0 zusammenführen; die zusammengesetzte Firmware
