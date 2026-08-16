@@ -56,6 +56,7 @@ Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 - [Stand der Erprobung](#stand-der-erprobung)
 - [Vorgängerkonfiguration](#vorgängerkonfiguration)
 - [Offene Punkte](#offene-punkte)
+- [Geplante Erweiterungen](#geplante-erweiterungen)
 - [Fremdkomponenten](#fremdkomponenten)
 - [Lizenz](#lizenz)
 - [Marken](#marken)
@@ -555,6 +556,18 @@ Vier Unstimmigkeiten der ESPHome-Fassung sind dabei bereinigt:
   WLAN passt nicht in den verfügbaren Programmspeicher. Wird Matter gebraucht,
   reicht Home Assistant die vorhandenen MQTT-Entitäten über seine eigene
   Matter-Bridge weiter.
+
+## Geplante Erweiterungen
+
+Die Steuerung soll um den Heizungsbereich ergänzt werden: zwei weitere ESP32 erfassen die
+Temperaturen an Ölkessel und Pufferspeicher und schalten die beiden Heizkreispumpen ab, solange
+kein Ventil offen ist. Das Repository nimmt dafür eine zweite Anwendung auf, die sich die
+Komponenten mit der Verteiler-Firmware teilt.
+
+- [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](docs/konzept-waermeerzeuger.md)
+  — Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Schnittstellen
+- [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md)
+  — Aufteilung des Projekts, gemeinsame Komponenten, Nachweis der Unverändertheit
 
 ## Fremdkomponenten
 
