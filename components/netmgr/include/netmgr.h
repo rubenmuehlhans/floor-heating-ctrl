@@ -65,7 +65,19 @@ typedef struct {
 
 /* Sucht erreichbare Netze. Blockiert einige Sekunden und ist deshalb nur fuer
  * die Einrichtung gedacht. */
-size_t netmgr_scan(netmgr_ap_t *out, size_t max);
+/*
+ * Suchlauf nach erreichbaren Netzen.
+ *
+ * Er laeuft nebenlaeufig, weil das Funkteil dabei die Kanaele durchgeht und
+ * der eigene Zugangspunkt so lange nicht erreichbar ist. Ein blockierender
+ * Suchlauf laesst genau die Anfrage scheitern, ueber die er angestossen wurde
+ * -- und im Zugangspunkt-Betrieb ist das der einzige Weg zum Geraet.
+ */
+esp_err_t netmgr_scan_start(void);
+bool netmgr_scan_running(void);
+
+/* Ergebnis des letzten Suchlaufs. */
+size_t netmgr_scan_result(netmgr_ap_t *out, size_t max);
 
 /* Zeitzone setzen und SNTP starten. Wird von netmgr_start miterledigt. */
 void netmgr_set_timezone(const char *tz);

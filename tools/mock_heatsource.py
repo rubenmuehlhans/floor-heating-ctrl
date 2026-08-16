@@ -18,13 +18,16 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from www import zusammensetzen  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-WWW = ROOT / "apps" / "heatsource" / "main" / "www" / "index.html"
 T0 = time.time()
 
 ROLLEN = [
@@ -262,7 +265,7 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(u.query)
 
         if u.path in ("/", "/index.html"):
-            body = WWW.read_bytes()
+            body = zusammensetzen("heatsource").encode()
             # Aufnahmehilfe: ?_wizstep=N oeffnet den Assistenten auf dem
             # gewuenschten Schritt. Nur hier, nicht auf dem Geraet.
             if "_wizstep" in q:

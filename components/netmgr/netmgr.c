@@ -52,6 +52,8 @@ static size_t copy_str(void *dst, size_t dst_size, const char *src)
 
 /* ------------------------------------------------------------------ */
 
+static void scan_collect(void);
+
 static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     (void)arg;
@@ -74,6 +76,9 @@ static void on_wifi_event(void *arg, esp_event_base_t base, int32_t id, void *da
         break;
     }
 
+    case WIFI_EVENT_SCAN_DONE:
+        scan_collect();
+        break;
     case WIFI_EVENT_AP_STACONNECTED:
         ESP_LOGI(TAG, "Ein Geraet hat sich mit dem Einrichtungs-Zugangspunkt verbunden");
         break;
@@ -430,54 +435,85 @@ void netmgr_set_reboot_guard(netmgr_busy_fn_t fn)
     s_reboot_guard = fn;
 }
 
-size_t netmgr_scan(netmgr_ap_t *out, size_t max)
-{
-    wifi_scan_config_t scan = {
-        .show_hidden = false,
-        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
-    };
-    if (esp_wifi_scan_start(&scan, true) != ESP_OK) {
-        return 0;
-    }
+/* ------------------------------------------------------------------ */
+/* Suchlauf                                                            */
+/* ------------------------------------------------------------------ */
 
+#define SCAN_MAX 24
+
+static netmgr_ap_t s_scan[SCAN_MAX];
+static size_t s_scan_count;
+static volatile bool s_scan_running;
+
+/* Uebernimmt das Ergebnis, sobald das Funkteil fertig ist. */
+static void scan_collect(void)
+{
     uint16_t found = 0;
     esp_wifi_scan_get_ap_num(&found);
-    if (found == 0) {
-        return 0;
-    }
     if (found > 32) {
         found = 32;
     }
 
-    wifi_ap_record_t *records = calloc(found, sizeof(wifi_ap_record_t));
-    if (records == NULL) {
-        esp_wifi_clear_ap_list();
-        return 0;
-    }
-    esp_wifi_scan_get_ap_records(&found, records);
-
     size_t n = 0;
-    for (uint16_t i = 0; i < found && n < max; i++) {
-        if (records[i].ssid[0] == '\0') {
-            continue;
-        }
-        /* Mehrfach empfangene Netze nur einmal auffuehren. */
-        bool seen = false;
-        for (size_t k = 0; k < n; k++) {
-            if (strcmp(out[k].ssid, (const char *)records[i].ssid) == 0) {
-                seen = true;
-                break;
+    if (found > 0) {
+        wifi_ap_record_t *records = calloc(found, sizeof(wifi_ap_record_t));
+        if (records != NULL) {
+            esp_wifi_scan_get_ap_records(&found, records);
+            for (uint16_t i = 0; i < found && n < SCAN_MAX; i++) {
+                if (records[i].ssid[0] == '\0') {
+                    continue;
+                }
+                /* Mehrfach empfangene Netze nur einmal auffuehren. */
+                bool seen = false;
+                for (size_t k = 0; k < n; k++) {
+                    if (strcmp(s_scan[k].ssid, (const char *)records[i].ssid) == 0) {
+                        seen = true;
+                        break;
+                    }
+                }
+                if (seen) {
+                    continue;
+                }
+                copy_str(s_scan[n].ssid, sizeof(s_scan[n].ssid), (const char *)records[i].ssid);
+                s_scan[n].rssi = records[i].rssi;
+                s_scan[n].secure = records[i].authmode != WIFI_AUTH_OPEN;
+                n++;
             }
+            free(records);
         }
-        if (seen) {
-            continue;
-        }
-        copy_str(out[n].ssid, sizeof(out[n].ssid), (const char *)records[i].ssid);
-        out[n].rssi = records[i].rssi;
-        out[n].secure = records[i].authmode != WIFI_AUTH_OPEN;
-        n++;
     }
+    esp_wifi_clear_ap_list();
+    s_scan_count = n;
+    s_scan_running = false;
+    ESP_LOGI(TAG, "Suchlauf beendet, %u Netze", (unsigned)n);
+}
 
-    free(records);
+esp_err_t netmgr_scan_start(void)
+{
+    if (s_scan_running) {
+        return ESP_OK; /* laeuft bereits */
+    }
+    wifi_scan_config_t scan = {
+        .show_hidden = false,
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+    };
+    s_scan_running = true;
+    esp_err_t rc = esp_wifi_scan_start(&scan, false);
+    if (rc != ESP_OK) {
+        s_scan_running = false;
+        ESP_LOGW(TAG, "Suchlauf liess sich nicht starten: %s", esp_err_to_name(rc));
+    }
+    return rc;
+}
+
+bool netmgr_scan_running(void)
+{
+    return s_scan_running;
+}
+
+size_t netmgr_scan_result(netmgr_ap_t *out, size_t max)
+{
+    size_t n = s_scan_count < max ? s_scan_count : max;
+    memcpy(out, s_scan, n * sizeof(netmgr_ap_t));
     return n;
 }

@@ -438,10 +438,12 @@ apps/manifold/    Verteiler-Firmware
     app_web.c     HTTP-Server, JSON-Schnittstelle, Captive Portal, OTA
     app_mqtt.c    Home-Assistant-Discovery und Zustände
     app_ui.c      Anzeige und Tasten am Gerät
-    www/index.html  Weboberfläche, komprimiert ins Programmabbild gelegt
+    www/            Oberfläche: kopf.html, rumpf.html und sources.txt
 apps/heatsource/  Firmware der Heizungsgeräte (Kessel und Pufferspeicher)
   components/     eigene Konfiguration, verdrängt die gemeinsame
   main/           Fühlererfassung, Verlauf, Weboberfläche
+www/stil.css      gemeinsames Gerüst beider Oberflächen: Farben, Schriften,
+                  Kopfzeile, Reiter — die Bedienelemente bleiben je Anwendung eigen
 cmake/embed_www   Bauregel: Oberfläche zusammenfügen, komprimieren, einbetten
 components/       von allen Anwendungen gemeinsam genutzt
   hw_map/         Pin- und Gruppentabellen — einzige Stelle mit Hardwarewissen
@@ -522,7 +524,8 @@ Dazu prüft
 python3 tools/check_www.py
 ```
 
-dass die eingebetteten Oberflächen übersetzbar sind — der Skriptteil wird mit `node --check`
+dass die eingebetteten Oberflächen übersetzbar sind — sie werden dafür aus ihren Teilen
+zusammengesetzt, geprüft wird also das, was auch im Gerät landet — der Skriptteil wird mit `node --check`
 geprüft. Anlass war, dass beim Bearbeiten zweimal ein Block an der falschen Stelle gelandet ist:
 einmal JavaScript im Stilblatt, einmal CSS im Skript. Im Quelltext fällt das nicht auf, im
 Browser bleibt die Seite leer.

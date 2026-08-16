@@ -22,3 +22,12 @@ python3 tools/mock_heatsource.py &  && tools/screenshots_heat.sh
 `screenshots.sh` legt die Aufnahmen der Verteilerplatine in `screenshots/` ab,
 `screenshots_heat.sh` die des Heizungsgeräts in `screenshots/heizung/`.
 Vorausgesetzt werden Google Chrome und ImageMagick.
+
+Beide Oberflächen bestehen aus mehreren Dateien — einem gemeinsamen Stilblatt unter
+`www/stil.css` und den anwendungseigenen Teilen. Was in welcher Reihenfolge
+zusammengesetzt wird, steht in `apps/<name>/main/www/sources.txt`; dieselbe Liste lesen
+die Bauregel und die Werkzeuge. Zum Ansehen des Ergebnisses:
+
+```bash
+python3 tools/www.py manifold > /tmp/index.html
+```

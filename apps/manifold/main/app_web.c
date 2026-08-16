@@ -780,12 +780,27 @@ static esp_err_t peers_get_handler(httpd_req_t *req)
 }
 
 /* Erreichbare WLAN-Netze fuer die Einrichtung ueber das Captive Portal. */
+/*
+ * Der Suchlauf laeuft nebenlaeufig: das Funkteil geht dabei die Kanaele durch,
+ * und der eigene Zugangspunkt ist so lange nicht erreichbar. Ein blockierender
+ * Suchlauf liesse genau die Anfrage scheitern, ueber die er angestossen wurde.
+ * POST startet, GET holt den Stand.
+ */
+static esp_err_t wifi_scan_post(httpd_req_t *req)
+{
+    if (netmgr_scan_start() != ESP_OK) {
+        return send_error(req, "503 Service Unavailable", "Suchlauf liess sich nicht starten");
+    }
+    return send_ok(req);
+}
+
 static esp_err_t wifi_scan_get(httpd_req_t *req)
 {
     static netmgr_ap_t aps[24];
-    size_t n = netmgr_scan(aps, sizeof(aps) / sizeof(aps[0]));
+    size_t n = netmgr_scan_result(aps, sizeof(aps) / sizeof(aps[0]));
 
     cJSON *root = cJSON_CreateObject();
+    cJSON_AddBoolToObject(root, "running", netmgr_scan_running());
     cJSON *arr = cJSON_AddArrayToObject(root, "networks");
     for (size_t i = 0; i < n; i++) {
         cJSON *j = cJSON_CreateObject();
@@ -892,6 +907,7 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/demand", .method = HTTP_GET, .handler = demand_get},
     {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
+    {.uri = "/api/wifi/scan", .method = HTTP_POST, .handler = wifi_scan_post},
     {.uri = "/api/system/*", .method = HTTP_POST, .handler = system_post},
     {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_post},
 };

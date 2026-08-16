@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Prüft die eingebetteten Weboberflächen auf Übersetzbarkeit.
 
-    python3 tools/check_www.py [datei ...]
+    python3 tools/check_www.py [anwendung ...]
 
-Ohne Angabe werden alle `apps/*/main/www/index.html` geprüft.
+Ohne Angabe werden alle Anwendungen unter `apps/` geprüft. Die Oberfläche
+wird dafür aus ihren Teilen zusammengesetzt (siehe `tools/www.py`) — geprüft
+wird also das, was auch im Gerät landet.
 
 Anlass: Beim Bearbeiten mit Textersetzung ist zweimal ein Block an der
 falschen Stelle gelandet — einmal JavaScript im Stilblatt, einmal CSS im
@@ -29,6 +31,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from www import quellen, zusammensetzen  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # Zeilenanfänge, die im Stilblatt nichts zu suchen haben.
@@ -37,36 +42,32 @@ JS_IM_STIL = re.compile(r"^\s*(let|const|var|function|async function|return|if \
 fehler = 0
 
 
-def melde(datei: Path, text: str) -> None:
+def melde(app: str, text: str) -> None:
     global fehler
     fehler += 1
-    print(f"  FEHLER  {datei.name}: {text}")
+    print(f"  FEHLER  {app}: {text}")
 
 
 def block(inhalt: str, tag: str) -> list[str]:
     return re.findall(rf"<{tag}[^>]*>(.*?)</{tag}>", inhalt, re.S)
 
 
-def pruefe(datei: Path) -> None:
-    inhalt = datei.read_text()
-    try:
-        name = datei.relative_to(ROOT)
-    except ValueError:
-        name = datei          # auch ausserhalb des Projekts pruefbar
-    print(f"{name}")
+def pruefe(app: str) -> None:
+    inhalt = zusammensetzen(app)
+    print(f"{app}  ({len(inhalt)} Byte aus {len(quellen(app))} Teilen)")
 
     stile = block(inhalt, "style")
     skripte = block(inhalt, "script")
 
     if len(stile) != 1:
-        melde(datei, f"{len(stile)} Stilblöcke, erwartet genau einer")
+        melde(app, f"{len(stile)} Stilblöcke, erwartet genau einer")
     if len(skripte) != 1:
-        melde(datei, f"{len(skripte)} Skriptblöcke, erwartet genau einer")
+        melde(app, f"{len(skripte)} Skriptblöcke, erwartet genau einer")
 
     for s in stile:
         for nr, zeile in enumerate(s.split("\n"), 1):
             if JS_IM_STIL.match(zeile):
-                melde(datei, f"JavaScript im Stilblatt, Zeile {nr}: {zeile.strip()[:60]}")
+                melde(app, f"JavaScript im Stilblatt, Zeile {nr}: {zeile.strip()[:60]}")
                 break
 
     for s in skripte:
@@ -77,18 +78,19 @@ def pruefe(datei: Path) -> None:
         Path(weg).unlink()
         if r.returncode != 0:
             erste = (r.stderr.strip().split("\n") or [""])[0]
-            melde(datei, f"Skript nicht übersetzbar: {erste}")
+            melde(app, f"Skript nicht übersetzbar: {erste}")
 
     if fehler == 0:
         print(f"  ok      {len(inhalt)} Byte, Stil und Skript in Ordnung")
 
 
 if __name__ == "__main__":
-    dateien = [Path(a) for a in sys.argv[1:]] or sorted(ROOT.glob("apps/*/main/www/index.html"))
-    if not dateien:
+    apps = sys.argv[1:] or sorted(p.parents[2].name
+                                  for p in ROOT.glob("apps/*/main/www/sources.txt"))
+    if not apps:
         print("Keine Oberfläche gefunden")
         raise SystemExit(1)
-    for d in dateien:
-        pruefe(d)
-    print(f"\n{len(dateien)} Dateien, {fehler} Fehler")
+    for a in apps:
+        pruefe(a)
+    print(f"\n{len(apps)} Oberflächen, {fehler} Fehler")
     raise SystemExit(0 if fehler == 0 else 1)

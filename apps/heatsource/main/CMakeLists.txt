@@ -22,6 +22,13 @@ idf_component_register(SRCS
 
 # Die Oberflaeche wird komprimiert ins Programmabbild gelegt: sie soll ohne
 # Internetzugang und ohne zusaetzliche Partition laden.
+# Woraus die Oberflaeche besteht, steht in www/sources.txt -- dieselbe Liste
+# benutzen die Werkzeuge unter tools/. Zwei Orte waeren ein Ort zu viel.
+set(www_liste "${CMAKE_CURRENT_SOURCE_DIR}/www/sources.txt")
+file(STRINGS "${www_liste}" www_quellen)
+list(FILTER www_quellen EXCLUDE REGEX "^[ \t]*(#|$)")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${www_liste}")
+
 embed_www(TARGET  ${COMPONENT_LIB}
           OUTPUT  index.html.gz
-          SOURCES www/index.html)
+          SOURCES ${www_quellen})

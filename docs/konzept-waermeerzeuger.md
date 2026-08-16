@@ -454,7 +454,13 @@ die passenden Entitäten ein.
 | 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; Tasmota-Anbindung noch nicht an einem Relais erprobt |
 | 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | umgesetzt; am Abgasfühler noch nicht erprobt |
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
-| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t` und `cfgjson` umgesetzt; Stilblatt und Verschieben offen |
+| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t`, `cfgjson` und das Stilblatt umgesetzt; das Verschieben ist offen |
+
+Zum Stilblatt: Geteilt wird das Gerüst — Farben, Schriften, Radien, Grundregeln sowie Kopfzeile,
+Reiter und Inhaltsfläche. Die Bedienelemente bleiben je Anwendung eigen. Ein Vergleich der
+beiden Stände zeigte, dass Schaltflächen, Beschriftungsfelder, Zustandsmarken und Tabellen sich
+sachlich auseinanderentwickelt haben; sie zusammenzuzwingen hätte das Erscheinungsbild der
+laufenden Verteiler-Firmware verändert, ohne dass jemand danach gefragt hätte.
 
 Zur ersten Inbetriebnahme eines Heizungsgeräts: Nach dem Einspielen öffnet es einen
 Zugangspunkt `heizung-XXXX`, danach führt der Assistent durch Bezeichnung und

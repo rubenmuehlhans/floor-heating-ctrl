@@ -18,15 +18,19 @@ Zusaetzlich zur Geraeteschnittstelle:
 import argparse
 import json
 import math
+import sys
 import random
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from www import zusammensetzen  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 PORTS = {"manifold": 8321, "heatsource": 8322}
-WWW = ROOT / "apps" / "manifold" / "main" / "www" / "index.html"
+APP = "manifold"
 T0 = time.time()
 
 CFG = {
@@ -225,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         if u.path in ("/", "/index.html"):
-            body = WWW.read_bytes()
+            body = zusammensetzen(APP).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -401,7 +405,7 @@ if __name__ == "__main__":
                    help="abweichender Port; Vorgabe richtet sich nach --app")
     args = p.parse_args()
 
-    WWW = ROOT / "apps" / args.app / "main" / "www" / "index.html"
+    APP = args.app
     port = args.port or PORTS[args.app]
     print(f"Attrappe {args.app} auf http://localhost:{port}")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
