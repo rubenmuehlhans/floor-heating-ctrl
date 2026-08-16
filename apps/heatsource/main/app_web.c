@@ -403,6 +403,9 @@ static esp_err_t state_get(httpd_req_t *req)
                             : rec.state == REC_DONE ? "fertig"
                             : rec.state == REC_ARMED ? "scharf" : "aus");
     cJSON_AddBoolToObject(cr, "auto", rec.automatic);
+    cJSON_AddStringToObject(cr, "source",
+                            rec.source == REC_SRC_BURNER ? "brenner"
+                            : rec.source == REC_SRC_BUFFER ? "speicher" : "keiner");
     cJSON_AddBoolToObject(cr, "wait_off", rec.wait_off);
     cJSON_AddBoolToObject(cr, "tail", rec.tail);
     cJSON_AddNumberToObject(cr, "tail_left_s", rec.tail_left_s);
@@ -667,6 +670,14 @@ static esp_err_t record_get(httpd_req_t *req)
 static esp_err_t record_post(httpd_req_t *req)
 {
     const char *action = last_segment(req->uri);
+    if (strcmp(action, "arm") == 0 && rec_available_source() == REC_SRC_NONE) {
+        /* Ohne Zeichen wuerde die Aufzeichnung ewig warten. Das faellt erst
+         * nach Tagen auf -- besser gleich sagen, was fehlt. */
+        return send_error(req, "400 Bad Request",
+                          "Dieses Geraet erkennt den Beginn einer Ladung nicht: es hat weder "
+                          "einen Abgasfuehler noch einen Pufferfuehler, und kein Geraet am "
+                          "Kessel meldet den Brennerzustand");
+    }
     if (strcmp(action, "start") == 0 || strcmp(action, "arm") == 0) {
         if ((action[0] == 'a' ? rec_arm() : rec_start()) != ESP_OK) {
             rec_status_t st;

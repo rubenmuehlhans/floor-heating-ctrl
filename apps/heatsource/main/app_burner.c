@@ -18,13 +18,6 @@ static const char *TAG = "burner";
 
 #define TICK_MS 1000
 #define REC_PERIOD_S 5
-/*
- * Nachlauf der selbsttaetigen Aufzeichnung. Der Kessel gibt seine Waerme noch
- * einige Minuten nach dem Brennerlauf ab; erst danach steht fest, wie warm der
- * Speicher geworden ist. Setzt der Brenner in dieser Zeit wieder ein, laeuft
- * die Aufzeichnung durch -- taktender Betrieb gehoert zur selben Ladung.
- */
-#define REC_TAIL_S 600
 #define NVS_NAMESPACE "heiz"
 #define NVS_KEY_STATS "stats"
 /* Ab so vielen Starts bei so wenig Laufzeit je Start gilt der Betrieb als
@@ -61,7 +54,8 @@ static uint32_t s_rec_last_ms;
 /* Wann begonnen und wann beendet wird, steht in components/heatlogic und ist
  * dort ohne Hardware geprueft. */
 static rec_trigger_t s_trig;
-static bool s_burner_any;       /* Brennerzustand, eigener Fuehler oder Nachbargeraet */
+static rec_trig_cfg_t s_tcfg;
+static rec_input_t s_tin;       /* letzte Zeichen: Brenner und Speicher */
 
 static inline uint32_t now_ms(void)
 {
@@ -203,15 +197,29 @@ esp_err_t rec_arm(void)
         return rc;
     }
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    rec_trigger_arm(&s_trig, s_burner_any);
+    rec_trigger_arm(&s_trig, &s_tin, now_ms());
     s_rec_started_epoch = 0;
     bool warten = s_trig.wait_off;
+    rec_source_t quelle = s_trig.source;
     uint8_t n = s_rec_cols;
     xSemaphoreGive(s_mtx);
 
-    ESP_LOGI(TAG, "Aufzeichnung scharf, %u Messstellen%s", (unsigned)n,
-             warten ? ", der Brenner laeuft noch -- gewartet wird auf den naechsten Start" : "");
+    ESP_LOGI(TAG, "Aufzeichnung scharf, %u Messstellen, Zeichen: %s%s", (unsigned)n,
+             quelle == REC_SRC_BURNER ? "Brennerzustand" : "Anstieg der Speichertemperatur",
+             warten ? " -- der Brenner laeuft noch, gewartet wird auf den naechsten Start" : "");
     return ESP_OK;
+}
+
+/* Woran sich der Beginn einer Ladung hier erkennen liesse. */
+rec_source_t rec_available_source(void)
+{
+    if (s_mtx == NULL) {
+        return REC_SRC_NONE;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    rec_source_t q = rec_trigger_source(&s_tin);
+    xSemaphoreGive(s_mtx);
+    return q;
 }
 
 void rec_stop(void)
@@ -233,23 +241,26 @@ void rec_stop(void)
 }
 
 /*
- * Uebergaenge der selbsttaetigen Aufzeichnung, einmal je Sekunde. laeuft ist
- * der Brennerzustand: vom eigenen Abgasfuehler oder, wenn dieses Geraet keinen
- * hat, vom Nachbargeraet. Das Geraet am Pufferspeicher kann so aufzeichnen,
- * obwohl der Brenner in einem anderen Raum steht.
+ * Uebergaenge der selbsttaetigen Aufzeichnung, einmal je Sekunde.
+ *
+ * Der Brennerzustand kommt vom eigenen Abgasfuehler oder, wenn dieses Geraet
+ * keinen hat, vom Nachbargeraet -- das Geraet am Pufferspeicher zeichnet so
+ * auf, obwohl der Brenner in einem anderen Raum steht. Steht auch von dort
+ * nichts an, dient die steigende Speichertemperatur als Ersatz.
  */
-static void rec_tick(bool laeuft, uint32_t t)
+static void rec_tick(const rec_input_t *in, uint32_t t)
 {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    s_burner_any = laeuft;
+    s_tin = *in;
     rec_trig_phase_t vorher = s_trig.phase;
 
-    if (rec_trigger_tick(&s_trig, laeuft, REC_TAIL_S, t)) {
+    if (rec_trigger_tick(&s_trig, in, &s_tcfg, t)) {
         rec_begin_locked();
-        ESP_LOGI(TAG, "Brenner angelaufen, Aufzeichnung beginnt");
+        ESP_LOGI(TAG, "%s, Aufzeichnung beginnt",
+                 s_trig.source == REC_SRC_BURNER ? "Brenner angelaufen"
+                                                 : "Speichertemperatur steigt");
     } else if (vorher == REC_TRIG_RUN && s_trig.phase == REC_TRIG_DONE) {
-        ESP_LOGI(TAG, "Brenner aus und Nachlauf vorbei, Aufzeichnung beendet, %u Zeilen",
-                 (unsigned)s_rec_len);
+        ESP_LOGI(TAG, "Ladung durch, Aufzeichnung beendet, %u Zeilen", (unsigned)s_rec_len);
     }
     xSemaphoreGive(s_mtx);
 }
@@ -273,7 +284,8 @@ void rec_get_status(rec_status_t *out)
     out->automatic = s_trig.automatic;
     out->wait_off = s_trig.wait_off;
     out->tail = s_trig.tail;
-    out->tail_left_s = (uint16_t)rec_trigger_tail_left_s(&s_trig, REC_TAIL_S, now_ms());
+    out->tail_left_s = (uint16_t)rec_trigger_tail_left_s(&s_trig, s_tcfg.tail_s, now_ms());
+    out->source = s_trig.phase == REC_TRIG_OFF ? rec_trigger_source(&s_tin) : s_trig.source;
     xSemaphoreGive(s_mtx);
 }
 
@@ -395,9 +407,15 @@ static void burner_task(void *arg)
         charge_tick(&s_cst, &s_ccfg, &cin, t);
         xSemaphoreGive(s_mtx);
 
-        /* Scharf geschaltet wartet die Aufzeichnung auf den naechsten
-         * Brennerstart und endet nach dessen Nachlauf von selbst. */
-        rec_tick(cin.burner_known && cin.burner_running, t);
+        /* Scharf geschaltet beginnt die Aufzeichnung von selbst und endet
+         * auch von selbst. */
+        rec_input_t tin = {
+            .burner_known = cin.burner_known,
+            .burner_running = cin.burner_running,
+            .buffer_valid = cin.puffer_valid,
+            .buffer_c = cin.puffer_c,
+        };
+        rec_tick(&tin, t);
 
         /* Tageswechsel. Ohne gestellte Uhr wird nicht umgeschaltet -- sonst
          * fiele der Wechsel mit jedem Neustart zusammen. */
@@ -463,6 +481,8 @@ esp_err_t burner_start(void)
     burner_defaults(&s_cfg);
     burner_init(&s_st);
     charge_defaults(&s_ccfg);
+    rec_trigger_defaults(&s_tcfg);
+    rec_trigger_init(&s_trig);
     charge_init(&s_cst);
     s_stats.tag = -1;
 

@@ -73,7 +73,8 @@ def kreis_default(kid: int) -> dict:
 
 REC = {"state": "fertig", "samples": 1043, "period_s": 5,
        "started_epoch": int(time.time()) - 5215, "cols": 6, "bytes": 19200,
-       "auto": False, "wait_off": False, "tail": False, "tail_left_s": 0}
+       "auto": False, "wait_off": False, "tail": False, "tail_left_s": 0,
+       "source": "brenner"}
 
 # Nachlauf der selbsttaetigen Aufzeichnung, wie REC_TAIL_S im Geraet.
 REC_TAIL_S = 600
@@ -141,8 +142,20 @@ LABEL = {
 }
 
 
+def rec_quelle() -> str:
+    """Woran sich der Beginn einer Ladung hier erkennen liesse."""
+    rollen = {p["role"] for p in CFG["probes"]}
+    if "abgas" in rollen or KESSELBOARD:
+        return "brenner"
+    if "puffer" in rollen:
+        return "speicher"
+    return "keiner"
+
+
 def rec_tick(brenner_laeuft: bool) -> None:
     """Uebergaenge der selbsttaetigen Aufzeichnung, wie rec_tick() im Geraet."""
+    if REC["state"] in ("aus", "fertig"):
+        REC["source"] = rec_quelle()
     if REC["state"] == "scharf":
         if not brenner_laeuft:
             REC["wait_off"] = False
@@ -384,7 +397,10 @@ class Handler(BaseHTTPRequestHandler):
             aktion = pfad.rsplit("/", 1)[-1]
             laeuft = math.sin(2 * math.pi * time.time() / 900) > 0.2
             if aktion == "arm":
-                REC.update(state="scharf", auto=True, samples=0, cols=len(CFG["probes"]),
+                if rec_quelle() == "keiner":
+                    return self._send({"ok": False, "error": "Dieses Geraet erkennt den "
+                                       "Beginn einer Ladung nicht"}, 400)
+                REC.update(state="scharf", auto=True, source=rec_quelle(), samples=0, cols=len(CFG["probes"]),
                            bytes=1600 * len(CFG["probes"]) * 2, wait_off=laeuft,
                            tail=False, tail_left_s=0, started_epoch=0)
             elif aktion == "start":

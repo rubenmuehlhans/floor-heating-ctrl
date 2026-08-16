@@ -440,25 +440,53 @@ void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input
 /* Ausloesen der Aufzeichnung                                          */
 /* ------------------------------------------------------------------ */
 
+void rec_trigger_defaults(rec_trig_cfg_t *cfg)
+{
+    cfg->rise_k = 1.5f;
+    cfg->rise_win_s = 1200;
+    cfg->quiet_s = 900;
+    cfg->tail_s = 600;
+}
+
 void rec_trigger_init(rec_trigger_t *st)
 {
     memset(st, 0, sizeof(*st));
     st->phase = REC_TRIG_OFF;
 }
 
-void rec_trigger_arm(rec_trigger_t *st, bool burner_running)
+rec_source_t rec_trigger_source(const rec_input_t *in)
+{
+    if (in->burner_known) {
+        return REC_SRC_BURNER;
+    }
+    if (in->buffer_valid) {
+        return REC_SRC_BUFFER;
+    }
+    return REC_SRC_NONE;
+}
+
+void rec_trigger_arm(rec_trigger_t *st, const rec_input_t *in, uint32_t now_ms)
 {
     st->phase = REC_TRIG_ARMED;
     st->automatic = true;
     st->tail = false;
+    st->source = rec_trigger_source(in);
     /* Laeuft der Brenner jetzt schon, gehoert dieser Lauf nicht mehr ganz zur
      * Aufzeichnung -- gewartet wird auf den naechsten Start. */
-    st->wait_off = burner_running;
+    st->wait_off = in->burner_known && in->burner_running;
+
+    /* Gemessen wird der Anstieg ab hier, nicht ab irgendeinem alten Tiefpunkt. */
+    st->ref_have = in->buffer_valid;
+    st->ref_c = in->buffer_c;
+    st->ref_ms = now_ms;
+    st->peak_c = in->buffer_c;
+    st->peak_ms = now_ms;
 }
 
 void rec_trigger_manual(rec_trigger_t *st)
 {
     st->phase = REC_TRIG_RUN;
+    st->source = REC_SRC_NONE;
     st->automatic = false;
     st->wait_off = false;
     st->tail = false;
@@ -472,6 +500,7 @@ void rec_trigger_stop(rec_trigger_t *st)
         /* Aufgezeichnet wurde nichts; es bleibt auch nichts zurueck. */
         st->phase = REC_TRIG_OFF;
         st->automatic = false;
+        st->source = REC_SRC_NONE;
     }
     st->wait_off = false;
     st->tail = false;
@@ -485,14 +514,77 @@ void rec_trigger_full(rec_trigger_t *st)
     }
 }
 
-bool rec_trigger_tick(rec_trigger_t *st, bool burner_running, uint32_t tail_s, uint32_t now_ms)
+/*
+ * Schreibt die Bezugswerte der Speichertemperatur fort und liefert den
+ * Anstieg gegenueber dem unteren. Der untere folgt einem Ruecklauf sofort und
+ * wandert sonst mit dem Fenster weiter; so bleibt der Anstieg der einer
+ * beginnenden Ladung und nicht der eines halben Tages.
+ */
+static float buffer_rise(rec_trigger_t *st, const rec_input_t *in, const rec_trig_cfg_t *cfg,
+                         uint32_t now_ms)
 {
+    if (!in->buffer_valid) {
+        st->ref_have = false;
+        return 0.0f;
+    }
+    if (!st->ref_have || in->buffer_c < st->ref_c) {
+        st->ref_have = true;
+        st->ref_c = in->buffer_c;
+        st->ref_ms = now_ms;
+        st->peak_c = in->buffer_c;
+        st->peak_ms = now_ms;
+        return 0.0f;
+    }
+    if ((now_ms - st->ref_ms) >= cfg->rise_win_s * 1000UL &&
+        (in->buffer_c - st->ref_c) < cfg->rise_k) {
+        /* Das Fenster ist herum, ohne dass es gereicht haette. */
+        st->ref_c = in->buffer_c;
+        st->ref_ms = now_ms;
+    }
+    return in->buffer_c - st->ref_c;
+}
+
+/* Sekunden seit dem letzten neuen Hoechstwert der Speichertemperatur. */
+static uint32_t buffer_quiet_s(rec_trigger_t *st, const rec_input_t *in, uint32_t now_ms)
+{
+    if (!in->buffer_valid) {
+        st->peak_ms = now_ms;
+        return 0;
+    }
+    if (in->buffer_c > st->peak_c + 0.2f) {
+        st->peak_c = in->buffer_c;
+        st->peak_ms = now_ms;
+    }
+    return (now_ms - st->peak_ms) / 1000;
+}
+
+bool rec_trigger_tick(rec_trigger_t *st, const rec_input_t *in, const rec_trig_cfg_t *cfg,
+                      uint32_t now_ms)
+{
+    bool brenner = in->burner_known && in->burner_running;
+    float anstieg = buffer_rise(st, in, cfg, now_ms);
+
     if (st->phase == REC_TRIG_ARMED) {
-        if (!burner_running) {
-            st->wait_off = false;
-        } else if (!st->wait_off) {
+        /* Die Quelle kann sich noch aendern: meldet sich das Geraet am Kessel,
+         * zaehlt ab dann der Brenner. */
+        st->source = rec_trigger_source(in);
+
+        if (st->source == REC_SRC_BURNER) {
+            if (!brenner) {
+                st->wait_off = false;
+            } else if (!st->wait_off) {
+                st->phase = REC_TRIG_RUN;
+                st->tail = false;
+                st->peak_c = in->buffer_c;
+                st->peak_ms = now_ms;
+                return true;
+            }
+        } else if (st->source == REC_SRC_BUFFER && anstieg >= cfg->rise_k) {
             st->phase = REC_TRIG_RUN;
             st->tail = false;
+            st->wait_off = false;
+            st->peak_c = in->buffer_c;
+            st->peak_ms = now_ms;
             return true;
         }
         return false;
@@ -502,16 +594,25 @@ bool rec_trigger_tick(rec_trigger_t *st, bool burner_running, uint32_t tail_s, u
         return false;
     }
 
+    if (st->source == REC_SRC_BUFFER) {
+        /* Ohne Brennerzeichen entscheidet der Speicher: steigt er nicht mehr,
+         * ist die Ladung durch. */
+        if (buffer_quiet_s(st, in, now_ms) >= cfg->quiet_s) {
+            st->phase = REC_TRIG_DONE;
+        }
+        return false;
+    }
+
     /*
      * Setzt der Brenner im Nachlauf wieder ein, laeuft die Aufzeichnung
      * durch: taktender Betrieb gehoert zur selben Ladung.
      */
-    if (burner_running) {
+    if (brenner) {
         st->tail = false;
     } else if (!st->tail) {
         st->tail = true;
         st->tail_since_ms = now_ms;
-    } else if ((now_ms - st->tail_since_ms) >= tail_s * 1000UL) {
+    } else if ((now_ms - st->tail_since_ms) >= cfg->tail_s * 1000UL) {
         st->phase = REC_TRIG_DONE;
         st->tail = false;
     }

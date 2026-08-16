@@ -847,51 +847,93 @@ static void test_charge_limited(void)
 
 #define TAIL_S 600
 
-/* Laesst die Zeit laufen und liefert den Zeitpunkt danach. */
-static uint32_t rec_laufen(rec_trigger_t *st, bool brenner, uint32_t t, uint32_t sekunden)
+static rec_trig_cfg_t rec_cfg(void)
 {
+    rec_trig_cfg_t cfg;
+    rec_trigger_defaults(&cfg);
+    return cfg;
+}
+
+static rec_input_t brenner_ein(bool laeuft)
+{
+    rec_input_t in = {0};
+    in.burner_known = true;
+    in.burner_running = laeuft;
+    return in;
+}
+
+static rec_input_t speicher(float c)
+{
+    rec_input_t in = {0};
+    in.buffer_valid = true;
+    in.buffer_c = c;
+    return in;
+}
+
+/* Laesst die Zeit laufen und liefert den Zeitpunkt danach. */
+static uint32_t rec_laufen(rec_trigger_t *st, rec_input_t in, uint32_t t, uint32_t sekunden)
+{
+    rec_trig_cfg_t cfg = rec_cfg();
     for (uint32_t i = 0; i < sekunden; i++) {
         t += 1000;
-        rec_trigger_tick(st, brenner, TAIL_S, t);
+        rec_trigger_tick(st, &in, &cfg, t);
+    }
+    return t;
+}
+
+/* Laesst den Speicher gleichmaessig steigen. */
+static uint32_t speicher_steigen(rec_trigger_t *st, float von_c, float pro_stunde_k,
+                                 uint32_t t, uint32_t sekunden, bool *ausgeloest)
+{
+    rec_trig_cfg_t cfg = rec_cfg();
+    for (uint32_t i = 0; i < sekunden; i++) {
+        t += 1000;
+        rec_input_t in = speicher(von_c + pro_stunde_k * (float)(i + 1) / 3600.0f);
+        if (rec_trigger_tick(st, &in, &cfg, t) && ausgeloest != NULL) {
+            *ausgeloest = true;
+        }
     }
     return t;
 }
 
 static void test_rec_trigger_auto(void)
 {
-    printf("Aufzeichnung: selbsttaetig\n");
+    printf("Aufzeichnung: selbsttaetig ueber den Brenner\n");
 
+    rec_trig_cfg_t cfg = rec_cfg();
     rec_trigger_t st;
     rec_trigger_init(&st);
     CHECK(st.phase == REC_TRIG_OFF, "ohne Zutun laeuft nichts");
 
     uint32_t t = 10000;
-    rec_trigger_arm(&st, false);
+    rec_input_t aus = brenner_ein(false), ein = brenner_ein(true);
+    rec_trigger_arm(&st, &aus, t);
     CHECK(st.phase == REC_TRIG_ARMED, "scharf geschaltet");
+    CHECK(st.source == REC_SRC_BURNER, "ausgeloest wird ueber den Brenner");
     CHECK(!st.wait_off, "bei stehendem Brenner wird nicht gewartet");
 
-    t = rec_laufen(&st, false, t, 3600);
+    t = rec_laufen(&st, aus, t, 3600);
     CHECK(st.phase == REC_TRIG_ARMED, "ohne Brennerstart bleibt sie scharf");
 
     /* Der Brenner laeuft an. */
     t += 1000;
-    CHECK(rec_trigger_tick(&st, true, TAIL_S, t), "der Brennerstart loest aus");
+    CHECK(rec_trigger_tick(&st, &ein, &cfg, t), "der Brennerstart loest aus");
     CHECK(st.phase == REC_TRIG_RUN, "sie zeichnet auf");
     CHECK(st.automatic, "und zwar selbsttaetig");
 
-    t = rec_laufen(&st, true, t, 1800);
+    t = rec_laufen(&st, ein, t, 1800);
     CHECK(st.phase == REC_TRIG_RUN, "waehrend des Brennerlaufs laeuft sie weiter");
     CHECK(!st.tail, "ein Nachlauf ist das noch nicht");
 
     /* Brenner aus: der Nachlauf beginnt. */
-    t = rec_laufen(&st, false, t, 60);
+    t = rec_laufen(&st, aus, t, 60);
     CHECK(st.tail, "nach dem Brenner laeuft der Nachlauf");
     CHECK(st.phase == REC_TRIG_RUN, "aufgezeichnet wird dabei weiter");
     uint32_t rest = rec_trigger_tail_left_s(&st, TAIL_S, t);
     CHECK(rest > TAIL_S - 65 && rest < TAIL_S - 55,
           "nach einer Minute ist rund eine Minute Nachlauf vorbei, nicht %u", (unsigned)rest);
 
-    t = rec_laufen(&st, false, t, TAIL_S);
+    t = rec_laufen(&st, aus, t, TAIL_S);
     CHECK(st.phase == REC_TRIG_DONE, "danach ist sie fertig");
     CHECK(!st.tail, "der Nachlauf ist vorbei");
     CHECK(rec_trigger_tail_left_s(&st, TAIL_S, t) == 0, "und es bleibt keine Restzeit");
@@ -904,9 +946,10 @@ static void test_rec_trigger_takten(void)
     rec_trigger_t st;
     rec_trigger_init(&st);
     uint32_t t = 10000;
+    rec_input_t aus = brenner_ein(false), ein = brenner_ein(true);
 
-    rec_trigger_arm(&st, false);
-    t = rec_laufen(&st, true, t, 600);
+    rec_trigger_arm(&st, &aus, t);
+    t = rec_laufen(&st, ein, t, 600);
     CHECK(st.phase == REC_TRIG_RUN, "sie laeuft");
 
     /*
@@ -915,13 +958,13 @@ static void test_rec_trigger_takten(void)
      * Kurve in Bruchstuecke.
      */
     for (int i = 0; i < 4; i++) {
-        t = rec_laufen(&st, false, t, 120);
+        t = rec_laufen(&st, aus, t, 120);
         CHECK(st.phase == REC_TRIG_RUN, "eine Pause von zwei Minuten beendet sie nicht");
-        t = rec_laufen(&st, true, t, 300);
+        t = rec_laufen(&st, ein, t, 300);
         CHECK(!st.tail, "laeuft der Brenner wieder, ist der Nachlauf zurueckgenommen");
     }
 
-    t = rec_laufen(&st, false, t, TAIL_S + 5);
+    t = rec_laufen(&st, aus, t, TAIL_S + 5);
     CHECK(st.phase == REC_TRIG_DONE, "erst die lange Pause beendet sie");
 }
 
@@ -929,24 +972,99 @@ static void test_rec_trigger_laufender_brenner(void)
 {
     printf("Aufzeichnung: Brenner laeuft beim Scharfschalten\n");
 
+    rec_trig_cfg_t cfg = rec_cfg();
     rec_trigger_t st;
     rec_trigger_init(&st);
     uint32_t t = 10000;
+    rec_input_t aus = brenner_ein(false), ein = brenner_ein(true);
 
     /* Mitten in einen Lauf hinein zu beginnen ergaebe eine halbe Kurve. */
-    rec_trigger_arm(&st, true);
+    rec_trigger_arm(&st, &ein, t);
     CHECK(st.wait_off, "gewartet wird auf den naechsten Start");
 
-    t = rec_laufen(&st, true, t, 1800);
+    t = rec_laufen(&st, ein, t, 1800);
     CHECK(st.phase == REC_TRIG_ARMED, "der laufende Brenner loest nicht aus");
 
-    t = rec_laufen(&st, false, t, 60);
+    t = rec_laufen(&st, aus, t, 60);
     CHECK(st.phase == REC_TRIG_ARMED, "nach dessen Ende bleibt sie scharf");
     CHECK(!st.wait_off, "aber sie wartet nicht mehr");
 
     t += 1000;
-    CHECK(rec_trigger_tick(&st, true, TAIL_S, t), "der naechste Start loest aus");
+    CHECK(rec_trigger_tick(&st, &ein, &cfg, t), "der naechste Start loest aus");
     CHECK(st.phase == REC_TRIG_RUN, "jetzt zeichnet sie auf");
+}
+
+static void test_rec_trigger_speicher(void)
+{
+    printf("Aufzeichnung: ueber den Anstieg des Speichers\n");
+
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    uint32_t t = 10000;
+
+    rec_input_t kalt = speicher(40.0f);
+    CHECK(rec_trigger_source(&kalt) == REC_SRC_BUFFER,
+          "ohne Brennerzeichen dient der Speicher als Ersatz");
+
+    rec_trigger_arm(&st, &kalt, t);
+    CHECK(st.source == REC_SRC_BUFFER, "und wird beim Scharfschalten vermerkt");
+
+    /*
+     * Ein stehender Speicher loest nicht aus, auch nicht nach Stunden. Das
+     * langsame Abkuehlen einer ruhenden Anlage ebenso wenig.
+     */
+    bool los = false;
+    t = speicher_steigen(&st, 40.0f, -1.0f, t, 7200, &los);
+    CHECK(!los && st.phase == REC_TRIG_ARMED, "ein abkuehlender Speicher loest nicht aus");
+
+    /* Eine Ladung hebt ihn um Dutzende Grad je Stunde. */
+    t = speicher_steigen(&st, 33.0f, 25.0f, t, 1800, &los);
+    CHECK(los, "der Anstieg einer Ladung loest aus");
+    CHECK(st.phase == REC_TRIG_RUN, "sie zeichnet auf");
+    CHECK(st.source == REC_SRC_BUFFER, "ueber den Speicher");
+
+    /* Steigt er nicht mehr, ist die Ladung durch -- aber erst nach der
+     * Ruhezeit, nicht schon bei der ersten Delle. */
+    rec_input_t oben = speicher(58.0f);
+    t = rec_laufen(&st, oben, t, 600);
+    CHECK(st.phase == REC_TRIG_RUN, "zehn Minuten Stillstand beenden sie noch nicht");
+    t = rec_laufen(&st, oben, t, 400);
+    CHECK(st.phase == REC_TRIG_DONE, "nach einer Viertelstunde ohne Anstieg ist sie fertig");
+}
+
+static void test_rec_trigger_ohne_zeichen(void)
+{
+    printf("Aufzeichnung: ohne jedes Zeichen\n");
+
+    rec_input_t leer = {0};
+    CHECK(rec_trigger_source(&leer) == REC_SRC_NONE,
+          "ohne Abgas- und ohne Pufferfuehler gibt es kein Zeichen");
+
+    rec_input_t nur_brenner = brenner_ein(false);
+    CHECK(rec_trigger_source(&nur_brenner) == REC_SRC_BURNER,
+          "der Brenner hat Vorrang, auch wenn er gerade steht");
+
+    rec_input_t beides = brenner_ein(false);
+    beides.buffer_valid = true;
+    beides.buffer_c = 50.0f;
+    CHECK(rec_trigger_source(&beides) == REC_SRC_BURNER,
+          "liegt beides vor, zaehlt der Brenner -- er ist das unmittelbare Zeichen");
+
+    /*
+     * Meldet sich das Geraet am Kessel spaeter, wechselt eine scharf
+     * geschaltete Aufzeichnung auf den Brenner.
+     */
+    rec_trig_cfg_t cfg = rec_cfg();
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    uint32_t t = 10000;
+    rec_input_t nur_speicher = speicher(45.0f);
+    rec_trigger_arm(&st, &nur_speicher, t);
+    CHECK(st.source == REC_SRC_BUFFER, "erst ueber den Speicher");
+
+    t += 1000;
+    rec_trigger_tick(&st, &beides, &cfg, t);
+    CHECK(st.source == REC_SRC_BURNER, "dann ueber den Brenner");
 }
 
 static void test_rec_trigger_hand(void)
@@ -956,6 +1074,7 @@ static void test_rec_trigger_hand(void)
     rec_trigger_t st;
     rec_trigger_init(&st);
     uint32_t t = 10000;
+    rec_input_t aus = brenner_ein(false);
 
     rec_trigger_manual(&st);
     CHECK(st.phase == REC_TRIG_RUN, "sie beginnt sofort");
@@ -963,7 +1082,7 @@ static void test_rec_trigger_hand(void)
 
     /* Von Hand begonnen heisst auch von Hand beendet: der Brennerzustand
      * entscheidet hier nicht. */
-    t = rec_laufen(&st, false, t, 2 * TAIL_S);
+    t = rec_laufen(&st, aus, t, 2 * TAIL_S);
     CHECK(st.phase == REC_TRIG_RUN, "der stehende Brenner beendet sie nicht");
     CHECK(!st.tail, "einen Nachlauf gibt es dabei nicht");
 
@@ -972,7 +1091,7 @@ static void test_rec_trigger_hand(void)
 
     /* Abbrechen im scharfen Zustand laesst nichts zurueck. */
     rec_trigger_init(&st);
-    rec_trigger_arm(&st, false);
+    rec_trigger_arm(&st, &aus, t);
     rec_trigger_stop(&st);
     CHECK(st.phase == REC_TRIG_OFF, "eine abgebrochene Schaltung hinterlaesst nichts");
     CHECK(!st.automatic, "und gilt nicht mehr als selbsttaetig");
@@ -1012,6 +1131,8 @@ int main(void)
     test_rec_trigger_auto();
     test_rec_trigger_takten();
     test_rec_trigger_laufender_brenner();
+    test_rec_trigger_speicher();
+    test_rec_trigger_ohne_zeichen();
     test_rec_trigger_hand();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);

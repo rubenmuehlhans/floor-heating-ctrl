@@ -58,7 +58,8 @@ typedef struct {
     uint8_t cols;
     probe_role_t role[ROLE_COUNT];
     uint32_t bytes;      /* belegter Arbeitsspeicher */
-    bool automatic;      /* vom Brennerstart ausgeloest, endet auch von selbst */
+    bool automatic;      /* selbsttaetig ausgeloest, endet auch von selbst */
+    rec_source_t source; /* woran der Beginn erkannt wird */
     bool wait_off;       /* scharf, aber der Brenner laeuft noch aus dem vorigen Lauf */
     bool tail;           /* Brenner ist aus, der Nachlauf laeuft noch */
     uint16_t tail_left_s;
@@ -85,19 +86,23 @@ void charge_get(charge_status_t *out);
 esp_err_t rec_start(void);
 
 /*
- * Schaltet die Aufzeichnung scharf: sie beginnt beim naechsten Brennerstart
- * und endet, wenn der Brenner wieder aus ist. Wann eine Ladung anfaengt, sieht
- * man erst an der steigenden Abgastemperatur -- von Hand ist der Anfang der
- * Kurve deshalb kaum zu treffen.
- *
- * Laeuft der Brenner in diesem Augenblick schon, wird nicht mitten hinein
- * begonnen, sondern der naechste Start abgewartet: eine halbe Kurve taugt zur
- * Auswertung nicht.
+ * Schaltet die Aufzeichnung scharf: sie beginnt beim naechsten Beginn einer
+ * Ladung und endet, wenn die Ladung durch ist. Wann eine Ladung anfaengt,
+ * sieht man erst an der steigenden Abgastemperatur -- von Hand ist der Anfang
+ * der Kurve deshalb kaum zu treffen. Woran erkannt wird, steht in
+ * components/heatlogic.
  *
  * Der Speicher wird sofort belegt, damit ein Fehlschlag beim Scharfschalten
  * auffaellt und nicht erst nachts um drei.
  */
 esp_err_t rec_arm(void);
+
+/*
+ * Woran sich der Beginn einer Ladung an diesem Geraet gerade erkennen liesse.
+ * REC_SRC_NONE heisst: scharf schalten waere sinnlos -- weder ein
+ * Brennerzeichen noch ein Pufferfuehler liegt vor.
+ */
+rec_source_t rec_available_source(void);
 
 /* Beendet eine laufende und verwirft eine scharf geschaltete Aufzeichnung. */
 void rec_stop(void);

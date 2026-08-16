@@ -300,11 +300,12 @@ a.btn:hover{filter:none}
       <p class="lede">Zeichnet alle Messstellen im Fünfsekundenraster auf, gut zwei Stunden
          lang. Aus diesen Kurven werden die Schwellwerte für den Ladezustand abgeleitet —
          gemessen statt geschätzt, wie schon bei der Messfahrt der Verteilerplatine.</p>
-      <p class="lede">Wann eine Ladung anfängt, sieht man erst an der steigenden
-         Abgastemperatur. Schalten Sie die Aufzeichnung deshalb scharf: sie beginnt beim
-         nächsten Brennerstart von selbst und endet zehn Minuten nach dessen Ende. Läuft
-         der Brenner gerade, wird der übernächste Start abgewartet — eine halbe Kurve taugt
-         zur Auswertung nicht.</p>
+      <p class="lede">Wann eine Ladung anfängt, bekommt man schlecht mit. Schalten Sie die
+         Aufzeichnung deshalb scharf: sie beginnt von selbst und endet auch von selbst.
+         Ausgelöst wird über den Brennerzustand, sobald dieses Gerät ihn kennt — vom eigenen
+         Abgasfühler oder vom Gerät am Kessel. Bis dahin dient die steigende
+         Speichertemperatur als Ersatz; sie spricht einige Minuten später an, weil die Wärme
+         erst im Speicher ankommen muss.</p>
       <div class="row" id="rec-state"></div>
       <div class="actions">
         <button class="btn" id="rec-arm">Beim nächsten Brennerstart aufzeichnen</button>
@@ -1143,14 +1144,22 @@ function renderRecord() {
   } else if (r.state === "scharf") {
     text = `<span class="chip warn">scharf</span> ` + (r.wait_off
       ? "der Brenner läuft noch — aufgezeichnet wird der nächste Start"
-      : "wartet auf den nächsten Brennerstart")
+      : r.source === "brenner"
+        ? "wartet auf den nächsten Brennerstart"
+        : "wartet darauf, dass die Speichertemperatur steigt")
       + ` · ${r.cols} Messstellen${speicher}`;
+  } else if (r.source === "keiner") {
+    text = `<span class="chip plain">keine Aufzeichnung</span>`
+      + `<span class="chip bad">kein Zeichen für den Beginn einer Ladung</span>`;
   } else {
-    text = `<span class="chip plain">keine Aufzeichnung</span>`;
+    text = `<span class="chip plain">keine Aufzeichnung</span>`
+      + `<span class="chip plain">löst über ${r.source === "brenner"
+          ? "den Brennerzustand" : "die Speichertemperatur"} aus</span>`;
   }
   $("#rec-state").innerHTML = text;
 
-  $("#rec-arm").disabled = r.state === "laeuft" || r.state === "scharf";
+  $("#rec-arm").disabled = r.state === "laeuft" || r.state === "scharf"
+                           || r.source === "keiner";
   $("#rec-start").disabled = r.state === "laeuft";
   $("#rec-stop").disabled = r.state !== "laeuft" && r.state !== "scharf";
   $("#rec-stop").textContent = r.state === "scharf" ? "Abbrechen" : "Beenden";

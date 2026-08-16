@@ -456,10 +456,19 @@ die passenden Entitäten ein.
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
 | 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t`, `cfgjson` und das Stilblatt umgesetzt; das Verschieben ist offen |
 
-Zur Aufzeichnung: Sie lässt sich scharf schalten und beginnt dann beim nächsten Brennerstart von
-selbst — der Anfang einer Ladung ist erst an der steigenden Abgastemperatur zu erkennen und von
-Hand kaum zu treffen. Beendet wird zehn Minuten nach dem Brennerlauf; setzt der Brenner in dieser
-Zeit wieder ein, läuft die Aufzeichnung durch, weil taktender Betrieb zur selben Ladung gehört.
+Zur Aufzeichnung: Sie lässt sich scharf schalten und beginnt dann von selbst — der Anfang einer
+Ladung ist von Hand kaum zu treffen. Ausgelöst wird über den Brennerzustand, sobald das Gerät ihn
+kennt; beendet wird zehn Minuten nach dem Brennerlauf, wobei ein taktender Kessel die
+Aufzeichnung nicht zerteilt.
+
+Ein Gerät am Pufferspeicher kennt den Brennerzustand erst, wenn das Gerät am Kessel steht und ihn
+über `/api/measurements` meldet. Bis dahin dient der Anstieg der Speichertemperatur als Ersatz:
+1,5 K in zwanzig Minuten gelten als beginnende Ladung, eine Viertelstunde ohne neuen Höchstwert
+als deren Ende. Der Bezugswert folgt einem Rücklauf sofort und wandert sonst mit dem Fenster
+weiter — dieselbe Bauart wie die gleitende Bezugslinie der Brennererkennung und ohne Ringpuffer.
+Der Ersatz spricht einige Minuten später an als der Brennerzustand, weil die Wärme erst im
+Speicher ankommen muss; für eine Kurve, die zwei Stunden umfasst, fällt das nicht ins Gewicht.
+
 Wann begonnen und wann beendet wird, steht als `rec_trigger` in `components/heatlogic` und ist
 dort ohne Hardware geprüft.
 

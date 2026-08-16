@@ -401,19 +401,29 @@ zuschalten. Der Verlauf liegt im Arbeitsspeicher und beginnt nach einem Neustart
 **Ladung aufzeichnen.** Zeichnet alle belegten Messstellen im Fünfsekundenraster auf, gut zwei
 Stunden lang.
 
-Wann eine Ladung anfängt, sieht man erst an der steigenden Abgastemperatur — von Hand ist der
-Anfang der Kurve deshalb kaum zu treffen. Schalten Sie die Aufzeichnung stattdessen scharf:
+Wann eine Ladung anfängt, bekommt man schlecht mit. Schalten Sie die Aufzeichnung deshalb scharf:
 
 1. **Beim nächsten Brennerstart aufzeichnen**
-2. Die Aufzeichnung beginnt von selbst, sobald der Brenner anläuft, und endet zehn Minuten nach
-   dessen Ende. Schaltet der Kessel zwischendurch ab und gleich wieder ein, läuft sie durch —
-   taktender Betrieb gehört zur selben Ladung.
+2. Die Aufzeichnung beginnt von selbst und endet auch von selbst
 3. **Als CSV holen** lädt die Datei herunter
 4. **Verwerfen** gibt den Arbeitsspeicher wieder frei
 
-Läuft der Brenner in dem Augenblick, in dem Sie scharf schalten, wird der übernächste Start
-abgewartet; eine halbe Kurve taugt zur Auswertung nicht. Die Zustandszeile sagt, worauf gewartet
-wird. **Abbrechen** hebt die Schaltung auf.
+Ausgelöst wird über eines von zwei Zeichen. Welches, sagt die Zustandszeile.
+
+| Zeichen | Voraussetzung | Beginn | Ende |
+|---|---|---|---|
+| **Brennerzustand** | eigener Abgasfühler, oder ein Gerät am Kessel meldet ihn | der Brenner läuft an | zehn Minuten nach dem Brennerlauf |
+| **Speichertemperatur** | ein Fühler mit der Rolle `puffer` | sie steigt um 1,5 K in zwanzig Minuten | eine Viertelstunde ohne neuen Höchstwert |
+
+Der Brennerzustand hat Vorrang: er ist das unmittelbare Zeichen. Die Speichertemperatur ist der
+Ersatz für ein Gerät am Pufferspeicher, solange das Gerät am Kessel noch nicht steht — sie
+spricht einige Minuten später an, weil die Wärme erst im Speicher ankommen muss. Kennt ein Gerät
+weder das eine noch das andere, lässt es sich nicht scharf schalten und sagt das mit Begründung.
+
+Über den Brennerzustand gilt außerdem: Schaltet der Kessel zwischendurch ab und gleich wieder
+ein, läuft die Aufzeichnung durch — taktender Betrieb gehört zur selben Ladung. Läuft der Brenner
+in dem Augenblick, in dem Sie scharf schalten, wird der übernächste Start abgewartet; eine halbe
+Kurve taugt zur Auswertung nicht. **Abbrechen** hebt die Schaltung auf.
 
 Der Arbeitsspeicher wird schon beim Scharfschalten belegt, damit ein Fehlschlag sofort auffällt
 und nicht erst dann, wenn der Kessel nachts anspringt. Nach einem Neustart des Geräts ist die
@@ -581,7 +591,7 @@ GET     /api/demand             Waermebedarf, fuer das Heizungsgeraet
 GET     /api/measurements       Messstellen und Brennerzustand, fuer das Nachbargeraet
 GET     /api/history            Verlauf, Ein-Minuten-Raster
 GET     /api/record             Aufzeichnung einer Ladung als CSV
-POST    /api/record/arm         beim naechsten Brennerstart aufzeichnen
+POST    /api/record/arm         bei der naechsten Ladung aufzeichnen
 POST    /api/record/start       sofort aufzeichnen
 POST    /api/record/stop        beenden, im scharfen Zustand abbrechen
 POST    /api/record/discard     verwerfen und Speicher freigeben

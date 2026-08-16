@@ -266,37 +266,86 @@ const char *charge_phase_text(charge_phase_t p);
 /* ------------------------------------------------------------------ */
 
 /*
- * Wann eine Ladung anfaengt, sieht man erst an der steigenden
+ * Wann eine Ladung anfaengt, sieht man von aussen erst an der steigenden
  * Abgastemperatur. Von Hand ist der Anfang der Kurve deshalb kaum zu treffen.
- * Scharf geschaltet wartet die Aufzeichnung auf den naechsten Brennerstart und
- * endet nach dessen Nachlauf von selbst.
+ * Scharf geschaltet beginnt die Aufzeichnung von selbst und endet auch von
+ * selbst.
+ *
+ * Ausgeloest wird ueber den Brennerzustand, wenn er bekannt ist -- er kommt
+ * vom eigenen Abgasfuehler oder vom Geraet am Kessel. Ist er es nicht, dient
+ * die steigende Speichertemperatur als Ersatz: das Geraet am Pufferspeicher
+ * sieht den Brenner nicht, wohl aber, dass geladen wird. Der Ersatz spricht
+ * einige Minuten spaeter an, weil die Waerme erst im Speicher ankommen muss.
  *
  * Hier steht nur, wann begonnen und wann beendet wird. Das Belegen des
  * Speichers und das Schreiben der Zeilen bleiben in der Anwendung.
  */
 typedef enum {
     REC_TRIG_OFF = 0,
-    REC_TRIG_ARMED,   /* wartet auf den naechsten Brennerstart */
+    REC_TRIG_ARMED,   /* wartet auf den Beginn einer Ladung */
     REC_TRIG_RUN,
     REC_TRIG_DONE,
 } rec_trig_phase_t;
 
+/* Woran der Beginn erkannt wird. */
+typedef enum {
+    REC_SRC_NONE = 0,   /* kein Zeichen vorhanden, scharf schalten waere sinnlos */
+    REC_SRC_BURNER,
+    REC_SRC_BUFFER,
+} rec_source_t;
+
+typedef struct {
+    bool burner_known;
+    bool burner_running;
+    bool buffer_valid;
+    float buffer_c;
+} rec_input_t;
+
+typedef struct {
+    float rise_k;         /* so viel Anstieg gilt als beginnende Ladung */
+    uint32_t rise_win_s;  /* im Fenster dieser Laenge */
+    uint32_t quiet_s;     /* so lange kein neuer Hoechstwert: die Ladung ist durch */
+    uint32_t tail_s;      /* Nachlauf nach dem Brennerlauf */
+} rec_trig_cfg_t;
+
 typedef struct {
     rec_trig_phase_t phase;
-    bool automatic;   /* vom Brennerstart ausgeloest, endet auch von selbst */
-    bool wait_off;    /* scharf, aber der Brenner laeuft noch aus dem vorigen Lauf */
-    bool tail;        /* Brenner ist aus, der Nachlauf laeuft noch */
+    rec_source_t source;  /* was diese Aufzeichnung ausgeloest hat */
+    bool automatic;       /* selbsttaetig ausgeloest, endet auch von selbst */
+    bool wait_off;        /* scharf, aber der Brenner laeuft noch aus dem vorigen Lauf */
+    bool tail;            /* Brenner ist aus, der Nachlauf laeuft noch */
     uint32_t tail_since_ms;
+
+    /*
+     * Bezugswerte fuer die Speichertemperatur. Der untere folgt einem
+     * Ruecklauf sofort und wandert sonst mit dem Fenster weiter, der obere
+     * haelt den Hoechstwert -- dieselbe Bauart wie die Bezugslinie der
+     * Brennererkennung, und ohne Ringpuffer.
+     */
+    bool ref_have;
+    float ref_c;
+    uint32_t ref_ms;
+    float peak_c;
+    uint32_t peak_ms;
 } rec_trigger_t;
 
+/* Vorgabe: 1,5 K Anstieg in 20 Minuten, 15 Minuten Ruhe als Ende, 10 Minuten
+ * Nachlauf. Eine Ladung hebt den Speicher um ein Vielfaches davon; ein
+ * Messrauschen oder die Erwaermung des Aufstellraums bleiben darunter. */
+void rec_trigger_defaults(rec_trig_cfg_t *cfg);
 void rec_trigger_init(rec_trigger_t *st);
+
+/* Woran sich der Beginn mit den vorliegenden Messwerten erkennen liesse. */
+rec_source_t rec_trigger_source(const rec_input_t *in);
 
 /*
  * Schaltet scharf. Laeuft der Brenner in diesem Augenblick schon, wird nicht
  * mitten hinein begonnen, sondern der naechste Start abgewartet: eine halbe
- * Kurve taugt zur Auswertung nicht.
+ * Kurve taugt zur Auswertung nicht. Ueber die Speichertemperatur laesst sich
+ * das nicht unterscheiden -- dort zaehlt der naechste Anstieg, gemessen ab
+ * dem Wert beim Scharfschalten.
  */
-void rec_trigger_arm(rec_trigger_t *st, bool burner_running);
+void rec_trigger_arm(rec_trigger_t *st, const rec_input_t *in, uint32_t now_ms);
 
 /* Beginnt sofort. Eine so begonnene Aufzeichnung endet nicht von selbst. */
 void rec_trigger_manual(rec_trigger_t *st);
@@ -308,12 +357,11 @@ void rec_trigger_stop(rec_trigger_t *st);
 void rec_trigger_full(rec_trigger_t *st);
 
 /*
- * Ein Zeitschritt. burner_running ist der Brennerzustand -- vom eigenen
- * Abgasfuehler oder, wenn das Geraet keinen hat, vom Nachbargeraet. Liefert
- * true in dem Augenblick, in dem die Aufzeichnung beginnt; die Anwendung setzt
- * dann ihren Zeitstempel und faengt bei Zeile null an.
+ * Ein Zeitschritt. Liefert true in dem Augenblick, in dem die Aufzeichnung
+ * beginnt; die Anwendung setzt dann ihren Zeitstempel und faengt bei Zeile
+ * null an.
  */
-bool rec_trigger_tick(rec_trigger_t *st, bool burner_running, uint32_t tail_s,
+bool rec_trigger_tick(rec_trigger_t *st, const rec_input_t *in, const rec_trig_cfg_t *cfg,
                       uint32_t now_ms);
 
 /* Verbleibender Nachlauf in Sekunden, 0 wenn keiner laeuft. */
