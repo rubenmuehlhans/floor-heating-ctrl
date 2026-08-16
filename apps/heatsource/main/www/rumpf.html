@@ -17,6 +17,12 @@
 .sc-val.off{fill:var(--faint); font-weight:400}
 .sc-note{fill:var(--faint); font:10px/1 var(--ui)}
 .sc-fill{fill:var(--heat); opacity:.16}
+/* Dreiwegemischer: drei Kegel auf die Mitte, wie im Anlagenschema üblich.
+   Der Kegel der Beimischung ist offen, die beiden durchgehenden sind gefüllt. */
+.sc-mix{fill:var(--line-strong); stroke:none}
+.sc-mix.hot{fill:var(--heat)}
+.sc-mix.cold{fill:var(--cold)}
+.sc-mix.open{fill:none; stroke:var(--cold); stroke-width:1.5}
 .sc-remote{opacity:.42}
 
 /* ---------------- Messwertkacheln ---------------- */
@@ -598,12 +604,31 @@ function renderSchema() {
   const tankHoehe = tankUnten - tankOben;
   const fuell = Math.round((tankHoehe - 4) * anteil);
 
+  /*
+   * Dreiwegemischer. Er hängt an drei Leitungen, nicht an einer: heißes Wasser
+   * aus dem Speicher, kühles aus dem Rücklauf des Kreises, gemischtes hinaus in
+   * den Kreis. Ihn nur in den Vorlauf zu zeichnen, hieße die Beimischung
+   * unterschlagen — und die ist seine ganze Aufgabe.
+   *
+   * Gezeichnet ist das übliche Sinnbild: drei Kegel, die auf die Mitte zeigen.
+   */
+  const mischer = (cx, cy, yr) => {
+    const k = (x1, y1, x2, y2, x3, y3, cls) =>
+      `<path class="sc-mix ${cls}" d="M${x1} ${y1} L${x2} ${y2} L${x3} ${y3} Z"/>`;
+    return `
+  <path class="sc-pipe cold" d="M${cx} ${yr} V${cy + 15}"/>
+  <circle class="sc-body" cx="${cx}" cy="${cy}" r="16"/>
+  ${k(cx - 13, cy - 7, cx - 13, cy + 7, cx - 3, cy, "hot")}
+  ${k(cx + 13, cy - 7, cx + 13, cy + 7, cx + 3, cy, "hot")}
+  ${k(cx - 7, cy + 13, cx + 7, cy + 13, cx, cy + 3, "open")}`;
+  };
+
   const kreisTeile = kreise.map((k, i) => {
     const y = OBEN + i * ABSTAND;      // Vorlaufleitung
     const yr = y + 36;                 // Rücklaufleitung
     return `
-  <path class="sc-pipe hot" d="M360 ${y} H420"/>
-  <circle class="sc-body" cx="438" cy="${y}" r="16"/>
+  <path class="sc-pipe hot" d="M360 ${y} H422"/>
+  ${mischer(438, y, yr)}
   ${i === 0 ? L("Mischer", 438, y - 22) : ""}
   <path class="sc-pipe hot" d="M454 ${y} H544"/>
   ${M(k.vl, 556, y - 4, "start")}
