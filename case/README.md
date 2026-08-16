@@ -230,6 +230,32 @@ Die Dome selbst sind in allen Varianten gleich: Ø 6,0, 3,6 mm hoch, also
 unkritisch schlank. Bei `schrauben` sitzt darin das Ø 2,05-Kernloch (1,98 mm
 Domwand).
 
+**Stützung unter der Buchsenreihe.** Die vier Befestigungsbohrungen der Platine
+liegen alle in der oberen Hälfte (Y 46,9 … 87,5) — unter der RJ11-Reihe stützte
+nichts, und dort wird elfmal ein Stecker hineingedrückt. Dazu kommen in allen
+drei Varianten:
+
+- **11 Pads Ø 6,0 auf Y = 3,0**, je eines auf einer Buchsenmitte — genau dort,
+  wo der Stecker drückt
+- eine **durchgehende Querrippe bei Y 15,0 … 18,0**
+
+Die freie Platinenlänge zwischen Südkante und erster Abstützung sinkt damit von
+46,9 auf **28,9 mm**.
+
+⭐ **Wo gestützt werden darf, ist gerechnet, nicht ausgesucht.** Die Unterseite
+ist an der Südkante dicht belegt: bei Y ≈ 4 … 7 die Buchsenpins und Rastzapfen,
+bei Y ≈ 0,6 … 5,6 die Buchsenleisten. Eine Suche über alle 286 Bohrungen aus
+den PTH- und NPTH-Daten liefert zwei freie Bänder — die elf Flecken auf den
+Buchsenmitten (5,14 mm bis zur nächsten Lötstelle) und das Band bei Y 15 … 18
+(2,22 mm). Dass die freien Flecken mittig unter den Buchsen liegen, ist kein
+Zufall: die Pins stehen links und rechts davon.
+
+Die X-Werte der Pads kommen deshalb aus `RJ_X` und nicht aus einer zweiten
+Liste. `sonden.py` liest die Bohrdaten bei jedem Lauf neu ein und prüft den
+Abstand — ein Pad auf einer Lötstelle hebt die Platine an, und keine der
+anderen Prüfungen sieht das: der Platinen-Dummy hat keine Lötstellen, also gibt
+es auch keine Kollision.
+
 **Wandstärke.** 2,0 mm für Wand und Boden, 3,0 mm für den Deckel. Die 2,0
 sind nicht nur Material: der Steckertunnel vor den RJ11-Buchsen ist
 `WALL + CLR + 1,10` und schrumpft damit von 4,0 auf 3,6 mm — je kürzer er ist,
@@ -293,8 +319,21 @@ letztere ist unter X11 belegt und hätte die Variante je nach Umgebung von
 selbst umgeschaltet.
 
 **Schraubensitze.** 90°-**Senkungen**, keine zylindrischen Senkbohrungen, also
-Senkkopfschrauben M3 (DIN 7991 / ISO 10642). Das ist keine Optik: der Deckel
-wird mit der Oberseite aufs Bett gedruckt, eine Ø6,2-Tasche von 1,8 mm läge
+Senkkopfschrauben M2,5 (DIN 7991 / ISO 10642). Das Kernloch im Ohr ist
+**20,0 mm tief** (`EAR_PILOT_H`) und lässt damit Schrauben bis M2,5 × 20 zu;
+darunter bleiben noch 8,2 mm massives Ohr stehen, die Wandlasche wird nicht
+angeschnitten.
+
+⚠️ Mehr Einschraubtiefe ist nicht automatisch mehr Halt. Eine selbstschneidende
+M2,5 × 20 muss über 17 mm Gewinde **formen** — das Drehmoment summiert sich, und
+irgendwann reißt eher der Kopf ab oder das Ohr spaltet, als dass die Schraube
+hält. Wer die Länge nutzt, sollte langsam und ohne Schlagschrauber eindrehen
+oder gleich Kunststoffschrauben mit Flachgewinde nehmen. Für häufiges Öffnen
+wäre eine durchgehende Bohrung mit Mutter unter dem Ohr die haltbarere Lösung
+als ein langes Kernloch.
+
+Dass es eine Senkung sein muss und keine zylindrische Senkbohrung, ist keine
+Optik: der Deckel wird mit der Oberseite aufs Bett gedruckt, eine Ø6,2-Tasche von 1,8 mm läge
 also in den ersten Lagen und schlösse sich erst dort über einem Ø3,3-Loch —
 sechsmal ein freitragender Ring von 1,45 mm, und genau das war die **einzige**
 Stützstelle des Deckels. Der 90°-Kegel läuft mit 45° aus dem Bett heraus und

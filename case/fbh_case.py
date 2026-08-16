@@ -159,7 +159,17 @@ TOP_CLEAR = float(os.environ.get("TOP_CLEAR", "21.0"))
 LIP_H, LIP_W, LIP_CLR = 2.0, 1.5, 0.15
 
 # Deckelschrauben M3 in AUSSENOHREN — siehe Kopfkommentar.
-EAR_D, EAR_PILOT = 7.0, 2.5
+EAR_D, EAR_PILOT = 7.0, 2.05          # M2,5 selbstschneidend
+# ⭐ Kernlochtiefe 20,0 statt 9,0 — laesst Schrauben bis M2,5 x 20 zu. Das Ohr
+#    ist ueber die volle Gehaeusehoehe massiv, unter dem Kernloch bleiben noch
+#    8,2 mm stehen; die Wandlasche (Z 0 … 3,2) wird nicht angeschnitten.
+# ⚠️ Mehr Einschraubtiefe ist nicht automatisch mehr Halt. Eine
+#    selbstschneidende M2,5 muss ueber 17 mm Gewinde FORMEN — das Drehmoment
+#    summiert sich, und irgendwann reisst eher der Kopf ab oder das Ohr
+#    spaltet, als dass die Schraube haelt. Fuer haeufiges Oeffnen ist eine
+#    durchgehende Bohrung mit Mutter unter dem Ohr die bessere Loesung als ein
+#    langes Kernloch.
+EAR_PILOT_H = float(os.environ.get("EAR_PILOT_H", "20.0"))
 # ⚠️⚠️ SENKUNG, nicht Senkbohrung. Eine zylindrische Ø6,2-Tasche von 1,8 mm
 #    war die EINZIGE Ueberhangstelle des Deckels: er wird mit der Oberseite
 #    aufs Bett gedruckt, die Tasche liegt also in den ersten Lagen und
@@ -168,8 +178,8 @@ EAR_D, EAR_PILOT = 7.0, 2.5
 #    aus dem Bett heraus und traegt sich selbst.
 # ⚠️ Damit gehoert eine SENKKOPFschraube M3 hinein (DIN 7991 / ISO 10642),
 #    keine Zylinderkopf. Der Kopf sitzt dann buendig mit der Deckeloberseite.
-LID_SCREW_C = 3.3
-LID_CSK_D = 6.4                        # Kopf Ø6,0 + 0,4 Luft
+LID_SCREW_C = 2.8                      # Durchgang M2,5
+LID_CSK_D = 5.4                        # Senkkopf M2,5 Ø5,0 + 0,4 Luft
 LID_CSK_H = (LID_CSK_D - LID_SCREW_C) / 2      # 90° -> Tiefe = halbe Differenz
 # Wandlaschen an den vier seitlichen Ohren
 TAB, TAB_T, TAB_HOLE = 13.0, 3.2, 4.5
@@ -380,6 +390,28 @@ base = base.cut(rrect(cav_x0, cav_y0, cav_x1, cav_y1, BOTTOM, Z_WALL + 1, 2.0))
 for (hx, hy) in HOLES:
     base = base.union(zyl(hx, hy, BOSS_D, BOTTOM, PCB_BOT))
 
+# ---- Stuetzung unter der Buchsenreihe --------------------------------------
+# ⚠️⚠️ Die vier Befestigungsbohrungen der Platine liegen ALLE in der oberen
+#    Haelfte (Y 46,9 … 87,5). Unter der RJ11-Reihe stuetzte nichts — und dort
+#    wird elfmal ein Stecker hineingedrueckt. Die Platine federte auf 47 mm
+#    freier Laenge.
+# ⭐ WO gestuetzt werden darf, ist nicht geschaetzt, sondern aus den Bohrdaten
+#    gerechnet (`reference/platine_auslesen.py`, alle 286 Bohrungen aus PTH und
+#    NPTH). Ergebnis: unter den Buchsen selbst ist kein Platz — dort liegen bei
+#    Y ≈ 4 … 7 die Buchsenpins und Rastzapfen und bei Y ≈ 0,6 … 5,6 die
+#    Buchsenleisten. Frei sind zwei Baender:
+#      - je ein Fleck auf JEDER BUCHSENMITTE bei Y = 3,0 (5,14 mm bis zur
+#        naechsten Loetstelle) — genau dort, wo der Stecker drueckt
+#      - ein durchgehendes Band bei Y 15,0 … 18,0 (2,22 mm)
+# ⭐ Die X-Werte der Pads kommen aus RJ_X, nicht aus einer zweiten Liste. Dass
+#    die freien Zonen mittig unter den Buchsen liegen, ist kein Zufall: die
+#    Pins stehen links und rechts davon.
+PAD_D, PAD_Y = 6.0, 3.0
+RIPPE_Y0, RIPPE_Y1 = 15.0, 18.0
+for x in RJ_X:
+    base = base.union(zyl(x, PAD_Y, PAD_D, BOTTOM, PCB_BOT))
+base = base.union(rrect(4.0, RIPPE_Y0, PCB_W - 4.0, RIPPE_Y1, BOTTOM, PCB_BOT, 0))
+
 if PCB_HALT == "schrauben":
     for (hx, hy) in HOLES:              # Kernloch blind, Boden bleibt zu
         base = base.cut(zyl(hx, hy, BOSS_PILOT, PCB_BOT - 2.8, PCB_BOT + 0.1))
@@ -428,7 +460,7 @@ elif PCB_HALT == "randclips":
 
 # Kernloecher der Deckelschrauben ZULETZT, sonst fuellt die Wand sie wieder zu.
 for (px, py) in PILLARS:
-    base = base.cut(zyl(px, py, EAR_PILOT, Z_WALL - 9.0, Z_WALL + 0.1))
+    base = base.cut(zyl(px, py, EAR_PILOT, Z_WALL - EAR_PILOT_H, Z_WALL + 0.1))
 
 # --- Suedwand: elf RJ11-Oeffnungen -------------------------------------------
 # Die Oeffnungen sitzen auf der Buchsenmitte, nicht auf einem eigenen Raster —

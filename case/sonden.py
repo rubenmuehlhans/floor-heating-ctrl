@@ -230,6 +230,47 @@ for nm, wp in getattr(c, "EXTRA_PARTS", []) or []:
     sagt(f"{nm:22s} {len(sol)} Solid(s), offene Kanten {offen}"
          + ("" if ok else "  <- erwartet: 1 Koerper, 0 offene Kanten"), ok)
 
+print("\n5b) Stuetzung unter der Buchsenreihe\n")
+# ⚠️⚠️ Diese Pruefung liest die BOHRDATEN neu, statt einen einmal gemessenen
+#    Wert nachzuschlagen. Ein Stuetzpad, das auf einer Loetstelle sitzt, hebt
+#    die Platine an oder biegt sie — und keine der anderen Pruefungen sieht das:
+#    der Platinen-Dummy hat keine Loetstellen, also gibt es keine Kollision.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "reference"))
+import platine_auslesen as pa
+
+_bx0, _by0 = pa.gerber_umriss()[:2]
+_loecher = [(x - _bx0, y - _by0, dm / 2)
+            for _d in ("Drill_PTH_Through.DRL", "Drill_NPTH_Through.DRL")
+            for dm, _pts in pa.drill(_d, mindest=0.0).items() for (x, y) in _pts]
+FREI = 1.0                              # Mindestluft um jede Loetstelle
+
+
+def abstand(px, py, r):
+    return min(((px - hx) ** 2 + (py - hy) ** 2) ** 0.5 - hr - r
+               for hx, hy, hr in _loecher)
+
+
+_min = min(abstand(x, c.PAD_Y, c.PAD_D / 2) for x in c.RJ_X)
+sagt(f"{len(c.RJ_X)} Pads Ø{c.PAD_D:.1f} auf Y={c.PAD_Y:.1f}: engste Loetstelle "
+     f"{_min:.2f} mm entfernt"
+     + ("" if _min >= FREI else "  <- Pad sitzt auf einer Loetstelle"), _min >= FREI)
+
+_r = 1e9
+for hx, hy, hr in _loecher:
+    if 4.0 - 5 <= hx <= c.PCB_W - 4.0 + 5:
+        dy = 0.0 if c.RIPPE_Y0 <= hy <= c.RIPPE_Y1 else min(abs(hy - c.RIPPE_Y0),
+                                                            abs(hy - c.RIPPE_Y1))
+        _r = min(_r, dy - hr)
+sagt(f"Querrippe Y {c.RIPPE_Y0:.1f}..{c.RIPPE_Y1:.1f}: engste Loetstelle "
+     f"{_r:.2f} mm entfernt"
+     + ("" if _r >= FREI else "  <- Rippe laeuft ueber Loetstellen"), _r >= FREI)
+
+_frei = min(c.RJ_X) - 0.0, max(c.RJ_X)
+sagt(f"Freie Platinenlaenge zwischen Suedkante und erstem Dom: "
+     f"{min(hy for hx, hy in c.HOLES) - c.RIPPE_Y1:.1f} mm (vorher "
+     f"{min(hy for hx, hy in c.HOLES):.1f} mm)")
+
 print(f"\n6) Platinenbefestigung: {c.PCB_HALT}\n")
 
 
