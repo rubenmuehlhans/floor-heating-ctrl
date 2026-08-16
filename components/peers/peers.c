@@ -19,6 +19,15 @@ static const char *TAG = "peers";
  * wechseln ihre Adresse selten; haeufiger zu fragen belastet nur das Netz. */
 #define FIRST_QUERY_MS  8000
 #define QUERY_PERIOD_MS 60000
+/*
+ * Nach dem Start wird dichter gefragt. Eine Runde verwirft jeden Nachbarn, zu
+ * dem innerhalb der Zeitgrenze keine Adresse zurueckkommt -- im Minutentakt
+ * dauert es deshalb je nach Glueck einige Minuten, bis die Liste steht. Das
+ * faellt genau dann auf, wenn man es am wenigsten gebrauchen kann: unmittelbar
+ * nach dem Einrichten oder nach einer Aktualisierung.
+ */
+#define WARMUP_PERIOD_MS 10000
+#define WARMUP_ROUNDS    12
 #define QUERY_TIMEOUT_MS 2500
 #define PEER_STALE_MS   (10 * 60 * 1000)
 
@@ -164,9 +173,9 @@ static void peers_task(void *arg)
 {
     (void)arg;
     vTaskDelay(pdMS_TO_TICKS(FIRST_QUERY_MS));
-    for (;;) {
+    for (uint32_t runde = 0;; runde++) {
         query_once();
-        vTaskDelay(pdMS_TO_TICKS(QUERY_PERIOD_MS));
+        vTaskDelay(pdMS_TO_TICKS(runde < WARMUP_ROUNDS ? WARMUP_PERIOD_MS : QUERY_PERIOD_MS));
     }
 }
 
