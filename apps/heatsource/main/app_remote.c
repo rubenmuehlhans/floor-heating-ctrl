@@ -190,6 +190,18 @@ esp_err_t remote_start(void)
     return ESP_OK;
 }
 
+void remote_set_value(probe_role_t role, float value_c)
+{
+    if (role <= ROLE_NONE || role >= ROLE_COUNT || s_mtx == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    s_val[role].valid = true;
+    s_val[role].temp_c = value_c;
+    s_val[role].seen_ms = now_ms();
+    xSemaphoreGive(s_mtx);
+}
+
 bool remote_role_value(probe_role_t role, float *out_c, uint32_t *age_s)
 {
     if (s_mtx == NULL || role <= ROLE_NONE || role >= ROLE_COUNT) {

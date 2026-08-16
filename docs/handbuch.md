@@ -17,6 +17,7 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Fühler des Heizungsgeräts zuordnen](#fühler-des-heizungsgeräts-zuordnen)
 - [Pumpen einrichten](#pumpen-einrichten)
 - [Brenner und Pufferspeicher](#brenner-und-pufferspeicher)
+- [Außenfühler](#außenfühler)
 - [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
 - [Verlauf und Aufzeichnung](#verlauf-und-aufzeichnung)
 - [Home Assistant](#home-assistant)
@@ -263,6 +264,7 @@ Ordnen Sie ihn dann zu und speichern Sie.
 | `puffer` | Pufferspeicher |
 | `puffer_unten` | unterer Bereich des Speichers, sofern vorhanden |
 | `hk<n>_vl`, `hk<n>_rl` | Vor- und Rücklauf des Heizkreises n, hinter dem Mischer |
+| `aussen` | Außentemperatur; kommt vom RuuviTag an der Verteilerplatine und lässt sich hier nicht zuordnen |
 
 **Korrekturwert.** Sitzt ein Fühler nicht ganz an der richtigen Stelle, tragen Sie die Abweichung
 in Kelvin ein; sie wird auf jeden Messwert addiert. Anzumerken ist, dass ein fester Korrekturwert
@@ -417,6 +419,21 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 
 > Die Vorgabewerte (8 K Spreizung, 62 °C voll, 35 °C leer, Warnung unter 40 °C) sind Annahmen.
 > Ziehen Sie sie nach der ersten aufgezeichneten Ladung nach.
+
+### Außenfühler
+
+Ein RuuviTag kann als Außenfühler dienen. Er gehört zu keinem Raum: Seine Temperatur geht in
+keine Ventilstellung ein, sondern wird aufgezeichnet und an die Heizungsgeräte weitergereicht,
+damit sich Verbrauch und Wetterlage später gegenüberstellen lassen.
+
+Zugeordnet wird er an einer Verteilerplatine unter **Sensoren → Außenfühler**. Die Temperatur
+steht danach in der Kopfzeile, in Home Assistant und im Verlauf der Heizungsgeräte. Ein RuuviTag
+liefert zusätzlich Luftfeuchtigkeit und Luftdruck.
+
+Warum an der Verteilerplatine und nicht am Heizungsgerät: Die Heizungsgeräte haben kein
+Bluetooth — dort sitzen die Fühler am 1-Wire-Bus. Die Verteilerplatinen hören ohnehin mit, weil
+sie die Raumthermometer empfangen. Der Wert reist von dort mit der Bedarfsabfrage weiter, die
+alle fünf Sekunden läuft.
 
 ### Brennerzustand am Pufferspeicher
 

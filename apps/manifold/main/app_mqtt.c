@@ -300,6 +300,21 @@ static void announce_all(void)
                              "{{ value_json.box_hum }}", "humidity");
     }
 
+    /* Aussenfuehler. Er gehoert zu keinem Raum und wird deshalb hier
+     * angemeldet, nicht bei den Raumgroessen. */
+    if (snap.outdoor.set) {
+        announce_diag_sensor("outdoor_temp", "Aussentemperatur", "°C",
+                             "{{ value_json.outdoor_c }}", "temperature");
+        announce_diag_sensor("outdoor_hum", "Aussenluftfeuchtigkeit", "%",
+                             "{{ value_json.outdoor_hum }}", "humidity");
+        announce_diag_sensor("outdoor_press", "Luftdruck", "hPa",
+                             "{{ value_json.outdoor_hpa }}", "atmospheric_pressure");
+    } else {
+        retract("sensor", "outdoor_temp");
+        retract("sensor", "outdoor_hum");
+        retract("sensor", "outdoor_press");
+    }
+
     announce_diag_sensor("uptime", "Laufzeit", "s", "{{ value_json.uptime_s }}", "duration");
     announce_diag_sensor("rssi", "WLAN-Empfang", "dBm", "{{ value_json.rssi }}",
                          "signal_strength");
@@ -373,6 +388,13 @@ static void publish_states(void)
     cJSON *j = cJSON_CreateObject();
     cJSON_AddNumberToObject(j, "uptime_s", snap.uptime_s);
     cJSON_AddNumberToObject(j, "rssi", net.rssi);
+    if (snap.outdoor.valid) {
+        cJSON_AddNumberToObject(j, "outdoor_c", snap.outdoor.temp_c);
+        cJSON_AddNumberToObject(j, "outdoor_hum", snap.outdoor.humidity);
+        if (snap.outdoor.pressure_hpa > 0.0f) {
+            cJSON_AddNumberToObject(j, "outdoor_hpa", snap.outdoor.pressure_hpa);
+        }
+    }
     cJSON_AddNumberToObject(j, "heap", esp_get_free_heap_size());
     cJSON *bemf = cJSON_AddArrayToObject(j, "bemf");
     for (int g = 0; g < HW_BEMF_GROUP_COUNT; g++) {

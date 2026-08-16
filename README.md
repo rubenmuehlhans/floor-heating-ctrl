@@ -12,7 +12,7 @@ fragt bei ihnen ab, was es selbst nicht messen kann.
 Heizkreisverteiler und regelt darüber die Raumtemperaturen. Die Antriebe haben
 keine Endschalter; erkannt wird die Endlage an der Gegenspannung des
 blockierenden Motors. Die Raumtemperaturen kommen über Bluetooth von
-Xiaomi-Thermometern. Bedient wird über die Weboberfläche oder über Anzeige und
+Xiaomi-Thermometern, die Außentemperatur von einem RuuviTag. Bedient wird über die Weboberfläche oder über Anzeige und
 drei Tasten am Gehäuse. Einmal in der Woche fährt jeder Kreis einmal durch,
 damit er über den Sommer nicht festsitzt.
 
@@ -105,6 +105,8 @@ oder einrichten will, findet das im [Handbuch](docs/handbuch.md).
   motorische Stellantriebe ohne Endschalter am Heizkreisverteiler.
 - **Raumtemperatur.** Je Raum wird ein Xiaomi-Thermometer mit ATC- oder
   pvvx-Firmware benötigt, das seine Messwerte als Rundruf sendet.
+- **Außentemperatur.** Wahlweise ein RuuviTag; er wird an einer
+  Verteilerplatine zugeordnet und liefert zusätzlich Feuchte und Luftdruck.
 - **Heizungsgeräte.** Für Kessel und Pufferspeicher genügt je ein
   ESP32-DevKitC ohne eigene Platine, dazu DS18B20 am 1-Wire-Bus. Zum Schalten
   der Pumpen kommen Tasmota-Relais hinzu.

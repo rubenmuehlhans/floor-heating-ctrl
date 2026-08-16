@@ -32,6 +32,8 @@ static void on_ble_measurement(const atc_device_t *dev, void *ctx)
 {
     (void)ctx;
     control_temperature(dev->mac, dev->temp_c, dev->humidity, dev->battery);
+    control_ble_reading(dev->mac, dev->temp_c, dev->humidity, dev->pressure_hpa,
+                        dev->battery_mv);
 }
 
 void app_main(void)

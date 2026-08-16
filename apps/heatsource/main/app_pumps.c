@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "app_remote.h"
 #include "app_sensors.h"
 #include "cJSON.h"
 #include "esp_http_client.h"
@@ -195,7 +196,7 @@ static bool fetch_demand(const char *host, peer_demand_t *out)
     }
 
     bool ok = false;
-    char body[320];
+    char body[384];   /* Bedarfsantwort samt Aussentemperatur */
     if (esp_http_client_open(cl, 0) == ESP_OK) {
         esp_http_client_fetch_headers(cl);
         int n = esp_http_client_read(cl, body, sizeof(body) - 1);
@@ -218,6 +219,17 @@ static bool fetch_demand(const char *host, peer_demand_t *out)
                 v = cJSON_GetObjectItemCaseSensitive(root, "site");
                 if (cJSON_IsString(v)) {
                     snprintf(out->site, sizeof(out->site), "%s", v->valuestring);
+                }
+                /*
+                 * Die Aussentemperatur reist mit der Bedarfsantwort. Die
+                 * Heizungsgeraete haben kein Bluetooth; der RuuviTag haengt am
+                 * Verteiler, und dieser Weg wird ohnehin alle fuenf Sekunden
+                 * abgefragt. Sie geht in keine Regelung ein -- sie wird
+                 * aufgezeichnet.
+                 */
+                v = cJSON_GetObjectItemCaseSensitive(root, "outdoor_c");
+                if (cJSON_IsNumber(v)) {
+                    remote_set_value(ROLE_AUSSEN, (float)v->valuedouble);
                 }
                 cJSON_Delete(root);
                 ok = true;

@@ -64,6 +64,11 @@ typedef enum {
     ROLE_HK3_RL,
     ROLE_HK4_VL,
     ROLE_HK4_RL,
+    /* Aussentemperatur. Sie stammt nicht von einem DS18B20 an diesem Geraet,
+     * sondern vom RuuviTag am Verteiler und kommt ueber die Bedarfsabfrage
+     * herein. Sie geht in keine Regelung ein -- sie wird aufgezeichnet, damit
+     * sich Verbrauch und Aussenlage spaeter gegenueberstellen lassen. */
+    ROLE_AUSSEN,
     ROLE_COUNT
 } probe_role_t;
 

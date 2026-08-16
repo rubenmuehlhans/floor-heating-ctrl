@@ -281,6 +281,13 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(root, "display_brightness", cfg->display_brightness);
 
     cJSON_AddNumberToObject(root, "sensor_timeout_s", cfg->sensor_timeout_s);
+    if (cfg->outdoor_set) {
+        char mac[18];
+        mac_to_str(cfg->outdoor_mac, mac, sizeof(mac));
+        cJSON_AddStringToObject(root, "outdoor_mac", mac);
+    } else {
+        cJSON_AddNullToObject(root, "outdoor_mac");
+    }
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
     cJSON_AddNumberToObject(root, "seize_weekday", cfg->seize_weekday);
     cJSON_AddNumberToObject(root, "seize_hour", cfg->seize_hour);
@@ -421,6 +428,21 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         (uint8_t)cfgjson_num(root, "display_brightness", out->display_brightness);
 
     out->sensor_timeout_s = (uint16_t)cfgjson_num(root, "sensor_timeout_s", out->sensor_timeout_s);
+
+    /* Aussenfuehler. null loescht die Zuordnung, ein fehlender Schluessel
+     * laesst sie stehen -- wie bei allen anderen Angaben auch. */
+    const cJSON *am = cJSON_GetObjectItemCaseSensitive(root, "outdoor_mac");
+    if (cJSON_IsNull(am)) {
+        memset(out->outdoor_mac, 0, sizeof(out->outdoor_mac));
+        out->outdoor_set = false;
+    } else if (cJSON_IsString(am)) {
+        if (!str_to_mac(am->valuestring, out->outdoor_mac)) {
+            snprintf(err, err_len, "MAC-Adresse des Aussenfuehlers ist ungueltig");
+            cJSON_Delete(root);
+            return ESP_ERR_INVALID_ARG;
+        }
+        out->outdoor_set = true;
+    }
     out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);
     out->seize_weekday = (int8_t)cfgjson_num(root, "seize_weekday", out->seize_weekday);
     out->seize_hour = (int8_t)cfgjson_num(root, "seize_hour", out->seize_hour);

@@ -361,6 +361,19 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddNumberToObject(sz, "weekday", snap.seize.weekday);
     cJSON_AddNumberToObject(sz, "hour", snap.seize.hour);
 
+    cJSON *ao = cJSON_AddObjectToObject(root, "outdoor");
+    cJSON_AddBoolToObject(ao, "set", snap.outdoor.set);
+    cJSON_AddBoolToObject(ao, "valid", snap.outdoor.valid);
+    if (snap.outdoor.valid) {
+        cJSON_AddNumberToObject(ao, "temp_c", snap.outdoor.temp_c);
+        cJSON_AddNumberToObject(ao, "humidity", snap.outdoor.humidity);
+        if (snap.outdoor.pressure_hpa > 0.0f) {
+            cJSON_AddNumberToObject(ao, "pressure_hpa", snap.outdoor.pressure_hpa);
+        }
+        cJSON_AddNumberToObject(ao, "battery_mv", snap.outdoor.battery_mv);
+        cJSON_AddNumberToObject(ao, "age_s", snap.outdoor.age_s);
+    }
+
     cJSON *bemf = cJSON_AddArrayToObject(root, "bemf_mv");
     for (int g = 0; g < HW_BEMF_GROUP_COUNT; g++) {
         cJSON_AddItemToArray(bemf, cJSON_CreateNumber(snap.bemf_mv[g]));
@@ -680,7 +693,10 @@ static esp_err_t ble_get(httpd_req_t *req)
         cJSON_AddNumberToObject(jd, "battery", d->battery);
         cJSON_AddNumberToObject(jd, "battery_mv", d->battery_mv);
         cJSON_AddNumberToObject(jd, "packets", d->packets);
-        cJSON_AddStringToObject(jd, "format", d->pvvx ? "pvvx" : "atc1441");
+        cJSON_AddStringToObject(jd, "format", atc_format_name(d->format));
+        if (d->pressure_hpa > 0.0f) {
+            cJSON_AddNumberToObject(jd, "pressure_hpa", d->pressure_hpa);
+        }
         cJSON_AddItemToArray(arr, jd);
     }
     return send_json_obj(req, root);
@@ -757,6 +773,13 @@ static esp_err_t demand_get(httpd_req_t *req)
         cJSON_AddNumberToObject(root, "min_room_c", min_room);
     } else {
         cJSON_AddNullToObject(root, "min_room_c");
+    }
+
+    /* Die Aussentemperatur reist hier mit: die Heizungsgeraete haben kein
+     * Bluetooth und fragen diesen Weg ohnehin alle fuenf Sekunden ab. */
+    if (snap.outdoor.valid) {
+        cJSON_AddNumberToObject(root, "outdoor_c", snap.outdoor.temp_c);
+        cJSON_AddNumberToObject(root, "outdoor_age_s", snap.outdoor.age_s);
     }
     cJSON_AddBoolToObject(root, "sensor_ok", sensor_ok);
 

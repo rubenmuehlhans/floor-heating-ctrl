@@ -18,6 +18,7 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfElectricPotential,
     UnitOfInformation,
+    UnitOfPressure,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -134,6 +135,12 @@ async def async_setup_entry(
     for index, probe in enumerate(state.get("local_sensors", {}).get("ds18b20", [])):
         entities.append(FloorHeatingProbeSensor(coordinator, index, probe.get("address", "")))
 
+    # Außenfühler, sofern einer zugeordnet ist. Er gehört zu keinem Raum.
+    if state.get("outdoor", {}).get("set"):
+        entities.append(FloorHeatingOutdoorSensor(coordinator, "temp_c"))
+        entities.append(FloorHeatingOutdoorSensor(coordinator, "humidity"))
+        entities.append(FloorHeatingOutdoorSensor(coordinator, "pressure_hpa"))
+
     async_add_entities(entities)
 
 
@@ -207,6 +214,35 @@ class FloorHeatingBemfSensor(FloorHeatingEntity, SensorEntity):
         if len(values) < self._group:
             return None
         return values[self._group - 1]
+
+
+class FloorHeatingOutdoorSensor(FloorHeatingEntity, SensorEntity):
+    """Außenfühler am Verteiler — Temperatur, Feuchte, Luftdruck."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    ARTEN = {
+        "temp_c": ("Außentemperatur", UnitOfTemperature.CELSIUS,
+                   SensorDeviceClass.TEMPERATURE),
+        "humidity": ("Außenluftfeuchtigkeit", PERCENTAGE, SensorDeviceClass.HUMIDITY),
+        "pressure_hpa": ("Luftdruck", UnitOfPressure.HPA,
+                         SensorDeviceClass.ATMOSPHERIC_PRESSURE),
+    }
+
+    def __init__(self, coordinator: FloorHeatingCoordinator, art: str) -> None:
+        super().__init__(coordinator, f"outdoor_{art}")
+        self._art = art
+        name, unit, device_class = self.ARTEN[art]
+        self._attr_name = name
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+
+    @property
+    def native_value(self) -> Any:
+        outdoor = (self.coordinator.data or {}).get("outdoor", {})
+        if not outdoor.get("valid"):
+            return None
+        return outdoor.get(self._art)
 
 
 class FloorHeatingProbeSensor(FloorHeatingEntity, SensorEntity):

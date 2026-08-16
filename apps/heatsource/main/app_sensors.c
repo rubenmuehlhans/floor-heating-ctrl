@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "app_remote.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -94,6 +95,26 @@ static void hist_append(const sens_snapshot_t *snap)
         }
         row[p->role] = (int16_t)lroundf(v);
     }
+    /*
+     * Was dieses Geraet nicht selbst misst, kommt vom Nachbargeraet -- die
+     * Kesselwerte am Pufferspeicher, die Aussentemperatur von der
+     * Verteilerplatine. Ohne diese Ergaenzung blieben ihre Spalten im Verlauf
+     * dauerhaft leer, obwohl der Wert vorliegt.
+     */
+    for (int r = 1; r < ROLE_COUNT; r++) {
+        if (row[r] != SENS_HIST_NONE) {
+            continue;
+        }
+        float wert = 0.0f;
+        if (!remote_role_value((probe_role_t)r, &wert, NULL)) {
+            continue;
+        }
+        float v = wert * 10.0f;
+        if (v <= 32000.0f && v >= -32000.0f) {
+            row[r] = (int16_t)lroundf(v);
+        }
+    }
+
     if (s_hist_len < SENS_HIST_SLOTS) {
         s_hist_len++;
     }

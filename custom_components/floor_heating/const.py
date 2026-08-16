@@ -43,6 +43,7 @@ ROLE_LABELS = {
     "hk3_rl": "Heizkreis 3 Rücklauf",
     "hk4_vl": "Heizkreis 4 Vorlauf",
     "hk4_rl": "Heizkreis 4 Rücklauf",
+    "aussen": "Außentemperatur",
 }
 
 PUMP_MODES = ["auto", "ein", "aus"]

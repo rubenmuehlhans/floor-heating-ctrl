@@ -46,6 +46,16 @@ typedef struct {
     uint32_t ts_ms;
 } sensor_rt_t;
 
+/* Aussenfuehler: derselbe Aufbau, dazu Luftdruck und Spannung. */
+typedef struct {
+    bool valid;
+    float temp_c;
+    float humidity;
+    float pressure_hpa;
+    uint16_t battery_mv;
+    uint32_t ts_ms;
+} outdoor_rt_t;
+
 typedef struct {
     uint32_t last_check_ms;
     float target_position;
@@ -63,6 +73,7 @@ static uint32_t s_positions_saved_ms;
 static uint32_t s_boot_ms;
 static sched_weekly_t s_seize_sched;
 static uint8_t s_seize_done;
+static outdoor_rt_t s_outdoor;
 
 static inline uint32_t now_ms(void)
 {
@@ -699,6 +710,26 @@ void control_seize_abort(void)
     ESP_LOGI(TAG, "Schutzfahrt abgebrochen, %u Kanaele gestrichen", offen);
 }
 
+void control_ble_reading(const uint8_t mac[6], float temp_c, float humidity,
+                         float pressure_hpa, uint16_t battery_mv)
+{
+    lock();
+    if (s_cfg.outdoor_set && memcmp(s_cfg.outdoor_mac, mac, 6) == 0) {
+        bool erster = !s_outdoor.valid;
+        s_outdoor.valid = true;
+        s_outdoor.temp_c = temp_c;
+        s_outdoor.humidity = humidity;
+        s_outdoor.pressure_hpa = pressure_hpa;
+        s_outdoor.battery_mv = battery_mv;
+        s_outdoor.ts_ms = now_ms();
+        s_revision++;
+        if (erster) {
+            ESP_LOGI(TAG, "Aussenfuehler meldet sich: %.1f °C", temp_c);
+        }
+    }
+    unlock();
+}
+
 void control_room_set_target(uint8_t room_id, float target_c)
 {
     room_patch(room_id, target_c, NULL);
@@ -847,6 +878,16 @@ void control_snapshot(ctl_snapshot_t *out)
             }
         }
     }
+    out->outdoor.set = s_cfg.outdoor_set;
+    if (s_cfg.outdoor_set && s_outdoor.valid) {
+        out->outdoor.valid = true;
+        out->outdoor.temp_c = s_outdoor.temp_c;
+        out->outdoor.humidity = s_outdoor.humidity;
+        out->outdoor.pressure_hpa = s_outdoor.pressure_hpa;
+        out->outdoor.battery_mv = s_outdoor.battery_mv;
+        out->outdoor.age_s = (t - s_outdoor.ts_ms) / 1000;
+    }
+
     out->seize.days_left = -1;
     time_t jetzt = time(NULL);
     if (jetzt >= 1700000000) {

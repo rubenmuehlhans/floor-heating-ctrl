@@ -63,6 +63,7 @@ CFG = {
     "reboot_minute": 0,
     "seize_weekday": 6,
     "seize_hour": 11,
+    "outdoor_mac": "E5:2B:9C:41:07:AA",
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
     "wifi": {"ssid": "Heimnetz", "hostname": "floor-heating", "pass_set": True},
     "mqtt": {"enabled": True, "uri": "mqtt://192.168.1.10:1883", "user": "esp",
@@ -174,6 +175,8 @@ def state():
                 {"connected": True, "ip": "192.168.1.241", "ap_active": False, "ap_ip": "",
                  "rssi": -58 - int(random.uniform(0, 6)), "time_valid": True}),
         "rooms": rooms, "channels": channels,
+        "outdoor": {"set": True, "valid": True, "temp_c": round(11.4 + 3.5 * math.sin(time.time() / 3600), 2),
+                    "humidity": 72.5, "pressure_hpa": 1013.4, "battery_mv": 2996, "age_s": 6},
         "seize": {"running": False, "pending": 0, "done": 0, "days_left": 3,
                   "weekday": CFG["seize_weekday"], "hour": CFG["seize_hour"]},
         "bemf_mv": [int(random.uniform(2, 9)) for _ in range(6)],
@@ -292,6 +295,11 @@ class Handler(BaseHTTPRequestHandler):
                 {"mac": "A4:C1:38:AA:BB:CC", "name": "ATC_Garage", "rssi": -88,
                  "temp_c": 6.90, "humidity": 71.3, "battery": 55, "battery_mv": 2733,
                  "packets": 640, "format": "pvvx"},
+                # RuuviTag: keine Ladung in Prozent, dafuer Luftdruck.
+                {"mac": "E5:2B:9C:41:07:AA", "name": "Ruuvi Aussen", "rssi": -76,
+                 "temp_c": round(11.4 + 3.5 * math.sin(time.time() / 3600), 2),
+                 "humidity": 72.5, "battery": 0, "battery_mv": 2996,
+                 "pressure_hpa": 1013.4, "packets": 8820, "format": "ruuvi"},
             ]})
         elif u.path == "/api/peers":
             # Die uebrigen Platinen im Haus, wie sie ueber mDNS gefunden werden.

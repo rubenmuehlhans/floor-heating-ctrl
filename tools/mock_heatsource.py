@@ -35,6 +35,11 @@ ROLLEN = [
     "hk1_vl", "hk1_rl", "hk2_vl", "hk2_rl",
 ]
 
+# Die Aussentemperatur misst kein Fuehler dieses Geraets; sie kommt ueber die
+# Bedarfsantwort vom Verteiler herein und steht deshalb nur unter den
+# Fremdwerten.
+AUSSEN = ("aussen", (11.4, 3.5, 86400))
+
 # Rolle -> (Grundwert, Schwankung, Periode in Sekunden)
 VERLAUF = {
     "abgas": (128.0, 45.0, 900),
@@ -46,6 +51,7 @@ VERLAUF = {
     "hk1_rl": (29.0, 2.0, 600),
     "hk2_vl": (32.0, 2.0, 700),
     "hk2_rl": (28.0, 1.6, 700),
+    "aussen": AUSSEN[1],
 }
 
 SPEICHER = ["puffer", "puffer_unten", "hk1_vl", "hk1_rl", "hk2_vl", "hk2_rl"]
@@ -141,6 +147,7 @@ LABEL = {
     "puffer": "Pufferspeicher", "puffer_unten": "Pufferspeicher unten",
     "hk1_vl": "Heizkreis 1 Vorlauf", "hk1_rl": "Heizkreis 1 Ruecklauf",
     "hk2_vl": "Heizkreis 2 Vorlauf", "hk2_rl": "Heizkreis 2 Ruecklauf",
+    "aussen": "Aussentemperatur",
 }
 
 
@@ -225,6 +232,7 @@ def state() -> dict:
 
     # Was das Geraet nicht selbst misst, kommt vom Nachbargeraet.
     fremd = {r: wert(r) for r in ROLLEN if r not in belegt}
+    fremd["aussen"] = wert("aussen")
     puffer = belegt.get("puffer", fremd.get("puffer"))
     fuell = None if puffer is None else max(0.0, min(1.0, (puffer - 35.0) / 27.0))
     kvl = belegt.get("kessel_vl", fremd.get("kessel_vl"))

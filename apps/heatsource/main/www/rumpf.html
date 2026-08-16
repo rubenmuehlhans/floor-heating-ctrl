@@ -456,7 +456,12 @@ const ROLES = [
     [`hk${n}_vl`, `Heizkreis ${n} Vorlauf`,  "hot"],
     [`hk${n}_rl`, `Heizkreis ${n} Rücklauf`, "cold"],
   ]),
+  ["aussen", "Außentemperatur", "cold"],
 ];
+
+/* Rollen, die kein eigener Fühler dieses Geräts liefert: Sie kommen über das
+   Netz und lassen sich deshalb nicht zuordnen. */
+const ROLLE_FREMD = new Set(["aussen"]);
 const MAX_CIRCUITS = 4;
 const ROLE_LABEL = Object.fromEntries(ROLES.map(r => [r[0], r[1]]));
 const ROLE_TONE  = Object.fromEntries(ROLES.map(r => [r[0], r[2]]));
@@ -556,7 +561,7 @@ function renderSchema() {
      gemeint ist, ergibt sich aus der Stelle. Die vollen Namen stehen in den
      Kacheln darunter. */
   const KURZ = {abgas:"Abgas", kessel_vl:"Vorlauf", kessel_rl:"Rücklauf",
-                puffer:"oben", puffer_unten:"unten"};
+                puffer:"oben", puffer_unten:"unten", aussen:"Außen"};
   for (let n = 1; n <= MAX_CIRCUITS; n++) {
     KURZ[`hk${n}_vl`] = "Vorlauf";
     KURZ[`hk${n}_rl`] = "Rücklauf";
@@ -979,6 +984,7 @@ function roleOptions(sel, own) {
                                               .map(p => p.role));
   let html = `<option value=""${sel ? "" : " selected"}>— nicht zugeordnet —</option>`;
   for (const [key, label] of ROLES) {
+    if (ROLLE_FREMD.has(key) && key !== sel) continue;
     if (vergeben.has(key) && key !== sel) continue;
     html += `<option value="${key}"${key === sel ? " selected" : ""}>${label}</option>`;
   }

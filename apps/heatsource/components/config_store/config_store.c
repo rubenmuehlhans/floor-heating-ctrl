@@ -56,6 +56,7 @@ static const struct {
     [ROLE_HK3_RL] = {"hk3_rl", "Heizkreis 3 Ruecklauf"},
     [ROLE_HK4_VL] = {"hk4_vl", "Heizkreis 4 Vorlauf"},
     [ROLE_HK4_RL] = {"hk4_rl", "Heizkreis 4 Ruecklauf"},
+    [ROLE_AUSSEN] = {"aussen", "Aussentemperatur"},
 };
 
 const char *cfg_role_key(probe_role_t role)

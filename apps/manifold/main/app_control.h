@@ -61,6 +61,20 @@ typedef struct {
     int8_t hour;
 } ctl_seize_t;
 
+/*
+ * Aussenfuehler. Er gehoert zu keinem Raum und geht in keine Ventilstellung
+ * ein -- er wird mitgeschrieben und an die Heizungsgeraete weitergereicht.
+ */
+typedef struct {
+    bool set;          /* ein Fuehler ist zugeordnet */
+    bool valid;        /* und hat schon gesendet */
+    float temp_c;
+    float humidity;
+    float pressure_hpa;
+    uint16_t battery_mv;
+    uint32_t age_s;
+} ctl_outdoor_t;
+
 typedef struct {
     ctl_channel_t ch[HW_CHANNEL_COUNT];
     ctl_room_t rooms[CFG_MAX_ROOMS];
@@ -68,6 +82,7 @@ typedef struct {
     uint16_t bemf_mv[HW_BEMF_GROUP_COUNT];
     uint32_t uptime_s;
     ctl_seize_t seize;
+    ctl_outdoor_t outdoor;
 } ctl_snapshot_t;
 
 esp_err_t control_start(void);
@@ -121,6 +136,14 @@ void control_config_changed(void);
 
 /* Messwert eines BLE-Thermometers einspeisen. */
 void control_temperature(const uint8_t mac[6], float temp_c, float humidity, uint8_t battery);
+
+/*
+ * Vollstaendiger Messwert eines BLE-Geraets. Er landet beim Aussenfuehler,
+ * wenn dessen MAC passt; die Raumzuordnung laeuft weiterhin ueber
+ * control_temperature. Luftdruck und Spannung liefert nur der RuuviTag.
+ */
+void control_ble_reading(const uint8_t mac[6], float temp_c, float humidity,
+                         float pressure_hpa, uint16_t battery_mv);
 
 /* Exklusive Nutzung eines Kanals, etwa fuer die Autokalibrierung. Schlaegt
  * fehl, wenn der Kanal oder ein Nachbar derselben Messgruppe faehrt. */

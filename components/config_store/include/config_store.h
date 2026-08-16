@@ -85,6 +85,14 @@ typedef struct {
     uint8_t display_brightness; /* Prozent; zwei genuegen im Schaltschrank */
 
     uint16_t sensor_timeout_s; /* danach gilt der Messwert als veraltet */
+
+    /*
+     * Aussenfuehler (RuuviTag). Er gehoert zu keinem Raum: seine Temperatur
+     * geht in keine Ventilstellung ein, sondern wird aufgezeichnet und an die
+     * Heizungsgeraete weitergereicht. 00:00:.. = nicht zugeordnet.
+     */
+    uint8_t outdoor_mac[6];
+    bool outdoor_set;
     int8_t reboot_hour;        /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;
 

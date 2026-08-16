@@ -41,6 +41,14 @@ esp_err_t remote_start(void);
 /* Messwert einer Rolle vom Nachbargeraet. */
 bool remote_role_value(probe_role_t role, float *out_c, uint32_t *age_s);
 
+/*
+ * Traegt einen Wert ein, der nicht ueber /api/measurements hereinkommt. Die
+ * Aussentemperatur ist so ein Fall: Sie wird an der Verteilerplatine ueber
+ * Bluetooth empfangen und reist mit der Bedarfsantwort mit, weil die
+ * Heizungsgeraete kein Bluetooth haben.
+ */
+void remote_set_value(probe_role_t role, float value_c);
+
 /* Brennerzustand des Nachbargeraets. */
 bool remote_burner(bool *running);
 

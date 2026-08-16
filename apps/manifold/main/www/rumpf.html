@@ -360,13 +360,27 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   <section id="sensors">
     <div class="card">
       <h2>Raumthermometer</h2>
-      <p class="lede">Alle in Reichweite empfangenen Geräte mit ATC- oder pvvx-Firmware.
-        Zugeordnet werden sie unter „Räume“.</p>
+      <p class="lede">Alle in Reichweite empfangenen Geräte: Xiaomi-Thermometer mit ATC- oder
+        pvvx-Firmware und RuuviTags. Raumthermometer werden unter „Räume“ zugeordnet, der
+        Außenfühler weiter unten.</p>
       <div class="scroll"><table><thead><tr>
         <th>Gerät</th><th class="num">Temperatur</th><th class="num">Feuchte</th>
         <th class="num">Batterie</th><th class="num">Empfang</th><th class="num">Pakete</th>
         <th>Format</th><th>Raum</th>
       </tr></thead><tbody id="bleBody"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Außenfühler</h2>
+      <p class="lede">Ein Gerät kann als Außenfühler dienen, statt zu einem Raum zu gehören.
+        Seine Temperatur geht in keine Ventilstellung ein — sie wird aufgezeichnet und an die
+        Heizungsgeräte weitergereicht, damit sich Verbrauch und Wetterlage später
+        gegenüberstellen lassen. Ein RuuviTag liefert zusätzlich den Luftdruck.</p>
+      <div class="row" id="outdoorState" style="margin-bottom:.8rem"></div>
+      <div class="fields">
+        <label class="f"><span>Gerät</span><select id="outdoorSel"></select></label>
+      </div>
+      <div class="actions"><button class="btn" id="outdoorSave">Speichern</button></div>
     </div>
 
     <div class="card">
@@ -590,8 +604,13 @@ function renderStatus() {
     ? `<span class="link ok">${ic("wifi")}${n.ip} · ${n.rssi} dBm</span>`
     : (n.ap_active ? `<span class="link warn">${ic("ap")}Zugangspunkt ${n.ap_ip}</span>`
                    : `<span class="link warn">${ic("ap")}ohne Netz</span>`);
+  /* Die Außentemperatur steht in der Kopfzeile, sobald ein Fühler zugeordnet
+     ist — sie gehört zu keinem Raum und hätte sonst keinen Platz. */
+  const a = state.outdoor;
+  const aussen = a?.valid
+    ? `<span>Außen <b>${num(a.temp_c, 1)} °C</b></span>` : "";
   $("#status").innerHTML =
-    `${link}<span>Laufzeit <b>${upTxt}</b></span>`
+    `${link}${aussen}<span>Laufzeit <b>${upTxt}</b></span>`
     + `<span>Speicher <b>${Math.round(state.heap/1024)} kB</b></span>`
     + `<span>Version <b>${state.version}</b></span>`;
 }
@@ -1210,14 +1229,57 @@ async function loadBle() {
   } catch (e) { return; }
   $("#bleBody").innerHTML = ble.map(d => {
     const room = (config ? config.rooms : []).find(r => r.sensor_mac === d.mac);
+    const aussen = config?.outdoor_mac === d.mac;
+    /* Der RuuviTag meldet keine Ladung in Prozent, nur die Spannung. */
+    const batt = d.battery ? `${d.battery} % · ${d.battery_mv} mV` : `${d.battery_mv} mV`;
+    const zu = aussen ? '<span class="chip ok">Außenfühler</span>'
+             : room ? room.name : '<span class="chip">nicht zugeordnet</span>';
     return `<tr><td>${d.name ? `<b>${d.name}</b><br><span class="mono muted">${d.mac}</span>`
                               : `<span class="mono">${d.mac}</span>`}</td>
       <td class="num">${num(d.temp_c,2)} °C</td><td class="num">${num(d.humidity,1)} %</td>
-      <td class="num">${d.battery} % · ${d.battery_mv} mV</td>
+      <td class="num">${batt}</td>
       <td class="num">${d.rssi} dBm</td><td class="num">${d.packets}</td>
-      <td>${d.format}</td>
-      <td>${room ? room.name : '<span class="chip">nicht zugeordnet</span>'}</td></tr>`;
-  }).join("") || '<tr><td colspan="8" class="empty">Noch kein Thermometer empfangen.</td></tr>';
+      <td>${d.format}${d.pressure_hpa ? `<br><span class="muted">${
+        num(d.pressure_hpa,0)} hPa</span>` : ""}</td>
+      <td>${zu}</td></tr>`;
+  }).join("") || '<tr><td colspan="8" class="empty">Noch kein Gerät empfangen.</td></tr>';
+
+  renderOutdoor();
+}
+
+/* Zuordnung und Zustand des Außenfühlers. */
+function renderOutdoor() {
+  const sel = $("#outdoorSel");
+  if (!sel) return;
+  const gewaehlt = config?.outdoor_mac || "";
+  if (sel !== document.activeElement) {
+    const belegt = new Set((config?.rooms || []).map(r => r.sensor_mac).filter(Boolean));
+    let html = `<option value=""${gewaehlt ? "" : " selected"}>— keiner —</option>`;
+    for (const d of ble) {
+      if (belegt.has(d.mac) && d.mac !== gewaehlt) continue;   /* gehört zu einem Raum */
+      const bez = d.name ? `${d.name} (${d.mac})` : d.mac;
+      html += `<option value="${d.mac}"${d.mac === gewaehlt ? " selected" : ""}>${bez}</option>`;
+    }
+    if (gewaehlt && !ble.some(d => d.mac === gewaehlt)) {
+      html += `<option value="${gewaehlt}" selected>${gewaehlt} — nicht in Reichweite</option>`;
+    }
+    sel.innerHTML = html;
+  }
+
+  const a = state?.outdoor;
+  const marken = [];
+  if (!gewaehlt) {
+    marken.push(`<span class="chip">kein Außenfühler zugeordnet</span>`);
+  } else if (!a?.valid) {
+    marken.push(`<span class="chip warn">noch kein Messwert</span>`);
+  } else {
+    marken.push(`<span class="chip ok">${num(a.temp_c, 1)} °C</span>`);
+    if (a.humidity) marken.push(`<span class="chip">${num(a.humidity, 0)} % Feuchte</span>`);
+    if (a.pressure_hpa) marken.push(`<span class="chip">${num(a.pressure_hpa, 0)} hPa</span>`);
+    if (a.battery_mv) marken.push(`<span class="chip">${a.battery_mv} mV</span>`);
+    marken.push(`<span class="chip">vor ${a.age_s} s</span>`);
+  }
+  $("#outdoorState").innerHTML = marken.join("");
 }
 
 function renderLocalSensors() {
@@ -1391,6 +1453,11 @@ $("#sysSave").onclick = () => {
   config.mqtt.user = $("#sysMqttUser").value;
   config.mqtt.prefix = $("#sysMqttPrefix").value;
   if ($("#sysMqttPass").value) config.mqtt.pass = $("#sysMqttPass").value;
+  saveConfig();
+};
+
+$("#outdoorSave").onclick = () => {
+  config.outdoor_mac = $("#outdoorSel").value || null;
   saveConfig();
 };
 
@@ -1691,7 +1758,7 @@ async function poll() {
       applySetupMode();
       renderStatus(); renderManifold(); renderRooms();
       renderChannels(); renderLocalSensors(); renderManual();
-      renderPeers(); renderSeize();
+      renderPeers(); renderSeize(); renderOutdoor();
       if (calibInfo && calibInfo.state !== "idle") renderCalib();
     }
   } catch (e) {
