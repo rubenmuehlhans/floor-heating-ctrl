@@ -14,6 +14,7 @@
 #include "heatlogic.h"
 #include "hw_map.h"
 #include "roomctrl.h"
+#include "atc_decode.h"
 #include "schedule.h"
 #include "valve.h"
 
@@ -1196,6 +1197,103 @@ static void test_sched_days_left(void)
     CHECK(sched_weekly_days_left(&st, SA, 11, SA, 8, 106, -1) == -1, "ohne Uhr: -1");
 }
 
+/* ------------------------------------------------------------------ */
+/* Dekodierung der Funkpakete                                          */
+/* ------------------------------------------------------------------ */
+
+/* Wandelt eine Hexzeichenkette in Bytes -- so lassen sich die Beispiele der
+ * Hersteller woertlich uebernehmen. */
+static void hex2bin(const char *hex, uint8_t *out, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        unsigned int b = 0;
+        sscanf(hex + 2 * i, "%2x", &b);
+        out[i] = (uint8_t)b;
+    }
+}
+
+static void test_decode_ruuvi(void)
+{
+    printf("Funkpakete: RuuviTag, Datensatz 5\n");
+
+    /*
+     * Die drei Beispieldatensaetze aus der Ruuvi-Spezifikation. Sie stehen
+     * hier woertlich, damit ein vertauschtes Byte auffaellt, bevor ein
+     * falscher Messwert in die Aufzeichnung wandert.
+     */
+    uint8_t d[24];
+    atc_device_t dev;
+
+    hex2bin("0512FC5394C37C0004FFFC040CAC364200CDCBB8334C884F", d, sizeof(d));
+    memset(&dev, 0, sizeof(dev));
+    CHECK(atc_decode_ruuvi(d, &dev), "gueltiger Datensatz wird angenommen");
+    CHECK(CLOSE(dev.temp_c, 24.30f, 0.001f), "Temperatur 24,30 C, nicht %.3f", dev.temp_c);
+    CHECK(CLOSE(dev.humidity, 53.49f, 0.01f), "Feuchte 53,49 %%, nicht %.2f", dev.humidity);
+    CHECK(CLOSE(dev.pressure_hpa, 1000.44f, 0.01f), "Druck 1000,44 hPa, nicht %.2f",
+          dev.pressure_hpa);
+    CHECK(dev.battery_mv == 2977, "Spannung 2977 mV, nicht %u", dev.battery_mv);
+    CHECK(dev.battery == 0, "eine Ladung in Prozent sendet der RuuviTag nicht");
+    CHECK(dev.format == ATC_FMT_RUUVI, "Format ist Ruuvi");
+    CHECK(dev.mac[0] == 0xCB && dev.mac[5] == 0x4F, "MAC CB:..:4F, nicht %02X:..:%02X",
+          dev.mac[0], dev.mac[5]);
+
+    /* Die Grenzwerte kommen unverfaelscht durch; ausgesiebt werden sie erst
+     * von der Plausibilitaetsschranke im Empfaenger. */
+    hex2bin("057FFFFFFEFFFE7FFF7FFF7FFFFFDEFEFFFECBB8334C884F", d, sizeof(d));
+    memset(&dev, 0, sizeof(dev));
+    CHECK(atc_decode_ruuvi(d, &dev), "Hoechstwerte werden angenommen");
+    CHECK(CLOSE(dev.temp_c, 163.835f, 0.001f), "Hoechsttemperatur, nicht %.3f", dev.temp_c);
+
+    /* "Kein Messwert" sendet Ruuvi als feste Muster. */
+    hex2bin("058000FFFFFFFF800080008000FFFFFFFFFFFFFFFFFFFFFF", d, sizeof(d));
+    memset(&dev, 0, sizeof(dev));
+    CHECK(!atc_decode_ruuvi(d, &dev), "ohne Temperatur wird das Paket verworfen");
+
+    /* Feuchte und Druck fehlen einzeln: das Paket bleibt gueltig. */
+    hex2bin("0512FCFFFFFFFF0004FFFC040CAC364200CDCBB8334C884F", d, sizeof(d));
+    memset(&dev, 0, sizeof(dev));
+    CHECK(atc_decode_ruuvi(d, &dev), "ohne Feuchte und Druck bleibt der Wert brauchbar");
+    CHECK(dev.humidity == 0.0f && dev.pressure_hpa == 0.0f,
+          "fehlende Groessen werden zu null, nicht %.2f / %.2f", dev.humidity,
+          dev.pressure_hpa);
+
+    /* Aeltere Datensaetze werden nicht ausgewertet. */
+    hex2bin("0312FC5394C37C0004FFFC040CAC364200CDCBB8334C884F", d, sizeof(d));
+    memset(&dev, 0, sizeof(dev));
+    CHECK(!atc_decode_ruuvi(d, &dev), "Datensatz 3 wird nicht ausgewertet");
+}
+
+static void test_decode_xiaomi(void)
+{
+    printf("Funkpakete: Xiaomi-Thermometer\n");
+
+    atc_device_t dev;
+    uint8_t d[16];
+
+    /* atc1441: MAC vorwaerts, Zehntelgrad, alles Big Endian. */
+    hex2bin("A4C138112233008E2C5A0B62", d, 12);
+    memset(&dev, 0, sizeof(dev));
+    CHECK(atc_decode_atc1441(d, &dev), "atc1441 wird angenommen");
+    CHECK(CLOSE(dev.temp_c, 14.2f, 0.001f), "14,2 C, nicht %.2f", dev.temp_c);
+    CHECK(CLOSE(dev.humidity, 44.0f, 0.001f), "44 %%, nicht %.2f", dev.humidity);
+    CHECK(dev.battery == 90 && dev.battery_mv == 2914, "Ladung 90 %%, 2914 mV, nicht %u / %u",
+          dev.battery, dev.battery_mv);
+    CHECK(dev.mac[0] == 0xA4 && dev.mac[5] == 0x33, "MAC in Sendereihenfolge");
+    CHECK(dev.format == ATC_FMT_ATC1441, "Format ist atc1441");
+
+    /* pvvx: MAC rueckwaerts, Hundertstel, alles Little Endian. */
+    hex2bin("33221138C1A48E053A11620B5A", d, 13);
+    memset(&dev, 0, sizeof(dev));
+    CHECK(atc_decode_pvvx(d, &dev), "pvvx wird angenommen");
+    CHECK(CLOSE(dev.temp_c, 14.22f, 0.001f), "14,22 C, nicht %.2f", dev.temp_c);
+    CHECK(CLOSE(dev.humidity, 44.10f, 0.001f), "44,10 %%, nicht %.2f", dev.humidity);
+    CHECK(dev.battery == 90 && dev.battery_mv == 2914, "Ladung 90 %%, 2914 mV, nicht %u / %u",
+          dev.battery, dev.battery_mv);
+    /* Dieselbe MAC wie oben, nur rueckwaerts gesendet. */
+    CHECK(dev.mac[0] == 0xA4 && dev.mac[5] == 0x33, "MAC wird umgedreht");
+    CHECK(dev.format == ATC_FMT_PVVX, "Format ist pvvx");
+}
+
 int main(void)
 {
     test_control_law();
@@ -1229,6 +1327,8 @@ int main(void)
     test_rec_trigger_hand();
     test_sched_weekly();
     test_sched_days_left();
+    test_decode_ruuvi();
+    test_decode_xiaomi();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

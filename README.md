@@ -493,7 +493,8 @@ components/       von allen Anwendungen gemeinsam genutzt
   roomctrl/       Regelgesetz (frei von IDF-Abhängigkeiten)
   schedule/       wöchentlicher Termin an der Uhr, für die Schutzfahrt
   config_store/   Konfiguration als JSON im NVS
-  atc_ble/        NimBLE-Observer, ATC- und pvvx-Dekoder
+  atc_ble/        NimBLE-Observer; die Dekoder (ATC, pvvx, Ruuvi) liegen als
+                  atc_decode.c ohne IDF-Bezug daneben und sind geprüft
   ssd1327/        Anzeigetreiber mit Bitmap-Schrift
   sensors_local/  DS18B20 und HDC1080
   onewire_temp/   mehrere DS18B20 an bis zu zwei Bussen, Sammelwandlung

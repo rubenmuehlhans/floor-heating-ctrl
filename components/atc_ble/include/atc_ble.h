@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "atc_decode.h"
 #include "esp_err.h"
 
 #ifdef __cplusplus
@@ -29,34 +30,6 @@ extern "C" {
 #endif
 
 #define ATC_MAX_DEVICES 24
-
-typedef enum {
-    ATC_FMT_ATC1441 = 0,
-    ATC_FMT_PVVX,
-    ATC_FMT_RUUVI,
-} atc_format_t;
-
-typedef struct {
-    uint8_t mac[6];
-    /* Name aus dem Rundruf. Die pvvx-Firmware laesst ihn frei setzen, die
-     * atc1441-Fassung sendet ATC_<letzte drei MAC-Bytes>. Leer, wenn das
-     * Geraet keinen Namen mitsendet. */
-    char name[24];
-    int8_t rssi;
-    float temp_c;
-    float humidity;
-    uint8_t battery;     /* Prozent; der RuuviTag meldet keine, dort 0 */
-    uint16_t battery_mv;
-    /* Luftdruck in Hektopascal, 0 wenn das Format keinen liefert. Nur der
-     * RuuviTag misst ihn. */
-    float pressure_hpa;
-    uint32_t last_seen_ms;
-    uint32_t packets;
-    atc_format_t format;
-} atc_device_t;
-
-/* Kurzname des Formats, fuer Oberflaeche und Protokoll. */
-const char *atc_format_name(atc_format_t f);
 
 typedef void (*atc_cb_t)(const atc_device_t *dev, void *ctx);
 
