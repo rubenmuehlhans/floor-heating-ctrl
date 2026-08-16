@@ -1,0 +1,34 @@
+# Beide Anwendungen teilen sich components/. Eine Aenderung an netmgr, peers
+# oder sensors_local kann deshalb die jeweils andere Anwendung brechen, ohne
+# dass es beim oertlichen Uebersetzen auffaellt. Der Lauf baut daher immer
+# beide und dazu die Pruefungen ohne Hardware.
+name: Bau
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  firmware:
+    name: ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      # Ein Fehler in einer Anwendung soll das Ergebnis der anderen nicht
+      # verdecken.
+      fail-fast: false
+      matrix:
+        app: [manifold]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.0.2
+          target: esp32
+          path: apps/${{ matrix.app }}
+
+  logik:
+    name: Pruefungen ohne Hardware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -C test/host
