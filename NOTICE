@@ -17,17 +17,14 @@ MARKTGÄNGIGKEIT oder EIGNUNG FÜR EINEN BESTIMMTEN ZWECK.
 Herkunft
 --------
 
-Diese Firmware ist die Portierung eines ESPHome-Aufbaus auf das ESP-IDF. Jener
-Aufbau geht auf floor-heating-controller von nliaudat zurück, eine
-ESPHome-Konfiguration für das Shield esp32_8ch_motor_shield desselben
-Urhebers:
+Uebernommen sind der Grundgedanke der Endlagenerkennung ueber die
+Gegenspannung, die Kanalauswahl ueber Schieberegister und das Regelgesetz in
+components/roomctrl. Sie gehen zurueck auf:
 
   https://github.com/nliaudat/floor-heating-controller   (GPL-3.0)
   https://github.com/nliaudat/esp32_8ch_motor_shield     (CC BY-NC-SA 4.0)
 
-Übernommen sind der Grundgedanke der Endlagenerkennung über die Gegenspannung,
-die Kanalauswahl über Schieberegister und das Regelgesetz in
-components/roomctrl.
+beide von nliaudat.
 
 Die Platine unter board/ ist eine eigene Entwicklung: in EasyEDA entworfen und
 von Hand geroutet. Vom Vorbild unterscheidet sie sich in der Kanalzahl (11 statt

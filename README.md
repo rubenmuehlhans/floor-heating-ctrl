@@ -56,19 +56,12 @@ Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 
 ## Herkunft
 
-Diese Firmware ist die Portierung eines ESPHome-Aufbaus auf das ESP-IDF. Jener
-Aufbau geht seinerseits auf [floor-heating-controller][fhc] von nliaudat
-zurück, eine ESPHome-Konfiguration für das Shield
-[esp32_8ch_motor_shield][shield] desselben Urhebers. Von dort stammen der
-Grundgedanke der Endlagenerkennung über die Gegenspannung, die Kanalauswahl
-über Schieberegister und das Regelgesetz, das hier in
-[`components/roomctrl`](components/roomctrl/) steht.
-
-Die Vorlage steht unter der GPL-3.0. Dieser Quelltextbestand folgt ihr darin;
-siehe [Lizenz](#lizenz).
-
-[fhc]: https://github.com/nliaudat/floor-heating-controller
-[shield]: https://github.com/nliaudat/esp32_8ch_motor_shield
+Der Grundgedanke der Schaltung — Endlagenerkennung über die Gegenspannung,
+Kanalauswahl über Schieberegister — und das Regelgesetz in
+[`components/roomctrl`](components/roomctrl/) gehen auf
+[floor-heating-controller](https://github.com/nliaudat/floor-heating-controller)
+von nliaudat zurück, veröffentlicht unter der GPL-3.0. Dieser Bestand folgt ihr
+darin; siehe [Lizenz](#lizenz).
 
 ## Inhalt
 
@@ -88,7 +81,6 @@ siehe [Lizenz](#lizenz).
 - [Entwicklung ohne Hardware](#entwicklung-ohne-hardware)
 - [Prüfungen](#prüfungen)
 - [Stand der Erprobung](#stand-der-erprobung)
-- [Vorgängerkonfiguration](#vorgängerkonfiguration)
 - [Offene Punkte](#offene-punkte)
 - [Geplante Erweiterungen](#geplante-erweiterungen)
 - [Fremdkomponenten](#fremdkomponenten)
@@ -437,7 +429,7 @@ Messwert eingegangen ist.
 ## Vorgabewerte
 
 Bis zur ersten Messfahrt und vor der Einrichtung gelten diese Werte. Sie
-stammen aus dem Betrieb der Vorgängerkonfiguration.
+stammen aus dem Betrieb der Anlage.
 
 | Größe | Vorgabe |
 |---|---|
@@ -639,47 +631,11 @@ Ladeerkennung, Aufzeichnung einer Ladung und das Schalten der Pumpen über
 Tasmota. Ein Broker ist bislang nicht eingerichtet, die MQTT-Anbindung deshalb
 ebenfalls unerprobt.
 
-## Vorgängerkonfiguration
-
-Vorgänger war eine ESPHome-Konfiguration mit rund 1750 Zeilen YAML, in der die
-Regel- und Endlagenlogik bereits vollständig in Lambda-Blöcken steckte. Räume
-und Kreiszuordnung waren dort fest verdrahtet; jede Änderung erforderte
-Neuübersetzung und Einspielen. Das war der Anlass für die Portierung.
-
-### Bereinigte Unstimmigkeiten
-
-Vier Unstimmigkeiten der ESPHome-Fassung sind dabei bereinigt:
-
-1. **Endlagenzuordnung Kreis 9 bis 11.** Die Cover gaben `BEMF_4_sensor` an,
-   gehören laut Verdrahtung aber zu Gruppe 5 beziehungsweise 6. Wirksam wurde
-   die Endlage bisher nur über die `on_press`-Lambdas.
-2. **Belegtprüfung bei Kreis 5.** Geprüft wurde Kreis 4; Kreis 5 teilt sich
-   die Messgruppe jedoch mit Kreis 6.
-3. **Kapazitive Tasten.** Die Raumauswahl zählte 0 bis 3, die Tasten verglichen
-   gegen 10 bis 13 und lösten deshalb nie aus.
-4. **Abbruch statt Überspringen.** War ein Kreis gesperrt, brach die Prüfung
-   des gesamten Raums ab. Jetzt wird nur der betroffene Kreis übersprungen.
-
-### Bewusst geändertes Verhalten
-
-- **Schnellere Endlagenerkennung.** ESPHome bildete den Median über fünf Werte
-  und meldete nur jeden fünften, also alle 1,25 s. Jetzt wird bei 50 ms
-  Abtastung ein gleitender Median bei jedem Wert ausgewertet.
-- **Ein Sollwert statt low/high.** Das Original mittelte ohnehin über beide.
-- **Ventilstellungen im NVS.** Sie werden beim Start wiederhergestellt. Ist
-  keine Stellung bekannt, fährt der Kreis beim ersten Regeleingriff einmal auf
-  Anschlag.
-- **Veralteter Messwert setzt die Regelung aus.** Das Original hätte
-  stillschweigend mit dem letzten bekannten Wert weitergeregelt.
-- **Raumtemperatur über BLE statt über Home Assistant.** Die Regelung hängt
-  damit nicht mehr am Netzwerk.
-- **Räume zur Laufzeit konfigurierbar.** Sie stehen nicht mehr fest im YAML.
-
 ## Offene Punkte
 
-- **Tastenschwellen** (1000, 870, 1000) stammen aus der ESPHome-Fassung. Die
-  Messdauer der neuen Treiberfassung weicht ab, sie sind nur ein Ausgangspunkt
-  und unter **Sensoren** nachzustellen.
+- **Tastenschwellen** (1000, 870, 1000) sind nur ein Ausgangspunkt: Sie hängen
+  an der Messdauer der Treiberfassung und sind unter **Sensoren**
+  nachzustellen.
 - **MAC-Adressen der Thermometer** ergeben sich beim ersten BLE-Empfang.
 - **Matter und Thread** sind nicht umgesetzt. Thread scheidet auf dieser
   Platine aus, weil dem ESP32-WROOM-32 das 802.15.4-Funkteil fehlt. Matter über
