@@ -5,6 +5,10 @@ cmake_minimum_required(VERSION 3.16)
 get_filename_component(REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(EXTRA_COMPONENT_DIRS "${REPO_ROOT}/components")
 
+# Gemeinsame Bauregeln, siehe cmake/embed_www.cmake.
+list(APPEND CMAKE_MODULE_PATH "${REPO_ROOT}/cmake")
+include(embed_www)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # __FILE__ soll weiterhin "./main/..." und "./components/..." ergeben. ESP-IDF
