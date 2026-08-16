@@ -1,32 +1,47 @@
-# Ventilsteuerung Fußbodenheizung
+# Heizungssteuerung
 
-Diese Firmware steuert elf motorische Stellantriebe an einem Heizkreisverteiler
-und regelt darüber die Raumtemperaturen einer Fußbodenheizung. Sie läuft auf
-einem ESP32 auf einer selbst entworfenen Platine und richtet sich an alle, die
-ihre Heizkreise mit eigener Hardware ansteuern wollen.
-
-Räume und die Zuordnung der Heizkreise werden über eine Weboberfläche auf dem
-Gerät eingerichtet. Die Raumtemperaturen empfängt das Gerät über Bluetooth,
-die Anbindung an Home Assistant läuft über MQTT.
+Mehrere ESP32 im Haus, die zusammen eine Ölheizung überwachen und in Teilen
+steuern. Jedes Gerät hat eine eigene Aufgabe, kennt die anderen über mDNS und
+fragt bei ihnen ab, was es selbst nicht messen kann.
 
 ![Übersicht der Weboberfläche](docs/screenshots/uebersicht.png)
 
-Das Gerät übernimmt vier Aufgaben:
+## Was die Geräte tun
 
-- **Ventile fahren.** Elf Stellantriebe werden über H-Brücken bidirektional
-  angesteuert. Die Endlage wird an der Gegenspannung des blockierenden Motors
-  erkannt, weil die Antriebe keine Endschalter haben.
-- **Räume regeln.** Jeder Raum hat einen Sollwert, ein Thermometer und beliebig
-  viele Heizkreise; die Ventilstellung folgt der Regelabweichung proportional.
-- **Bedienen.** Bedient wird das Gerät über die Weboberfläche sowie über die
-  Anzeige und drei Tasten am Gehäuse.
-- **Anbinden.** Die Entitäten für Home Assistant meldet das Gerät über
-  MQTT-Discovery an; die Raumtemperaturen empfängt es über Bluetooth Low
-  Energy.
+**Verteilerplatine**, je Etage eine. Sie fährt elf motorische Stellantriebe am
+Heizkreisverteiler und regelt darüber die Raumtemperaturen. Die Antriebe haben
+keine Endschalter; erkannt wird die Endlage an der Gegenspannung des
+blockierenden Motors. Die Raumtemperaturen kommen über Bluetooth von
+Xiaomi-Thermometern. Bedient wird über die Weboberfläche oder über Anzeige und
+drei Tasten am Gehäuse. Einmal in der Woche fährt jeder Kreis einmal durch,
+damit er über den Sommer nicht festsitzt.
 
-Der Quelltextbestand enthält neben der Firmware auch die Fertigungsdaten der
-Platine ([`board/`](board/)) und die Konstruktion des Gehäuses
-([`case/`](case/)).
+**Gerät am Kessel.** Es misst Abgas, Kesselvorlauf und Kesselrücklauf. Am
+Abgasfühler erkennt es, ob der Brenner läuft — gegen eine gleitende Bezugslinie
+statt gegen einen festen Schwellwert, damit die Erkennung im Sommer wie im
+Winter trägt. Daraus führt es Laufzeit, Startzahl und eine Verbrauchsschätzung.
+
+**Gerät am Pufferspeicher.** Es misst die Speichertemperatur und Vor- und
+Rücklauf der Heizkreise, beurteilt daraus den Ladezustand und schaltet die
+Umwälzpumpen über Tasmota-Relais — ab, wenn kein Raum Wärme abruft, und
+wöchentlich kurz an, damit sie nicht festsitzen. Ob ein Abnehmer da ist, fragt
+es bei den Verteilerplatinen ab; den Brennerzustand holt es sich vom Gerät am
+Kessel.
+
+Kein Gerät ist auf ein anderes angewiesen. Fällt eines aus, arbeiten die
+übrigen mit dem weiter, was sie selbst messen — die Pumpen laufen dann im
+Zweifel, statt zu stehen.
+
+## Was daraus entsteht
+
+Jedes Gerät bringt seine eigene Weboberfläche mit; eingerichtet wird alles
+dort, ohne Übersetzen und ohne Konfigurationsdatei. An Home Assistant sind die
+Geräte auf zwei Wegen anzubinden, einzeln oder gemeinsam: über MQTT-Discovery
+oder über eine mitgelieferte Integration, die sie unmittelbar über HTTP
+anspricht.
+
+Der Quelltextbestand enthält neben der Firmware die Fertigungsdaten der Platine
+([`board/`](board/)) und die Konstruktion des Gehäuses ([`case/`](case/)).
 
 ## Einordnung
 
@@ -57,6 +72,7 @@ siehe [Lizenz](#lizenz).
 
 ## Inhalt
 
+- [Was die Geräte tun](#was-die-geräte-tun)
 - [Herkunft](#herkunft)
 - [Dokumentation](#dokumentation)
 - [Voraussetzungen](#voraussetzungen)
@@ -87,26 +103,34 @@ siehe [Lizenz](#lizenz).
 | [Konzept: Wärmeerzeugung und Pumpensteuerung](docs/konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Pumpenlogik |
 | [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md) | Aufteilung des Projekts und gemeinsame Komponenten |
 
-Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer das Gerät bedienen
+Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer die Geräte bedienen
 oder einrichten will, findet das im [Handbuch](docs/handbuch.md).
 
 ## Voraussetzungen
 
-- **Steuergerät.** Benötigt werden die Steuerplatine aus [`board/`](board/)
-  und ein darauf gesteckter ESP32-DevKitC mit WROOM-32.
-- **Stellantriebe.** Vorausgesetzt werden bis zu elf motorische Stellantriebe
-  ohne Endschalter am Heizkreisverteiler.
+- **Verteilerplatine.** Benötigt werden die Steuerplatine aus [`board/`](board/)
+  und ein darauf gesteckter ESP32-DevKitC mit WROOM-32, dazu bis zu elf
+  motorische Stellantriebe ohne Endschalter am Heizkreisverteiler.
 - **Raumtemperatur.** Je Raum wird ein Xiaomi-Thermometer mit ATC- oder
   pvvx-Firmware benötigt, das seine Messwerte als Rundruf sendet.
-- **Netz.** Das Gerät benötigt ein WLAN-Netz. Für die Anbindung an Home
-  Assistant kommt ein MQTT-Broker hinzu.
-- **Vorlauffühler.** Bis zu acht DS18B20 am 1-Wire-Bus sind möglich, aber
-  nicht erforderlich.
+- **Heizungsgeräte.** Für Kessel und Pufferspeicher genügt je ein
+  ESP32-DevKitC ohne eigene Platine, dazu DS18B20 am 1-Wire-Bus. Zum Schalten
+  der Pumpen kommen Tasmota-Relais hinzu.
+- **Netz.** Alle Geräte brauchen ein WLAN-Netz. Ein MQTT-Broker ist möglich,
+  aber nicht nötig: Die Geräte finden einander über mDNS, und Home Assistant
+  lässt sich auch über die mitgelieferte Integration anbinden.
 - **Entwicklungsumgebung.** Zum Übersetzen wird ESP-IDF v6.0.2 vorausgesetzt.
 - **Arbeiten ohne Gerät.** Die Geräteattrappe benötigt Python 3, die
   Erzeugung der Aufnahmen zusätzlich Google Chrome und ImageMagick.
 
 ## Hardware
+
+Dieser Abschnitt beschreibt die **Verteilerplatine**. Die Geräte an Kessel und
+Pufferspeicher brauchen keine eigene Platine: dort genügt ein ESP32-DevKitC mit
+DS18B20 am 1-Wire-Bus, ein Anschlusswiderstand nach 3,3 V und, am
+Pufferspeicher, je Heizkreis ein Tasmota-Relais für die Umwälzpumpe. Welcher
+Anschluss sich für den Bus eignet, steht im
+[Handbuch](docs/handbuch.md#fühler-und-1-wire-bus).
 
 Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
 Endschalter; die Endlage ist daran zu erkennen, dass der Motor am Anschlag
@@ -318,6 +342,10 @@ Die 22 einzelnen H-Brücken-Eingänge werden bewusst **nicht** exportiert, denn
 direktes Schalten umginge Verriegelung und Gruppensperre.
 
 ## Funktionsweise
+
+Dieser Abschnitt beschreibt die Verteilerplatine. Wie Brennererkennung,
+Ladezustand und Pumpensteuerung arbeiten, steht im
+[Konzept zur Wärmeerzeugung](docs/konzept-waermeerzeuger.md).
 
 ### Endlagenerkennung
 
@@ -579,9 +607,21 @@ An der Hardware sind folgende Schritte vorgesehen:
 
 ## Stand der Erprobung
 
-Die Firmware läuft auf der bestückten Platine. Erprobt sind Start, BLE-Empfang
-von neun Thermometern, Tastenauswertung, Weboberfläche, Captive Portal,
-Aktualisierung über das Netz, Handsteuerung und drei Messfahrten.
+Im Haus laufen drei Geräte: eine Verteilerplatine im Keller sowie je ein
+ESP32 an Kessel und Pufferspeicher.
+
+**Verteilerplatine.** Erprobt sind Start, BLE-Empfang von neun Thermometern,
+Tastenauswertung, Weboberfläche, Captive Portal, Aktualisierung über das Netz,
+Handsteuerung, drei Messfahrten und die wöchentliche Schutzfahrt — elf Kreise
+in 168 s, sechs gleichzeitig, danach alle wieder auf ihrer vorherigen Stellung.
+Bei der Schutzfahrt fiel auf, dass acht der elf Kreise mangels Messfahrt keine
+Endlage erkennen und in die Maximallaufzeit laufen.
+
+**Kessel und Pufferspeicher.** Erprobt sind Fühlererfassung, gegenseitiges
+Auffinden über mDNS und die Übernahme der Kesselwerte durch den Pufferspeicher:
+Er zeigt Brennerzustand und Abgaswert des Nachbargeräts an und schaltet die
+Aufzeichnung von selbst auf den Brennerzustand um, sobald der Kessel im Netz
+ist. Nach einem Neustart dauert das rund achtzig Sekunden.
 
 Die Messfahrten liegen durchweg unter den Vorgabewerten:
 
@@ -592,9 +632,12 @@ Die Messfahrten liegen durchweg unter den Vorgabewerten:
 | 4 | 33,7 s | 35,2 s | 182 mV |
 | Vorgabe | 39 s | 40 s | 190 mV |
 
-Nicht erprobt sind der Dauerbetrieb der Regelung über längere Zeit sowie
-Anzeige (SSD1327) und DS18B20-Fühler, weil beide nicht dauerhaft angeschlossen
-sind.
+Nicht erprobt sind der Dauerbetrieb der Regelung über längere Zeit, Anzeige
+(SSD1327) und DS18B20 an der Verteilerplatine, weil beide dort nicht dauerhaft
+angeschlossen sind, sowie alles, was Heizbetrieb voraussetzt: Brennerlauf,
+Ladeerkennung, Aufzeichnung einer Ladung und das Schalten der Pumpen über
+Tasmota. Ein Broker ist bislang nicht eingerichtet, die MQTT-Anbindung deshalb
+ebenfalls unerprobt.
 
 ## Vorgängerkonfiguration
 
