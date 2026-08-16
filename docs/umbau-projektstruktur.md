@@ -470,6 +470,16 @@ jobs:
 `fail-fast: false`, damit ein Fehler in der neuen Anwendung das Ergebnis der laufenden Firmware
 nicht verdeckt. Die Matrix wird erweitert, sobald `apps/heatsource` existiert — nicht später.
 
-Zusätzlich sinnvoll, sobald beide `dependencies.lock` versioniert sind: ein Abgleich der
-Versionen, damit die gemeinsamen Komponenten in beiden Anwendungen gegen denselben Stand von
-cJSON und mDNS übersetzt werden.
+Zusätzlich sinnvoll: ein Abgleich der beiden `dependencies.lock`, damit die gemeinsamen
+Komponenten in beiden Anwendungen gegen denselben Stand von cJSON und mDNS übersetzt werden.
+
+```bash
+diff <(grep -E '^  [a-z]+/|^    version:' apps/manifold/dependencies.lock) \
+     <(grep -E '^  [a-z]+/|^    version:' apps/heatsource/dependencies.lock)
+```
+
+Beobachtet beim Anlegen der zweiten Anwendung: Eine neue Komponente unter `components/` ändert
+den `manifest_hash` in der `dependencies.lock` **beider** Anwendungen, auch wenn nur eine sie
+benutzt. Der Komponentenverwalter wertet alle gefundenen Manifeste aus, bevor der
+Abhängigkeitsbaum beschnitten wird. Solange die aufgelösten Versionen gleich bleiben, ist das
+folgenlos; die Zeile wandert aber bei jedem solchen Schritt mit in den Commit.

@@ -418,14 +418,20 @@ die passenden Entitäten ein.
 
 ## Umsetzungsreihenfolge
 
-| Stufe | Inhalt |
-|---|---|
-| 0 | Projektstruktur umbauen, Nachweis, OTA — siehe [umbau-projektstruktur.md](umbau-projektstruktur.md) |
-| 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke. Ab hier läuft die Datenerfassung. |
-| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb |
-| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe |
-| 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration |
-| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` |
+| Stufe | Inhalt | Stand |
+|---|---|---|
+| 0 | Projektstruktur umbauen, Nachweis, OTA — siehe [umbau-projektstruktur.md](umbau-projektstruktur.md) | umgesetzt |
+| 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke | umgesetzt, noch nicht auf der Hardware erprobt |
+| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | offen |
+| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | offen |
+| 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
+| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | offen |
+
+Zur ersten Inbetriebnahme eines Heizungsgeräts: Nach dem Einspielen öffnet es einen
+Zugangspunkt `heizung-XXXX`, danach führt der Assistent durch Bezeichnung und
+Fühlerzuordnung. Der 1-Wire-Anschluss steht unter **System** und ist auf GPIO 23
+voreingestellt; weicht die vorhandene Verdrahtung ab, wird er dort eingetragen und das Gerät
+neu gestartet.
 
 Die Stufen 0 bis 2 ergeben betriebsfähige Geräte; alles Weitere ist additiv.
 
