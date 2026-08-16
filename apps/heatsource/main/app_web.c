@@ -369,6 +369,20 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddNullToObject(cc, "spread_k");
     }
 
+    /*
+     * Messstellen des Nachbargeraets. Sie stehen hier, damit die Oberflaeche
+     * die ganze Anlage zeigen kann, ohne selbst ein zweites Geraet abzufragen
+     * -- das waere ein anderer Ursprung und braeuchte eine Freigabe im
+     * Browser.
+     */
+    cJSON *cf = cJSON_AddObjectToObject(root, "remote_probes");
+    for (int r = 1; r < ROLE_COUNT; r++) {
+        float wert = 0.0f;
+        if (remote_role_value((probe_role_t)r, &wert, NULL)) {
+            cJSON_AddNumberToObject(cf, cfg_role_key((probe_role_t)r), wert);
+        }
+    }
+
     /* Nachbargeraete im Heizungsbereich. */
     static remote_peer_t rp[4];
     size_t rn = remote_peers(rp, 4);

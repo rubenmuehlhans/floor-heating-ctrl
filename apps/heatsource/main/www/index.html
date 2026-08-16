@@ -161,17 +161,17 @@ h3.sub:first-child{margin-top:0}
 
 /* ---------------- Bedienelemente ---------------- */
 
-button.btn{font:inherit; font-size:.85rem; padding:.4rem .8rem; border-radius:var(--r-sm);
+.btn{font:inherit; font-size:.85rem; padding:.4rem .8rem; border-radius:var(--r-sm);
   border:1px solid transparent; background:var(--accent); color:var(--accent-ink);
   cursor:pointer; transition:filter .15s, background .15s;
   display:inline-flex; align-items:center; gap:.4rem}
-button.btn:hover{filter:brightness(1.08)}
-button.btn.quiet{background:var(--surface); color:var(--accent); border-color:var(--line-strong)}
-button.btn.quiet:hover{background:var(--accent-soft); border-color:var(--accent); filter:none}
-button.btn.risky{background:var(--surface); color:var(--bad);
+.btn:hover{filter:brightness(1.08)}
+.btn.quiet{background:var(--surface); color:var(--accent); border-color:var(--line-strong)}
+.btn.quiet:hover{background:var(--accent-soft); border-color:var(--accent); filter:none}
+.btn.risky{background:var(--surface); color:var(--bad);
   border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
-button.btn.risky:hover{background:color-mix(in srgb,var(--bad) 10%,transparent); filter:none}
-button.btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
+.btn.risky:hover{background:color-mix(in srgb,var(--bad) 10%,transparent); filter:none}
+.btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
 .row{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
 .actions{display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem;
   padding-top:.9rem; border-top:1px solid var(--line)}
@@ -249,6 +249,7 @@ tr.warm td{background:var(--heat-soft)}
 .legend button.on i{background:var(--c)}
 .legend button:not(.on){opacity:.55}
 a.btn{text-decoration:none}
+a.btn:hover{filter:none}
 .track{height:8px; background:var(--sunken); border:1px solid var(--line);
   border-radius:99px; overflow:hidden}
 .track>i{display:block; height:100%; background:var(--accent);
@@ -587,7 +588,6 @@ async function loadPeers() {
     peers = d.peers || [];
     peersLoaded = Date.now();
     renderPeers();
-    loadRemote();
   } catch (e) { /* ältere Firmware kennt die Liste nicht */ }
 }
 
@@ -602,33 +602,23 @@ function renderPeers() {
                           + verteiler.map(link).join("") : "");
 }
 
-/*
- * Messwerte des anderen Heizungsgeräts. Sie werden nur angezeigt, nie
- * verrechnet — das Zusammenführen auf dem Gerät kommt mit der Ladeerkennung.
- * Fällt der Abruf aus, bleibt das Schema an diesen Stellen leer.
- */
-let remote = {};
-
-async function loadRemote() {
-  const andere = peers.filter(p => p.role === "heat");
-  for (const p of andere) {
-    try {
-      const d = await api(`http://${p.host}/api/measurements`);
-      for (const m of d.probes || []) remote[m.role] = {c:m.c, age_s:m.age_s, from:d.site};
-    } catch (e) { /* anderes Gerät nicht erreichbar */ }
-  }
-  if (state) renderSchema();
-}
-
 /* ---------------- Werte ---------------- */
 
 const probeOf = role => (state?.probes || []).find(p => p.role === role && p.temp_c !== null);
 
+/*
+ * Messwert einer Rolle. Erst der eigene Fühler, dann der des Nachbargeräts —
+ * beides kommt aus dem Zustand dieses Geräts, damit die Oberfläche kein
+ * zweites Gerät selbst abfragen muss.
+ */
 function valueOf(role) {
   const p = probeOf(role);
   if (p) return {c:p.temp_c, own:true};
-  const r = remote[role];
-  if (r) return {c:r.c, own:false, from:r.from};
+  const fremd = state?.remote_probes || {};
+  if (fremd[role] !== undefined) {
+    const quelle = (state.heat_peers || []).find(x => x.seen);
+    return {c:fremd[role], own:false, from:quelle?.site};
+  }
   return null;
 }
 
@@ -698,7 +688,7 @@ function renderSchema() {
   ${M(k.vl, 556, y - 4, "start")}
   <path class="sc-pipe cold" d="M544 ${yr} H360"/>
   ${M(k.rl, 556, yr - 4, "start")}
-  ${L(k.name, 360, yr + 30, "start")}`;
+  ${L(k.name, 376, yr + 30, "start")}`;
   }).join("");
 
   $("#schema").innerHTML = `

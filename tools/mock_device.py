@@ -269,15 +269,40 @@ class Handler(BaseHTTPRequestHandler):
                         "samples": SAMPLES[frm:frm + 512]})
         elif u.path == "/api/ble":
             self._send({"devices": [
-                {"mac": "A4:C1:38:11:22:33", "rssi": -62, "temp_c": 20.61, "humidity": 44.2,
-                 "battery": 87, "battery_mv": 2914, "packets": 4210, "format": "pvvx"},
-                {"mac": "A4:C1:38:44:55:66", "rssi": -71, "temp_c": 21.38, "humidity": 41.0,
-                 "battery": 78, "battery_mv": 2861, "packets": 3980, "format": "pvvx"},
-                {"mac": "A4:C1:38:77:88:99", "rssi": -80, "temp_c": 20.14, "humidity": 46.7,
-                 "battery": 64, "battery_mv": 2790, "packets": 2210, "format": "atc1441"},
-                {"mac": "A4:C1:38:AA:BB:CC", "rssi": -88, "temp_c": 6.90, "humidity": 71.3,
-                 "battery": 55, "battery_mv": 2733, "packets": 640, "format": "pvvx"},
+                {"mac": "A4:C1:38:11:22:33", "name": "ATC_Kueche", "rssi": -62,
+                 "temp_c": 20.61, "humidity": 44.2, "battery": 87, "battery_mv": 2914,
+                 "packets": 4210, "format": "pvvx"},
+                {"mac": "A4:C1:38:44:55:66", "name": "ATC_Wohn", "rssi": -71,
+                 "temp_c": 21.38, "humidity": 41.0, "battery": 78, "battery_mv": 2861,
+                 "packets": 3980, "format": "pvvx"},
+                {"mac": "A4:C1:38:77:88:99", "name": "ATC_Kind", "rssi": -80,
+                 "temp_c": 20.14, "humidity": 46.7, "battery": 64, "battery_mv": 2790,
+                 "packets": 2210, "format": "atc1441"},
+                {"mac": "A4:C1:38:AA:BB:CC", "name": "ATC_Garage", "rssi": -88,
+                 "temp_c": 6.90, "humidity": 71.3, "battery": 55, "battery_mv": 2733,
+                 "packets": 640, "format": "pvvx"},
             ]})
+        elif u.path == "/api/peers":
+            # Die uebrigen Platinen im Haus, wie sie ueber mDNS gefunden werden.
+            self._send({"peers": [
+                {"id": "fbh_c2e55c", "site": "Keller", "role": "manifold",
+                 "host": "192.168.1.240", "hostname": "floor-heating-keller"},
+                {"id": "fbh_d4e5f6", "site": "Obergeschoss", "role": "manifold",
+                 "host": "192.168.1.242", "hostname": "floor-heating-og"},
+                {"id": "heiz_3f21ac", "site": "Pufferspeicher", "role": "heat",
+                 "host": "192.168.1.51", "hostname": "heizung-speicher"},
+            ]})
+        elif u.path == "/api/demand":
+            # Wird vom Heizungsgeraet abgefragt: liegt hier Waermebedarf an?
+            kanaele = state()["channels"]
+            offen = [c for c in kanaele if c["position"] > 0.05]
+            self._send({
+                "id": "fbh_a1b2c3", "site": CFG["site"],
+                "demand": bool(offen),
+                "max_target": max((c["position"] for c in kanaele), default=0.0),
+                "open_channels": len(offen),
+                "rooms_calling": sum(1 for r in CFG["rooms"] if r["mode"] == "heat"),
+                "min_room_c": 20.1, "sensor_ok": True})
         elif u.path == "/api/wifi/scan":
             self._send({"networks": [
                 {"ssid": "Heimnetz", "rssi": -54, "secure": True},

@@ -48,6 +48,17 @@ VERLAUF = {
 SPEICHER = ["puffer", "puffer_unten", "hk1_vl", "hk1_rl", "hk2_vl", "hk2_rl"]
 KESSEL = ["abgas", "kessel_vl", "kessel_rl"]
 
+# Heizkreise, wie sie das Gerät am Pufferspeicher führt.
+KREISE = [
+    {"id": 1, "name": "Keller und Erdgeschoss", "peers": ["fbh_c2e55c", "fbh_a1b2c3"],
+     "topic": "pumpe_hk1", "relay": 1},
+    {"id": 2, "name": "Obergeschoss", "peers": ["fbh_d4e5f6"],
+     "topic": "pumpe_hk2", "relay": 2},
+]
+
+REC = {"state": "fertig", "samples": 1043, "period_s": 5,
+       "started_epoch": int(time.time()) - 5215, "cols": 6, "bytes": 19200}
+
 CFG = {
     "cfg_version": 1,
     "site": "Pufferspeicher",
@@ -62,6 +73,10 @@ CFG = {
 }
 
 ROMS: dict[str, str] = {}
+
+# Wird in __main__ gesetzt: bildet die Attrappe das Kessel- oder das
+# Speicherboard nach?
+KESSELBOARD = False
 
 
 def wert(rolle: str, t: float | None = None) -> float:
@@ -116,6 +131,50 @@ def state() -> dict:
                        ("hk2_spreizung_k", "hk2_vl", "hk2_rl")]:
         if a in belegt and b in belegt:
             abgeleitet[name] = round(belegt[a] - belegt[b], 2)
+    brenner_laeuft = math.sin(2 * math.pi * time.time() / 900) > 0.2
+    laufzeit = 4 * 3600 + int(time.time()) % 1800
+    starts = 6
+
+    kreise = []
+    for i, c in enumerate(CFG.get("circuits", [])):
+        vl = belegt.get(f"hk{c['id']}_vl")
+        rl = belegt.get(f"hk{c['id']}_rl")
+        bedarf = c["id"] == 1
+        kreise.append({
+            "id": c["id"], "name": c["name"], "enabled": True,
+            "mode": c.get("mode", "auto"),
+            "on": bedarf,
+            "reason": "Abnehmer vorhanden" if bedarf else "kein Abnehmer",
+            "since_s": 1820 if bedarf else 640,
+            "demand": bedarf, "stale": False, "any_seen": True,
+            "vl_c": vl, "rl_c": rl,
+            "spread_k": None if vl is None or rl is None else round(vl - rl, 2),
+            "path": "mqtt",
+            "relay": {"known": True, "on": bedarf, "online": True, "age_s": 4,
+                      "mismatch": False},
+        })
+
+    quellen = []
+    for c in CFG.get("circuits", []):
+        for j, pid in enumerate(c["peers"]):
+            quellen.append({
+                "id": pid,
+                "site": {"fbh_c2e55c": "Keller", "fbh_a1b2c3": "Erdgeschoss",
+                         "fbh_d4e5f6": "Obergeschoss"}.get(pid, pid),
+                "host": f"192.168.1.{250 + j}",
+                "seen": True, "demand": c["id"] == 1 and j == 0,
+                "max_target": 1.0 if c["id"] == 1 and j == 0 else 0.0,
+                "open_channels": 2 if c["id"] == 1 and j == 0 else 0,
+                "rooms_calling": 1 if c["id"] == 1 and j == 0 else 0,
+                "age_s": 3, "errors": 0})
+
+    # Was das Geraet nicht selbst misst, kommt vom Nachbargeraet.
+    fremd = {r: wert(r) for r in ROLLEN if r not in belegt}
+    puffer = belegt.get("puffer", fremd.get("puffer"))
+    fuell = None if puffer is None else max(0.0, min(1.0, (puffer - 35.0) / 27.0))
+    kvl = belegt.get("kessel_vl", fremd.get("kessel_vl"))
+    krl = belegt.get("kessel_rl", fremd.get("kessel_rl"))
+
     return {
         "device": {"id": "heiz_3f21ac", "mac": "A0:B7:65:3F:21:AC", "site": CFG["site"],
                    "model": "Waermeerzeuger", "role": "heat"},
@@ -130,8 +189,44 @@ def state() -> dict:
                     "poll_s": CFG["poll_s"]},
         "probes": ps,
         "derived": abgeleitet,
+        "circuits": kreise,
+        "demand_sources": quellen,
+        "mqtt_connected": True,
+        "remote_probes": fremd,
+        "burner": {
+            "known": True,
+            "running": brenner_laeuft,
+            "abgas_c": belegt.get("abgas", fremd.get("abgas")),
+            "baseline_c": 21.4,
+            "since_s": 1240,
+            "runtime_today_s": laufzeit,
+            "starts_today": starts,
+            "runtime_yesterday_s": 5 * 3600 + 720,
+            "starts_yesterday": 7,
+            "litres_today": round(laufzeit / 3600 * 2.2, 2),
+            "short_cycling": False,
+        },
+        "charge": {
+            "phase": "wird geladen" if brenner_laeuft else "geladen",
+            "limited": False,
+            "warn_dhw": puffer is not None and puffer < 40.0,
+            "kessel_remote": "kessel_vl" not in belegt,
+            "since_s": 2400,
+            "level": None if fuell is None else round(fuell, 3),
+            "spread_k": None if kvl is None or krl is None else round(kvl - krl, 2),
+        },
+        "record": REC,
+        "heat_peers": [{
+            "id": "heiz_9a1b2c" if not args_kessel() else "heiz_3f21ac",
+            "site": "Kessel" if not args_kessel() else "Pufferspeicher",
+            "host": "192.168.1.52", "seen": True, "age_s": 4,
+            "roles": 3 if not args_kessel() else 6, "errors": 0}],
         "history_len": 1440,
     }
+
+
+def args_kessel() -> bool:
+    return KESSELBOARD
 
 
 def history(step: int, hoechstens: int) -> dict:
@@ -198,7 +293,13 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/peers":
             return self._send({"peers": [
                 {"id": "fbh_c2e55c", "site": "Keller", "role": "manifold",
-                 "host": "192.168.1.250", "hostname": "floor-heating"},
+                 "host": "192.168.1.250", "hostname": "floor-heating-keller"},
+                {"id": "fbh_a1b2c3", "site": "Erdgeschoss", "role": "manifold",
+                 "host": "192.168.1.251", "hostname": "floor-heating-eg"},
+                {"id": "fbh_d4e5f6", "site": "Obergeschoss", "role": "manifold",
+                 "host": "192.168.1.252", "hostname": "floor-heating-og"},
+                {"id": "heiz_9a1b2c", "site": "Kessel", "role": "heat",
+                 "host": "192.168.1.52", "hostname": "heizung-kessel"},
             ]})
         if u.path == "/api/wifi/scan":
             return self._send({"networks": [{"ssid": "Heimnetz", "rssi": -58, "secure": True},
@@ -228,7 +329,7 @@ if __name__ == "__main__":
     p.add_argument("--leer", action="store_true", help="kein Fuehler am Bus")
     p.add_argument("--port", type=int, default=8322)
     args = p.parse_args()
-
+    globals()["KESSELBOARD"] = args.kessel
     vorhanden = [] if args.leer else (KESSEL if args.kessel else SPEICHER)
     for i, rolle in enumerate(vorhanden):
         ROMS[rolle] = f"28FF{i:02X}1E8016{ord(rolle[0]):02X}4A"
@@ -236,6 +337,15 @@ if __name__ == "__main__":
         CFG["site"] = "Kessel"
     CFG["probes"] = [{"rom": ROMS[r], "role": r, "name": LABEL[r], "offset_k":
                       3.0 if r == "puffer" else 0.0} for r in vorhanden]
+    if not args.kessel:
+        CFG["circuits"] = [
+            {"id": k["id"], "name": k["name"], "enabled": True, "peers": k["peers"],
+             "vl_role": f"hk{k['id']}_vl", "rl_role": f"hk{k['id']}_rl",
+             "pump": {"topic": k["topic"], "host": "", "user": "", "relay": k["relay"],
+                      "pass_set": False},
+             "mode": "auto", "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
+             "min_buffer_c": 40.0, "frost_c": 6.0, "seize_days": 7}
+            for k in KREISE]
 
     print(f"Attrappe {'Kessel' if args.kessel else 'Speicher'} "
           f"auf http://localhost:{args.port}")

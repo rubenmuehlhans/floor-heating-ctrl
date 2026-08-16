@@ -41,6 +41,7 @@ Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 
 ## Inhalt
 
+- [Dokumentation](#dokumentation)
 - [Voraussetzungen](#voraussetzungen)
 - [Hardware](#hardware)
 - [Übersetzen und Einspielen](#übersetzen-und-einspielen)
@@ -60,6 +61,17 @@ Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 - [Fremdkomponenten](#fremdkomponenten)
 - [Lizenz](#lizenz)
 - [Marken](#marken)
+
+## Dokumentation
+
+| Dokument | Inhalt |
+|---|---|
+| [Benutzerhandbuch](docs/handbuch.md) | Bedienung, Einrichtung, Wartung und Fehlersuche — mit Aufnahmen beider Oberflächen |
+| [Konzept: Wärmeerzeugung und Pumpensteuerung](docs/konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Pumpenlogik |
+| [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md) | Aufteilung des Projekts und gemeinsame Komponenten |
+
+Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer das Gerät bedienen
+oder einrichten will, findet das im [Handbuch](docs/handbuch.md).
 
 ## Voraussetzungen
 
@@ -479,7 +491,18 @@ python3 tools/mock_heatsource.py
 ```
 
 Sie bildet ein Speicherboard nach; mit `--kessel` stattdessen ein Kesselboard,
-mit `--leer` ein Gerät ohne angeschlossene Fühler.
+mit `--leer` ein Gerät ohne angeschlossene Fühler. Aufrufbar unter
+`http://localhost:8322`.
+
+Die Aufnahmen dieser Seite und des Handbuchs entstehen gegen die beiden Attrappen:
+
+```bash
+tools/screenshots.sh        # Verteilerplatine, gegen mock_device.py
+tools/screenshots_heat.sh   # Heizungsgerät, gegen mock_heatsource.py
+```
+
+Beide Skripte prüfen nebenbei, dass die Oberfläche in beiden Farbschemata und in der
+schmalen Ansicht steht. Vorausgesetzt werden Google Chrome und ImageMagick.
 
 ## Prüfungen
 
@@ -490,7 +513,28 @@ ohne Hardware:
 make -C test/host
 ```
 
-Der Lauf umfasst 215 Prüfungen.
+Der Lauf umfasst 297 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
+Pumpensteuerung, Bedarfsauswertung, Brennererkennung und Ladezustand.
+
+Dazu prüft
+
+```bash
+python3 tools/check_www.py
+```
+
+dass die eingebetteten Oberflächen übersetzbar sind — der Skriptteil wird mit `node --check`
+geprüft. Anlass war, dass beim Bearbeiten zweimal ein Block an der falschen Stelle gelandet ist:
+einmal JavaScript im Stilblatt, einmal CSS im Skript. Im Quelltext fällt das nicht auf, im
+Browser bleibt die Seite leer.
+
+Gegen ein laufendes Gerät prüft
+
+```bash
+python3 tools/check_api.py 192.168.1.250
+```
+
+die Schnittstelle mit derselben Klasse, die auch die Home-Assistant-Integration benutzt. Beide
+Gerätearten werden erkannt.
 
 An der Hardware sind folgende Schritte vorgesehen:
 
