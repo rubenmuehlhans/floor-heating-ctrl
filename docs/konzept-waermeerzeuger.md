@@ -233,6 +233,22 @@ Kurven nachzuziehen.
 
 ## Anbindung des Sonoff-Relais
 
+Geschaltet wird auf einem von zwei Wegen. Ist ein Broker eingerichtet und die Verbindung steht,
+geht der Befehl über MQTT; das Relais meldet dann jede Änderung von selbst, auch eine von Hand
+am Gerät. Sonst genügt die Adresse des Relais: der Befehl geht unmittelbar an dessen
+Schnittstelle `/cm`, und die Antwort trägt den tatsächlichen Zustand. Zwischen zwei Aufrufen
+bleibt eine Änderung am Relais dabei unbemerkt, deshalb wird der Sollzustand zyklisch
+nachgesendet.
+
+```
+http://<adresse>/cm?cmnd=Power1%20ON        ->  {"POWER":"ON"}
+http://<adresse>/cm?cmnd=Var1%201           ->  {"Var1":"1"}
+```
+
+Verlangt das Relais eine Anmeldung, werden `&user=` und `&password=` angehängt.
+
+### Über MQTT
+
 | Richtung | Topic | Inhalt |
 |---|---|---|
 | Befehl | `cmnd/<topic>/POWER<n>` | `ON` / `OFF` |

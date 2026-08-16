@@ -278,6 +278,9 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddBoolToObject(j, "demand", c->demand);
         cJSON_AddBoolToObject(j, "stale", c->stale);
         cJSON_AddBoolToObject(j, "any_seen", c->any_seen);
+        cJSON_AddStringToObject(j, "path",
+                                c->path == PUMP_PATH_MQTT ? "mqtt"
+                                : (c->path == PUMP_PATH_HTTP ? "http" : "keiner"));
         if (c->vl_valid) {
             cJSON_AddNumberToObject(j, "vl_c", c->vl_c);
         } else {
@@ -299,6 +302,9 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddBoolToObject(rel, "online", c->relay_online);
         cJSON_AddNumberToObject(rel, "age_s", c->relay_age_s);
         cJSON_AddBoolToObject(rel, "mismatch", c->relay_mismatch);
+        if (c->path == PUMP_PATH_HTTP) {
+            cJSON_AddNumberToObject(rel, "status", c->last_status);
+        }
         cJSON_AddItemToArray(ck, j);
     }
 

@@ -21,6 +21,10 @@ static const char *TAG = "pumps";
 #define RESEND_MS 60000       /* Sollzustand zyklisch nachsenden */
 #define MISMATCH_MS 30000     /* danach gilt die Rueckmeldung als abweichend */
 #define HEARTBEAT_MS 60000    /* Lebenszeichen an das Relais */
+/* Nach einem erfolglosen HTTP-Versuch wird gewartet. Ohne das liefe die
+ * Aufgabe im Sekundentakt in den Zeitablauf und stuende dabei jedes Mal
+ * zwei Sekunden still. */
+#define HTTP_RETRY_MS 10000
 
 typedef struct {
     uint8_t id;
@@ -31,7 +35,11 @@ typedef struct {
     probe_role_t vl_role, rl_role;
 
     char topic[CFG_TOPIC_LEN];
+    char host[CFG_TOPIC_LEN];
+    char user[24];
+    char pass[48];
     uint8_t relay;
+    int last_status;          /* HTTP-Status des letzten Versuchs */
 
     /* Rueckmeldung des Relais. */
     bool relay_known, relay_on, relay_online;
@@ -39,6 +47,7 @@ typedef struct {
     uint32_t want_since_ms;   /* seit wann der Sollzustand anliegt */
     uint32_t last_sent_ms;
     bool last_sent_on;
+    uint32_t last_try_ms;     /* letzter Versuch, auch ein erfolgloser */
 
     bool demand, stale, any_seen;
 } circuit_t;
@@ -87,6 +96,9 @@ static void apply_config(void)
         z->vl_role = c->vl_role;
         z->rl_role = c->rl_role;
         snprintf(z->topic, sizeof(z->topic), "%s", c->pump_topic);
+        snprintf(z->host, sizeof(z->host), "%s", c->pump_host);
+        snprintf(z->user, sizeof(z->user), "%s", c->pump_user);
+        snprintf(z->pass, sizeof(z->pass), "%s", c->pump_pass);
         z->relay = c->pump_relay;
 
         z->cfg.overrun_s = c->overrun_s;
@@ -293,22 +305,122 @@ static void subscribe_relays(void *ctx)
     }
 }
 
-/* Sendet den Sollzustand, wenn er sich geaendert hat oder lange her ist. */
+/*
+ * Befehl unmittelbar ueber die Tasmota-Schnittstelle /cm.
+ *
+ * Der Weg ohne Broker. Die Antwort traegt den tatsaechlichen Zustand des
+ * Relais -- damit ersetzt ein Aufruf zugleich die Rueckmeldung, die ueber MQTT
+ * von selbst kaeme. Zwischen zwei Aufrufen bleibt eine Aenderung am Relais
+ * allerdings unbemerkt; deshalb wird der Sollzustand zyklisch nachgesendet.
+ */
+/* Rueckgabe: HTTP-Status, oder -1 wenn keine Verbindung zustande kam. */
+static int http_cmd(const circuit_t *z, const char *cmnd, bool *out_on)
+{
+    char url[224];
+    int n = snprintf(url, sizeof(url), "http://%s/cm?cmnd=%s", z->host, cmnd);
+    if (z->user[0] && n > 0 && n < (int)sizeof(url)) {
+        snprintf(url + n, sizeof(url) - n, "&user=%s&password=%s", z->user, z->pass);
+    }
+
+    esp_http_client_config_t hc = {
+        .url = url,
+        .timeout_ms = HTTP_TIMEOUT_MS,
+    };
+    esp_http_client_handle_t cl = esp_http_client_init(&hc);
+    if (cl == NULL) {
+        return -1;
+    }
+
+    int status = -1;
+    char body[192];
+    if (esp_http_client_open(cl, 0) == ESP_OK) {
+        esp_http_client_fetch_headers(cl);
+        int r = esp_http_client_read(cl, body, sizeof(body) - 1);
+        status = esp_http_client_get_status_code(cl);
+        if (r > 0 && status == 200) {
+            body[r] = '\0';
+            /* Antwort ist {"POWER":"ON"} oder {"POWER2":"OFF"}; bei einem
+             * einzigen Relais laesst Tasmota die Nummer weg. */
+            if (out_on != NULL) {
+                cJSON *root = cJSON_Parse(body);
+                if (root != NULL) {
+                    const cJSON *e = NULL;
+                    cJSON_ArrayForEach(e, root) {
+                        if (e->string && strncmp(e->string, "POWER", 5) == 0 &&
+                            cJSON_IsString(e)) {
+                            *out_on = strcmp(e->valuestring, "ON") == 0;
+                            break;
+                        }
+                    }
+                    cJSON_Delete(root);
+                }
+            }
+        }
+        esp_http_client_close(cl);
+    }
+    esp_http_client_cleanup(cl);
+    return status;
+}
+
+/*
+ * Sendet den Sollzustand, wenn er sich geaendert hat oder lange her ist.
+ *
+ * Bevorzugt wird MQTT, sobald die Verbindung steht: dort meldet das Relais
+ * jede Aenderung von selbst, auch eine von Hand am Geraet. Ohne Broker geht
+ * derselbe Befehl unmittelbar per HTTP hinaus.
+ */
 static void push_relay(circuit_t *z, uint32_t t)
 {
-    if (z->topic[0] == '\0' || !mqttc_connected()) {
+    bool per_mqtt = z->topic[0] != '\0' && mqttc_connected();
+    bool per_http = !per_mqtt && z->host[0] != '\0';
+    if (!per_mqtt && !per_http) {
         return;
     }
+
     bool faellig = z->last_sent_ms == 0 || z->last_sent_on != z->st.on ||
                    (t - z->last_sent_ms) >= RESEND_MS;
     if (!faellig) {
         return;
     }
-    char topic[CFG_TOPIC_LEN + 24];
-    snprintf(topic, sizeof(topic), "cmnd/%s/POWER%u", z->topic, (unsigned)z->relay);
-    if (mqttc_publish(topic, z->st.on ? "ON" : "OFF", false) == ESP_OK) {
+    /* Erfolglose Versuche nicht im Sekundentakt wiederholen. */
+    if (z->last_try_ms != 0 && (t - z->last_try_ms) < HTTP_RETRY_MS && per_http) {
+        return;
+    }
+    z->last_try_ms = t;
+
+    if (per_mqtt) {
+        char topic[CFG_TOPIC_LEN + 24];
+        snprintf(topic, sizeof(topic), "cmnd/%s/POWER%u", z->topic, (unsigned)z->relay);
+        if (mqttc_publish(topic, z->st.on ? "ON" : "OFF", false) == ESP_OK) {
+            z->last_sent_ms = t;
+            z->last_sent_on = z->st.on;
+            z->last_status = 0; /* ueber MQTT gibt es keinen Status */
+        }
+        return;
+    }
+
+    char cmnd[32];
+    snprintf(cmnd, sizeof(cmnd), "Power%u%%20%s", (unsigned)z->relay, z->st.on ? "ON" : "OFF");
+    bool ist = false;
+    int status = http_cmd(z, cmnd, &ist);
+    z->last_status = status;
+
+    if (status == 200) {
         z->last_sent_ms = t;
         z->last_sent_on = z->st.on;
+        z->relay_known = true;
+        z->relay_on = ist;
+        z->relay_online = true;
+        z->relay_seen_ms = t;
+    } else {
+        z->relay_online = false;
+        if (status < 0) {
+            ESP_LOGW(TAG, "Relais %s nicht erreichbar", z->host);
+        } else {
+            /* Verbindung stand, aber die Antwort passt nicht: falsche Adresse,
+             * fehlende Anmeldung oder gar kein Tasmota. */
+            ESP_LOGW(TAG, "Relais %s antwortet mit %d", z->host, status);
+        }
     }
 }
 
@@ -319,17 +431,19 @@ static void push_relay(circuit_t *z, uint32_t t)
  */
 static void push_heartbeat(uint32_t t)
 {
-    if (t - s_heartbeat_ms < HEARTBEAT_MS || !mqttc_connected()) {
+    if (t - s_heartbeat_ms < HEARTBEAT_MS) {
         return;
     }
     s_heartbeat_ms = t;
     for (uint8_t i = 0; i < s_circ_count; i++) {
-        if (s_circ[i].topic[0] == '\0') {
-            continue;
+        circuit_t *z = &s_circ[i];
+        if (z->topic[0] != '\0' && mqttc_connected()) {
+            char topic[CFG_TOPIC_LEN + 24];
+            snprintf(topic, sizeof(topic), "cmnd/%s/Var1", z->topic);
+            mqttc_publish(topic, "1", false);
+        } else if (z->host[0] != '\0') {
+            http_cmd(z, "Var1%201", NULL);
         }
-        char topic[CFG_TOPIC_LEN + 24];
-        snprintf(topic, sizeof(topic), "cmnd/%s/Var1", s_circ[i].topic);
-        mqttc_publish(topic, "1", false);
     }
 }
 
@@ -526,6 +640,9 @@ size_t pumps_status(circuit_status_t *out, size_t max)
         o->relay_age_s = z->relay_seen_ms ? (t - z->relay_seen_ms) / 1000 : 0;
         o->relay_mismatch = z->relay_known && z->relay_on != z->st.on &&
                             z->last_sent_ms != 0 && (t - z->last_sent_ms) > MISMATCH_MS;
+        o->path = (z->topic[0] != '\0' && mqttc_connected()) ? PUMP_PATH_MQTT
+                  : (z->host[0] != '\0' ? PUMP_PATH_HTTP : PUMP_PATH_NONE);
+        o->last_status = z->last_status;
     }
     xSemaphoreGive(s_mtx);
     return n;

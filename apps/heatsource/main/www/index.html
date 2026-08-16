@@ -332,8 +332,8 @@ tr.warm td{background:var(--heat-soft)}
   <section id="ov" class="on">
     <div class="card">
       <h2>Anlage</h2>
-      <p class="lede">Kessel, Pufferspeicher und die beiden Heizkreise. Messwerte stehen dort,
-         wo der Fühler sitzt. Blass dargestellte Werte misst ein anderes Gerät.</p>
+      <p class="lede">Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen
+         dort, wo der Fühler sitzt. Blass dargestellte Werte misst ein anderes Gerät.</p>
       <div class="schema" id="schema"></div>
     </div>
     <div class="card">
@@ -347,7 +347,9 @@ tr.warm td{background:var(--heat-soft)}
     <div class="card" id="circ-none" hidden>
       <h2>Keine Heizkreise angelegt</h2>
       <p class="lede">Heizkreise werden auf dem Gerät am Pufferspeicher angelegt — dort hängt
-         das Relais der Umwälzpumpen. Am Kessel bleibt dieser Bereich leer.</p>
+         das Relais der Umwälzpumpen. Am Kessel bleibt dieser Bereich leer. Vorgesehen sind
+         bis zu vier Kreise; jeder bekommt eigene Fühler, ein eigenes Relais und eigene
+         Zeiten.</p>
       <div class="actions"><button class="btn" id="circ-add">Heizkreis anlegen</button></div>
     </div>
     <div id="circ-list"></div>
@@ -491,11 +493,12 @@ const ROLES = [
   ["kessel_rl",    "Kessel Rücklauf",        "cold"],
   ["puffer",       "Pufferspeicher",         "hot"],
   ["puffer_unten", "Pufferspeicher unten",   "cold"],
-  ["hk1_vl",       "Heizkreis 1 Vorlauf",    "hot"],
-  ["hk1_rl",       "Heizkreis 1 Rücklauf",   "cold"],
-  ["hk2_vl",       "Heizkreis 2 Vorlauf",    "hot"],
-  ["hk2_rl",       "Heizkreis 2 Rücklauf",   "cold"],
+  ...[1, 2, 3, 4].flatMap(n => [
+    [`hk${n}_vl`, `Heizkreis ${n} Vorlauf`,  "hot"],
+    [`hk${n}_rl`, `Heizkreis ${n} Rücklauf`, "cold"],
+  ]),
 ];
+const MAX_CIRCUITS = 4;
 const ROLE_LABEL = Object.fromEntries(ROLES.map(r => [r[0], r[1]]));
 const ROLE_TONE  = Object.fromEntries(ROLES.map(r => [r[0], r[2]]));
 
@@ -601,9 +604,11 @@ function renderSchema() {
      gemeint ist, ergibt sich aus der Stelle. Die vollen Namen stehen in den
      Kacheln darunter. */
   const KURZ = {abgas:"Abgas", kessel_vl:"Vorlauf", kessel_rl:"Rücklauf",
-                puffer:"oben", puffer_unten:"unten",
-                hk1_vl:"Vorlauf", hk1_rl:"Rücklauf",
-                hk2_vl:"Vorlauf", hk2_rl:"Rücklauf"};
+                puffer:"oben", puffer_unten:"unten"};
+  for (let n = 1; n <= MAX_CIRCUITS; n++) {
+    KURZ[`hk${n}_vl`] = "Vorlauf";
+    KURZ[`hk${n}_rl`] = "Rücklauf";
+  }
 
   /* Messpunkt: Bezeichnung, darunter der Wert in der Farbe des Mediums. Fehlt
      der Fühler auf diesem Gerät, wird der Wert des Nachbargeräts blass
@@ -625,10 +630,44 @@ function renderSchema() {
   /* Füllstand nur als grobe Andeutung zwischen 30 und 65 Grad. */
   const puffer = valueOf("puffer");
   const anteil = puffer ? Math.max(0, Math.min(1, (puffer.c - 30) / 35)) : 0;
-  const hoehe = Math.round(174 * anteil);
+
+  /*
+   * Die Zahl der Heizkreise steht nicht fest. Gezeichnet werden die
+   * angelegten; ist keiner angelegt — etwa am Kessel —, bleibt die rechte
+   * Seite frei. Die Höhe des Speichers wächst mit.
+   */
+  const kreise = (state?.circuits || []).map(k => ({
+    id: k.id, name: k.name,
+    vl: `hk${k.id}_vl`, rl: `hk${k.id}_rl`,
+  }));
+
+  const ABSTAND = 116;               // senkrechter Abstand zweier Kreise
+  const OBEN = 96;                   // Vorlauf des ersten Kreises
+  const hoeheKreise = kreise.length ? OBEN + (kreise.length - 1) * ABSTAND + 84 : 0;
+  const H = Math.max(268, hoeheKreise + 30);
+
+  const tankOben = 60;
+  const tankUnten = Math.max(238, kreise.length
+    ? OBEN + (kreise.length - 1) * ABSTAND + 40 : 238);
+  const tankHoehe = tankUnten - tankOben;
+  const fuell = Math.round((tankHoehe - 4) * anteil);
+
+  const kreisTeile = kreise.map((k, i) => {
+    const y = OBEN + i * ABSTAND;      // Vorlaufleitung
+    const yr = y + 36;                 // Rücklaufleitung
+    return `
+  <path class="sc-pipe hot" d="M360 ${y} H420"/>
+  <circle class="sc-body" cx="438" cy="${y}" r="16"/>
+  ${i === 0 ? L("Mischer", 438, y - 22) : ""}
+  <path class="sc-pipe hot" d="M454 ${y} H544"/>
+  ${M(k.vl, 556, y - 4, "start")}
+  <path class="sc-pipe cold" d="M544 ${yr} H360"/>
+  ${M(k.rl, 556, yr - 4, "start")}
+  ${L(k.name, 360, yr + 30, "start")}`;
+  }).join("");
 
   $("#schema").innerHTML = `
-<svg viewBox="0 0 720 286" role="img" aria-label="Anlagenschema">
+<svg viewBox="0 0 720 ${H}" role="img" aria-label="Anlagenschema">
   <!-- Abgasrohr -->
   <path class="sc-pipe hot" d="M86 100 V58"/>
   ${M("abgas", 100, 54, "start")}
@@ -645,31 +684,13 @@ function renderSchema() {
   ${M("kessel_rl", 196, 176, "middle", 32)}
 
   <!-- Pufferspeicher -->
-  <rect class="sc-body" x="248" y="60" width="112" height="178" rx="12"/>
-  <rect class="sc-fill" x="250" y="${236 - hoehe}" width="108" height="${hoehe}" rx="10"/>
-  ${L("Pufferspeicher", 304, 50)}
-  ${M("puffer", 304, 102)}
-  ${M("puffer_unten", 304, 194)}
-
-  <!-- Heizkreis 1: Keller und Erdgeschoss -->
-  <path class="sc-pipe hot" d="M360 96 H420"/>
-  <circle class="sc-body" cx="438" cy="96" r="16"/>
-  ${L("Mischer", 438, 74)}
-  <path class="sc-pipe hot" d="M454 96 H544"/>
-  ${M("hk1_vl", 556, 92, "start")}
-  <path class="sc-pipe cold" d="M544 132 H360"/>
-  ${M("hk1_rl", 556, 128, "start")}
-  ${L("Heizkreis 1 · Keller und Erdgeschoss", 360, 162, "start")}
-
-  <!-- Heizkreis 2: Obergeschoss -->
-  <path class="sc-pipe hot" d="M360 200 H420"/>
-  <circle class="sc-body" cx="438" cy="200" r="16"/>
-  ${L("Mischer", 438, 178)}
-  <path class="sc-pipe hot" d="M454 200 H544"/>
-  ${M("hk2_vl", 556, 196, "start")}
-  <path class="sc-pipe cold" d="M544 232 H360"/>
-  ${M("hk2_rl", 556, 228, "start")}
-  ${L("Heizkreis 2 · Obergeschoss", 360, 262, "start")}
+  <rect class="sc-body" x="248" y="${tankOben}" width="112" height="${tankHoehe}" rx="12"/>
+  <rect class="sc-fill" x="250" y="${tankUnten - 2 - fuell}" width="108"
+        height="${fuell}" rx="10"/>
+  ${L("Pufferspeicher", 304, tankOben - 10)}
+  ${M("puffer", 304, tankOben + 42)}
+  ${M("puffer_unten", 304, tankUnten - 44)}
+  ${kreisTeile}
 </svg>`;
 }
 
@@ -733,7 +754,13 @@ function renderCircuits() {
     if (k.relay.known && !k.relay.mismatch)
       marken.push(`<span class="chip ${k.relay.on ? "heat" : "plain"}">Relais ${
         k.relay.on ? "ein" : "aus"}</span>`);
-    if (!state.mqtt_connected) marken.push(`<span class="chip warn">ohne Broker</span>`);
+    if (k.path === "keiner")
+      marken.push(`<span class="chip warn">kein Weg zum Relais</span>`);
+    else
+      marken.push(`<span class="chip plain">über ${k.path === "http" ? "HTTP" : "MQTT"}</span>`);
+    if (k.path === "http" && k.relay.status !== undefined && k.relay.status !== 200)
+      marken.push(`<span class="chip bad">${k.relay.status < 0
+        ? "Relais nicht erreichbar" : `Relais antwortet mit ${k.relay.status}`}</span>`);
 
     const quellzeilen = meine.length ? meine.map(q => `<div class="src">
         <span class="chip ${q.demand ? "heat" : "plain"}">${q.demand ? "Bedarf" : "kein Bedarf"}</span>
@@ -772,13 +799,24 @@ function renderCircuits() {
       ${quellzeilen}
 
       <h3 class="sub">Einstellungen</h3>
+      <p class="lede">Geschaltet wird über MQTT, sobald ein Broker eingerichtet ist — dann
+         meldet das Relais jede Änderung von selbst, auch eine von Hand am Gerät. Ist kein
+         Broker vorhanden, genügt die Adresse des Relais: der Befehl geht dann unmittelbar
+         über dessen Weboberfläche hinaus.</p>
       <div class="fields">
         <label>Name<input data-k="name" value="${c.name || ""}" maxlength="31"
                style="width:13rem"></label>
-        <label>Relais-Thema<input data-k="topic" value="${c.pump?.topic || ""}"
+        <label>Relais-Thema (MQTT)<input data-k="topic" value="${c.pump?.topic || ""}"
                placeholder="pumpe_hk1" style="width:11rem"></label>
+        <label>Relais-Adresse (HTTP)<input data-k="host" value="${c.pump?.host || ""}"
+               placeholder="192.168.1.60" style="width:11rem"></label>
         <label>Relaisnummer<input type="number" data-k="relay" min="1" max="8"
                value="${c.pump?.relay ?? 1}" style="width:5rem"></label>
+        <label>Benutzer am Relais<input data-k="puser" value="${c.pump?.user || ""}"
+               style="width:8rem"></label>
+        <label>Kennwort am Relais<input data-k="ppass" type="password"
+               placeholder="${c.pump?.pass_set ? "gespeichert" : "nicht gesetzt"}"
+               style="width:8rem"></label>
         <label>Nachlauf (s)<input type="number" data-k="overrun_s" min="0" max="3600"
                value="${c.overrun_s ?? 300}" style="width:6rem"></label>
         <label>Mindestlaufzeit (s)<input type="number" data-k="min_run_s" min="0" max="3600"
@@ -810,7 +848,14 @@ function collectCircuit(id) {
     ...alt,
     id,
     name: v("name").trim() || `Heizkreis ${id}`,
-    pump: {topic: v("topic").trim(), relay: parseInt(v("relay"), 10) || 1},
+    pump: {
+      topic: v("topic").trim(),
+      host: v("host").trim(),
+      user: v("puser").trim(),
+      relay: parseInt(v("relay"), 10) || 1,
+      /* Ein leeres Feld laesst das gespeicherte Kennwort stehen. */
+      ...(v("ppass") ? {pass: v("ppass")} : {}),
+    },
     overrun_s: parseInt(v("overrun_s"), 10),
     min_run_s: parseInt(v("min_run_s"), 10),
     min_pause_s: parseInt(v("min_pause_s"), 10),
@@ -1179,8 +1224,10 @@ async function boot() {
 
   $("#circ-add").onclick = () => {
     const vorhanden = (cfg.circuits || []).map(c => c.id);
-    const id = vorhanden.includes(1) ? 2 : 1;
-    if (vorhanden.length >= 2) return toast("Mehr als zwei Heizkreise sind nicht vorgesehen", true);
+    if (vorhanden.length >= MAX_CIRCUITS)
+      return toast(`Mehr als ${MAX_CIRCUITS} Heizkreise sind nicht vorgesehen`, true);
+    let id = 1;
+    while (vorhanden.includes(id)) id++;
     saveConfig({circuits: [...(cfg.circuits || []), {id, name: `Heizkreis ${id}`}]},
                "Heizkreis angelegt");
   };

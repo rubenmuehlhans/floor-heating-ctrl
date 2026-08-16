@@ -51,6 +51,10 @@ static const struct {
     [ROLE_HK1_RL] = {"hk1_rl", "Heizkreis 1 Ruecklauf"},
     [ROLE_HK2_VL] = {"hk2_vl", "Heizkreis 2 Vorlauf"},
     [ROLE_HK2_RL] = {"hk2_rl", "Heizkreis 2 Ruecklauf"},
+    [ROLE_HK3_VL] = {"hk3_vl", "Heizkreis 3 Vorlauf"},
+    [ROLE_HK3_RL] = {"hk3_rl", "Heizkreis 3 Ruecklauf"},
+    [ROLE_HK4_VL] = {"hk4_vl", "Heizkreis 4 Vorlauf"},
+    [ROLE_HK4_RL] = {"hk4_rl", "Heizkreis 4 Ruecklauf"},
 };
 
 const char *cfg_role_key(probe_role_t role)
@@ -241,8 +245,12 @@ void cfg_circuit_defaults(cfg_circuit_t *c, uint8_t id)
     c->id = id;
     c->enabled = true;
     snprintf(c->name, sizeof(c->name), "Heizkreis %u", (unsigned)id);
-    c->vl_role = id == 1 ? ROLE_HK1_VL : ROLE_HK2_VL;
-    c->rl_role = id == 1 ? ROLE_HK1_RL : ROLE_HK2_RL;
+    /* Die Rollen ergeben sich aus der Kennung: Kreis 1 nimmt hk1_vl und
+     * hk1_rl, Kreis 2 die naechsten und so fort. */
+    if (id >= 1 && id <= CFG_MAX_CIRCUITS) {
+        c->vl_role = (probe_role_t)(ROLE_HK1_VL + 2 * (id - 1));
+        c->rl_role = (probe_role_t)(ROLE_HK1_RL + 2 * (id - 1));
+    }
     c->pump_relay = 1;
     c->mode = 0;
 
@@ -350,7 +358,14 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
         }
         cJSON *pump = cJSON_AddObjectToObject(j, "pump");
         cJSON_AddStringToObject(pump, "topic", c->pump_topic);
+        cJSON_AddStringToObject(pump, "host", c->pump_host);
+        cJSON_AddStringToObject(pump, "user", c->pump_user);
         cJSON_AddNumberToObject(pump, "relay", c->pump_relay);
+        if (include_secrets) {
+            cJSON_AddStringToObject(pump, "pass", c->pump_pass);
+        } else {
+            cJSON_AddBoolToObject(pump, "pass_set", c->pump_pass[0] != '\0');
+        }
         cJSON_AddStringToObject(j, "mode", c->mode == 1 ? "ein" : (c->mode == 2 ? "aus" : "auto"));
         cJSON_AddNumberToObject(j, "overrun_s", c->overrun_s);
         cJSON_AddNumberToObject(j, "min_run_s", c->min_run_s);
@@ -438,12 +453,21 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
 
     const cJSON *probes = cJSON_GetObjectItemCaseSensitive(root, "probes");
     if (cJSON_IsArray(probes)) {
+        if (cJSON_GetArraySize(probes) > CFG_MAX_PROBES) {
+            snprintf(err, err_len, "Hoechstens %d Fuehler moeglich", CFG_MAX_PROBES);
+            cJSON_Delete(root);
+            return ESP_ERR_INVALID_ARG;
+        }
+        /* Ein Eintrag wird mit dem bisherigen Stand derselben Kennung
+         * zusammengefuehrt. Sonst verloere eine Teilangabe -- etwa nur die
+         * Rolle -- den gespeicherten Korrekturwert. */
+        cfg_probe_t vorher[CFG_MAX_PROBES];
+        uint8_t vorher_count = out->probe_count;
+        memcpy(vorher, out->probes, sizeof(vorher));
+
         out->probe_count = 0;
         const cJSON *j = NULL;
         cJSON_ArrayForEach(j, probes) {
-            if (out->probe_count >= CFG_MAX_PROBES) {
-                break;
-            }
             cfg_probe_t *p = &out->probes[out->probe_count];
             memset(p, 0, sizeof(*p));
 
@@ -452,6 +476,12 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             p->rom = str_to_rom(rom);
             if (p->rom == 0) {
                 continue; /* Eintrag ohne brauchbare Kennung wird uebergangen */
+            }
+            for (uint8_t v = 0; v < vorher_count; v++) {
+                if (vorher[v].rom == p->rom) {
+                    *p = vorher[v];
+                    break;
+                }
             }
             char role[24] = {0};
             json_str(j, "role", role, sizeof(role));
@@ -468,15 +498,29 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
 
     const cJSON *kreise = cJSON_GetObjectItemCaseSensitive(root, "circuits");
     if (cJSON_IsArray(kreise)) {
+        if (cJSON_GetArraySize(kreise) > CFG_MAX_CIRCUITS) {
+            snprintf(err, err_len, "Hoechstens %d Heizkreise moeglich", CFG_MAX_CIRCUITS);
+            cJSON_Delete(root);
+            return ESP_ERR_INVALID_ARG;
+        }
+        cfg_circuit_t vorher[CFG_MAX_CIRCUITS];
+        uint8_t vorher_count = out->circuit_count;
+        memcpy(vorher, out->circuits, sizeof(vorher));
+
         out->circuit_count = 0;
         const cJSON *j = NULL;
         cJSON_ArrayForEach(j, kreise) {
-            if (out->circuit_count >= CFG_MAX_CIRCUITS) {
-                break;
-            }
             cfg_circuit_t *c = &out->circuits[out->circuit_count];
             uint8_t id = (uint8_t)json_num(j, "id", out->circuit_count + 1);
             cfg_circuit_defaults(c, id);
+            /* Bisherigen Stand derselben Kennung als Ausgangsbasis nehmen,
+             * damit eine Teilangabe die uebrigen Felder stehen laesst. */
+            for (uint8_t v = 0; v < vorher_count; v++) {
+                if (vorher[v].id == id) {
+                    *c = vorher[v];
+                    break;
+                }
+            }
 
             json_str(j, "name", c->name, sizeof(c->name));
             c->enabled = json_bool(j, "enabled", c->enabled);
@@ -508,6 +552,9 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             const cJSON *pump = cJSON_GetObjectItemCaseSensitive(j, "pump");
             if (cJSON_IsObject(pump)) {
                 json_str(pump, "topic", c->pump_topic, sizeof(c->pump_topic));
+                json_str(pump, "host", c->pump_host, sizeof(c->pump_host));
+                json_str(pump, "user", c->pump_user, sizeof(c->pump_user));
+                json_str(pump, "pass", c->pump_pass, sizeof(c->pump_pass));
                 c->pump_relay = (uint8_t)json_num(pump, "relay", c->pump_relay);
             }
 

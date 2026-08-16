@@ -39,6 +39,12 @@ typedef struct {
     uint32_t errors;
 } peer_demand_t;
 
+typedef enum {
+    PUMP_PATH_NONE = 0, /* weder Thema noch Adresse eingetragen */
+    PUMP_PATH_MQTT,
+    PUMP_PATH_HTTP,
+} pump_path_t;
+
 typedef struct {
     uint8_t id;
     char name[CFG_NAME_LEN];
@@ -61,6 +67,11 @@ typedef struct {
     bool relay_online;
     uint32_t relay_age_s;
     bool relay_mismatch;   /* Rueckmeldung weicht laenger vom Sollwert ab */
+    /* Welcher Weg zum Relais gerade gilt -- nicht, welcher zuletzt geklappt
+     * hat: die Oberflaeche soll zeigen, worueber geschaltet wird, auch wenn
+     * das Relais gerade nicht antwortet. */
+    pump_path_t path;
+    int last_status;       /* HTTP-Status des letzten Versuchs, -1 = keine Verbindung */
 } circuit_status_t;
 
 esp_err_t pumps_start(void);

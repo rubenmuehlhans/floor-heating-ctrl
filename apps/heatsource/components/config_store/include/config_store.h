@@ -34,7 +34,7 @@ extern "C" {
 #define CFG_TZ_LEN       48
 #define CFG_MAX_PROBES   12
 #define CFG_MAX_BUSES    2
-#define CFG_MAX_CIRCUITS 2
+#define CFG_MAX_CIRCUITS 4
 #define CFG_MAX_PEERS    4
 #define CFG_ID_LEN       24
 #define CFG_TOPIC_LEN    48
@@ -52,10 +52,17 @@ typedef enum {
     ROLE_KESSEL_RL,
     ROLE_PUFFER,
     ROLE_PUFFER_UNTEN,
+    /* Je Heizkreis ein Vor- und ein Ruecklauffuehler. Vier Kreise aus einem
+     * Pufferspeicher decken auch groessere Haeuser ab; die Rollen sind
+     * durchnummeriert, damit sich ein Kreis ohne Sonderfall anlegen laesst. */
     ROLE_HK1_VL,
     ROLE_HK1_RL,
     ROLE_HK2_VL,
     ROLE_HK2_RL,
+    ROLE_HK3_VL,
+    ROLE_HK3_RL,
+    ROLE_HK4_VL,
+    ROLE_HK4_RL,
     ROLE_COUNT
 } probe_role_t;
 
@@ -84,8 +91,17 @@ typedef struct {
     uint8_t peer_count;
     char peers[CFG_MAX_PEERS][CFG_ID_LEN];   /* Geraetekennungen, etwa fbh_c2e55c */
 
+    /*
+     * Tasmota laesst sich auf zwei Wegen schalten. Ueber MQTT, sobald ein
+     * Broker eingerichtet ist -- dann kommt die Rueckmeldung von selbst. Sonst
+     * unmittelbar ueber HTTP an /cm; das braucht keinen Broker, liefert die
+     * Rueckmeldung aber nur als Antwort auf den eigenen Befehl.
+     */
     char pump_topic[CFG_TOPIC_LEN];          /* Tasmota-Thema, etwa pumpe_hk1 */
-    uint8_t pump_relay;                      /* 1..4 */
+    char pump_host[CFG_TOPIC_LEN];           /* Adresse fuer HTTP, leer = nur MQTT */
+    char pump_user[24];                      /* nur wenn das Relais eines verlangt */
+    char pump_pass[48];
+    uint8_t pump_relay;                      /* 1..8 */
 
     uint8_t mode;               /* 0 = auto, 1 = ein, 2 = aus */
 
