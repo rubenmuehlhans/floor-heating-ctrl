@@ -159,6 +159,12 @@ static void discover(void)
     xSemaphoreGive(s_mtx);
 
     if (n != vorher_count || n == 0) {
+        if (n == 0 && s_bus_count > 0) {
+            /* Der haeufigste Grund ist der falsche Anschluss, der zweite ein
+             * fehlender Anschlusswiderstand. Beides steht damit nebeneinander. */
+            ESP_LOGW(TAG, "Kein Fuehler an GPIO %d -- Anschluss und "
+                          "Anschlusswiderstand nach 3,3 V pruefen", s_pin[0]);
+        }
         ESP_LOGI(TAG, "%u Fuehler an %u Bussen gefunden", (unsigned)n, (unsigned)s_bus_count);
     }
     for (size_t i = 0; i < n; i++) {
@@ -346,6 +352,15 @@ static esp_err_t open_all(const int *pins, size_t pin_count)
             continue;
         }
         s_bus_count++;
+    }
+    /*
+     * Die belegten Anschluesse gleich beim Anlegen nennen. Ohne das steht die
+     * Nummer erst in der Meldung nach dem dritten Fehlversuch -- und beim
+     * Suchen eines stummen Busses ist die erste Frage immer, ob ueberhaupt der
+     * richtige Anschluss abgesucht wird.
+     */
+    for (size_t b = 0; b < s_bus_count; b++) {
+        ESP_LOGI(TAG, "Bus %u an GPIO %d", (unsigned)(b + 1), s_pin[b]);
     }
     return s_bus_count > 0 ? ESP_OK : ESP_ERR_NOT_FOUND;
 }

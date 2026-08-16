@@ -82,7 +82,7 @@ REC_TAIL_S = 600
 CFG = {
     "cfg_version": 1,
     "site": "Pufferspeicher",
-    "onewire_pin": [23, -1],
+    "onewire_pin": [13, -1],
     "poll_s": 10,
     "probes": [],
     "reboot_hour": -1,

@@ -275,7 +275,26 @@ nicht.
 ### Anschluss des Busses
 
 Der 1-Wire-Bus hängt an einem frei wählbaren Anschluss und braucht einen Anschlusswiderstand
-von **4,7 kΩ nach 3,3 V**. Die Wahl steht im Einrichtungsassistenten und später unter
+**nach 3,3 V** — einen je Bus, am Gerät, nicht am Fühler.
+
+| Leitungslänge | Widerstand | Kabel |
+|---|---|---|
+| bis etwa 10 m | 4,7 kΩ | beliebig |
+| 10 bis 50 m | 2,2 bis 3,3 kΩ | verdrillt, DQ mit GND als Paar |
+| darüber | eigener 1-Wire-Treiber vorsehen | verdrillt und geschirmt |
+
+Bei langer Leitung begrenzt nicht der Spannungsabfall, sondern die Kapazität der Leitung: Sie
+macht die steigende Flanke träge. Dagegen hilft ein kleinerer Widerstand, keine höhere Spannung.
+Drei Fühler ziehen zusammen rund 4,5 mA; auf 30 m Alarmkabel sind das etwa 20 mV Abfall.
+
+Die Fühler werden mit **3,3 V** versorgt, nicht mit 5 V. Der Anschluss des ESP32 verträgt
+höchstens 3,6 V, und mit 5 V am Fühler steigt dessen Erkennungsschwelle über den Pegel, den ein
+Widerstand nach 3,3 V erzeugt — die Kombination aus 5 V am Fühler und 3,3 V am Widerstand
+schweigt deshalb, und die umgekehrte belastet den Anschluss über seinen Grenzwert.
+
+Versorgt werden die Fühler regulär über VDD, nicht parasitär: Die Firmware startet die Messung
+mit einem Sammelbefehl an alle Fühler zugleich, und dafür reicht der Strom aus der Datenleitung
+nicht. Die Wahl steht im Einrichtungsassistenten und später unter
 **System → 1-Wire-Bus**; eine Änderung wirkt sofort, ein Neustart ist nicht nötig.
 
 | Anschluss | Geeignet |

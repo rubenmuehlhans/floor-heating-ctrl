@@ -1226,7 +1226,7 @@ async function saveConfig(patch, meldung) {
 
 /* ---------------- Einrichtungsassistent ---------------- */
 
-let wizStep = 0, wizSite = "", wizPin = 23;
+let wizStep = 0, wizSite = "", wizPin = 13;
 
 const WIZ = [
   {t:"Willkommen", n:"Bezeichnung"},
@@ -1243,7 +1243,7 @@ const GPIO_EMPFOHLEN = [13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
 function openWizard() {
   wizStep = 0;
   wizSite = cfg?.site || "";
-  wizPin = cfg?.onewire_pin?.[0] ?? 23;
+  wizPin = cfg?.onewire_pin?.[0] ?? 13;
   $("#wizard").hidden = false;
   renderWizard();
 }

@@ -95,7 +95,10 @@ void cfg_defaults(app_config_t *out)
      * durch den Assistenten. */
     out->site[0] = '\0';
 
-    out->onewire_pin[0] = 23;
+    /* GPIO 13: beide Heizungsgeraete sind so verdrahtet, und der Anschluss
+     * liegt an der Stiftleiste guenstig. Umstellen laesst er sich im
+     * Einrichtungsassistenten und spaeter unter System. */
+    out->onewire_pin[0] = 13;
     out->onewire_pin[1] = -1;
     out->poll_s = 10;
     out->probe_count = 0;

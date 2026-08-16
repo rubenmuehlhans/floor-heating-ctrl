@@ -480,7 +480,7 @@ laufenden Verteiler-Firmware verändert, ohne dass jemand danach gefragt hätte.
 
 Zur ersten Inbetriebnahme eines Heizungsgeräts: Nach dem Einspielen öffnet es einen
 Zugangspunkt `heizung-XXXX`, danach führt der Assistent durch Bezeichnung und
-Fühlerzuordnung. Der 1-Wire-Anschluss steht unter **System** und ist auf GPIO 23
+Fühlerzuordnung. Der 1-Wire-Anschluss steht unter **System** und ist auf GPIO 13
 voreingestellt; weicht die vorhandene Verdrahtung ab, wird er dort eingetragen und das Gerät
 neu gestartet.
 
