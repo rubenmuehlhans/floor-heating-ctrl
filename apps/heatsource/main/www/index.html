@@ -348,9 +348,10 @@ tr.warm td{background:var(--heat-soft)}
   <section id="sys">
     <div class="card">
       <h2>Gerät</h2>
+      <p class="lede">Die Bezeichnung steht in der Kopfzeile und macht das Gerät für die
+         anderen Platinen im Haus auffindbar.</p>
       <div class="fields">
-        <label>Bezeichnung<input id="s-site" maxlength="31"></label>
-        <label>Netzname<input id="s-host" maxlength="31"></label>
+        <label>Bezeichnung<input id="s-site" maxlength="31" style="width:15rem"></label>
       </div>
       <div class="actions"><button class="btn" id="s-dev-save">Speichern</button></div>
     </div>
@@ -370,15 +371,22 @@ tr.warm td{background:var(--heat-soft)}
     </div>
 
     <div class="card">
-      <h2>WLAN</h2>
-      <div class="fields">
-        <label>Netz<input id="s-ssid" list="s-nets" maxlength="32"></label>
-        <datalist id="s-nets"></datalist>
-        <label>Kennwort<input id="s-pass" type="password" placeholder="unverändert"></label>
+      <h2>Netzwerk</h2>
+      <div class="row">
+        <button class="btn quiet" id="s-scan">Netze suchen</button>
+        <select id="s-netlist" style="min-width:15rem">
+          <option value="">— Suchergebnis —</option></select>
       </div>
+      <div class="fields" style="margin-top:.9rem">
+        <label>WLAN-Name<input id="s-ssid" maxlength="32" style="width:15rem"></label>
+        <label>WLAN-Kennwort<input id="s-pass" type="password" style="width:15rem"></label>
+        <label>Gerätename im Netz<input id="s-host" maxlength="31" style="width:15rem"></label>
+        <label>Kennwort Zugangspunkt<input id="s-appass" type="password" style="width:15rem"></label>
+      </div>
+      <p class="lede" style="margin:.4rem 0 0">Kennwortfelder leer lassen, um das
+         gespeicherte Kennwort beizubehalten.</p>
       <div class="actions">
         <button class="btn" id="s-wifi-save">Speichern und verbinden</button>
-        <button class="btn quiet" id="s-scan">Netze suchen</button>
       </div>
     </div>
 
@@ -390,7 +398,7 @@ tr.warm td{background:var(--heat-soft)}
         <label class="inline"><input type="checkbox" id="s-mq-on">eingeschaltet</label>
         <label>Broker<input id="s-mq-uri" placeholder="mqtt://192.168.1.10:1883"></label>
         <label>Benutzer<input id="s-mq-user"></label>
-        <label>Kennwort<input id="s-mq-pass" type="password" placeholder="unverändert"></label>
+        <label>Kennwort<input id="s-mq-pass" type="password"></label>
         <label>Themenpräfix<input id="s-mq-prefix"></label>
       </div>
       <div class="actions"><button class="btn" id="s-mq-save">Speichern</button></div>
@@ -851,6 +859,9 @@ function renderSystem() {
   const setz = (sel, v) => { const e = $(sel); if (e !== document.activeElement) e.value = v; };
   setz("#s-site", cfg.site || "");
   setz("#s-host", cfg.wifi.hostname || "");
+  $("#s-pass").placeholder = cfg.wifi.pass_set ? "gespeichert" : "nicht gesetzt";
+  $("#s-appass").placeholder = cfg.wifi.ap_pass_set ? "gespeichert" : "nicht gesetzt";
+  $("#s-mq-pass").placeholder = cfg.mqtt.pass_set ? "gespeichert" : "nicht gesetzt";
   setz("#s-bus0", cfg.onewire_pin[0]);
   setz("#s-bus1", cfg.onewire_pin[1]);
   setz("#s-poll", cfg.poll_s);
@@ -1009,26 +1020,32 @@ async function boot() {
     catch (e) { toast(e.message, true); }
   };
 
-  $("#s-dev-save").onclick = () => saveConfig({
-    site: $("#s-site").value.trim(),
-    wifi: {hostname: $("#s-host").value.trim()},
-  });
+  $("#s-dev-save").onclick = () => saveConfig({site: $("#s-site").value.trim()});
   $("#s-bus-save").onclick = () => saveConfig({
     onewire_pin: [parseInt($("#s-bus0").value, 10), parseInt($("#s-bus1").value, 10)],
     poll_s: parseInt($("#s-poll").value, 10),
   }, "Gespeichert, wirkt nach dem Neustart");
   $("#s-wifi-save").onclick = () => {
-    const w = {ssid: $("#s-ssid").value.trim()};
+    const w = {ssid: $("#s-ssid").value.trim(), hostname: $("#s-host").value.trim()};
     if ($("#s-pass").value) w.pass = $("#s-pass").value;
-    saveConfig({wifi: w}, "WLAN gespeichert, Verbindung wird neu aufgebaut");
+    if ($("#s-appass").value) w.ap_pass = $("#s-appass").value;
+    saveConfig({wifi: w}, "Netzwerk gespeichert, Verbindung wird neu aufgebaut");
   };
   $("#s-scan").onclick = async () => {
+    const b = $("#s-scan");
+    b.disabled = true; b.textContent = "sucht …";
     try {
       const d = await api("/api/wifi/scan");
-      $("#s-nets").innerHTML = (d.networks || [])
-        .map(n => `<option value="${n.ssid}">${n.rssi} dBm</option>`).join("");
-      toast(`${(d.networks || []).length} Netze gefunden`);
+      const netze = (d.networks || []).sort((a, x) => x.rssi - a.rssi);
+      $("#s-netlist").innerHTML = `<option value="">— bitte wählen —</option>`
+        + netze.map(n => `<option value="${n.ssid}">${n.ssid} · ${n.rssi} dBm · `
+                        + `${n.secure ? "gesichert" : "offen"}</option>`).join("");
+      if (!netze.length) toast("Kein Netz gefunden", true);
     } catch (e) { toast(e.message, true); }
+    b.disabled = false; b.textContent = "Netze suchen";
+  };
+  $("#s-netlist").onchange = e => {
+    if (e.target.value) $("#s-ssid").value = e.target.value;
   };
   $("#s-mq-save").onclick = () => {
     const m = {enabled: $("#s-mq-on").checked, uri: $("#s-mq-uri").value.trim(),

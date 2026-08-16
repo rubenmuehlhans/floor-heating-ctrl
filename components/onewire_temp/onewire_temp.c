@@ -19,6 +19,14 @@ static const char *TAG = "1wire";
 #define CONVERT_MS 800
 #define MIN_PERIOD_MS 1000
 
+/* Nach so vielen erfolglosen Ruecksetzungen wird der Bus neu aufgesetzt. */
+#define BUS_FAIL_LIMIT 3
+
+/* Solange kein Fuehler antwortet, wird in diesem Abstand erneut gesucht --
+ * sonst bliebe ein spaeter angeschlossener Fuehler bis zum Neustart
+ * unbemerkt. */
+#define IDLE_RESCAN_MS 60000
+
 typedef struct {
     ds18b20_device_handle_t dev;
     uint64_t rom;
@@ -30,6 +38,8 @@ static size_t s_bus_count;
 static int s_pin[OT_MAX_BUSES];
 
 static probe_t s_probe[OT_MAX_PROBES];
+/* Aufeinanderfolgende erfolglose Bus-Rücksetzungen je Bus. */
+static uint8_t s_fail[OT_MAX_BUSES];
 static ot_snapshot_t s_snap;
 static SemaphoreHandle_t s_mtx;
 static volatile bool s_rescan;
@@ -108,6 +118,9 @@ static void discover(void)
     size_t n = 0;
 
     for (size_t b = 0; b < s_bus_count && n < OT_MAX_PROBES; b++) {
+        if (s_bus[b] == NULL) {
+            continue;
+        }
         onewire_device_iter_handle_t iter = NULL;
         if (onewire_new_device_iter(s_bus[b], &iter) != ESP_OK) {
             continue;
@@ -145,12 +158,51 @@ static void discover(void)
     }
     xSemaphoreGive(s_mtx);
 
-    ESP_LOGI(TAG, "%u Fuehler an %u Bussen gefunden", (unsigned)n, (unsigned)s_bus_count);
+    if (n != vorher_count || n == 0) {
+        ESP_LOGI(TAG, "%u Fuehler an %u Bussen gefunden", (unsigned)n, (unsigned)s_bus_count);
+    }
     for (size_t i = 0; i < n; i++) {
         char rom[20];
         ot_rom_to_str(gefunden[i].rom, rom, sizeof(rom));
         ESP_LOGI(TAG, "  %s an GPIO %d", rom, s_pin[gefunden[i].bus]);
     }
+}
+
+/*
+ * Bus neu aufsetzen.
+ *
+ * Bleibt die Ruecksetzung mehrfach ohne Antwort, schaltet der RMT-Treiber den
+ * Kanal ab und meldet fortan nur noch "channel not in enable state" -- ohne
+ * Eingriff bliebe der Bus bis zum Neustart tot. Das trifft nicht nur den Fall
+ * "noch nichts angeschlossen", sondern auch einen kurzzeitigen Wackelkontakt
+ * im Betrieb.
+ */
+static bool open_bus(size_t b)
+{
+    onewire_bus_config_t bus_cfg = {
+        .bus_gpio_num = s_pin[b],
+    };
+    onewire_bus_rmt_config_t rmt_cfg = {
+        .max_rx_bytes = 10,
+    };
+    return onewire_new_bus_rmt(&bus_cfg, &rmt_cfg, &s_bus[b]) == ESP_OK;
+}
+
+static void recover_bus(size_t b)
+{
+    ESP_LOGW(TAG, "Bus an GPIO %d antwortet nicht, wird neu aufgesetzt", s_pin[b]);
+
+    /* Die Geraetezeiger verweisen auf den alten Bus und muessen zuerst weg. */
+    forget_all();
+    if (s_bus[b] != NULL) {
+        onewire_bus_del(s_bus[b]);
+        s_bus[b] = NULL;
+    }
+    if (!open_bus(b)) {
+        ESP_LOGE(TAG, "Bus an GPIO %d liess sich nicht neu anlegen", s_pin[b]);
+    }
+    s_fail[b] = 0;
+    s_rescan = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -161,13 +213,32 @@ static void discover(void)
 static void convert_all(void)
 {
     const uint8_t cmd[2] = {ONEWIRE_CMD_SKIP_ROM, 0x44};
+    bool gewandelt = false;
+
     for (size_t b = 0; b < s_bus_count; b++) {
-        if (onewire_bus_reset(s_bus[b]) != ESP_OK) {
-            continue; /* kein Fuehler am Bus */
+        if (s_bus[b] == NULL) {
+            continue;
         }
+        if (onewire_bus_reset(s_bus[b]) != ESP_OK) {
+            if (s_fail[b] < UINT8_MAX) {
+                s_fail[b]++;
+            }
+            continue; /* kein Fuehler am Bus oder Leitung gestoert */
+        }
+        s_fail[b] = 0;
         onewire_bus_write_bytes(s_bus[b], cmd, sizeof(cmd));
+        gewandelt = true;
     }
-    vTaskDelay(pdMS_TO_TICKS(CONVERT_MS));
+
+    for (size_t b = 0; b < s_bus_count; b++) {
+        if (s_fail[b] >= BUS_FAIL_LIMIT) {
+            recover_bus(b);
+        }
+    }
+
+    if (gewandelt) {
+        vTaskDelay(pdMS_TO_TICKS(CONVERT_MS));
+    }
 }
 
 static void read_all(void)
@@ -225,18 +296,32 @@ static void ot_task(void *arg)
 {
     (void)arg;
     discover();
+    uint32_t letzte_suche = now_ms();
 
     for (;;) {
+        bool leer;
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        leer = s_snap.count == 0;
+        xSemaphoreGive(s_mtx);
+
+        if (leer && now_ms() - letzte_suche >= IDLE_RESCAN_MS) {
+            s_rescan = true;
+        }
         if (s_rescan) {
             s_rescan = false;
+            letzte_suche = now_ms();
             discover();
         }
         uint32_t t0 = now_ms();
         convert_all();
         read_all();
 
+        /* Ist nichts angeschlossen, wird seltener nachgefasst: der Treiber
+         * meldet jede erfolglose Ruecksetzung, und das fuellt sonst das
+         * Protokoll, ohne dass es etwas zu messen gaebe. */
+        uint32_t takt = leer ? IDLE_RESCAN_MS : s_period_ms;
         uint32_t verbraucht = now_ms() - t0;
-        uint32_t rest = s_period_ms > verbraucht ? s_period_ms - verbraucht : 0;
+        uint32_t rest = takt > verbraucht ? takt - verbraucht : 0;
         if (rest > 0) {
             vTaskDelay(pdMS_TO_TICKS(rest));
         }
@@ -265,21 +350,11 @@ esp_err_t ot_start(const int *pins, size_t pin_count, uint32_t period_ms)
         if (pins[i] < 0) {
             continue;
         }
-        onewire_bus_config_t bus_cfg = {
-            .bus_gpio_num = pins[i],
-        };
-        onewire_bus_rmt_config_t rmt_cfg = {
-            .max_rx_bytes = 10,
-        };
-        onewire_bus_handle_t bus = NULL;
-        esp_err_t rc = onewire_new_bus_rmt(&bus_cfg, &rmt_cfg, &bus);
-        if (rc != ESP_OK) {
-            ESP_LOGE(TAG, "Bus an GPIO %d liess sich nicht anlegen: %s", pins[i],
-                     esp_err_to_name(rc));
+        s_pin[s_bus_count] = pins[i];
+        if (!open_bus(s_bus_count)) {
+            ESP_LOGE(TAG, "Bus an GPIO %d liess sich nicht anlegen", pins[i]);
             continue;
         }
-        s_pin[s_bus_count] = pins[i];
-        s_bus[s_bus_count] = bus;
         s_bus_count++;
     }
 

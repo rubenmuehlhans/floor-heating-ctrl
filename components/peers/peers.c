@@ -43,7 +43,13 @@ static void announce(void)
     mdns_hostname_set(s_hostname);
     mdns_instance_name_set(s_site[0] ? s_site : s_hostname);
 
-    mdns_service_remove(SERVICE_TYPE, SERVICE_PROTO);
+    /* Nur wenn schon einmal angemeldet wurde -- sonst meldet die
+     * mDNS-Komponente einen Fehler ueber einen nicht vorhandenen Dienst. */
+    static bool angemeldet;
+    if (angemeldet) {
+        mdns_service_remove(SERVICE_TYPE, SERVICE_PROTO);
+    }
+    angemeldet = true;
 
     mdns_txt_item_t txt[] = {
         {"id", s_own_id},
