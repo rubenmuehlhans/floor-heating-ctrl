@@ -94,6 +94,7 @@ darin; siehe [Lizenz](#lizenz).
 | [Benutzerhandbuch](docs/handbuch.md) | Bedienung, Einrichtung, Wartung und Fehlersuche — mit Aufnahmen beider Oberflächen |
 | [Konzept: Wärmeerzeugung und Pumpensteuerung](docs/konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Pumpenlogik |
 | [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md) | Aufteilung des Projekts und gemeinsame Komponenten |
+| [Konzept: Auswertung der Anlage](docs/konzept-auswertung.md) | Anomalien und Wirkungsgrad aus den erfassten Daten — Datengrundlage, Verfahren, Reihenfolge |
 
 Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer die Geräte bedienen
 oder einrichten will, findet das im [Handbuch](docs/handbuch.md).

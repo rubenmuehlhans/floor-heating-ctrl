@@ -19,6 +19,8 @@ python3 tools/mock_device.py &      && tools/screenshots.sh
 python3 tools/mock_heatsource.py &  && tools/screenshots_heat.sh
 ```
 
+Die Konzepte beschreiben, warum etwas so gebaut ist: [Wärmeerzeugung](konzept-waermeerzeuger.md), [Auswertung](konzept-auswertung.md) und der [Umbau auf zwei Anwendungen](umbau-projektstruktur.md).
+
 `screenshots.sh` legt die Aufnahmen der Verteilerplatine in `screenshots/` ab,
 `screenshots_heat.sh` die des Heizungsgeräts in `screenshots/heizung/`.
 Vorausgesetzt werden Google Chrome und ImageMagick.
