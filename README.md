@@ -139,25 +139,28 @@ Daraus folgt die zentrale Betriebsregel: **Innerhalb einer Messgruppe fährt
 immer nur ein Kreis.** Sonst liegt die Gegenspannung beider Motoren auf
 demselben Eingang und die Endlage ließe sich keinem Antrieb mehr zuordnen.
 Durchgesetzt wird das von der Gruppensperre in
-[`main/app_control.c`](main/app_control.c).
+[`apps/manifold/main/app_control.c`](apps/manifold/main/app_control.c).
 
 ## Übersetzen und Einspielen
 
-Vorausgesetzt wird ESP-IDF v6.0.2.
+Vorausgesetzt wird ESP-IDF v6.0.2. Das Repositorium enthält mehrere
+Anwendungen, die sich `components/` teilen; gebaut wird deshalb mit `-C` aus
+dem Verzeichnis der jeweiligen Anwendung. Die Verteiler-Firmware liegt unter
+`apps/manifold`.
 
 ```bash
-. ~/esp/esp-idf-6.0.2/export.sh && idf.py set-target esp32 && idf.py build
+. ~/esp/esp-idf-6.0.2/export.sh && idf.py -C apps/manifold set-target esp32 && idf.py -C apps/manifold build
 ```
 
 ```bash
-idf.py -p /dev/cu.usbserial-0001 flash monitor
+idf.py -C apps/manifold -p /dev/cu.usbserial-0001 flash monitor
 ```
 
 Spätere Aktualisierungen laufen über die Weboberfläche (System → Firmware
 aktualisieren) oder direkt:
 
 ```bash
-curl -X POST --data-binary @build/floor-heating-ctrl.bin http://<adresse>/api/ota
+curl -X POST --data-binary @apps/manifold/build/floor-heating-ctrl.bin http://<adresse>/api/ota
 ```
 
 Die Firmware belegt rund 1,2 MB. Die Partitionstabelle sieht zwei
@@ -415,15 +418,17 @@ Die folgenden Fälle ergeben sich aus dem beschriebenen Verhalten des Geräts.
 ## Aufbau des Quelltextbestands
 
 ```text
-main/
-  main.c          Start der Bausteine
-  app_control.c   Ventilzustände, Gruppensperre, Raumregelung   ← Kern
-  app_calib.c     Messfahrt und Auswertung der Schwellwerte
-  app_web.c       HTTP-Server, JSON-Schnittstelle, Captive Portal, OTA
-  app_mqtt.c      Home-Assistant-Discovery und Zustände
-  app_ui.c        Anzeige und Tasten am Gerät
-  www/index.html  Weboberfläche, komprimiert ins Programmabbild gelegt
-components/
+apps/manifold/    Verteiler-Firmware
+  main/
+    main.c        Start der Bausteine
+    app_control.c Ventilzustände, Gruppensperre, Raumregelung   ← Kern
+    app_calib.c   Messfahrt und Auswertung der Schwellwerte
+    app_web.c     HTTP-Server, JSON-Schnittstelle, Captive Portal, OTA
+    app_mqtt.c    Home-Assistant-Discovery und Zustände
+    app_ui.c      Anzeige und Tasten am Gerät
+    www/index.html  Weboberfläche, komprimiert ins Programmabbild gelegt
+cmake/embed_www   Bauregel: Oberfläche zusammenfügen, komprimieren, einbetten
+components/       von allen Anwendungen gemeinsam genutzt
   hw_map/         Pin- und Gruppentabellen — einzige Stelle mit Hardwarewissen
   sr74hc595/      Schieberegister mit Verriegelung IA gegen IB
   valve/          Zustandsmaschine je Kreis (frei von IDF-Abhängigkeiten)
@@ -442,7 +447,7 @@ test/host/        Prüfungen ohne IDF und ohne Hardware
 tools/            Geräteattrappe, Bildschirmaufnahmen, Prüfung der Schnittstelle
 custom_components/
                   Integration für Home Assistant (über HACS einzubinden)
-docs/screenshots/ Aufnahmen dieser Seite
+docs/             Konzepte und Aufnahmen dieser Seite
 ```
 
 ## Entwicklung ohne Hardware
@@ -460,6 +465,10 @@ direkt. Mit `/mock/ap?on=1` schaltet die Attrappe in den Zugangspunkt-Betrieb,
 sodass sich das Einrichtungsportal ansehen lässt. Aus diesen Ansichten erzeugt
 `tools/screenshots.sh` die Aufnahmen dieser Seite; vorausgesetzt werden Google
 Chrome und ImageMagick.
+
+Mit `--app` liefert die Attrappe die Oberfläche einer anderen Anwendung aus;
+der Port richtet sich dann nach der Anwendung, sofern `--port` nichts anderes
+vorgibt.
 
 ## Prüfungen
 

@@ -7,11 +7,15 @@ JSON-Schnittstelle des Geraets nach, einschliesslich ETag und 304.
 
     python3 tools/mock_device.py     ->  http://localhost:8321
 
+Mit --app laesst sich die Oberflaeche einer anderen Anwendung ausliefern; der
+Port ergibt sich dann aus der Anwendung, sofern nicht --port gesetzt ist.
+
 Zusaetzlich zur Geraeteschnittstelle:
     /mock/ap?on=1      Zugangspunkt-Betrieb (Einrichtungsportal)
     /mock/stats        Zaehler der beantworteten Anfragen
 """
 
+import argparse
 import json
 import math
 import random
@@ -20,7 +24,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-WWW = Path(__file__).resolve().parent.parent / "main" / "www" / "index.html"
+ROOT = Path(__file__).resolve().parent.parent
+PORTS = {"manifold": 8321, "heatsource": 8322}
+WWW = ROOT / "apps" / "manifold" / "main" / "www" / "index.html"
 T0 = time.time()
 
 CFG = {
@@ -363,4 +369,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("127.0.0.1", 8321), Handler).serve_forever()
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--app", default="manifold", choices=sorted(PORTS),
+                   help="welche Oberflaeche ausgeliefert wird")
+    p.add_argument("--port", type=int, default=0,
+                   help="abweichender Port; Vorgabe richtet sich nach --app")
+    args = p.parse_args()
+
+    WWW = ROOT / "apps" / args.app / "main" / "www" / "index.html"
+    port = args.port or PORTS[args.app]
+    print(f"Attrappe {args.app} auf http://localhost:{port}")
+    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
