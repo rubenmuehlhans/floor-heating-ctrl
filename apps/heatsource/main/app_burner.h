@@ -43,6 +43,7 @@ typedef struct {
 
 typedef enum {
     REC_IDLE = 0,
+    REC_ARMED,     /* wartet auf den naechsten Brennerstart */
     REC_RUNNING,
     REC_DONE,
 } rec_state_t;
@@ -56,7 +57,11 @@ typedef struct {
      * Arbeitsspeicher und laesst die CSV-Datei ohne leere Spalten. */
     uint8_t cols;
     probe_role_t role[ROLE_COUNT];
-    uint32_t bytes;   /* belegter Arbeitsspeicher */
+    uint32_t bytes;      /* belegter Arbeitsspeicher */
+    bool automatic;      /* vom Brennerstart ausgeloest, endet auch von selbst */
+    bool wait_off;       /* scharf, aber der Brenner laeuft noch aus dem vorigen Lauf */
+    bool tail;           /* Brenner ist aus, der Nachlauf laeuft noch */
+    uint16_t tail_left_s;
 } rec_status_t;
 
 typedef struct {
@@ -78,6 +83,23 @@ void charge_get(charge_status_t *out);
 
 /* Aufzeichnung einer Ladung. */
 esp_err_t rec_start(void);
+
+/*
+ * Schaltet die Aufzeichnung scharf: sie beginnt beim naechsten Brennerstart
+ * und endet, wenn der Brenner wieder aus ist. Wann eine Ladung anfaengt, sieht
+ * man erst an der steigenden Abgastemperatur -- von Hand ist der Anfang der
+ * Kurve deshalb kaum zu treffen.
+ *
+ * Laeuft der Brenner in diesem Augenblick schon, wird nicht mitten hinein
+ * begonnen, sondern der naechste Start abgewartet: eine halbe Kurve taugt zur
+ * Auswertung nicht.
+ *
+ * Der Speicher wird sofort belegt, damit ein Fehlschlag beim Scharfschalten
+ * auffaellt und nicht erst nachts um drei.
+ */
+esp_err_t rec_arm(void);
+
+/* Beendet eine laufende und verwirft eine scharf geschaltete Aufzeichnung. */
 void rec_stop(void);
 
 /* Verwirft die Aufzeichnung und gibt ihren Speicher zurueck. */

@@ -290,6 +290,14 @@ dauert es bis zu einer Minute, bis der Bus neu abgesucht ist.
 Auf dem Gerät am Pufferspeicher legen Sie unter **Heizkreise** an, welche Verteiler ein Kreis
 versorgt und über welches Relais seine Pumpe geschaltet wird. Vorgesehen sind bis zu vier Kreise.
 
+Die Schaltfläche **Heizkreis anlegen** steht am Ende der Seite und nennt, wie viele Kreise
+bereits angelegt sind. Jeder neue Kreis bekommt die nächste freie Kennung und damit die
+Fühlerrollen „Vorlauf Heizkreis n" und „Rücklauf Heizkreis n"; ordnen Sie ihm anschließend unter
+**Fühler** die beiden Messstellen zu. Über **Heizkreis löschen** am Fuß einer Karte entfällt ein
+Kreis wieder. Seine Pumpe wird dabei einmal abgeschaltet — sonst liefe sie weiter, ohne dass sie
+noch jemand steuert. Die zugeordneten Fühler bleiben stehen, die übrigen Kreise behalten ihre
+Kennung und ihre Einstellungen.
+
 | Angabe | Bedeutung |
 |---|---|
 | Name | erscheint in der Oberfläche und in Home Assistant |
@@ -391,12 +399,29 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 zuschalten. Der Verlauf liegt im Arbeitsspeicher und beginnt nach einem Neustart von vorn.
 
 **Ladung aufzeichnen.** Zeichnet alle belegten Messstellen im Fünfsekundenraster auf, gut zwei
-Stunden lang. Starten Sie die Aufzeichnung, wenn der Kessel anspringt.
+Stunden lang.
 
-1. **Aufzeichnung starten**
-2. Warten, bis die Ladung durch ist — oder **Beenden** drücken
+Wann eine Ladung anfängt, sieht man erst an der steigenden Abgastemperatur — von Hand ist der
+Anfang der Kurve deshalb kaum zu treffen. Schalten Sie die Aufzeichnung stattdessen scharf:
+
+1. **Beim nächsten Brennerstart aufzeichnen**
+2. Die Aufzeichnung beginnt von selbst, sobald der Brenner anläuft, und endet zehn Minuten nach
+   dessen Ende. Schaltet der Kessel zwischendurch ab und gleich wieder ein, läuft sie durch —
+   taktender Betrieb gehört zur selben Ladung.
 3. **Als CSV holen** lädt die Datei herunter
 4. **Verwerfen** gibt den Arbeitsspeicher wieder frei
+
+Läuft der Brenner in dem Augenblick, in dem Sie scharf schalten, wird der übernächste Start
+abgewartet; eine halbe Kurve taugt zur Auswertung nicht. Die Zustandszeile sagt, worauf gewartet
+wird. **Abbrechen** hebt die Schaltung auf.
+
+Der Arbeitsspeicher wird schon beim Scharfschalten belegt, damit ein Fehlschlag sofort auffällt
+und nicht erst dann, wenn der Kessel nachts anspringt. Nach einem Neustart des Geräts ist die
+Schaltung aufgehoben.
+
+**Sofort aufzeichnen** beginnt ohne Umweg — für den Fall, dass der Kessel gerade läuft und Sie
+den Rest der Kurve haben wollen. Eine so begonnene Aufzeichnung endet nicht von selbst, sondern
+erst über **Beenden** oder wenn der Speicher voll ist.
 
 Aufgezeichnet werden nur die Messstellen, die beim Start belegt sind; sind Kesselwerte über das
 Nachbargerät erreichbar, kommen sie mit hinein. Die Datei zeigt damit die ganze Anlage, nicht nur
@@ -556,8 +581,9 @@ GET     /api/demand             Waermebedarf, fuer das Heizungsgeraet
 GET     /api/measurements       Messstellen und Brennerzustand, fuer das Nachbargeraet
 GET     /api/history            Verlauf, Ein-Minuten-Raster
 GET     /api/record             Aufzeichnung einer Ladung als CSV
-POST    /api/record/start       Aufzeichnung starten
-POST    /api/record/stop        beenden
+POST    /api/record/arm         beim naechsten Brennerstart aufzeichnen
+POST    /api/record/start       sofort aufzeichnen
+POST    /api/record/stop        beenden, im scharfen Zustand abbrechen
 POST    /api/record/discard     verwerfen und Speicher freigeben
 POST    /api/circuit/{n}/mode   auto | ein | aus
 POST    /api/probes/rescan      Bus neu absuchen

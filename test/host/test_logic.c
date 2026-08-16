@@ -841,6 +841,149 @@ static void test_charge_limited(void)
     CHECK(st.phase == CHARGE_IDLE, "kuehlt er ab, faellt sie zurueck");
 }
 
+/* ------------------------------------------------------------------ */
+/* Ausloesen der Aufzeichnung                                          */
+/* ------------------------------------------------------------------ */
+
+#define TAIL_S 600
+
+/* Laesst die Zeit laufen und liefert den Zeitpunkt danach. */
+static uint32_t rec_laufen(rec_trigger_t *st, bool brenner, uint32_t t, uint32_t sekunden)
+{
+    for (uint32_t i = 0; i < sekunden; i++) {
+        t += 1000;
+        rec_trigger_tick(st, brenner, TAIL_S, t);
+    }
+    return t;
+}
+
+static void test_rec_trigger_auto(void)
+{
+    printf("Aufzeichnung: selbsttaetig\n");
+
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    CHECK(st.phase == REC_TRIG_OFF, "ohne Zutun laeuft nichts");
+
+    uint32_t t = 10000;
+    rec_trigger_arm(&st, false);
+    CHECK(st.phase == REC_TRIG_ARMED, "scharf geschaltet");
+    CHECK(!st.wait_off, "bei stehendem Brenner wird nicht gewartet");
+
+    t = rec_laufen(&st, false, t, 3600);
+    CHECK(st.phase == REC_TRIG_ARMED, "ohne Brennerstart bleibt sie scharf");
+
+    /* Der Brenner laeuft an. */
+    t += 1000;
+    CHECK(rec_trigger_tick(&st, true, TAIL_S, t), "der Brennerstart loest aus");
+    CHECK(st.phase == REC_TRIG_RUN, "sie zeichnet auf");
+    CHECK(st.automatic, "und zwar selbsttaetig");
+
+    t = rec_laufen(&st, true, t, 1800);
+    CHECK(st.phase == REC_TRIG_RUN, "waehrend des Brennerlaufs laeuft sie weiter");
+    CHECK(!st.tail, "ein Nachlauf ist das noch nicht");
+
+    /* Brenner aus: der Nachlauf beginnt. */
+    t = rec_laufen(&st, false, t, 60);
+    CHECK(st.tail, "nach dem Brenner laeuft der Nachlauf");
+    CHECK(st.phase == REC_TRIG_RUN, "aufgezeichnet wird dabei weiter");
+    uint32_t rest = rec_trigger_tail_left_s(&st, TAIL_S, t);
+    CHECK(rest > TAIL_S - 65 && rest < TAIL_S - 55,
+          "nach einer Minute ist rund eine Minute Nachlauf vorbei, nicht %u", (unsigned)rest);
+
+    t = rec_laufen(&st, false, t, TAIL_S);
+    CHECK(st.phase == REC_TRIG_DONE, "danach ist sie fertig");
+    CHECK(!st.tail, "der Nachlauf ist vorbei");
+    CHECK(rec_trigger_tail_left_s(&st, TAIL_S, t) == 0, "und es bleibt keine Restzeit");
+}
+
+static void test_rec_trigger_takten(void)
+{
+    printf("Aufzeichnung: taktender Brenner\n");
+
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    uint32_t t = 10000;
+
+    rec_trigger_arm(&st, false);
+    t = rec_laufen(&st, true, t, 600);
+    CHECK(st.phase == REC_TRIG_RUN, "sie laeuft");
+
+    /*
+     * Ein Kessel, der zwischendurch abschaltet und gleich wieder anlaeuft,
+     * ist immer noch dieselbe Ladung. Waere jede Pause ein Ende, zerfiele die
+     * Kurve in Bruchstuecke.
+     */
+    for (int i = 0; i < 4; i++) {
+        t = rec_laufen(&st, false, t, 120);
+        CHECK(st.phase == REC_TRIG_RUN, "eine Pause von zwei Minuten beendet sie nicht");
+        t = rec_laufen(&st, true, t, 300);
+        CHECK(!st.tail, "laeuft der Brenner wieder, ist der Nachlauf zurueckgenommen");
+    }
+
+    t = rec_laufen(&st, false, t, TAIL_S + 5);
+    CHECK(st.phase == REC_TRIG_DONE, "erst die lange Pause beendet sie");
+}
+
+static void test_rec_trigger_laufender_brenner(void)
+{
+    printf("Aufzeichnung: Brenner laeuft beim Scharfschalten\n");
+
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    uint32_t t = 10000;
+
+    /* Mitten in einen Lauf hinein zu beginnen ergaebe eine halbe Kurve. */
+    rec_trigger_arm(&st, true);
+    CHECK(st.wait_off, "gewartet wird auf den naechsten Start");
+
+    t = rec_laufen(&st, true, t, 1800);
+    CHECK(st.phase == REC_TRIG_ARMED, "der laufende Brenner loest nicht aus");
+
+    t = rec_laufen(&st, false, t, 60);
+    CHECK(st.phase == REC_TRIG_ARMED, "nach dessen Ende bleibt sie scharf");
+    CHECK(!st.wait_off, "aber sie wartet nicht mehr");
+
+    t += 1000;
+    CHECK(rec_trigger_tick(&st, true, TAIL_S, t), "der naechste Start loest aus");
+    CHECK(st.phase == REC_TRIG_RUN, "jetzt zeichnet sie auf");
+}
+
+static void test_rec_trigger_hand(void)
+{
+    printf("Aufzeichnung: von Hand\n");
+
+    rec_trigger_t st;
+    rec_trigger_init(&st);
+    uint32_t t = 10000;
+
+    rec_trigger_manual(&st);
+    CHECK(st.phase == REC_TRIG_RUN, "sie beginnt sofort");
+    CHECK(!st.automatic, "und gilt nicht als selbsttaetig");
+
+    /* Von Hand begonnen heisst auch von Hand beendet: der Brennerzustand
+     * entscheidet hier nicht. */
+    t = rec_laufen(&st, false, t, 2 * TAIL_S);
+    CHECK(st.phase == REC_TRIG_RUN, "der stehende Brenner beendet sie nicht");
+    CHECK(!st.tail, "einen Nachlauf gibt es dabei nicht");
+
+    rec_trigger_stop(&st);
+    CHECK(st.phase == REC_TRIG_DONE, "von Hand beendet");
+
+    /* Abbrechen im scharfen Zustand laesst nichts zurueck. */
+    rec_trigger_init(&st);
+    rec_trigger_arm(&st, false);
+    rec_trigger_stop(&st);
+    CHECK(st.phase == REC_TRIG_OFF, "eine abgebrochene Schaltung hinterlaesst nichts");
+    CHECK(!st.automatic, "und gilt nicht mehr als selbsttaetig");
+
+    /* Ein voller Puffer beendet sie ebenfalls. */
+    rec_trigger_init(&st);
+    rec_trigger_manual(&st);
+    rec_trigger_full(&st);
+    CHECK(st.phase == REC_TRIG_DONE, "ein voller Puffer beendet sie");
+}
+
 int main(void)
 {
     test_control_law();
@@ -866,6 +1009,10 @@ int main(void)
     test_charge_burner_decides();
     test_charge_level();
     test_charge_limited();
+    test_rec_trigger_auto();
+    test_rec_trigger_takten();
+    test_rec_trigger_laufender_brenner();
+    test_rec_trigger_hand();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

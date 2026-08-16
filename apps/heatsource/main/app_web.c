@@ -255,12 +255,8 @@ static esp_err_t state_get(httpd_req_t *req)
         sensors_role_value(ROLE_KESSEL_RL, &rl, NULL)) {
         cJSON_AddNumberToObject(abl, "kessel_spreizung_k", vl - rl);
     }
-    if (sensors_role_value(ROLE_HK1_VL, &vl, NULL) && sensors_role_value(ROLE_HK1_RL, &rl, NULL)) {
-        cJSON_AddNumberToObject(abl, "hk1_spreizung_k", vl - rl);
-    }
-    if (sensors_role_value(ROLE_HK2_VL, &vl, NULL) && sensors_role_value(ROLE_HK2_RL, &rl, NULL)) {
-        cJSON_AddNumberToObject(abl, "hk2_spreizung_k", vl - rl);
-    }
+    /* Die Spreizung der Heizkreise steht unten je Kreis; hier fest zwei
+     * Eintraege zu fuehren, haette einen dritten Kreis uebergangen. */
 
     /* Heizkreise mit Pumpenzustand. */
     static circuit_status_t kreise[CFG_MAX_CIRCUITS];
@@ -404,7 +400,12 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON *cr = cJSON_AddObjectToObject(root, "record");
     cJSON_AddStringToObject(cr, "state",
                             rec.state == REC_RUNNING ? "laeuft"
-                            : (rec.state == REC_DONE ? "fertig" : "aus"));
+                            : rec.state == REC_DONE ? "fertig"
+                            : rec.state == REC_ARMED ? "scharf" : "aus");
+    cJSON_AddBoolToObject(cr, "auto", rec.automatic);
+    cJSON_AddBoolToObject(cr, "wait_off", rec.wait_off);
+    cJSON_AddBoolToObject(cr, "tail", rec.tail);
+    cJSON_AddNumberToObject(cr, "tail_left_s", rec.tail_left_s);
     cJSON_AddNumberToObject(cr, "samples", rec.samples);
     cJSON_AddNumberToObject(cr, "period_s", rec.period_s);
     cJSON_AddNumberToObject(cr, "started_epoch", rec.started_epoch);
@@ -666,8 +667,8 @@ static esp_err_t record_get(httpd_req_t *req)
 static esp_err_t record_post(httpd_req_t *req)
 {
     const char *action = last_segment(req->uri);
-    if (strcmp(action, "start") == 0) {
-        if (rec_start() != ESP_OK) {
+    if (strcmp(action, "start") == 0 || strcmp(action, "arm") == 0) {
+        if ((action[0] == 'a' ? rec_arm() : rec_start()) != ESP_OK) {
             rec_status_t st;
             rec_get_status(&st);
             return send_error(req, "400 Bad Request",

@@ -1,7 +1,9 @@
 # Gehäuse
 
 Zweiteiliges Druckgehäuse für die Steuerplatine: Unterschale und Deckel, dazu
-Displayaufnahme, Wandlaschen und ein optionaler Hutschienen-Clip. Konstruiert
+Displayaufnahme, Wandlaschen und ein optionaler Hutschienen-Clip. Den Deckel
+gibt es in zwei Varianten, mit und ohne Displayausschnitt; beide passen auf
+dieselbe Unterschale. Konstruiert
 mit CadQuery; Quelle der Wahrheit ist [`fbh_case.py`](fbh_case.py). STEP, STL
 und 3MF sind erzeugt und werden nie von Hand geändert.
 
@@ -12,10 +14,10 @@ dort übernommen. Abweichungen sind in `tools/make_3mf.py` im Kopf vermerkt.
 | Maß | Wert |
 |---|---|
 | Platine | 150,0 × 92,0 mm, Eckradius 3,0 mm |
-| Gehäusekörper | 155,8 × 97,8 mm |
-| Außenmaß mit Ohren und Laschen | 184,8 × 103,3 × 28,0 mm |
-| Wand / Boden / Deckel | 2,4 / 2,4 / 3,0 mm |
-| Lichte Höhe über der Platine | 18,0 mm |
+| Gehäusekörper | 155,0 × 97,0 mm |
+| Außenmaß mit Ohren und Laschen | 184,0 × 102,9 × 31,2 mm |
+| Wand / Boden / Deckel | 2,0 / 2,0 / 3,0 mm |
+| Lichte Höhe über der Platine | 21,0 mm |
 | Werkstoff | PETG (siehe **Sicherheit**) |
 
 ## ⚠️ Sicherheit
@@ -80,6 +82,10 @@ Drei Platten, drei Dateien — sie passen nicht gemeinsam auf 256 × 256 mm:
 ```
 
 ```bash
+DISPLAY_MODUL=0 .venv/bin/python tools/make_3mf.py fussbodenheizung-gehaeuse-ohne-display.3mf
+```
+
+```bash
 PLATTE=zubehoer .venv/bin/python tools/make_3mf.py fussbodenheizung-zubehoer.3mf
 ```
 
@@ -89,7 +95,8 @@ PLATTE=proben .venv/bin/python tools/make_3mf.py fussbodenheizung-pruefstuecke.3
 
 | Datei | Inhalt | Belegt |
 |---|---|---|
-| `fussbodenheizung-gehaeuse.3mf` | Deckel (3 Teile: Korpus, Logo-Ring, Logo-Akzent) und Unterschale | 185 × 215 mm |
+| `fussbodenheizung-gehaeuse.3mf` | Deckel (3 Teile: Korpus, Logo-Ring, Logo-Akzent) und Unterschale | 184 × 214 mm |
+| `fussbodenheizung-gehaeuse-ohne-display.3mf` | dasselbe mit geschlossenem Deckel | 184 × 214 mm |
 | `fussbodenheizung-zubehoer.3mf` | Displayrahmen, 2 × Hutschienen-Clip | 154 × 50 mm |
 | `fussbodenheizung-pruefstuecke.3mf` | Prüfstück Südwand, Prüfstück Display | 232 × 58 mm |
 
@@ -101,8 +108,10 @@ eine leer, müsste die Lage darüber über Luft brücken.
 ## ⚠️ Zuerst die Prüfstücke drucken
 
 In den Fertigungsdaten der Platine steht **keine einzige Bauhöhe** — die DXF
-zeigt nur den Bestückungsdruck. Jede Z-Höhe im Skript ist geschätzt und dort
-mit `[SCHAETZUNG]` markiert. Die beiden Prüfstücke kosten zusammen rund eine
+zeigt nur den Bestückungsdruck. Am 16.08.2026 sind die vier wichtigsten Höhen
+am Board nachgemessen worden und im Skript mit `⭐ GEMESSEN` gekennzeichnet;
+`[SCHAETZUNG]` steht noch an der Klemme `220`, den 1×2-Buchsenleisten und
+sämtlichen Displaymaßen. Die beiden Prüfstücke kosten zusammen rund eine
 Stunde Druckzeit und stehen gegen zwei verworfene Großteile:
 
 - **Prüfstück Südwand** — ein 10 mm tiefer Schnitt durch die fertige Schale mit
@@ -124,14 +133,20 @@ RJ_OPEN_Z0=2.4 RJ_OPEN_Z1=11.8 DSP_GLASS_D=2.4 .venv/bin/python fbh_case.py
 
 | Variable | Vorgabe | Was sie steuert |
 |---|---|---|
-| `RJ_H` | 13,0 | Bauhöhe der RJ11-Buchse |
+| `RJ_H` | 14,5 ⭐ | Bauhöhe der RJ11-Buchse |
+| `RJ_DEPTH` | 14,0 ⭐ | Bautiefe der RJ11-Buchse |
 | `RJ_OPEN_W` | 9,8 | Breite der Stecköffnung |
-| `RJ_OPEN_Z0` / `_Z1` | 1,6 / 11,0 | Unter- und Oberkante der Öffnung über der Platinenoberkante |
+| `RJ_OPEN_Z0` / `_Z1` | 0,2 / 13,2 ⭐ | Unter- und Oberkante der Öffnung über der Platinenoberkante |
 | `DSP_W` / `DSP_H` | 42,0 / 37,5 | Umriss der Displayplatine |
 | `DSP_GLASS_W` / `_H` / `_D` | 30,5 / 33,5 / 2,0 | Glasfläche und ihr Überstand |
-| `ESP_SOCKET` / `ESP_ABOVE` | 8,5 / 4,7 | Buchsenleiste und Aufbau des DevKit |
-| `HLK_H`, `KF250_H`, `HDR_H` | 15,1 / 10,5 / 8,5 | Bauhöhen Netzteil, Klemme, Buchsenleisten |
-| `TOP_CLEAR` | 18,0 | Lichte Höhe über der Platine |
+| `ESP_SOCKET` / `ESP_ABOVE` | 11,16 / 4,7 ⭐ | Buchsenleiste und Aufbau des DevKit (gemessen ist die Summe) |
+| `HLK_H` | 18,4 ⭐ | Bauhöhe des Netzteils — bestimmt `TOP_CLEAR` |
+| `KF250_H`, `HDR_H` | 10,5 / 8,5 | Klemme, 1×2-Buchsenleisten |
+| `TOP_CLEAR` | 21,0 | Lichte Höhe über der Platine |
+| `WALL` / `BOTTOM` | 2,0 / 2,0 | Wand- und Bodenstärke |
+
+⭐ = am Board gemessen. `BOT_CLEAR` liegt fest auf 3,6 mm: die längsten
+Lötstellen stehen 3,0 mm unter der Platine vor, darunter bleiben 0,6 mm Luft.
 
 ## Aufbau
 
@@ -143,8 +158,23 @@ RJ_OPEN_Z0=2.4 RJ_OPEN_Z1=11.8 DSP_GLASS_D=2.4 .venv/bin/python fbh_case.py
 .venv/bin/python reference/platine_auslesen.py
 ```
 
-**Südwand.** Elf Stecköffnungen auf den Buchsenmitten. Die Buchsenfront liegt
-1,1 mm innerhalb der Platinenkante, der Stecker überwindet also 4,0 mm Tunnel.
+**Südwand.** Elf Stecköffnungen von 9,8 × 13,0 mm auf den Buchsenmitten, dazwischen
+3,53 mm Steg. Die Buchsenfront liegt 1,1 mm innerhalb der Platinenkante, der
+Stecker überwindet also 3,6 mm Tunnel.
+
+⚠️ Die 13,0 mm lichte Höhe folgen der gemessenen Frontöffnung der Buchse und
+sind deutlich mehr, als ein 4P4C-Stecker mit Rastnase braucht (~9,5 mm). Sehr
+wahrscheinlich ist die äußere Frontmulde gemessen worden und nicht der
+eigentliche Steckerschlitz. Das ist die sichere Richtung — die Buchse begrenzt
+selbst, was durchpasst —, kostet aber Material zwischen den elf Löchern. Wird
+der Schlitz nachgemessen, gehört `RJ_OPEN_Z1` nach unten.
+
+Die Buchse ist 14,0 mm tief statt der 13,0 aus dem Bestückungsdruck. Wohin der
+Millimeter geht, sagt die Tiefe allein nicht — fest liegen nur die Rastzapfen
+bei Y = 7,095. Angenommen ist deshalb, dass die Front bei Y = 1,10 bleibt und
+der Millimeter nach hinten wächst. Das ist die sichere Richtung: läge die Front
+weiter vorn, würde der Steckertunnel nur kürzer. Umgekehrt könnte die Wand
+gegen die Buchse drücken.
 
 **Nordwand.** Kabelverschraubung M12 × 1,5 für die Netzzuleitung (X = 137, im
 Netzbereich) und Ø 7 für den Vorlauffühler (X = 76) mit zwei Rippen als
@@ -163,8 +193,46 @@ Lippe und den beiden Ohren bei Y = 12 gehalten.
 **Platine.** Vier M2,5 selbstschneidend von oben in Dome (Ø 6,0, Kernloch
 Ø 2,05 — 1,98 mm Domwand). Die Dome sind 3 mm hoch, also unkritisch schlank.
 
+**Wandstärke.** 2,0 mm für Wand und Boden, 3,0 mm für den Deckel. Die 2,0
+sind nicht nur Material: der Steckertunnel vor den RJ11-Buchsen ist
+`WALL + CLR + 1,10` und schrumpft damit von 4,0 auf 3,6 mm — je kürzer er ist,
+desto sicherer liegt die Rastnase des Steckers außerhalb und lässt sich
+drücken.
+
+Dünner geht, aber nicht beliebig. Drei Grenzen:
+
+- Das **Außenohr** überlappt die Wand um `WALL − 0,4`. Unter etwa 0,9 mm wird
+  daraus eine Berührung, und tangentiale Berührung heißt kaputtes Netz — genau
+  das hatten die ursprünglich runden Ohren. Ein Riegel im Skript bricht ab,
+  bevor es so weit kommt.
+- Die **Südwand** ist zwischen den elf Öffnungen nur 3,53 mm breit. Sie trägt
+  als Leiter mit zwei durchgehenden Holmen, aber dünn wird sie weich.
+- Die **Kabelverschraubung M12** will 1 … 4 mm Wand; unter 1,5 sitzt die Mutter
+  nicht mehr sauber.
+
+Was die Wand kostet (Unterschale, gemessen):
+
+| `WALL` | Volumen | Tunnel | Ohr-Überlappung |
+|---|---|---|---|
+| 2,4 | 72,3 cm³ | 4,0 mm | 2,0 mm |
+| **2,0** | **61,7 cm³** | **3,6 mm** | **1,6 mm** |
+| 1,8 | 56,5 cm³ | 3,4 mm | 1,4 mm |
+| 1,6 | 51,3 cm³ | 3,2 mm | 1,2 mm |
+
+```bash
+WALL=1.8 BOTTOM=1.8 .venv/bin/python fbh_case.py
+```
+
+Wer auf ganze Bahnen kommen will: mit 0,4-mm-Düse und 0,42 Bahnbreite sind
+1,68 (4 Bahnen) und 2,10 (5 Bahnen) die sauberen Werte. 2,0 slict Bambu Studio
+als fünf leicht schmalere Bahnen — unkritisch, aber nicht exakt.
+
+⚠️ **`LID_T` bleibt bei 3,0 und ist nicht verhandelbar.** Über der 2,0 mm
+tiefen Glastasche des Displays blieben sonst weniger als 1,0 mm stehen. Das ist
+die engste Stelle des Deckels, nicht die Kantenrundung.
+
 **Wandmontage.** Vier Laschen mit Ø 4,5 an den seitlichen Ohren.
-Lochabstand 174,8 × 68,0 mm.
+Lochabstand 174,0 × 68,0 mm.
 
 **Hutschiene.** Zwei Clips, je einer unter die Laschen bei Y = 80 geschraubt
 (M4-Senkschraube, Kopf bleibt bündig — dort liegt die Schiene auf). Sie
@@ -175,6 +243,26 @@ das eine einzelne Schraube zuließe.
 geklemmt, **nicht** über sein Bohrbild gehalten. Damit zählt nur der Umriss —
 und der ist mit einem Messschieber in zehn Sekunden nachgemessen, während ein
 Bohrbild geraten wäre.
+
+**Deckel ohne Display.** `DISPLAY_MODUL=0` lässt Sichtfenster, Glastasche und
+die vier Dome weg; Halterahmen und Displayprüfstück entfallen mit. Umriss,
+Lippe, Schrauben, Tastenfelder, Logo und Bauhöhe bleiben gleich — die beiden
+Deckel sind gegeneinander austauschbar. Die Bauhöhe sinkt dabei **nicht**:
+`TOP_CLEAR` folgt dem Netzteil (18,4 mm), nicht dem Display. Der geschlossene
+Deckel wiegt 45,3 statt 42,6 cm³.
+
+⚠️ Die Umgebungsvariable heißt bewusst `DISPLAY_MODUL` und nicht `DISPLAY` —
+letztere ist unter X11 belegt und hätte die Variante je nach Umgebung von
+selbst umgeschaltet.
+
+**Schraubensitze.** 90°-**Senkungen**, keine zylindrischen Senkbohrungen, also
+Senkkopfschrauben M3 (DIN 7991 / ISO 10642). Das ist keine Optik: der Deckel
+wird mit der Oberseite aufs Bett gedruckt, eine Ø6,2-Tasche von 1,8 mm läge
+also in den ersten Lagen und schlösse sich erst dort über einem Ø3,3-Loch —
+sechsmal ein freitragender Ring von 1,45 mm, und genau das war die **einzige**
+Stützstelle des Deckels. Der 90°-Kegel läuft mit 45° aus dem Bett heraus und
+trägt sich selbst. Beide Deckelvarianten haben damit **null** nach unten
+zeigende Flächen.
 
 **Tasten.** Drei Membranfelder Ø 18 mit 1,0 mm Restwand, von innen ausgespart.
 Die Sensorfläche (Kupferscheibe Ø 17,5 oder Alu-Klebeband) wird in die Mulde
@@ -221,6 +309,29 @@ Stellen. Rechteckige Ohren treffen die Wand mit zwei sauberen 90°-Ecken; auch
 deren Außenecken bleiben scharf, weil eine XY-Verrundung die Seitenflächen als
 Bogen bis in die Wandflucht zöge und das Problem abgeschwächt zurückbrächte.
 
+**⚠️⚠️ Zwei Displaydome standen im Displaymodul.** Ihre Unterseite liegt in der
+Ebene der Modulrückseite — dort halten sie den Halterahmen —, jede Überlappung
+in XY ist also ein Dom im Modul. Zwei ragten 1,0 mm hinein. `check_case.py`
+prüft Deckel gegen Platine und Schale, nicht gegen das Modul: das ist kein
+Druckteil und kommt in keinem der Körper vor. Gemeldet hat es erst die
+Prüfung *Modulplatine gegen Deckel* in `sonden.py`, die es vorher nicht gab.
+Beim Verschieben nach außen lief dann der Halterahmen ins Netzteil — die
+Displaygruppe sitzt jetzt 2,25 mm weiter südlich.
+
+**⚠️ Eine Prüfung meldete einen Konflikt, den es nicht gab.** Der erste Versuch
+verglich Displaydom und Buchsenreihe rein in XY und meldete „−1,10 mm zu eng".
+Die Dome reichen aber nur bis zur Modulrückseite herunter und nie auf
+Buchsenhöhe. Ersetzt durch den senkrechten Abstand unter dem Halterahmen —
+dem einzigen Displayteil, das wirklich tief kommt.
+
+**⚠️ Sechs Schraubensitze und zwei Rippen brauchten Stützmaterial.** Die
+zylindrischen Senkbohrungen im Deckel schwebten 1,8 mm über dem Bett, und die
+beiden Zugentlastungsrippen der 1-Wire-Durchführung endeten 4,5 mm frei in der
+Luft. Beides meldet keine der Prüfungen — ein Überhang ist weder eine
+Kollision noch ein verschlossenes Loch. Gefunden über eine Auswertung der nach
+unten zeigenden Flächen beider Teile in Druckstellung; die Senkbohrungen sind
+jetzt 90°-Senkungen, die Rippen laufen mit 45° aus der Wand.
+
 **⚠️ Der Federarm des Hutschienen-Clips hing in der Luft.** Der Schlitz, der
 ihn federn lassen sollte, hat ihn abgetrennt — zwei Körper, beide gültig.
 `check_case.py` sieht Zubehörteile nicht; gemeldet hat es erst Bambu Studio mit
@@ -230,7 +341,13 @@ einen Körper und ein dichtes Netz.
 
 ## Offene Punkte
 
-- Alle Z-Höhen sind geschätzt. Prüfstücke drucken, nachmessen, neu erzeugen.
+- Die Höhenlage der RJ11-Stecköffnung ist gemessen, aber vermutlich an der
+  Frontmulde statt am Steckerschlitz — siehe **Südwand**.
+- Die 18,4 mm des HLK-5M03 liegen 3,4 mm über dem Datenblattmaß (15,0). Das
+  Modul sitzt also nicht bis zum Anschlag durchgesteckt. Gebaut ist nach dem
+  gemessenen Wert; wird das Modul nachgesetzt, ist das Gehäuse zu hoch, nie zu
+  niedrig.
+- Klemme `220` und 1×2-Buchsenleisten sind weiterhin geschätzt.
 - Die Maße des Displaymoduls sind die des Waveshare 1,5″ OLED aus der
   Katalogangabe, nicht aus einem Datenblatt. Glasfläche und Glasüberstand
   (`DSP_GLASS_*`) sind reine Annahmen.
@@ -245,7 +362,7 @@ einen Körper und ein dichtes Netz.
 
 | Datei | Inhalt |
 |---|---|
-| `fbh_case.py` | Konstruktion — Quelle der Wahrheit |
+| `fbh_case.py` | Konstruktion — Quelle der Wahrheit (`DISPLAY_MODUL=0` für den geschlossenen Deckel) |
 | `sonden.py` | Sondenprüfung (Öffnungen, Freiräume, Netzbereich, Zubehör) |
 | `laser_gravur.py` | Gravurvorlage aus der Gehäusegeometrie |
 | `reference/platine_auslesen.py` | Platinengeometrie aus Gerber und EasyEDA-JSON |

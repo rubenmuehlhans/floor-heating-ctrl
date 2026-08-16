@@ -5,10 +5,12 @@
 # Z = 0 = Gehaeuse-Aussenboden. XY-Masse stammen aus den Fertigungsdaten in
 # ../board/ und sind mit `reference/platine_auslesen.py` nachvollziehbar.
 #
-# ⚠️⚠️ ALLE Z-HOEHEN SIND [SCHAETZUNG]. In den Fertigungsdaten steht keine
-#      einzige Bauhoehe — die DXF zeigt nur den Bestueckungsdruck. Vor dem
-#      Komplettdruck die beiden Pruefstuecke drucken (PLATTE=proben) und die
-#      markierten Masse nachmessen.
+# ⭐ Z-HOEHEN: am 2026-08-16 am Board GEMESSEN sind RJ11 (Bauhoehe und Lage
+#      der Steckoeffnung), HLK-5M03, ESP32 samt Buchsenleiste und der
+#      Loetstellenueberstand unter der Platine. Sie sind mit ⭐ GEMESSEN
+#      gekennzeichnet. [SCHAETZUNG] steht noch an der Klemme 220, den
+#      1x2-Buchsenleisten und allen Displaymassen — dafuer gibt es die
+#      Pruefstuecke (PLATTE=proben).
 #
 # ⚠️⚠️⚠️ NETZSPANNUNG. Auf der Platine sitzen ein HLK-5M03 (230 V AC/DC) und
 #      eine Netzklemme. Die gefraesten Trennschlitze der Platine trennen den
@@ -42,19 +44,39 @@ PCB_W, PCB_L, PCB_T = 150.0, 92.0, 1.6
 PCB_R = 3.0
 HOLES = [(3.414, 53.200), (62.342, 87.236), (143.876, 87.490), (145.654, 46.850)]
 
-# RJ11-Buchsen 4P4C, 90°, Gehaeuse 10,0 (X) x 13,0 (Y) laut Bestueckungsdruck.
-# Die Steckoeffnung zeigt nach SUEDEN, die Front liegt bei Y = 1,10 — also
-# 1,1 mm INNERHALB der Platinenkante. Der Stecker muss Wand + 1,6 mm Luft
-# ueberwinden.
+# RJ11-Buchsen 4P4C, 90°, 10,0 mm breit laut Bestueckungsdruck. Die
+# Steckoeffnung zeigt nach SUEDEN.
 RJ_X = [8.367, 21.702, 35.291, 48.880, 62.342, 75.804,
         89.266, 102.601, 115.936, 129.398, 142.987]
-RJ_FRONT_Y, RJ_DEPTH, RJ_BODY_W = 1.10, 13.0, 10.0
-RJ_H = float(os.environ.get("RJ_H", "13.0"))          # [SCHAETZUNG] Bauhoehe
-# Steckoeffnung: 4P4C-Stecker 7,65 breit, mit Rastnase ~8,6 hoch. Grosszuegig,
-# weil die Hoehenlage selbst geschaetzt ist — das Pruefstueck entscheidet.
+# ⭐ GEMESSEN: Bautiefe 14,0 mm. Der Bestueckungsdruck zeichnet 13,0 — er ist
+#    eine Zeichnung, kein Datenblatt.
+# ⚠️⚠️ Die gemessene TIEFE sagt nicht, wohin der eine Millimeter geht. Fest
+#    liegen nur die Rastzapfen: ihre NPTH-Bohrungen sitzen bei Y = 7,095, und
+#    der Footprint setzt sie 6,0 mm hinter die Front. Bleibt es dabei, steht
+#    die Front weiterhin bei Y = 1,10 und der Millimeter waechst nach HINTEN,
+#    in freies Platinengebiet.
+#    Diese Annahme ist die sichere: waere die Front in Wirklichkeit weiter
+#    vorn, wird der Steckertunnel nur KUERZER als gerechnet. Umgekehrt — Front
+#    nach vorn angenommen und die Wand nachgezogen — koennte die Wand gegen die
+#    Buchse druecken. Nachzumessen ist der Abstand Platinenkante -> Buchsenfront;
+#    solange er nicht vorliegt, bleibt RJ_FRONT_Y auf dem Wert aus dem Druck.
+RJ_FRONT_Y, RJ_BODY_W = 1.10, 10.0
+RJ_DEPTH = float(os.environ.get("RJ_DEPTH", "14.0"))
+# ⭐ GEMESSEN am Board (2026-08-16), nicht mehr geschaetzt: 16,10 mm ab
+#    Platinenunterseite, also 14,50 ueber der Platinenoberkante.
+RJ_H = float(os.environ.get("RJ_H", "14.5"))
+# ⭐ Steckoeffnung ebenfalls gemessen: Unterkante 2,0 / Oberkante 14,6 ab
+#    Platinenunterseite, also 0,4 … 13,0 ueber der Platine.
+# ⚠️ Das sind 12,6 mm lichte Hoehe — deutlich mehr, als ein 4P4C-Stecker mit
+#    Rastnase braucht (~9,5). Gemessen wurde damit sehr wahrscheinlich die
+#    aeussere FRONTMULDE der Buchse, nicht der eigentliche Steckerschlitz. Das
+#    ist die sichere Richtung: die Buchse begrenzt selbst, was durchpasst, eine
+#    Wandoeffnung in Muldengroesse kann also nicht zu klein sein. Sie kostet
+#    aber Material zwischen den elf Loechern — wird der Schlitz nachgemessen,
+#    gehoert RJ_OPEN_Z1 nach unten.
 RJ_OPEN_W = float(os.environ.get("RJ_OPEN_W", "9.8"))
-RJ_OPEN_Z0 = float(os.environ.get("RJ_OPEN_Z0", "1.6"))   # ueber Platinenoberkante
-RJ_OPEN_Z1 = float(os.environ.get("RJ_OPEN_Z1", "11.0"))
+RJ_OPEN_Z0 = float(os.environ.get("RJ_OPEN_Z0", "0.2"))   # ueber Platinenoberkante
+RJ_OPEN_Z1 = float(os.environ.get("RJ_OPEN_Z1", "13.2"))
 
 ONEWIRE_RJ = (75.677, 67.423)          # 1-Wire-Buchse, MITTEN auf der Platine
 ONEWIRE_FRONT_Y = 57.85                # Front zeigt nach Sueden, nicht erreichbar
@@ -66,11 +88,24 @@ ONEWIRE_FRONT_Y = 57.85                # Front zeigt nach Sueden, nicht erreichb
 # ⚠️ Der Footprint zeichnet 50,8 x 30,48 — das reale Board misst 54,4 x 27,9.
 #    Fuer das Gehaeuse zaehlt das reale Board.
 ESP = (31.100, 74.155, 54.4, 27.9)     # cx, cy, L, B
-ESP_SOCKET = float(os.environ.get("ESP_SOCKET", "8.5"))   # [SCHAETZUNG] Buchsenleiste
-ESP_ABOVE = float(os.environ.get("ESP_ABOVE", "4.7"))     # [SCHAETZUNG] Platine + WROOM
+# ⭐ GEMESSEN: 17,46 ab Platinenunterseite, also 15,86 ueber der Platine.
+# ⚠️ Gemessen ist nur die SUMME. Die Aufteilung ist gerechnet: der Aufbau des
+#    DevKit ueber seiner eigenen Platine ist bekannt (1,6 Platine + 3,1 WROOM),
+#    der Rest faellt auf die Buchsenleiste — 11,16 mm, also eine hohe Bauform,
+#    keine 8,5er. Fuer die Bauhoehe zaehlt ohnehin nur die Summe; die
+#    Aufteilung braucht allein der Platinen-Dummy, um den Raum ZWISCHEN den
+#    Leisten wieder freizuschneiden.
+ESP_ABOVE = float(os.environ.get("ESP_ABOVE", "4.7"))
+ESP_SOCKET = float(os.environ.get("ESP_SOCKET", "11.16"))
 
 HLK = (105.268, 75.045, 34.2, 20.2)    # HLK-5M03, Datenblattmass
-HLK_H = float(os.environ.get("HLK_H", "15.1"))            # hoechster Aufbau
+# ⭐⭐ GEMESSEN: 20,0 ab Platinenunterseite, also 18,40 ueber der Platine.
+# ⚠️ Das Datenblatt nennt 15,0 Bauhoehe. Die 3,4 mm Differenz heissen, dass das
+#    Modul nicht bis zum Anschlag durchgesteckt sitzt. Gebaut wird nach dem
+#    GEMESSENEN Wert — wird das Modul spaeter nachgesetzt, ist das Gehaeuse zu
+#    hoch, nie zu niedrig. Dieses Mass bestimmt TOP_CLEAR und damit die
+#    gesamte Bauhoehe.
+HLK_H = float(os.environ.get("HLK_H", "18.4"))            # hoechster Aufbau
 KF250 = (137.526, 74.916, 12.0, 12.1)  # Netzklemme, Bestueckungsdruck
 KF250_H = float(os.environ.get("KF250_H", "10.5"))        # [SCHAETZUNG]
 KF250_WIRE_X = 142.23                  # Leitungseinfuehrung zeigt nach OSTEN
@@ -87,20 +122,55 @@ HDC1080 = (3.096, 45.199)              # Klimafuehler auf thermisch getrennter I
 NETZ_X0, NETZ_Y0 = 113.8, 64.2
 
 # -------------------------------------------------------------- Parameter ---
-WALL, BOTTOM, LID_T = 2.4, 2.4, 3.0
+# ⭐ Wand und Boden von 2,4 auf 2,0 (Vorgabe, ueber die Umgebung aenderbar).
+#    Zwei Gruende, und Material ist der schwaechere davon: der STECKERTUNNEL
+#    vor den RJ11-Buchsen ist WALL + CLR + 1,10 und schrumpft damit von 4,0 auf
+#    3,6 mm. Je kuerzer er ist, desto sicherer liegt die Rastnase des Steckers
+#    ausserhalb und laesst sich druecken.
+# ⚠️ Weiter herunter geht es, aber nicht beliebig — drei Grenzen:
+#    - Das AUSSENOHR ueberlappt die Wand um WALL - 0,4. Unter etwa 0,9 wird
+#      daraus eine Beruehrung, und tangentiale Beruehrung heisst kaputtes Netz
+#      (die 24 offenen Kanten der runden Ohren waren genau das). Ab WALL = 0,4
+#      ist es exakt tangential. Der Riegel unten meldet das.
+#    - Die Suedwand ist zwischen den elf Oeffnungen nur 3,53 mm breit; sie
+#      traegt als Leiter mit zwei durchgehenden Holmen, aber duenn wird sie
+#      weich.
+#    - Die Kabelverschraubung M12 will 1 … 4 mm Wand. Unter 1,5 sitzt die
+#      Mutter nicht mehr sauber.
+# ⚠️⚠️ LID_T bleibt bei 3,0 und ist NICHT verhandelbar: ueber der 2,0 mm tiefen
+#    Glastasche des Displays blieben sonst weniger als 1,0 mm stehen. Das ist
+#    die engste Stelle des Deckels, nicht TOP_R.
+WALL = float(os.environ.get("WALL", "2.0"))
+BOTTOM = float(os.environ.get("BOTTOM", "2.0"))
+LID_T = 3.0
 TOP_R, CORNER_R = 1.5, 4.0
 CLR = 0.5                              # Luft rings um die Platine
-BOT_CLEAR = 3.0                        # unter der Platine: nur Loetstellen
-# ⚠️ TOP_CLEAR wird NICHT vom hoechsten Bauteil bestimmt (HLK 15,1), sondern
-#    vom Displaymodul, das vom Deckel nach unten haengt: Glas 2,0 + Platine 1,6
-#    + Halterahmen 2,5 + Steckerhoehe. 18,0 laesst ueber dem Netzteil 2,9 mm
-#    Luft und unter dem Display 12 mm.
-TOP_CLEAR = float(os.environ.get("TOP_CLEAR", "18.0"))
+# ⭐ GEMESSEN: die laengsten Loetstellen stehen 3,0 mm unter der Platine vor.
+#    3,6 laesst darunter 0,6 mm Luft zum Boden.
+BOT_CLEAR = 3.6
+# ⚠️⚠️ TOP_CLEAR folgt dem NETZTEIL, nicht dem Display. Solange der HLK mit
+#    15,1 geschaetzt war, war das Displaymodul das hoechste Teil im Gehaeuse
+#    (Glas 2,0 + Platine 1,6 + Halterahmen 2,5 + Stecker ~8) und 18,0 reichte.
+#    Gemessen sind es 18,4 — damit ueberholt das Netzteil das Display, und
+#    18,0 waere eine Kollision gewesen. 21,0 laesst ueber dem HLK 2,6 mm.
+#    ⚠️ Wer hier wieder herunterdreht, muss BEIDE Ketten nachrechnen; welche
+#    fuehrt, hat sich mit einer einzigen Messung umgedreht.
+TOP_CLEAR = float(os.environ.get("TOP_CLEAR", "21.0"))
 LIP_H, LIP_W, LIP_CLR = 2.0, 1.5, 0.15
 
 # Deckelschrauben M3 in AUSSENOHREN — siehe Kopfkommentar.
 EAR_D, EAR_PILOT = 7.0, 2.5
-LID_SCREW_C, LID_CBORE_D, LID_CBORE_H = 3.3, 6.2, 1.8
+# ⚠️⚠️ SENKUNG, nicht Senkbohrung. Eine zylindrische Ø6,2-Tasche von 1,8 mm
+#    war die EINZIGE Ueberhangstelle des Deckels: er wird mit der Oberseite
+#    aufs Bett gedruckt, die Tasche liegt also in den ersten Lagen und
+#    schliesst sich erst bei 1,8 mm ueber einem Ø3,3-Loch — sechsmal ein
+#    freitragender Ring von 1,45 mm. Ein 90°-Kegel laeuft stattdessen mit 45°
+#    aus dem Bett heraus und traegt sich selbst.
+# ⚠️ Damit gehoert eine SENKKOPFschraube M3 hinein (DIN 7991 / ISO 10642),
+#    keine Zylinderkopf. Der Kopf sitzt dann buendig mit der Deckeloberseite.
+LID_SCREW_C = 3.3
+LID_CSK_D = 6.4                        # Kopf Ø6,0 + 0,4 Luft
+LID_CSK_H = (LID_CSK_D - LID_SCREW_C) / 2      # 90° -> Tiefe = halbe Differenz
 # Wandlaschen an den vier seitlichen Ohren
 TAB, TAB_T, TAB_HOLE = 13.0, 3.2, 4.5
 
@@ -111,7 +181,21 @@ BOSS_D, BOSS_PILOT = 6.0, 2.05         # Platinendome, M2,5 selbstschneidend
 #    Das Modul wird deshalb NICHT ueber sein Bohrbild gehalten, sondern von
 #    einem Halterahmen gegen die Deckelunterseite geklemmt — dann zaehlt nur
 #    der Umriss, und der ist leicht nachzumessen.
-DSP_CX, DSP_CY = 110.0, 39.25
+# ⚠️ DSP_CY ist nach Sueden gerueckt (39,25 -> 37,0). Der noerdliche Dom
+#    schiebt den Halterahmen 4 mm ueber sich hinaus, und der lief bei
+#    DSP_CY = 39,25 in das Netzteil (Y ab 64,9, Oberkante 26,0 — der Rahmen
+#    liegt bei 24,5 … 27,0). Nach Sueden ist Platz: dort stehen nur die
+#    RJ11-Buchsen, und die enden 2,4 mm unter dem Rahmen.
+# ⚠️ Die Variante ohne Display schaltet ueber die Umgebung, nicht ueber den
+#    Quelltext:  DISPLAY_MODUL=0 .venv/bin/python fbh_case.py
+#    Der Name ist bewusst NICHT `DISPLAY` — die Variable ist unter X11 belegt
+#    und haette die Variante je nach Umgebung von selbst umgeschaltet.
+# ⭐ Beide Deckel passen auf DIESELBE Unterschale: Umriss, Lippe, Schrauben und
+#    Bauhoehe sind unveraendert. TOP_CLEAR folgt dem Netzteil (18,4), nicht dem
+#    Display — der Deckel ohne Display macht das Gehaeuse also nicht flacher.
+MIT_DISPLAY = os.environ.get("DISPLAY_MODUL", "1") != "0"
+FILE_SFX = "" if MIT_DISPLAY else "_ohne_display"
+DSP_CX, DSP_CY = 110.0, 37.0
 DSP_W = float(os.environ.get("DSP_W", "42.0"))
 DSP_H = float(os.environ.get("DSP_H", "37.5"))
 DSP_PCB_T = float(os.environ.get("DSP_PCB_T", "1.6"))
@@ -119,7 +203,17 @@ DSP_GLASS_W = float(os.environ.get("DSP_GLASS_W", "30.5"))   # [SCHAETZUNG]
 DSP_GLASS_H = float(os.environ.get("DSP_GLASS_H", "33.5"))   # [SCHAETZUNG]
 DSP_GLASS_D = float(os.environ.get("DSP_GLASS_D", "2.0"))    # [SCHAETZUNG] Glas ueber Modulplatine
 DSP_WIN = 28.6                         # Sichtfenster (Aktivflaeche 26,86 + Rand)
-DSP_BOSS = [(85.0, 39.25), (135.0, 39.25), (110.0, 18.5), (110.0, 60.0)]
+# ⚠️⚠️ Die vier Dome muessen in XY VOLLSTAENDIG neben dem Modulumriss liegen.
+#    Ihre Unterseite liegt in der Ebene der Modulrueckseite — dort haelt sie
+#    den Halterahmen —, jede Ueberlappung ist also ein Dom IM Modul. Die
+#    beiden mittleren standen zuerst bei Y = 18,5 und 60,0 und ragten damit je
+#    1,0 mm in den Umriss (Modul Y 20,5 … 58,0). Gemeldet hat das erst die
+#    Pruefung "Modulplatine gegen Deckel" in `sonden.py`; gegen Platine und
+#    Schale allein war alles gruen.
+# ⚠️ Nach Sueden ist der Weg begrenzt: bei Y = 17,0 bleiben zum Ruecken der
+#    RJ11-Buchsenreihe (Y = 15,10 bei 14,0 mm Bautiefe) 1,4 mm. Nach Norden
+#    begrenzt das Netzteil (Y ab 64,9).
+DSP_BOSS = [(85.0, 37.0), (135.0, 37.0), (110.0, 14.5), (110.0, 59.5)]
 DSP_BOSS_D, DSP_BOSS_PILOT = 6.0, 2.05
 DSP_FRAME_T = 2.5
 
@@ -127,7 +221,7 @@ DSP_FRAME_T = 2.5
 # unbeschaltet — die Leitungen gehen direkt an die Buchsenleiste des DevKit.
 # Im Deckel drei Membranfelder; die Sensorflaeche (Kupferscheibe oder
 # Alu-Klebeband) wird von innen dagegen gesetzt.
-TOUCH = [(25.0, 39.25), (47.0, 39.25), (69.0, 39.25)]
+TOUCH = [(25.0, 37.0), (47.0, 37.0), (69.0, 37.0)]
 TOUCH_D, TOUCH_MEMBRANE = 18.0, 1.0
 
 # Kabeldurchfuehrungen, beide in der NORDwand
@@ -197,6 +291,15 @@ def ohr(px, py, z0, z1):
                  z0, z1, 0)
 
 
+# ⚠️ Riegel gegen die tangentiale Beruehrung: das Ohr beginnt 0,4 mm vor der
+#    Kavitaetswand, ueberlappt die Aussenwand also um WALL - 0,4. Wird die Wand
+#    zu duenn, kuesst es sie nur noch — und ein tangentialer Uebergang gibt ein
+#    nicht-mannigfaltiges Netz, das CadQuery nie beanstandet.
+if WALL - 0.4 < 0.9:
+    raise SystemExit(f"WALL={WALL}: Ohr ueberlappt die Wand nur um "
+                     f"{WALL - 0.4:.2f} mm — mindestens 0,9 noetig.")
+
+
 def rrect(x0, y0, x1, y1, z0, z1, r):
     wp = (cq.Workplane("XY", origin=((x0 + x1) / 2, (y0 + y1) / 2, z0))
           .rect(x1 - x0, y1 - y0).extrude(z1 - z0))
@@ -254,11 +357,22 @@ base = base.cut(cq.Workplane("XZ", origin=(OW_X, out_y1 + 0.5, PCB_TOP + 8.0))
                 .circle(OW_D / 2).extrude(WALL + CLR + 1.5))
 # Klemmschlitz: zwei Rippen, ueber die volle Tiefe an der Nordwand angebunden —
 # kein Kragarm. Sie enden unter der Lippe.
-for s in (-1, 1):
-    x0 = OW_X + s * OW_RIB_GAP / 2
-    x1 = x0 + s * OW_RIB_W
-    base = base.union(rrect(min(x0, x1), cav_y1 - 4.5, max(x0, x1), cav_y1,
-                            PCB_TOP + 1.0, Z_WALL - LIP_H - 0.5, 0))
+# ⚠️ Die Unterseite laeuft mit 45° aus der Wand heraus statt waagerecht in der
+#    Luft zu enden. Als Rechteck waren die beiden Rippen die einzige Stelle der
+#    Schale, die wirklich Stuetzmaterial gebraucht haette: 4,5 mm Auskragung,
+#    freitragend ab Z = PCB_TOP + 1,0. Tiefer ansetzen geht nicht — dort liegt
+#    die Platine.
+_rib_z0, _rib_z1 = PCB_TOP + 1.0, Z_WALL - LIP_H - 0.5
+_rib_d = 4.5
+for _s in (-1, 1):
+    _x0 = OW_X + _s * OW_RIB_GAP / 2
+    _x1 = _x0 + _s * OW_RIB_W
+    _rippe = (cq.Workplane("YZ", origin=(min(_x0, _x1), 0, 0))
+              .polyline([(cav_y1, _rib_z0), (cav_y1, _rib_z1),
+                         (cav_y1 - _rib_d, _rib_z1),
+                         (cav_y1 - _rib_d, _rib_z0 + _rib_d)]).close()
+              .extrude(OW_RIB_W))
+    base = base.union(_rippe)
 
 # --- Nordwand: Kabelverschraubung M12x1,5 fuer die Netzzuleitung -------------
 # ⚠️ Sitzt im NETZBEREICH der Platine (X >= 113,8) und fuehrt die Leitung auf
@@ -272,10 +386,10 @@ base = base.cut(cq.Workplane("XZ", origin=(NETZ_X, out_y1 + 0.5, PCB_TOP + 9.0))
 #    geschlossen: wandmontiert liegt er an der Wand und wuerde nichts belueften.
 #    Der Netzbereich bleibt vollstaendig geschlossen.
 if VENTS:
-    for z in (10.0, 13.0, 16.0, 19.0, 22.0):
+    for z in (10.0, 13.0, 16.0, 19.0, 22.0, 25.0):
         base = base.cut(rrect(10.0, cav_y1 - 1.0, 34.0, out_y1 + 1.0,
                               z - 1.0, z + 1.0, 0.9))
-    for z in (8.5, 11.5, 14.5, 17.5, 20.5):
+    for z in (8.5, 11.5, 14.5, 17.5, 20.5, 23.5):
         base = base.cut(rrect(out_x0 - 1.0, 35.0, cav_x0 + 1.0, 55.0,
                               z - 1.0, z + 1.0, 0.9))
 
@@ -298,20 +412,23 @@ lid = lid.union(lip)
 # Deckelschrauben M3: Durchgang + Kopfsenkung
 for (px, py) in PILLARS:
     lid = lid.cut(zyl(px, py, LID_SCREW_C, Z_WALL - LIP_H - 0.1, Z_TOP + 0.1))
-    lid = lid.cut(zyl(px, py, LID_CBORE_D, Z_TOP - LID_CBORE_H, Z_TOP + 0.1))
+    lid = lid.cut(cq.Workplane("XY", origin=(px, py, Z_TOP - LID_CSK_H))
+                  .circle(LID_SCREW_C / 2).workplane(offset=LID_CSK_H)
+                  .circle(LID_CSK_D / 2).loft())
 
 # --- Displayaufnahme ---------------------------------------------------------
 # Aufbau von oben: 1,0 mm Deckel ueber dem Glas, Glastasche DSP_GLASS_D tief,
 # Modulplatine liegt an der Deckelunterseite an, Halterahmen klemmt sie gegen
 # die vier Dome.
-lid = lid.cut(rrect(DSP_CX - DSP_WIN / 2, DSP_CY - DSP_WIN / 2,
-                    DSP_CX + DSP_WIN / 2, DSP_CY + DSP_WIN / 2,
-                    Z_WALL - 0.1, Z_TOP + 0.1, 1.5))
-lid = lid.cut(rrect(DSP_CX - DSP_GLASS_W / 2, DSP_CY - DSP_GLASS_H / 2,
-                    DSP_CX + DSP_GLASS_W / 2, DSP_CY + DSP_GLASS_H / 2,
-                    Z_WALL - 0.1, Z_WALL + DSP_GLASS_D, 1.0))
 DSP_BOSS_Z0 = Z_WALL - DSP_PCB_T       # Unterkante Dom = Rueckseite der Modulplatine
-for (bx, by) in DSP_BOSS:
+if MIT_DISPLAY:
+    lid = lid.cut(rrect(DSP_CX - DSP_WIN / 2, DSP_CY - DSP_WIN / 2,
+                        DSP_CX + DSP_WIN / 2, DSP_CY + DSP_WIN / 2,
+                        Z_WALL - 0.1, Z_TOP + 0.1, 1.5))
+    lid = lid.cut(rrect(DSP_CX - DSP_GLASS_W / 2, DSP_CY - DSP_GLASS_H / 2,
+                        DSP_CX + DSP_GLASS_W / 2, DSP_CY + DSP_GLASS_H / 2,
+                        Z_WALL - 0.1, Z_WALL + DSP_GLASS_D, 1.0))
+for (bx, by) in (DSP_BOSS if MIT_DISPLAY else []):
     # ⚠️ Der Dom muss den Deckelkoerper UEBERLAPPEN, nicht an ihm enden. Mit
     #    Z_WALL + 0,01 entstanden 24 offene Kanten im tesselierten Netz —
     #    genau der Fall, den `check_case.py` Punkt 2 sucht.
@@ -330,14 +447,16 @@ for (tx, ty) in TOUCH:
 # nicht ueber das Bohrbild des Moduls — siehe Kommentar bei DSP_*.
 _fx = [b[0] for b in DSP_BOSS]
 _fy = [b[1] for b in DSP_BOSS]
-dsp_frame = rrect(min(_fx) - 4.0, min(_fy) - 4.0, max(_fx) + 4.0, max(_fy) + 4.0,
+dsp_frame = None if not MIT_DISPLAY else rrect(min(_fx) - 4.0, min(_fy) - 4.0, max(_fx) + 4.0, max(_fy) + 4.0,
                   0, DSP_FRAME_T, 4.0)
-dsp_frame = dsp_frame.cut(rrect(DSP_CX - DSP_W / 2 + 2.5, DSP_CY - DSP_H / 2 + 2.5,
-                                DSP_CX + DSP_W / 2 - 2.5, DSP_CY + DSP_H / 2 - 2.5,
-                                -0.1, DSP_FRAME_T + 0.1, 2.0))
-for (bx, by) in DSP_BOSS:
-    dsp_frame = dsp_frame.cut(zyl(bx, by, DSP_BOSS_PILOT + 0.7, -0.1, DSP_FRAME_T + 0.1))
-dsp_frame = dsp_frame.translate((0, 0, -DSP_FRAME_T))   # in Druckstellung legen
+if dsp_frame is not None:
+    dsp_frame = dsp_frame.cut(rrect(DSP_CX - DSP_W / 2 + 2.5, DSP_CY - DSP_H / 2 + 2.5,
+                                    DSP_CX + DSP_W / 2 - 2.5, DSP_CY + DSP_H / 2 - 2.5,
+                                    -0.1, DSP_FRAME_T + 0.1, 2.0))
+    for (bx, by) in DSP_BOSS:
+        dsp_frame = dsp_frame.cut(zyl(bx, by, DSP_BOSS_PILOT + 0.7, -0.1,
+                                      DSP_FRAME_T + 0.1))
+    dsp_frame = dsp_frame.translate((0, 0, -DSP_FRAME_T))   # in Druckstellung
 
 # ==================================================== Hutschienen-Clip ======
 # Zwei gleiche Teile, je eines UNTER die Wandlasche bei Y = 80 geschraubt
@@ -408,10 +527,13 @@ din_clip = hutschienen_clip() if DIN_CLIP else None
 wallprobe = base.intersect(rrect(-4.0, out_y0 - 1.0, PCB_W + 4.0, 7.0, 0, Z_WALL, 0))
 # Displayausschnitt aus dem Deckel, in DRUCKSTELLUNG gedreht (wie der Deckel
 # selbst): sonst zeigt die Glastasche nach unten und braucht Stuetzen.
-_fr = lid.intersect(rrect(min(_fx) - 8.0, min(_fy) - 8.0, max(_fx) + 8.0,
-                          max(_fy) + 8.0, Z_WALL - 4.0, Z_TOP + 0.1, 0))
-_fb = _fr.val().BoundingBox()
-frame = _fr.rotate((0, 0, 0), (1, 0, 0), 180).translate((0, _fb.ymin + _fb.ymax, _fb.zmax))
+frame = None
+if MIT_DISPLAY:
+    _fr = lid.intersect(rrect(min(_fx) - 8.0, min(_fy) - 8.0, max(_fx) + 8.0,
+                              max(_fy) + 8.0, Z_WALL - 4.0, Z_TOP + 0.1, 0))
+    _fb = _fr.val().BoundingBox()
+    frame = _fr.rotate((0, 0, 0), (1, 0, 0), 180).translate(
+        (0, _fb.ymin + _fb.ymax, _fb.zmax))
 
 # ================================================ camperSense-Bildmarke =====
 logo = None
@@ -471,7 +593,7 @@ pcb = pcb.cut(rrect(ESP[0] - ESP[2] / 2 - 0.1, 62.8, ESP[0] + ESP[2] / 2 + 0.1, 
                     PCB_TOP + 0.01, PCB_TOP + ESP_SOCKET, 0))
 
 # =========================================================== Zubehoerteile ==
-EXTRA_PARTS = [("Displayrahmen", dsp_frame)]
+EXTRA_PARTS = [("Displayrahmen", dsp_frame)] if dsp_frame is not None else []
 if din_clip is not None:
     EXTRA_PARTS += [("Hutschienen-Clip 1", din_clip.translate((60, 0, 0))),
                     ("Hutschienen-Clip 2", din_clip.translate((-60, 0, 0)))]
@@ -480,10 +602,12 @@ if din_clip is not None:
 if os.environ.get("SKIP_EXPORT") == "1":
     print("SKIP_EXPORT=1 — Geometrie gebaut, nichts geschrieben")
 else:
-    for name, wp in [("unterschale", base), ("deckel", lid), ("platine", pcb),
-                     ("displayrahmen", dsp_frame), ("wandprobe", wallprobe),
-                     ("displayprobe", frame)] + ([("hutschienenclip", din_clip)]
-                                                 if din_clip is not None else []):
+    _teile = [("unterschale", base), ("deckel", lid), ("platine", pcb),
+              ("wandprobe", wallprobe)]
+    _teile += [(n, w) for n, w in (("displayrahmen", dsp_frame),
+                                   ("displayprobe", frame),
+                                   ("hutschienenclip", din_clip)) if w is not None]
+    for name, wp in _teile:
         sol = wp.solids().vals()
         ok = "ok" if (len(sol) == 1 and wp.val().isValid()) else "⚠️ PRUEFEN"
         print(f"{name:16s} {len(sol)} solid(s), {sum(s.Volume() for s in sol):9.0f} mm³  [{ok}]")
@@ -492,26 +616,29 @@ else:
     asm.add(base, name="unterschale", color=cq.Color(0.55, 0.57, 0.60))
     asm.add(lid, name="deckel", color=cq.Color(0.35, 0.38, 0.42))
     asm.add(pcb, name="platine_dummy", color=cq.Color(0.10, 0.50, 0.20))
-    asm.add(dsp_frame.translate((0, 0, Z_WALL - DSP_PCB_T)), name="displayrahmen",
-            color=cq.Color(0.30, 0.32, 0.35))
+    if dsp_frame is not None:
+        asm.add(dsp_frame.translate((0, 0, Z_WALL - DSP_PCB_T)),
+                name="displayrahmen", color=cq.Color(0.30, 0.32, 0.35))
     if logo:
         asm.add(logo[0], name="logo_ring", color=cq.Color(0.204, 0.702, 0.761))
         asm.add(logo[1], name="logo_akzent", color=cq.Color(0.914, 0.651, 0.231))
-    asm.save("fbh_gehaeuse.step")
+    asm.save(f"fbh_gehaeuse{FILE_SFX}.step")
 
     exporters.export(base, "fbh_unterschale.stl", tolerance=0.01)
-    exporters.export(dsp_frame, "fbh_displayrahmen.stl", tolerance=0.01)
     exporters.export(wallprobe, "fbh_pruefstueck_suedwand.stl", tolerance=0.01)
-    exporters.export(frame, "fbh_pruefstueck_display.stl", tolerance=0.01)
+    if dsp_frame is not None:
+        exporters.export(dsp_frame, "fbh_displayrahmen.stl", tolerance=0.01)
+    if frame is not None:
+        exporters.export(frame, "fbh_pruefstueck_display.stl", tolerance=0.01)
     if din_clip is not None:
         exporters.export(din_clip, "fbh_hutschienen_clip.stl", tolerance=0.01)
     bb = lid.val().BoundingBox()
     exporters.export(lid.rotate((0, 0, 0), (1, 0, 0), 180)
                      .translate((0, bb.ymin + bb.ymax, bb.zmax)),
-                     "fbh_deckel.stl", tolerance=0.01)
+                     f"fbh_deckel{FILE_SFX}.stl", tolerance=0.01)
     if logo:
         for wp, name in zip(logo, ("logo_ring", "logo_akzent")):
-            exporters.export(wp, f"fbh_{name}.stl", tolerance=0.005)
+            exporters.export(wp, f"fbh_{name}{FILE_SFX}.stl", tolerance=0.005)
 
     bb = base.val().BoundingBox()
     print(f"\nAussenmasse mit Ohren und Laschen: {bb.xlen:.1f} x {bb.ylen:.1f} "

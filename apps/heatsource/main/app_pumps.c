@@ -71,20 +71,40 @@ static inline uint32_t now_ms(void)
 /* Konfiguration uebernehmen                                           */
 /* ------------------------------------------------------------------ */
 
+static void push_relay(circuit_t *z, uint32_t t);
+
 static void apply_config(void)
 {
     static app_config_t cfg;
     cfg_copy(&cfg);
 
+    /*
+     * Die Liste wird neu aufgebaut, statt sie an Ort und Stelle zu aendern.
+     * Beim Loeschen eines Kreises ruecken die uebrigen sonst eine Stelle vor
+     * und verlieren dabei ihre Mindestzeiten -- zugeordnet wird deshalb ueber
+     * die Kennung, nicht ueber die Stelle in der Liste.
+     */
+    static circuit_t neu[CFG_MAX_CIRCUITS];
+    static circuit_t entfallen[CFG_MAX_CIRCUITS];
+    uint8_t entfallen_n = 0;
+
+    memset(neu, 0, sizeof(neu));
+    uint8_t n = cfg.circuit_count < CFG_MAX_CIRCUITS ? cfg.circuit_count : CFG_MAX_CIRCUITS;
+
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    for (uint8_t i = 0; i < cfg.circuit_count && i < CFG_MAX_CIRCUITS; i++) {
+    for (uint8_t i = 0; i < n; i++) {
         const cfg_circuit_t *c = &cfg.circuits[i];
-        circuit_t *z = &s_circ[i];
+        circuit_t *z = &neu[i];
 
         /* Zustandsmaschine nur beim ersten Mal anlegen, sonst gingen
          * Mindestzeiten und Schutzlaufzaehler bei jedem Speichern verloren. */
+        for (uint8_t j = 0; j < s_circ_count; j++) {
+            if (s_circ[j].id == c->id) {
+                *z = s_circ[j];
+                break;
+            }
+        }
         if (z->id != c->id) {
-            memset(z, 0, sizeof(*z));
             z->id = c->id;
             pump_init(&z->st, (pump_mode_t)c->mode);
         } else if (z->st.mode != (pump_mode_t)c->mode) {
@@ -109,8 +129,32 @@ static void apply_config(void)
         z->cfg.seize_days = c->seize_days;
         z->cfg.seize_run_s = 180;
     }
-    s_circ_count = cfg.circuit_count < CFG_MAX_CIRCUITS ? cfg.circuit_count : CFG_MAX_CIRCUITS;
+
+    /* Geloeschte Kreise vormerken: ihre Pumpe wird gleich abgeschaltet. */
+    for (uint8_t j = 0; j < s_circ_count; j++) {
+        if (s_circ[j].id != 0 && cfg_circuit(&cfg, s_circ[j].id) == NULL) {
+            entfallen[entfallen_n++] = s_circ[j];
+        }
+    }
+
+    memcpy(s_circ, neu, sizeof(s_circ));
+    s_circ_count = n;
     xSemaphoreGive(s_mtx);
+
+    /*
+     * Eine Pumpe, deren Heizkreis geloescht wurde, wird niemand mehr
+     * abschalten -- sie liefe bis zum naechsten Eingriff von Hand weiter.
+     * Der Befehl geht ausserhalb der Sperre hinaus, weil er ueber das Netz
+     * geht und dabei in eine Zeitueberschreitung laufen kann.
+     */
+    for (uint8_t i = 0; i < entfallen_n; i++) {
+        circuit_t *z = &entfallen[i];
+        z->st.on = false;
+        z->last_sent_ms = 0;
+        z->last_try_ms = 0;
+        push_relay(z, now_ms());
+        ESP_LOGI(TAG, "Heizkreis %u geloescht, Pumpe abgeschaltet", (unsigned)z->id);
+    }
 }
 
 /* ------------------------------------------------------------------ */

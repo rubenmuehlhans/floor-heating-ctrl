@@ -18,6 +18,13 @@ static const char *TAG = "burner";
 
 #define TICK_MS 1000
 #define REC_PERIOD_S 5
+/*
+ * Nachlauf der selbsttaetigen Aufzeichnung. Der Kessel gibt seine Waerme noch
+ * einige Minuten nach dem Brennerlauf ab; erst danach steht fest, wie warm der
+ * Speicher geworden ist. Setzt der Brenner in dieser Zeit wieder ein, laeuft
+ * die Aufzeichnung durch -- taktender Betrieb gehoert zur selben Ladung.
+ */
+#define REC_TAIL_S 600
 #define NVS_NAMESPACE "heiz"
 #define NVS_KEY_STATS "stats"
 /* Ab so vielen Starts bei so wenig Laufzeit je Start gilt der Betrieb als
@@ -48,9 +55,13 @@ static int16_t *s_rec;
 static probe_role_t s_rec_role[ROLE_COUNT];
 static uint8_t s_rec_cols;
 static uint16_t s_rec_len;
-static rec_state_t s_rec_state;
 static uint32_t s_rec_started_epoch;
 static uint32_t s_rec_last_ms;
+
+/* Wann begonnen und wann beendet wird, steht in components/heatlogic und ist
+ * dort ohne Hardware geprueft. */
+static rec_trigger_t s_trig;
+static bool s_burner_any;       /* Brennerzustand, eigener Fuehler oder Nachbargeraet */
 
 static inline uint32_t now_ms(void)
 {
@@ -115,18 +126,19 @@ void rec_discard(void)
     s_rec = NULL;
     s_rec_len = 0;
     s_rec_cols = 0;
-    s_rec_state = REC_IDLE;
+    rec_trigger_init(&s_trig);
     xSemaphoreGive(s_mtx);
 }
 
-esp_err_t rec_start(void)
+/*
+ * Belegt den Puffer und legt die Spalten fest: aufgezeichnet wird nur, was
+ * gerade einen Messwert liefert. Der Speicher wird schon beim Scharfschalten
+ * geholt, damit ein Fehlschlag sofort auffaellt und nicht erst dann, wenn der
+ * Brenner anspringt.
+ */
+static esp_err_t rec_alloc(void)
 {
-    /* Welche Messstellen belegt sind, entscheidet ueber die Spalten. */
-    static sens_snapshot_t snap;
-    sensors_get(&snap);
-
-    (void)snap;
-    probe_role_t rollen[ROLE_COUNT];
+    probe_role_t rollen[ROLE_COUNT] = {0};
     uint8_t n = 0;
     for (int r = 1; r < ROLE_COUNT; r++) {
         float wert = 0.0f;
@@ -139,24 +151,44 @@ esp_err_t rec_start(void)
         return ESP_ERR_NOT_FOUND;
     }
 
-    /* Ein vorheriger Lauf wird verworfen; sonst haetten zwei Aufzeichnungen
-     * unterschiedliche Spalten im selben Puffer. */
-    free(s_rec);
-    s_rec = calloc((size_t)REC_SLOTS * n, sizeof(int16_t));
-    if (s_rec == NULL) {
-        s_rec_cols = 0;
+    int16_t *puffer = calloc((size_t)REC_SLOTS * n, sizeof(int16_t));
+    if (puffer == NULL) {
         ESP_LOGW(TAG, "Kein Speicher fuer die Aufzeichnung");
         return ESP_ERR_NO_MEM;
     }
 
+    /* Ein vorheriger Lauf wird verworfen; sonst haetten zwei Aufzeichnungen
+     * unterschiedliche Spalten im selben Puffer. */
     xSemaphoreTake(s_mtx, portMAX_DELAY);
+    free(s_rec);
+    s_rec = puffer;
     memcpy(s_rec_role, rollen, sizeof(rollen));
     s_rec_cols = n;
     s_rec_len = 0;
-    s_rec_state = REC_RUNNING;
+    s_rec_last_ms = 0;
+    xSemaphoreGive(s_mtx);
+    return ESP_OK;
+}
+
+/* Setzt die eben begonnene Aufzeichnung auf null. Der Aufrufer haelt die Sperre. */
+static void rec_begin_locked(void)
+{
+    s_rec_len = 0;
     s_rec_last_ms = 0;
     time_t jetzt = time(NULL);
     s_rec_started_epoch = jetzt > 1700000000 ? (uint32_t)jetzt : 0;
+}
+
+esp_err_t rec_start(void)
+{
+    esp_err_t rc = rec_alloc();
+    if (rc != ESP_OK) {
+        return rc;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    rec_trigger_manual(&s_trig);
+    rec_begin_locked();
+    uint8_t n = s_rec_cols;
     xSemaphoreGive(s_mtx);
 
     ESP_LOGI(TAG, "Aufzeichnung gestartet, %u Messstellen, %u Byte", (unsigned)n,
@@ -164,12 +196,60 @@ esp_err_t rec_start(void)
     return ESP_OK;
 }
 
+esp_err_t rec_arm(void)
+{
+    esp_err_t rc = rec_alloc();
+    if (rc != ESP_OK) {
+        return rc;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    rec_trigger_arm(&s_trig, s_burner_any);
+    s_rec_started_epoch = 0;
+    bool warten = s_trig.wait_off;
+    uint8_t n = s_rec_cols;
+    xSemaphoreGive(s_mtx);
+
+    ESP_LOGI(TAG, "Aufzeichnung scharf, %u Messstellen%s", (unsigned)n,
+             warten ? ", der Brenner laeuft noch -- gewartet wird auf den naechsten Start" : "");
+    return ESP_OK;
+}
+
 void rec_stop(void)
 {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    if (s_rec_state == REC_RUNNING) {
-        s_rec_state = REC_DONE;
+    bool war_scharf = s_trig.phase == REC_TRIG_ARMED;
+    bool lief = s_trig.phase == REC_TRIG_RUN;
+    rec_trigger_stop(&s_trig);
+    if (war_scharf) {
+        /* Aufgezeichnet wurde noch nichts, der Speicher wird gleich frei. */
+        free(s_rec);
+        s_rec = NULL;
+        s_rec_cols = 0;
+        ESP_LOGI(TAG, "Aufzeichnung abgebrochen");
+    } else if (lief) {
         ESP_LOGI(TAG, "Aufzeichnung beendet, %u Zeilen", (unsigned)s_rec_len);
+    }
+    xSemaphoreGive(s_mtx);
+}
+
+/*
+ * Uebergaenge der selbsttaetigen Aufzeichnung, einmal je Sekunde. laeuft ist
+ * der Brennerzustand: vom eigenen Abgasfuehler oder, wenn dieses Geraet keinen
+ * hat, vom Nachbargeraet. Das Geraet am Pufferspeicher kann so aufzeichnen,
+ * obwohl der Brenner in einem anderen Raum steht.
+ */
+static void rec_tick(bool laeuft, uint32_t t)
+{
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    s_burner_any = laeuft;
+    rec_trig_phase_t vorher = s_trig.phase;
+
+    if (rec_trigger_tick(&s_trig, laeuft, REC_TAIL_S, t)) {
+        rec_begin_locked();
+        ESP_LOGI(TAG, "Brenner angelaufen, Aufzeichnung beginnt");
+    } else if (vorher == REC_TRIG_RUN && s_trig.phase == REC_TRIG_DONE) {
+        ESP_LOGI(TAG, "Brenner aus und Nachlauf vorbei, Aufzeichnung beendet, %u Zeilen",
+                 (unsigned)s_rec_len);
     }
     xSemaphoreGive(s_mtx);
 }
@@ -181,13 +261,19 @@ void rec_get_status(rec_status_t *out)
         return;
     }
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    out->state = s_rec_state;
+    out->state = s_trig.phase == REC_TRIG_ARMED ? REC_ARMED
+                 : s_trig.phase == REC_TRIG_RUN ? REC_RUNNING
+                 : s_trig.phase == REC_TRIG_DONE ? REC_DONE : REC_IDLE;
     out->samples = s_rec_len;
     out->period_s = REC_PERIOD_S;
     out->started_epoch = s_rec_started_epoch;
     out->cols = s_rec_cols;
     memcpy(out->role, s_rec_role, sizeof(out->role));
     out->bytes = s_rec ? (uint32_t)REC_SLOTS * s_rec_cols * sizeof(int16_t) : 0;
+    out->automatic = s_trig.automatic;
+    out->wait_off = s_trig.wait_off;
+    out->tail = s_trig.tail;
+    out->tail_left_s = (uint16_t)rec_trigger_tail_left_s(&s_trig, REC_TAIL_S, now_ms());
     xSemaphoreGive(s_mtx);
 }
 
@@ -206,9 +292,9 @@ bool rec_row(size_t index, int16_t *out, size_t out_len)
 /* Schreibt eine Zeile mit allen zugeordneten Messstellen. */
 static void rec_append(const sens_snapshot_t *snap)
 {
-    if (s_rec == NULL || s_rec_state != REC_RUNNING || s_rec_len >= REC_SLOTS) {
-        if (s_rec_state == REC_RUNNING && s_rec_len >= REC_SLOTS) {
-            s_rec_state = REC_DONE;
+    if (s_rec == NULL || s_trig.phase != REC_TRIG_RUN || s_rec_len >= REC_SLOTS) {
+        if (s_trig.phase == REC_TRIG_RUN && s_rec_len >= REC_SLOTS) {
+            rec_trigger_full(&s_trig);
             ESP_LOGI(TAG, "Aufzeichnung voll, beendet");
         }
         return;
@@ -309,6 +395,10 @@ static void burner_task(void *arg)
         charge_tick(&s_cst, &s_ccfg, &cin, t);
         xSemaphoreGive(s_mtx);
 
+        /* Scharf geschaltet wartet die Aufzeichnung auf den naechsten
+         * Brennerstart und endet nach dessen Nachlauf von selbst. */
+        rec_tick(cin.burner_known && cin.burner_running, t);
+
         /* Tageswechsel. Ohne gestellte Uhr wird nicht umgeschaltet -- sonst
          * fiele der Wechsel mit jedem Neustart zusammen. */
         int tag = heute();
@@ -349,7 +439,7 @@ static void burner_task(void *arg)
         }
 
         /* Aufzeichnung im festen Raster. */
-        if (s_rec_state == REC_RUNNING &&
+        if (s_trig.phase == REC_TRIG_RUN &&
             (s_rec_last_ms == 0 || t - s_rec_last_ms >= REC_PERIOD_S * 1000UL)) {
             s_rec_last_ms = t;
             sensors_get(&snap);

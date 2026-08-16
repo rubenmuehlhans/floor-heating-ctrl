@@ -59,8 +59,24 @@ KREISE = [
      "topic": "pumpe_hk2", "relay": 2},
 ]
 
+MAX_CIRCUITS = 4
+
+
+def kreis_default(kid: int) -> dict:
+    """Vorgabewerte eines Heizkreises, wie sie cfg_circuit_defaults() setzt."""
+    return {"id": kid, "name": f"Heizkreis {kid}", "enabled": True, "peers": [],
+            "vl_role": f"hk{kid}_vl", "rl_role": f"hk{kid}_rl",
+            "pump": {"topic": "", "host": "", "user": "", "relay": 1, "pass_set": False},
+            "mode": "auto", "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
+            "min_buffer_c": 40.0, "frost_c": 6.0, "seize_days": 7}
+
+
 REC = {"state": "fertig", "samples": 1043, "period_s": 5,
-       "started_epoch": int(time.time()) - 5215, "cols": 6, "bytes": 19200}
+       "started_epoch": int(time.time()) - 5215, "cols": 6, "bytes": 19200,
+       "auto": False, "wait_off": False, "tail": False, "tail_left_s": 0}
+
+# Nachlauf der selbsttaetigen Aufzeichnung, wie REC_TAIL_S im Geraet.
+REC_TAIL_S = 600
 
 CFG = {
     "cfg_version": 1,
@@ -125,26 +141,47 @@ LABEL = {
 }
 
 
+def rec_tick(brenner_laeuft: bool) -> None:
+    """Uebergaenge der selbsttaetigen Aufzeichnung, wie rec_tick() im Geraet."""
+    if REC["state"] == "scharf":
+        if not brenner_laeuft:
+            REC["wait_off"] = False
+        elif not REC["wait_off"]:
+            REC.update(state="laeuft", samples=0, tail=False, tail_left_s=0,
+                       started_epoch=int(time.time()))
+    elif REC["state"] == "laeuft":
+        REC["samples"] = min(1600, int((time.time() - REC["started_epoch"]) / 5))
+        if not REC["auto"]:
+            return
+        if brenner_laeuft:
+            REC.update(tail=False, tail_left_s=0)
+        elif not REC["tail"]:
+            REC.update(tail=True, tail_left_s=REC_TAIL_S, tail_bis=time.time() + REC_TAIL_S)
+        elif time.time() >= REC["tail_bis"]:
+            REC.update(state="fertig", tail=False, tail_left_s=0)
+        else:
+            REC["tail_left_s"] = int(REC["tail_bis"] - time.time())
+
+
 def state() -> dict:
     ps = probes()
     belegt = {p["role"]: p["temp_c"] for p in ps if p["role"]}
     abgeleitet = {}
-    for name, a, b in [("kessel_spreizung_k", "kessel_vl", "kessel_rl"),
-                       ("hk1_spreizung_k", "hk1_vl", "hk1_rl"),
-                       ("hk2_spreizung_k", "hk2_vl", "hk2_rl")]:
-        if a in belegt and b in belegt:
-            abgeleitet[name] = round(belegt[a] - belegt[b], 2)
+    # Die Spreizung der Heizkreise steht je Kreis unter "circuits".
+    if "kessel_vl" in belegt and "kessel_rl" in belegt:
+        abgeleitet["kessel_spreizung_k"] = round(belegt["kessel_vl"] - belegt["kessel_rl"], 2)
     brenner_laeuft = math.sin(2 * math.pi * time.time() / 900) > 0.2
+    rec_tick(brenner_laeuft)
     laufzeit = 4 * 3600 + int(time.time()) % 1800
     starts = 6
 
     kreise = []
-    for i, c in enumerate(CFG.get("circuits", [])):
+    for c in CFG.get("circuits", []):
         vl = belegt.get(f"hk{c['id']}_vl")
         rl = belegt.get(f"hk{c['id']}_rl")
         bedarf = c["id"] == 1
         kreise.append({
-            "id": c["id"], "name": c["name"], "enabled": True,
+            "id": c["id"], "name": c["name"], "enabled": c.get("enabled", True),
             "mode": c.get("mode", "auto"),
             "on": bedarf,
             "reason": "Abnehmer vorhanden" if bedarf else "kein Abnehmer",
@@ -159,7 +196,7 @@ def state() -> dict:
 
     quellen = []
     for c in CFG.get("circuits", []):
-        for j, pid in enumerate(c["peers"]):
+        for j, pid in enumerate(c.get("peers", [])):
             quellen.append({
                 "id": pid,
                 "site": {"fbh_c2e55c": "Keller", "fbh_a1b2c3": "Erdgeschoss",
@@ -315,14 +352,53 @@ class Handler(BaseHTTPRequestHandler):
             patch = json.loads(self.rfile.read(length))
         except Exception:
             return self._send({"ok": False, "error": "kaputtes JSON"}, 400)
+        if len(patch.get("circuits", [])) > MAX_CIRCUITS:
+            return self._send({"ok": False,
+                               "error": f"Hoechstens {MAX_CIRCUITS} Heizkreise moeglich"}, 400)
         for k, v in patch.items():
-            if isinstance(v, dict) and isinstance(CFG.get(k), dict):
+            if k == "circuits" and isinstance(v, list):
+                # Wie im Geraet: die Liste wird ersetzt, je Kennung dient aber
+                # der bisherige Stand als Grundlage. Eine Teilangabe laesst die
+                # uebrigen Felder damit stehen.
+                alt = {c["id"]: c for c in CFG.get("circuits", [])}
+                neu = []
+                for e in v:
+                    kid = int(e.get("id", len(neu) + 1))
+                    z = dict(alt.get(kid) or kreis_default(kid))
+                    for feld, wert_ in e.items():
+                        if feld == "pump" and isinstance(wert_, dict):
+                            z["pump"] = {**z["pump"], **wert_}
+                        else:
+                            z[feld] = wert_
+                    neu.append(z)
+                CFG["circuits"] = sorted(neu, key=lambda c: c["id"])
+            elif isinstance(v, dict) and isinstance(CFG.get(k), dict):
                 CFG[k].update(v)
             else:
                 CFG[k] = v
         self._send({"ok": True})
 
     def do_POST(self):
+        pfad = urlparse(self.path).path
+        if pfad.startswith("/api/record/"):
+            aktion = pfad.rsplit("/", 1)[-1]
+            laeuft = math.sin(2 * math.pi * time.time() / 900) > 0.2
+            if aktion == "arm":
+                REC.update(state="scharf", auto=True, samples=0, cols=len(CFG["probes"]),
+                           bytes=1600 * len(CFG["probes"]) * 2, wait_off=laeuft,
+                           tail=False, tail_left_s=0, started_epoch=0)
+            elif aktion == "start":
+                REC.update(state="laeuft", auto=False, samples=0, cols=len(CFG["probes"]),
+                           bytes=1600 * len(CFG["probes"]) * 2, wait_off=False,
+                           tail=False, tail_left_s=0, started_epoch=int(time.time()))
+            elif aktion == "stop":
+                if REC["state"] == "scharf":
+                    REC.update(state="aus", auto=False, bytes=0, cols=0)
+                else:
+                    REC.update(state="fertig", tail=False, tail_left_s=0)
+            elif aktion == "discard":
+                REC.update(state="aus", auto=False, samples=0, bytes=0, cols=0,
+                           wait_off=False, tail=False, tail_left_s=0)
         self._send({"ok": True})
 
 

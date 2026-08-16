@@ -64,10 +64,12 @@ def zeichne(d, hilfslinien=False):
         x0, y0 = px(bb.xmin, bb.ymax)
         x1, y1 = px(bb.xmax, bb.ymin)
         d.rectangle([x0, y0, x1, y1], outline=grau, width=max(1, round(0.3 * PXMM)))
-        w = c.DSP_W / 2, c.DSP_H / 2
-        for a, b, lw in ((c.DSP_WIN / 2, c.DSP_WIN / 2, 0.4), (w[0], w[1], 0.2)):
-            d.rectangle([*px(c.DSP_CX - a, c.DSP_CY + b), *px(c.DSP_CX + a, c.DSP_CY - b)],
-                        outline=grau, width=max(1, round(lw * PXMM)))
+        if c.MIT_DISPLAY:
+            w = c.DSP_W / 2, c.DSP_H / 2
+            for a, b, lw in ((c.DSP_WIN / 2, c.DSP_WIN / 2, 0.4), (w[0], w[1], 0.2)):
+                d.rectangle([*px(c.DSP_CX - a, c.DSP_CY + b),
+                             *px(c.DSP_CX + a, c.DSP_CY - b)],
+                            outline=grau, width=max(1, round(lw * PXMM)))
         for (tx, ty) in c.TOUCH:
             r = c.TOUCH_D / 2
             d.ellipse([*px(tx - r, ty + r), *px(tx + r, ty - r)], outline=grau,
@@ -76,7 +78,7 @@ def zeichne(d, hilfslinien=False):
         d.ellipse([*px(c.LOGO_CX - r, c.LOGO_CY + r), *px(c.LOGO_CX + r, c.LOGO_CY - r)],
                   outline=grau, width=max(1, round(0.3 * PXMM)))
         for (sx, sy) in c.PILLARS:
-            r = c.LID_CBORE_D / 2
+            r = c.LID_CSK_D / 2       # Senkung, seit die Senkbohrung weg ist
             d.ellipse([*px(sx - r, sy + r), *px(sx + r, sy - r)], outline=grau,
                       width=max(1, round(0.3 * PXMM)))
 
@@ -125,7 +127,11 @@ def zeichne(d, hilfslinien=False):
     text(d, wx, wy - 0.6, "!", 3.4)
 
 
-for name, hilf in (("gravur_deckel.png", False), ("gravur_deckel_lage.png", True)):
+# ⚠️ Die GRAVUR ist in beiden Varianten dieselbe — Kanalnummern, Tasten und
+#    Kopfzeile haengen nicht am Display. Nur die Hilfslinien der Lagekontrolle
+#    zeigen das Fenster, und die Dateinamen tragen das Suffix der Variante.
+for name, hilf in ((f"gravur_deckel{c.FILE_SFX}.png", False),
+                   (f"gravur_deckel{c.FILE_SFX}_lage.png", True)):
     img = Image.new("L", (W, H), 255)
     zeichne(ImageDraw.Draw(img), hilf)
     img.save(name, dpi=(DPI, DPI))

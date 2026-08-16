@@ -261,6 +261,64 @@ void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input
                  uint32_t now_ms);
 const char *charge_phase_text(charge_phase_t p);
 
+/* ------------------------------------------------------------------ */
+/* Ausloesen der Aufzeichnung                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Wann eine Ladung anfaengt, sieht man erst an der steigenden
+ * Abgastemperatur. Von Hand ist der Anfang der Kurve deshalb kaum zu treffen.
+ * Scharf geschaltet wartet die Aufzeichnung auf den naechsten Brennerstart und
+ * endet nach dessen Nachlauf von selbst.
+ *
+ * Hier steht nur, wann begonnen und wann beendet wird. Das Belegen des
+ * Speichers und das Schreiben der Zeilen bleiben in der Anwendung.
+ */
+typedef enum {
+    REC_TRIG_OFF = 0,
+    REC_TRIG_ARMED,   /* wartet auf den naechsten Brennerstart */
+    REC_TRIG_RUN,
+    REC_TRIG_DONE,
+} rec_trig_phase_t;
+
+typedef struct {
+    rec_trig_phase_t phase;
+    bool automatic;   /* vom Brennerstart ausgeloest, endet auch von selbst */
+    bool wait_off;    /* scharf, aber der Brenner laeuft noch aus dem vorigen Lauf */
+    bool tail;        /* Brenner ist aus, der Nachlauf laeuft noch */
+    uint32_t tail_since_ms;
+} rec_trigger_t;
+
+void rec_trigger_init(rec_trigger_t *st);
+
+/*
+ * Schaltet scharf. Laeuft der Brenner in diesem Augenblick schon, wird nicht
+ * mitten hinein begonnen, sondern der naechste Start abgewartet: eine halbe
+ * Kurve taugt zur Auswertung nicht.
+ */
+void rec_trigger_arm(rec_trigger_t *st, bool burner_running);
+
+/* Beginnt sofort. Eine so begonnene Aufzeichnung endet nicht von selbst. */
+void rec_trigger_manual(rec_trigger_t *st);
+
+/* Beendet eine laufende und verwirft eine scharf geschaltete Aufzeichnung. */
+void rec_trigger_stop(rec_trigger_t *st);
+
+/* Der Puffer ist voll: die Aufzeichnung ist damit fertig. */
+void rec_trigger_full(rec_trigger_t *st);
+
+/*
+ * Ein Zeitschritt. burner_running ist der Brennerzustand -- vom eigenen
+ * Abgasfuehler oder, wenn das Geraet keinen hat, vom Nachbargeraet. Liefert
+ * true in dem Augenblick, in dem die Aufzeichnung beginnt; die Anwendung setzt
+ * dann ihren Zeitstempel und faengt bei Zeile null an.
+ */
+bool rec_trigger_tick(rec_trigger_t *st, bool burner_running, uint32_t tail_s,
+                      uint32_t now_ms);
+
+/* Verbleibender Nachlauf in Sekunden, 0 wenn keiner laeuft. */
+uint32_t rec_trigger_tail_left_s(const rec_trigger_t *st, uint32_t tail_s, uint32_t now_ms);
+
 #ifdef __cplusplus
 }
 #endif

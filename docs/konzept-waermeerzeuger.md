@@ -456,6 +456,13 @@ die passenden Entitäten ein.
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
 | 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t`, `cfgjson` und das Stilblatt umgesetzt; das Verschieben ist offen |
 
+Zur Aufzeichnung: Sie lässt sich scharf schalten und beginnt dann beim nächsten Brennerstart von
+selbst — der Anfang einer Ladung ist erst an der steigenden Abgastemperatur zu erkennen und von
+Hand kaum zu treffen. Beendet wird zehn Minuten nach dem Brennerlauf; setzt der Brenner in dieser
+Zeit wieder ein, läuft die Aufzeichnung durch, weil taktender Betrieb zur selben Ladung gehört.
+Wann begonnen und wann beendet wird, steht als `rec_trigger` in `components/heatlogic` und ist
+dort ohne Hardware geprüft.
+
 Zum Stilblatt: Geteilt wird das Gerüst — Farben, Schriften, Radien, Grundregeln sowie Kopfzeile,
 Reiter und Inhaltsfläche. Die Bedienelemente bleiben je Anwendung eigen. Ein Vergleich der
 beiden Stände zeigte, dass Schaltflächen, Beschriftungsfelder, Zustandsmarken und Tabellen sich

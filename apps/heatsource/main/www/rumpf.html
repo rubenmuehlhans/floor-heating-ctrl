@@ -253,15 +253,12 @@ a.btn:hover{filter:none}
   </section>
 
   <section id="circuits">
-    <div class="card" id="circ-none" hidden>
-      <h2>Keine Heizkreise angelegt</h2>
-      <p class="lede">Heizkreise werden auf dem Gerät am Pufferspeicher angelegt — dort hängt
-         das Relais der Umwälzpumpen. Am Kessel bleibt dieser Bereich leer. Vorgesehen sind
-         bis zu vier Kreise; jeder bekommt eigene Fühler, ein eigenes Relais und eigene
-         Zeiten.</p>
+    <div id="circ-list"></div>
+    <div class="card">
+      <h2 id="circ-add-title">Heizkreis anlegen</h2>
+      <p class="lede" id="circ-add-text"></p>
       <div class="actions"><button class="btn" id="circ-add">Heizkreis anlegen</button></div>
     </div>
-    <div id="circ-list"></div>
   </section>
 
   <section id="probes">
@@ -302,11 +299,16 @@ a.btn:hover{filter:none}
       <h2>Ladung aufzeichnen</h2>
       <p class="lede">Zeichnet alle Messstellen im Fünfsekundenraster auf, gut zwei Stunden
          lang. Aus diesen Kurven werden die Schwellwerte für den Ladezustand abgeleitet —
-         gemessen statt geschätzt, wie schon bei der Messfahrt der Verteilerplatine. Starten
-         Sie die Aufzeichnung, wenn der Kessel anspringt.</p>
+         gemessen statt geschätzt, wie schon bei der Messfahrt der Verteilerplatine.</p>
+      <p class="lede">Wann eine Ladung anfängt, sieht man erst an der steigenden
+         Abgastemperatur. Schalten Sie die Aufzeichnung deshalb scharf: sie beginnt beim
+         nächsten Brennerstart von selbst und endet zehn Minuten nach dessen Ende. Läuft
+         der Brenner gerade, wird der übernächste Start abgewartet — eine halbe Kurve taugt
+         zur Auswertung nicht.</p>
       <div class="row" id="rec-state"></div>
       <div class="actions">
-        <button class="btn" id="rec-start">Aufzeichnung starten</button>
+        <button class="btn" id="rec-arm">Beim nächsten Brennerstart aufzeichnen</button>
+        <button class="btn quiet" id="rec-start">Sofort aufzeichnen</button>
         <button class="btn quiet" id="rec-stop">Beenden</button>
         <a class="btn quiet" id="rec-csv" href="/api/record" download="ladung.csv">Als CSV holen</a>
         <button class="btn risky" id="rec-discard">Verwerfen</button>
@@ -707,11 +709,16 @@ function renderTiles() {
       <dd>${num(p.temp_c, 1)}<small>°C</small></dd>${alt}</div>`;
   }).join("");
 
-  for (const [k, label] of [["kessel_spreizung_k", "Spreizung Kessel"],
-                            ["hk1_spreizung_k", "Spreizung Heizkreis 1"],
-                            ["hk2_spreizung_k", "Spreizung Heizkreis 2"]]) {
-    if (abl[k] === undefined) continue;
-    html += `<div class="tile"><dt>${label}</dt><dd>${num(abl[k], 1)}<small>K</small></dd></div>`;
+  if (abl.kessel_spreizung_k !== undefined) {
+    html += `<div class="tile"><dt>Spreizung Kessel</dt>
+      <dd>${num(abl.kessel_spreizung_k, 1)}<small>K</small></dd></div>`;
+  }
+  /* Je angelegtem Heizkreis eine Kachel. Feste Plätze für Kreis 1 und 2 würden
+     einen dritten stillschweigend übergehen. */
+  for (const k of state.circuits || []) {
+    if (k.spread_k === null || k.spread_k === undefined) continue;
+    html += `<div class="tile"><dt>Spreizung ${k.name}</dt>
+      <dd>${num(k.spread_k, 1)}<small>K</small></dd></div>`;
   }
   $("#tiles").innerHTML = html;
 }
@@ -722,9 +729,37 @@ function renderTiles() {
    überschreiben. */
 const editingCircuits = () => $("#circ-list")?.contains(document.activeElement);
 
+/* Die Rollen eines Kreises ergeben sich aus seiner Kennung: Kreis 1 nimmt
+   hk1_vl und hk1_rl, Kreis 2 die nächsten und so fort. */
+const freieKennung = () => {
+  const belegt = (cfg?.circuits || []).map(c => c.id);
+  let id = 1;
+  while (belegt.includes(id)) id++;
+  return id;
+};
+
+function renderCircuitAdd() {
+  const n = (cfg?.circuits || []).length;
+  const voll = n >= MAX_CIRCUITS;
+  const id = freieKennung();
+
+  $("#circ-add-title").textContent = n ? "Weiterer Heizkreis" : "Heizkreis anlegen";
+  $("#circ-add-text").textContent = voll
+    ? `Alle ${MAX_CIRCUITS} vorgesehenen Heizkreise sind angelegt. Um einen anderen
+       einzurichten, löschen Sie zuerst einen bestehenden.`
+    : n
+    ? `${n} von ${MAX_CIRCUITS} Heizkreisen angelegt. Der nächste bekommt die Kennung ${id}
+       und damit die Fühlerrollen „Vorlauf Heizkreis ${id}“ und „Rücklauf Heizkreis ${id}“.`
+    : `Heizkreise werden auf dem Gerät am Pufferspeicher angelegt — dort hängt das Relais der
+       Umwälzpumpen. Am Kessel bleibt dieser Bereich leer. Vorgesehen sind bis zu
+       ${MAX_CIRCUITS} Kreise; jeder bekommt eigene Fühler, ein eigenes Relais und eigene
+       Zeiten.`;
+  $("#circ-add").disabled = voll;
+}
+
 function renderCircuits() {
   const ks = state.circuits || [];
-  $("#circ-none").hidden = ks.length > 0;
+  renderCircuitAdd();
   if (editingCircuits()) return;
 
   const quellen = state.demand_sources || [];
@@ -827,7 +862,10 @@ function renderCircuits() {
                  ${(c.peers || []).includes(p.id) ? "checked" : ""}>${p.site || p.id}</label>`)
         .join("") || `<span class="lede">Es wurde noch kein Verteiler im Netz gefunden.</span>`}
       </div>
-      <div class="actions"><button class="btn" data-save="${k.id}">Speichern</button></div>
+      <div class="actions">
+        <button class="btn" data-save="${k.id}">Speichern</button>
+        <button class="btn risky" data-del="${k.id}">Heizkreis löschen</button>
+      </div>
     </div>`;
   }).join("");
 }
@@ -1081,16 +1119,29 @@ function renderRecord() {
   if (!r) return;
   const dauer = r.samples * r.period_s;
   const speicher = r.bytes ? ` · ${Math.round(r.bytes / 1024)} kB belegt` : "";
-  const text = r.state === "laeuft"
-    ? `<span class="chip heat">läuft</span> ${r.samples} Zeilen aus ${r.cols} Messstellen`
-      + ` · ${formatUptime(dauer)}${speicher}`
-    : r.state === "fertig"
-      ? `<span class="chip ok">fertig</span> ${r.samples} Zeilen aus ${r.cols} Messstellen`
-        + ` · ${formatUptime(dauer)}${speicher}`
-      : `<span class="chip plain">keine Aufzeichnung</span>`;
+  const umfang = `${r.samples} Zeilen aus ${r.cols} Messstellen · ${formatUptime(dauer)}`;
+
+  let text;
+  if (r.state === "laeuft") {
+    const nachlauf = r.tail
+      ? ` · Brenner aus, Nachlauf noch ${formatUptime(r.tail_left_s)}` : "";
+    text = `<span class="chip heat">läuft</span> ${umfang}${nachlauf}${speicher}`;
+  } else if (r.state === "fertig") {
+    text = `<span class="chip ok">fertig</span> ${umfang}${speicher}`;
+  } else if (r.state === "scharf") {
+    text = `<span class="chip warn">scharf</span> ` + (r.wait_off
+      ? "der Brenner läuft noch — aufgezeichnet wird der nächste Start"
+      : "wartet auf den nächsten Brennerstart")
+      + ` · ${r.cols} Messstellen${speicher}`;
+  } else {
+    text = `<span class="chip plain">keine Aufzeichnung</span>`;
+  }
   $("#rec-state").innerHTML = text;
+
+  $("#rec-arm").disabled = r.state === "laeuft" || r.state === "scharf";
   $("#rec-start").disabled = r.state === "laeuft";
-  $("#rec-stop").disabled = r.state !== "laeuft";
+  $("#rec-stop").disabled = r.state !== "laeuft" && r.state !== "scharf";
+  $("#rec-stop").textContent = r.state === "scharf" ? "Abbrechen" : "Beenden";
   $("#rec-csv").style.display = r.samples ? "" : "none";
   $("#rec-discard").style.display = r.bytes ? "" : "none";
 }
@@ -1301,12 +1352,11 @@ async function boot() {
   };
 
   $("#circ-add").onclick = () => {
-    const vorhanden = (cfg.circuits || []).map(c => c.id);
-    if (vorhanden.length >= MAX_CIRCUITS)
+    if ((cfg.circuits || []).length >= MAX_CIRCUITS)
       return toast(`Mehr als ${MAX_CIRCUITS} Heizkreise sind nicht vorgesehen`, true);
-    let id = 1;
-    while (vorhanden.includes(id)) id++;
-    saveConfig({circuits: [...(cfg.circuits || []), {id, name: `Heizkreis ${id}`}]},
+    const id = freieKennung();
+    saveConfig({circuits: [...(cfg.circuits || []), {id, name: `Heizkreis ${id}`}]
+                            .sort((a, b) => a.id - b.id)},
                "Heizkreis angelegt");
   };
   $("#circ-list").onclick = async e => {
@@ -1325,6 +1375,16 @@ async function boot() {
       const id = parseInt(speichern.dataset.save, 10);
       const rest = (cfg.circuits || []).filter(c => c.id !== id);
       saveConfig({circuits: [...rest, collectCircuit(id)].sort((a, b) => a.id - b.id)});
+      return;
+    }
+    const loeschen = e.target.closest("[data-del]");
+    if (loeschen) {
+      const id = parseInt(loeschen.dataset.del, 10);
+      const k = (state.circuits || []).find(x => x.id === id);
+      if (!confirm(`Heizkreis „${k?.name || id}“ löschen? Seine Pumpe wird dabei `
+                 + `abgeschaltet, die zugeordneten Fühler bleiben stehen.`)) return;
+      saveConfig({circuits: (cfg.circuits || []).filter(c => c.id !== id)},
+                 "Heizkreis gelöscht");
     }
   };
 
@@ -1388,6 +1448,13 @@ async function boot() {
     } catch (e) { toast(e.message, true); }
   };
 
+  $("#rec-arm").onclick = async () => {
+    try {
+      await post("/api/record/arm");
+      toast("Aufzeichnung scharf, sie beginnt beim nächsten Brennerstart");
+      refresh();
+    } catch (e) { toast(e.message, true); }
+  };
   $("#rec-start").onclick = async () => {
     try { await post("/api/record/start"); toast("Aufzeichnung gestartet"); refresh(); }
     catch (e) { toast(e.message, true); }
@@ -1397,8 +1464,12 @@ async function boot() {
     catch (e) { toast(e.message, true); }
   };
   $("#rec-stop").onclick = async () => {
-    try { await post("/api/record/stop"); toast("Aufzeichnung beendet"); refresh(); }
-    catch (e) { toast(e.message, true); }
+    const scharf = state?.record?.state === "scharf";
+    try {
+      await post("/api/record/stop");
+      toast(scharf ? "Aufzeichnung abgebrochen" : "Aufzeichnung beendet");
+      refresh();
+    } catch (e) { toast(e.message, true); }
   };
 
   $("#hist-range").onchange = loadHistory;

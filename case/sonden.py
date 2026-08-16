@@ -82,32 +82,53 @@ sonde("Lueftungsschlitz Westwand", "YZ", (c.out_x0 - 1.0, 45.0, 14.5),
       0.4, c.WALL + 2.0)
 
 # Deckel: Sichtfenster und Schraubdurchgaenge
-sonde("Displayfenster Deckel", "XY", (c.DSP_CX, c.DSP_CY, c.Z_WALL - 1.0),
-      8.0, c.LID_T + 2.0, c.lid)
+# ⚠️ Das Fenster gibt es nur in der Variante MIT Display. Ungeprueft laufen zu
+#    lassen waere falsch, unbedingt zu pruefen ebenso: in der Variante ohne
+#    Display MUSS dort Material stehen — deshalb kippt die Sonde die Erwartung
+#    statt sie zu ueberspringen.
+if c.dsp_frame is not None:
+    sonde("Displayfenster Deckel", "XY", (c.DSP_CX, c.DSP_CY, c.Z_WALL - 1.0),
+          8.0, c.LID_T + 2.0, c.lid)
+else:
+    p_ = cq.Workplane("XY", origin=(c.DSP_CX, c.DSP_CY, c.Z_WALL - 1.0)) \
+        .circle(8.0).extrude(c.LID_T + 2.0)
+    v_ = volumen(p_.intersect(c.lid))
+    sagt(f"Deckel an der Displaystelle geschlossen: {v_:8.3f} mm³ Material"
+         + ("" if v_ > 100 else "  <- da ist ein Loch"), v_ > 100)
 for i, (px, py) in enumerate(c.PILLARS, 1):
     sonde(f"Deckelschraube {i} Durchgang", "XY", (px, py, c.Z_WALL - 0.5),
           c.LID_SCREW_C / 2 - 0.3, c.LID_T + 1.0, c.lid)
 
 print("\n2) Freiraum fuer Display und Halterahmen\n")
 # Beide sind KEINE Druckkoerper des Gehaeuses und fehlen deshalb in
-# check_case. Hier werden sie als Ersatzkoerper gegen den Platinen-Dummy und
-# gegen die Unterschale gehalten.
-modul = cq.Workplane("XY", origin=(c.DSP_CX, c.DSP_CY,
-                                   c.Z_WALL - c.DSP_PCB_T)) \
-    .rect(c.DSP_W, c.DSP_H).extrude(c.DSP_PCB_T)
-rahmen = c.dsp_frame.translate((0, 0, c.Z_WALL - c.DSP_PCB_T))
-# Steckerraum auf der Modulrueckseite [SCHAETZUNG 8 mm]
-stecker = cq.Workplane("XY", origin=(c.DSP_CX, c.DSP_CY,
-                                     c.Z_WALL - c.DSP_PCB_T - 8.0)) \
-    .rect(c.DSP_W, c.DSP_H).extrude(8.0)
-for bez, wp in (("Modulplatine", modul), ("Halterahmen", rahmen),
-                ("Steckerraum Rueckseite", stecker)):
-    for gegen, nm in ((c.pcb, "Platine + Bauteile"), (c.base, "Unterschale")):
-        try:
-            v = volumen(wp.intersect(gegen))
-        except Exception:
-            v = 0.0
-        sagt(f"{bez:24s} gegen {nm:20s} {v:7.3f} mm³", v < 0.01)
+# check_case. Hier werden sie als Ersatzkoerper gegen Platine, Schale und
+# Deckel gehalten.
+# ⚠️⚠️ Der DECKEL fehlte hier zuerst — und genau dort sitzen die vier
+#    Displaydome. Zwei davon ragten 1,0 mm in den Modulumriss: der Dom haelt
+#    den Halterahmen, seine Unterseite liegt also GENAU in der Ebene der
+#    Modulrueckseite. Ueberlappt er in XY, steht er im Modul. Gegen Platine und
+#    Schale allein zu pruefen findet das nie.
+rahmen = None
+if c.dsp_frame is None:
+    print("  Variante ohne Display (DISPLAY_MODUL=0) — entfaellt")
+else:
+    modul = (cq.Workplane("XY", origin=(c.DSP_CX, c.DSP_CY,
+                                        c.Z_WALL - c.DSP_PCB_T))
+             .rect(c.DSP_W, c.DSP_H).extrude(c.DSP_PCB_T))
+    rahmen = c.dsp_frame.translate((0, 0, c.Z_WALL - c.DSP_PCB_T))
+    # Steckerraum auf der Modulrueckseite [SCHAETZUNG 8 mm]
+    stecker = (cq.Workplane("XY", origin=(c.DSP_CX, c.DSP_CY,
+                                          c.Z_WALL - c.DSP_PCB_T - 8.0))
+               .rect(c.DSP_W, c.DSP_H).extrude(8.0))
+    for bez, wp in (("Modulplatine", modul), ("Halterahmen", rahmen),
+                    ("Steckerraum Rueckseite", stecker)):
+        for gegen, nm in ((c.pcb, "Platine + Bauteile"), (c.base, "Unterschale"),
+                          (c.lid, "Deckel samt Domen")):
+            try:
+                v = volumen(wp.intersect(gegen))
+            except Exception:
+                v = 0.0
+            sagt(f"{bez:24s} gegen {nm:20s} {v:7.3f} mm³", v < 0.01)
 
 print("\n3) Steckweg der RJ11-Buchsen\n")
 weg = c.WALL + c.CLR + c.RJ_FRONT_Y
@@ -120,6 +141,49 @@ sagt(f"Lichte Oeffnung: {c.RJ_OPEN_W:.1f} x {lichte:.1f} mm"
 steg = min(b - a for a, b in zip(c.RJ_X, c.RJ_X[1:])) - c.RJ_OPEN_W
 sagt(f"Schmalster Steg zwischen zwei Oeffnungen: {steg:.2f} mm"
      + ("" if steg >= 2.5 else "  <- unter 2,5 mm, Suedwand wird weich"), steg >= 2.5)
+
+print("\n2b) Senkrechter Abstand unter dem Halterahmen\n")
+# ⚠️ Ein reiner XY-Vergleich Dom gegen Buchsenreihe war hier zuerst und war
+#    FALSCH: die Dome reichen nur bis zur Modulrueckseite herunter und damit
+#    nie auf Buchsenhoehe — die Meldung "-1,10 mm zu eng" beschrieb einen
+#    Konflikt, den es nicht gibt. Was zaehlt, ist der Abstand des tiefsten
+#    Displayteils (des Halterahmens) zu dem, was unter seiner Grundflaeche
+#    steht. Die Kollision selbst faengt Abschnitt 2 dreidimensional; hier steht
+#    die Reserve als Zahl, damit ein Zuwachs auffaellt, bevor er anschlaegt.
+if rahmen is None:
+    print("  Variante ohne Display — entfaellt")
+else:
+    rb = rahmen.val().BoundingBox()
+    eng = [(c.PCB_TOP + h, h) for (bx0, by0, bx1, by1, h) in c.BAUTEILE
+           if bx1 > rb.xmin and bx0 < rb.xmax and by1 > rb.ymin and by0 < rb.ymax]
+    if eng:
+        top, h = max(eng)
+        sagt(f"Rahmenunterkante {rb.zmin:.2f} mm ueber hoechstem Bauteil "
+             f"darunter ({h:.2f} mm): {rb.zmin - top:.2f} mm"
+             + ("" if rb.zmin - top >= 1.0 else "  <- unter 1 mm"),
+             rb.zmin - top >= 1.0)
+    else:
+        sagt("Unter dem Halterahmen steht kein Bauteil aus der Liste")
+    sagt("Unter dem Halterahmen steht kein Bauteil aus der Liste")
+
+print("\n3b) Lichte Hoehe gegen die hoechsten Bauteile\n")
+# ⚠️⚠️ `check_case.py` prueft Deckel gegen Platine — aber der Platinen-Dummy
+#    traegt genau die Hoehen, die auch das Skript annimmt. Beide aus derselben
+#    Quelle: ist eine Annahme falsch, sind es beide, und der Test bleibt gruen.
+#    Deshalb wird die Reserve hier ZAHLENMAESSIG ausgewiesen. Welches Bauteil
+#    fuehrt, hat sich mit der Messung vom 2026-08-16 umgedreht — vorher das
+#    Displaymodul, seither das Netzteil.
+hoch = [("Netzteil HLK-5M03", c.HLK_H),
+        ("RJ11-Buchse", c.RJ_H),
+        ("ESP32 auf Buchsenleiste", c.ESP_SOCKET + c.ESP_ABOVE),
+        ("Klemme 220", c.KF250_H),
+        ("Buchsenleiste 1x2", c.HDR_H),
+        ("Displaymodul samt Rahmen und Stecker",
+         c.DSP_PCB_T + c.DSP_FRAME_T + 8.0 + 2.0)]
+for bez, h in sorted(hoch, key=lambda t: -t[1]):
+    luft = c.TOP_CLEAR - h
+    sagt(f"{bez:38s} {h:5.2f} mm hoch, {luft:5.2f} mm Luft"
+         + ("" if luft >= 1.0 else "  <- unter 1 mm"), luft >= 1.0)
 
 print("\n4) Netzbereich: geschlossen ausser der Verschraubung\n")
 # ⚠️ Hier wird UMGEKEHRT geprueft: die Sonde MUSS auf Material treffen. Der

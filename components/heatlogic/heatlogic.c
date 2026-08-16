@@ -435,3 +435,94 @@ void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input
 
     st->last_burner_running = in->burner_running;
 }
+
+/* ------------------------------------------------------------------ */
+/* Ausloesen der Aufzeichnung                                          */
+/* ------------------------------------------------------------------ */
+
+void rec_trigger_init(rec_trigger_t *st)
+{
+    memset(st, 0, sizeof(*st));
+    st->phase = REC_TRIG_OFF;
+}
+
+void rec_trigger_arm(rec_trigger_t *st, bool burner_running)
+{
+    st->phase = REC_TRIG_ARMED;
+    st->automatic = true;
+    st->tail = false;
+    /* Laeuft der Brenner jetzt schon, gehoert dieser Lauf nicht mehr ganz zur
+     * Aufzeichnung -- gewartet wird auf den naechsten Start. */
+    st->wait_off = burner_running;
+}
+
+void rec_trigger_manual(rec_trigger_t *st)
+{
+    st->phase = REC_TRIG_RUN;
+    st->automatic = false;
+    st->wait_off = false;
+    st->tail = false;
+}
+
+void rec_trigger_stop(rec_trigger_t *st)
+{
+    if (st->phase == REC_TRIG_RUN) {
+        st->phase = REC_TRIG_DONE;
+    } else if (st->phase == REC_TRIG_ARMED) {
+        /* Aufgezeichnet wurde nichts; es bleibt auch nichts zurueck. */
+        st->phase = REC_TRIG_OFF;
+        st->automatic = false;
+    }
+    st->wait_off = false;
+    st->tail = false;
+}
+
+void rec_trigger_full(rec_trigger_t *st)
+{
+    if (st->phase == REC_TRIG_RUN) {
+        st->phase = REC_TRIG_DONE;
+        st->tail = false;
+    }
+}
+
+bool rec_trigger_tick(rec_trigger_t *st, bool burner_running, uint32_t tail_s, uint32_t now_ms)
+{
+    if (st->phase == REC_TRIG_ARMED) {
+        if (!burner_running) {
+            st->wait_off = false;
+        } else if (!st->wait_off) {
+            st->phase = REC_TRIG_RUN;
+            st->tail = false;
+            return true;
+        }
+        return false;
+    }
+
+    if (st->phase != REC_TRIG_RUN || !st->automatic) {
+        return false;
+    }
+
+    /*
+     * Setzt der Brenner im Nachlauf wieder ein, laeuft die Aufzeichnung
+     * durch: taktender Betrieb gehoert zur selben Ladung.
+     */
+    if (burner_running) {
+        st->tail = false;
+    } else if (!st->tail) {
+        st->tail = true;
+        st->tail_since_ms = now_ms;
+    } else if ((now_ms - st->tail_since_ms) >= tail_s * 1000UL) {
+        st->phase = REC_TRIG_DONE;
+        st->tail = false;
+    }
+    return false;
+}
+
+uint32_t rec_trigger_tail_left_s(const rec_trigger_t *st, uint32_t tail_s, uint32_t now_ms)
+{
+    if (!st->tail) {
+        return 0;
+    }
+    uint32_t vergangen = (now_ms - st->tail_since_ms) / 1000;
+    return vergangen >= tail_s ? 0 : tail_s - vergangen;
+}
