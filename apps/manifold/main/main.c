@@ -76,7 +76,7 @@ void app_main(void)
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
     char device_id[24];
     snprintf(device_id, sizeof(device_id), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
-    if (peers_start(cfg.wifi.hostname, cfg.site, device_id) != ESP_OK) {
+    if (peers_start(cfg.wifi.hostname, cfg.site, device_id, PEERS_ROLE_MANIFOLD) != ESP_OK) {
         ESP_LOGW(TAG, "Suche nach weiteren Geraeten nicht verfuegbar");
     }
     ESP_ERROR_CHECK(web_start());

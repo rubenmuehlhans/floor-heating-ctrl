@@ -427,6 +427,9 @@ apps/manifold/    Verteiler-Firmware
     app_mqtt.c    Home-Assistant-Discovery und Zustände
     app_ui.c      Anzeige und Tasten am Gerät
     www/index.html  Weboberfläche, komprimiert ins Programmabbild gelegt
+apps/heatsource/  Firmware der Heizungsgeräte (Kessel und Pufferspeicher)
+  components/     eigene Konfiguration, verdrängt die gemeinsame
+  main/           Fühlererfassung, Verlauf, Weboberfläche
 cmake/embed_www   Bauregel: Oberfläche zusammenfügen, komprimieren, einbetten
 components/       von allen Anwendungen gemeinsam genutzt
   hw_map/         Pin- und Gruppentabellen — einzige Stelle mit Hardwarewissen
@@ -438,6 +441,7 @@ components/       von allen Anwendungen gemeinsam genutzt
   atc_ble/        NimBLE-Observer, ATC- und pvvx-Dekoder
   ssd1327/        Anzeigetreiber mit Bitmap-Schrift
   sensors_local/  DS18B20 und HDC1080
+  onewire_temp/   mehrere DS18B20 an bis zu zwei Bussen, Sammelwandlung
   netmgr/         WLAN, SNTP, täglicher Neustart
   captive_dns/    Namensdienst des Einrichtungsportals
   i2cbus/         gemeinsamer I²C-Bus
@@ -468,7 +472,14 @@ Chrome und ImageMagick.
 
 Mit `--app` liefert die Attrappe die Oberfläche einer anderen Anwendung aus;
 der Port richtet sich dann nach der Anwendung, sofern `--port` nichts anderes
-vorgibt.
+vorgibt. Für die Heizungsgeräte gibt es eine eigene Attrappe:
+
+```bash
+python3 tools/mock_heatsource.py
+```
+
+Sie bildet ein Speicherboard nach; mit `--kessel` stattdessen ein Kesselboard,
+mit `--leer` ein Gerät ohne angeschlossene Fühler.
 
 ## Prüfungen
 
@@ -568,10 +579,16 @@ Vier Unstimmigkeiten der ESPHome-Fassung sind dabei bereinigt:
 
 ## Geplante Erweiterungen
 
-Die Steuerung soll um den Heizungsbereich ergänzt werden: zwei weitere ESP32 erfassen die
-Temperaturen an Ölkessel und Pufferspeicher und schalten die beiden Heizkreispumpen ab, solange
-kein Ventil offen ist. Das Repository nimmt dafür eine zweite Anwendung auf, die sich die
-Komponenten mit der Verteiler-Firmware teilt.
+Die Steuerung wird um den Heizungsbereich ergänzt: zwei weitere ESP32 erfassen die Temperaturen
+an Ölkessel und Pufferspeicher und sollen die beiden Heizkreispumpen abschalten, solange kein
+Ventil offen ist. Das Repository trägt dafür eine zweite Anwendung unter
+[`apps/heatsource/`](apps/heatsource/), die sich die Komponenten mit der Verteiler-Firmware
+teilt.
+
+Umgesetzt ist die erste Stufe: Fühlererfassung mit Zuordnung über die Weboberfläche,
+Anlagenschema, Verlauf über 24 Stunden und gegenseitiges Auffinden der Geräte. Bedarfsabfrage
+bei den Verteilern, Pumpensteuerung über ein Tasmota-Relais, Brennererkennung und Ladezustand
+folgen.
 
 - [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](docs/konzept-waermeerzeuger.md)
   — Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Schnittstellen

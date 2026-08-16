@@ -81,6 +81,8 @@ header{
   border:1px solid var(--line-strong); color:var(--accent); text-decoration:none;
   white-space:nowrap; transition:background .15s, border-color .15s}
 .floors a:hover{background:var(--accent-soft); border-color:var(--accent)}
+.floors-sep{font-size:.68rem; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); align-self:center; margin-left:.25rem}
 
 nav{position:sticky; top:0; z-index:19; background:var(--surface);
   border-bottom:1px solid var(--line); padding:0 .6rem .6rem; overflow-x:auto}
@@ -112,27 +114,6 @@ section.on{display:flex}
 h3.sub{margin:1.3rem 0 .55rem; font-size:.7rem; font-weight:600;
   text-transform:uppercase; letter-spacing:.1em; color:var(--faint)}
 h3.sub:first-child{margin-top:0}
-
-/* Weitere Platinen im Haus. Die Liste kommt vom Gerät, das sie über mDNS
-   findet; ein Klick öffnet deren Oberfläche. */
-let peers = [], peersLoaded = 0;
-
-async function loadPeers() {
-  if (Date.now() - peersLoaded < 30000) return;
-  try {
-    const d = await api("/api/peers");
-    peers = d.peers || [];
-    peersLoaded = Date.now();
-    renderPeers();
-  } catch (e) { /* ältere Firmware kennt die Liste nicht */ }
-}
-
-function renderPeers() {
-  const el = $("#floors");
-  if (!el) return;
-  el.innerHTML = peers.map(p =>
-    `<a href="http://${p.host}/" title="${p.hostname || p.host}">${p.site || p.host}</a>`).join("");
-}
 
 /* ---------------- Verteilerbalken ---------------- */
 
@@ -711,8 +692,12 @@ async function loadPeers() {
 function renderPeers() {
   const el = $("#floors");
   if (!el) return;
-  el.innerHTML = peers.map(p =>
-    `<a href="http://${p.host}/" title="${p.hostname || p.host}">${p.site || p.host}</a>`).join("");
+  const link = p => `<a href="http://${p.host}/" title="${p.hostname || p.host}">`
+                  + `${p.site || p.host}</a>`;
+  const verteiler = peers.filter(p => p.role !== "heat");
+  const heizung   = peers.filter(p => p.role === "heat");
+  el.innerHTML = verteiler.map(link).join("")
+    + (heizung.length ? `<span class="floors-sep">Heizung</span>` + heizung.map(link).join("") : "");
 }
 
 /* ---------------- Verteilerbalken ---------------- */

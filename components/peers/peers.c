@@ -28,6 +28,7 @@ static size_t s_count;
 static char s_own_id[24];
 static char s_hostname[32];
 static char s_site[32];
+static char s_role[12];
 static bool s_running;
 
 static inline uint32_t now_ms(void)
@@ -47,6 +48,7 @@ static void announce(void)
     mdns_txt_item_t txt[] = {
         {"id", s_own_id},
         {"site", s_site},
+        {"role", s_role},
     };
     esp_err_t rc = mdns_service_add(NULL, SERVICE_TYPE, SERVICE_PROTO, SERVICE_PORT, txt,
                                     sizeof(txt) / sizeof(txt[0]));
@@ -67,7 +69,8 @@ static const char *txt_value(const mdns_result_t *r, const char *key)
     return NULL;
 }
 
-static void store(const char *id, const char *site, const char *hostname, const char *ip)
+static void store(const char *id, const char *site, const char *role, const char *hostname,
+                  const char *ip)
 {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
 
@@ -90,6 +93,7 @@ static void store(const char *id, const char *site, const char *hostname, const 
 
     snprintf(slot->id, sizeof(slot->id), "%s", id);
     snprintf(slot->site, sizeof(slot->site), "%s", site);
+    snprintf(slot->role, sizeof(slot->role), "%s", role ? role : "");
     snprintf(slot->hostname, sizeof(slot->hostname), "%s", hostname ? hostname : "");
     snprintf(slot->host, sizeof(slot->host), "%s", ip);
     slot->seen_ms = now_ms();
@@ -143,7 +147,7 @@ static void query_once(void)
 
         const char *site = txt_value(r, "site");
         store(id, site && site[0] ? site : (r->instance_name ? r->instance_name : id),
-              r->hostname, ip);
+              txt_value(r, "role"), r->hostname, ip);
     }
 
     mdns_query_results_free(results);
@@ -162,7 +166,8 @@ static void peers_task(void *arg)
 
 /* ------------------------------------------------------------------ */
 
-esp_err_t peers_start(const char *hostname, const char *site, const char *device_id)
+esp_err_t peers_start(const char *hostname, const char *site, const char *device_id,
+                      const char *role)
 {
     if (s_running) {
         peers_update_identity(hostname, site);
@@ -178,6 +183,7 @@ esp_err_t peers_start(const char *hostname, const char *site, const char *device
     snprintf(s_hostname, sizeof(s_hostname), "%s", hostname && hostname[0] ? hostname
                                                                           : "floor-heating");
     snprintf(s_site, sizeof(s_site), "%s", site ? site : "");
+    snprintf(s_role, sizeof(s_role), "%s", role ? role : "");
 
     esp_err_t rc = mdns_init();
     if (rc != ESP_OK) {

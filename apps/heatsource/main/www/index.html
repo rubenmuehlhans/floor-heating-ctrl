@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wärmeerzeuger</title>
+<style>
+/* ------------------------------------------------------------------
+   Dasselbe Farbgerüst wie die Verteileroberfläche: kühles Grüngrau als
+   Grundton, Petrol für die Bedienung, der Wärmeton ausschließlich für
+   heiße Medien und den laufenden Brenner.
+   ------------------------------------------------------------------ */
+:root{
+  --ground:#eef0ee; --surface:#fff; --sunken:#f6f8f6;
+  --ink:#141817; --muted:#697370; --faint:#98a19d;
+  --line:#dde1de; --line-strong:#c6ccc8;
+  --accent:#10646f; --accent-soft:#e3eef0; --accent-ink:#fff;
+  --heat:#d2542a; --heat-soft:#fbeae3;
+  --cold:#3b6ea5; --cold-soft:#e5edf6;
+  --ok:#3e8a57; --warn:#96690f; --bad:#b3261e;
+  --pill-on:#fff;
+  --shadow:0 1px 2px rgba(20,24,23,.05), 0 8px 24px -12px rgba(20,24,23,.18);
+  --r:10px; --r-sm:7px;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  --data:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+    --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+    --line:#2b312f; --line-strong:#3b423f;
+    --accent:#57b6c2; --accent-soft:#173338; --accent-ink:#0d1717;
+    --heat:#e8794b; --heat-soft:#33201a;
+    --cold:#6f9fd6; --cold-soft:#1a2836;
+    --ok:#5fb37b; --warn:#c9993c; --bad:#e4695e;
+    --pill-on:#2e3533;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+  --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+  --line:#2b312f; --line-strong:#3b423f;
+  --accent:#57b6c2; --accent-soft:#173338; --accent-ink:#0d1717;
+  --heat:#e8794b; --heat-soft:#33201a;
+  --cold:#6f9fd6; --cold-soft:#1a2836;
+  --ok:#5fb37b; --warn:#c9993c; --bad:#e4695e;
+  --pill-on:#2e3533;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+.ic{width:1.08em; height:1.08em; flex:none; fill:none; stroke:currentColor;
+  stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; vertical-align:-.16em}
+body{margin:0; background:var(--ground); color:var(--ink);
+  font:15px/1.5 var(--ui); font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+@media (prefers-reduced-motion:reduce){ *{animation:none!important; transition:none!important} }
+
+/* ---------------- Kopf und Navigation ---------------- */
+
+header{position:sticky; top:0; z-index:20; background:var(--surface);
+  border-bottom:1px solid var(--line); padding:.75rem 1rem .55rem}
+.brand{display:flex; align-items:baseline; gap:.65rem; flex-wrap:wrap}
+.brand h1{margin:0; font-size:1rem; font-weight:600; letter-spacing:-.01em}
+.brand .place{font-size:.72rem; text-transform:uppercase; letter-spacing:.11em; color:var(--faint)}
+.status{display:flex; gap:.4rem .9rem; flex-wrap:wrap; margin-top:.4rem;
+  font:12px/1.4 var(--data); color:var(--muted)}
+.status b{font-weight:500; color:var(--ink)}
+.status .link{display:inline-flex; align-items:center}
+.status .link.ok{color:var(--ok)}
+.status .link.warn{color:var(--warn)}
+/* Wechsel zu den anderen Geräten im Haus. Sie melden sich gegenseitig über
+   mDNS an; bedient wird stets nur das gerade geöffnete Gerät. */
+.floors{display:inline-flex; gap:.3rem; flex-wrap:wrap; margin-left:.3rem}
+.floors a{font-size:.75rem; padding:.12rem .55rem; border-radius:99px;
+  border:1px solid var(--line-strong); color:var(--accent); text-decoration:none;
+  white-space:nowrap; transition:background .15s, border-color .15s}
+.floors a:hover{background:var(--accent-soft); border-color:var(--accent)}
+.floors-sep{font-size:.68rem; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--faint); align-self:center; margin-left:.25rem}
+
+nav{position:sticky; top:0; z-index:19; background:var(--surface);
+  border-bottom:1px solid var(--line); padding:0 .6rem .6rem; overflow-x:auto}
+.tabs{display:inline-flex; gap:2px; padding:3px; background:var(--sunken);
+  border:1px solid var(--line); border-radius:99px}
+.tabs button{border:none; background:none; color:var(--muted); cursor:pointer;
+  font:inherit; font-size:.88rem; padding:.34rem .85rem; border-radius:99px;
+  white-space:nowrap; transition:background .15s, color .15s;
+  display:inline-flex; align-items:center; gap:.4rem}
+.tabs .ic{opacity:.75}
+.tabs button.on .ic{opacity:1; color:var(--accent)}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{background:var(--pill-on); color:var(--ink); font-weight:600; box-shadow:var(--shadow)}
+
+main{padding:1.1rem 1rem 3rem; max-width:1120px; margin:0 auto;
+  display:flex; flex-direction:column; gap:1.1rem}
+section{display:none; flex-direction:column; gap:1.1rem}
+section.on{display:flex}
+
+/* ---------------- Flächen ---------------- */
+
+.card{background:var(--surface); border:1px solid var(--line);
+  border-radius:var(--r); padding:1.1rem; box-shadow:var(--shadow)}
+.card>h2{margin:0 0 .2rem; font-size:.95rem; font-weight:600; letter-spacing:-.01em}
+.card>h2+.lede{margin:0 0 1rem}
+.lede{color:var(--muted); font-size:.85rem; max-width:62ch; margin:0 0 .9rem}
+h3.sub{margin:1.3rem 0 .55rem; font-size:.7rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.1em; color:var(--faint)}
+h3.sub:first-child{margin-top:0}
+
+/* ---------------- Anlagenschema ----------------
+   Kessel, Speicher und die beiden Heizkreise in ihrer wirklichen Reihenfolge.
+   Messwerte stehen dort, wo der Fühler sitzt. Was dieses Gerät nicht misst,
+   bleibt blass — die Aufteilung auf zwei Boards soll sichtbar sein. */
+
+.schema{width:100%; overflow-x:auto}
+.schema svg{display:block; width:100%; min-width:560px; height:auto}
+.sc-body{fill:var(--sunken); stroke:var(--line-strong); stroke-width:1.5}
+.sc-pipe{stroke:var(--line-strong); stroke-width:2.5; fill:none; stroke-linecap:round}
+.sc-pipe.hot{stroke:var(--heat)}
+.sc-pipe.cold{stroke:var(--cold)}
+.sc-label{fill:var(--muted); font:600 10px/1 var(--ui); letter-spacing:.06em;
+  text-transform:uppercase}
+.sc-val{fill:var(--ink); font:600 14px/1 var(--data)}
+.sc-val.hot{fill:var(--heat)}
+.sc-val.cold{fill:var(--cold)}
+.sc-val.off{fill:var(--faint); font-weight:400}
+.sc-note{fill:var(--faint); font:10px/1 var(--ui)}
+.sc-fill{fill:var(--heat); opacity:.16}
+.sc-remote{opacity:.42}
+
+/* ---------------- Messwertkacheln ---------------- */
+
+.tiles{display:grid; gap:.8rem; align-items:start; grid-template-columns:repeat(auto-fill,minmax(158px,1fr))}
+.tile{background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-sm);
+  padding:.7rem .8rem}
+.tile dt{font-size:.68rem; font-weight:600; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--faint)}
+.tile dd{margin:.25rem 0 0; font:600 1.25rem/1.15 var(--data)}
+.tile dd small{font-size:.62em; font-weight:400; color:var(--muted); margin-left:.15em}
+.tile.hot dd{color:var(--heat)}
+.tile.cold dd{color:var(--cold)}
+.tile.off dd{color:var(--faint); font-weight:400}
+.tile .foot{margin-top:.3rem; font:11px/1.35 var(--data); color:var(--faint)}
+
+/* ---------------- Zustandsmarken ---------------- */
+
+.chip{display:inline-flex; align-items:center; gap:.32rem; font-size:.72rem; font-weight:500;
+  padding:.16rem .55rem; border-radius:99px; border:1px solid var(--line-strong);
+  color:var(--muted); background:var(--surface); white-space:nowrap}
+.chip::before{content:""; width:5px; height:5px; border-radius:50%; background:currentColor}
+.chip.plain::before,.chip.ico::before{display:none}
+.chip .ic{stroke-width:2}
+.chip.heat{color:var(--heat); border-color:color-mix(in srgb,var(--heat) 35%,transparent);
+  background:var(--heat-soft)}
+.chip.ok{color:var(--ok); border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.chip.warn{color:var(--warn); border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.chip.bad{color:var(--bad); border-color:color-mix(in srgb,var(--bad) 38%,transparent)}
+
+/* ---------------- Bedienelemente ---------------- */
+
+button.btn{font:inherit; font-size:.85rem; padding:.4rem .8rem; border-radius:var(--r-sm);
+  border:1px solid transparent; background:var(--accent); color:var(--accent-ink);
+  cursor:pointer; transition:filter .15s, background .15s;
+  display:inline-flex; align-items:center; gap:.4rem}
+button.btn:hover{filter:brightness(1.08)}
+button.btn.quiet{background:var(--surface); color:var(--accent); border-color:var(--line-strong)}
+button.btn.quiet:hover{background:var(--accent-soft); border-color:var(--accent); filter:none}
+button.btn.risky{background:var(--surface); color:var(--bad);
+  border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+button.btn.risky:hover{background:color-mix(in srgb,var(--bad) 10%,transparent); filter:none}
+button.btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
+.row{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
+.actions{display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem;
+  padding-top:.9rem; border-top:1px solid var(--line)}
+input,select{font:inherit; font-size:.9rem; color:var(--ink); background:var(--sunken);
+  border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:.34rem .5rem;
+  transition:border-color .15s}
+input:hover,select:hover{border-color:var(--accent)}
+input[type=number]{font-family:var(--data); width:6.5rem}
+input[type=checkbox]{accent-color:var(--accent); width:16px; height:16px}
+label{display:flex; flex-direction:column; gap:.25rem; font-size:.78rem; color:var(--muted)}
+label.inline{flex-direction:row; align-items:center; gap:.45rem; font-size:.85rem}
+input:disabled,select:disabled{color:var(--faint); border-color:var(--line)}
+.fields{display:flex; gap:.5rem 1.1rem; flex-wrap:wrap}
+
+/* ---------------- Tabellen ---------------- */
+
+.scroll{overflow-x:auto; margin:0 -.35rem}
+table{width:100%; border-collapse:collapse; font-size:.88rem}
+th{text-align:left; padding:.35rem .55rem .5rem; font-size:.68rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--faint);
+  border-bottom:1px solid var(--line-strong); white-space:nowrap}
+td{padding:.5rem .55rem; border-bottom:1px solid var(--line); vertical-align:middle}
+tr:last-child td{border-bottom:none}
+td.num,th.num{font-family:var(--data); text-align:right}
+td.mono{font-family:var(--data); font-size:.82rem}
+td.empty{color:var(--muted); text-align:center; padding:1.4rem}
+tr.warm td{background:var(--heat-soft)}
+.delta{font:600 11px/1 var(--data); color:var(--faint)}
+.delta.up{color:var(--heat)}
+.delta.down{color:var(--cold)}
+
+/* ---------------- Verlauf ---------------- */
+
+.chartbox{background:var(--sunken); border:1px solid var(--line);
+  border-radius:var(--r-sm); padding:.5rem}
+#chart{width:100%; height:280px; display:block}
+.legend{display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.7rem}
+.legend button{font:inherit; font-size:.76rem; padding:.22rem .6rem; border-radius:99px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--faint);
+  cursor:pointer; display:inline-flex; align-items:center; gap:.35rem}
+.legend button i{width:9px; height:9px; border-radius:2px; background:currentColor;
+  display:inline-block}
+.legend button.on{color:var(--ink); border-color:var(--line-strong)}
+.legend button.on i{background:var(--c)}
+.legend button:not(.on){opacity:.55}
+
+/* ---------------- Einrichtung ---------------- */
+
+.setup{border-color:var(--accent); background:var(--accent-soft)}
+.setup h2{color:var(--accent); font-size:1rem}
+.setup p{margin:.45rem 0; font-size:.88rem; max-width:60ch}
+
+.wiz-back{position:fixed; inset:0; z-index:40; background:var(--ground); overflow-y:auto}
+.wiz{max-width:640px; margin:0 auto; padding:1.4rem 1rem 3rem;
+  display:flex; flex-direction:column; gap:1rem}
+.wiz-head{display:flex; flex-direction:column; gap:.5rem}
+.wiz-head h1{margin:0; font-size:1.35rem; font-weight:600; letter-spacing:-.02em}
+.wiz-steps{display:flex; gap:.4rem; align-items:center; font-size:.72rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--faint)}
+.wiz-steps b{color:var(--accent); font-weight:600}
+.wiz-bar{height:3px; background:var(--line); border-radius:99px; overflow:hidden}
+.wiz-bar>i{display:block; height:100%; background:var(--accent); transition:width .3s}
+.wiz-nav{display:flex; gap:.5rem; justify-content:space-between; align-items:center;
+  margin-top:.4rem}
+.pick{display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem}
+.pick button{font:inherit; font-size:.82rem; padding:.3rem .7rem; border-radius:99px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--accent);
+  cursor:pointer}
+.pick button:hover{border-color:var(--accent); background:var(--accent-soft)}
+.wiz-probe{background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-sm);
+  padding:.6rem .7rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap}
+.wiz-probe .who{flex:1 1 12rem; min-width:0}
+.wiz-probe .who b{display:block; font:600 13px/1.3 var(--data)}
+.wiz-probe .who span{font-size:.76rem; color:var(--muted)}
+
+#toast{position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%) translateY(8px);
+  background:var(--ink); color:var(--ground); padding:.55rem 1rem; border-radius:99px;
+  font-size:.85rem; box-shadow:var(--shadow); opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s; z-index:60; max-width:90vw; text-align:center}
+#toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+#toast.bad{background:var(--bad); color:#fff}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M3 14a9 9 0 0 1 18 0"/><path d="M12 14l4-4"/><circle cx="12" cy="14" r="1.4"/></symbol>
+  <symbol id="i-thermo" viewBox="0 0 24 24"><path d="M10 13.5V5a2 2 0 1 1 4 0v8.5a4 4 0 1 1-4 0z"/><path d="M12 9v5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 3s5 4.5 5 9a5 5 0 0 1-10 0c0-2 1-3.4 1-3.4S9.5 10 10 11c.5-3 2-6 2-8z"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 4v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4"/><circle cx="12" cy="17.4" r=".7" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2.5 8.5a15 15 0 0 1 19 0"/><path d="M5.8 12a10 10 0 0 1 12.4 0"/><path d="M9 15.4a5 5 0 0 1 6 0"/><circle cx="12" cy="19" r=".9" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-ap" viewBox="0 0 24 24"><path d="M12 15v6"/><path d="M8 21h8"/><rect x="3" y="4" width="18" height="11" rx="2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-1.6 5.6"/><path d="M20 5v6h-6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+</svg>
+
+<header>
+  <div class="brand">
+    <h1>Wärmeerzeuger</h1>
+    <span class="place" id="place"></span>
+    <span class="floors" id="floors"></span>
+  </div>
+  <div class="status" id="status"></div>
+</header>
+
+<nav><div class="tabs">
+  <button data-tab="ov" class="on"><svg class="ic"><use href="#i-gauge"/></svg>Übersicht</button>
+  <button data-tab="probes"><svg class="ic"><use href="#i-thermo"/></svg>Fühler</button>
+  <button data-tab="hist"><svg class="ic"><use href="#i-chart"/></svg>Verlauf</button>
+  <button data-tab="sys"><svg class="ic"><use href="#i-sliders"/></svg>System</button>
+</div></nav>
+
+<main>
+  <div class="card setup" id="setup" hidden>
+    <h2>Gerät einrichten</h2>
+    <p>Dieses Gerät ist noch nicht eingerichtet. Der Assistent fragt nach der Bezeichnung
+       und führt anschließend durch die Zuordnung der Fühler.</p>
+    <div class="actions"><button class="btn" id="setup-open">Einrichtung starten</button></div>
+  </div>
+
+  <section id="ov" class="on">
+    <div class="card">
+      <h2>Anlage</h2>
+      <p class="lede">Kessel, Pufferspeicher und die beiden Heizkreise. Messwerte stehen dort,
+         wo der Fühler sitzt. Blass dargestellte Werte misst ein anderes Gerät.</p>
+      <div class="schema" id="schema"></div>
+    </div>
+    <div class="card">
+      <h2>Messwerte</h2>
+      <p class="lede">Alle zugeordneten Messstellen dieses Geräts.</p>
+      <dl class="tiles" id="tiles"></dl>
+    </div>
+  </section>
+
+  <section id="probes">
+    <div class="card">
+      <h2>Fühler am Bus</h2>
+      <p class="lede">Jeder DS18B20 meldet sich mit seiner Werkskennung, nicht mit seiner
+         Einbaulage. Um einen Fühler zu erkennen, fassen Sie ihn an: die Spalte
+         <b>30 s</b> zeigt die Änderung der letzten halben Minute.</p>
+      <div class="scroll"><table id="probe-table"></table></div>
+      <div class="actions">
+        <button class="btn" id="probe-save">Zuordnung speichern</button>
+        <button class="btn quiet" id="probe-rescan">
+          <svg class="ic"><use href="#i-refresh"/></svg>Bus neu absuchen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="hist">
+    <div class="card">
+      <h2>Verlauf</h2>
+      <p class="lede">Die letzten Stunden im Minutentakt. Der Verlauf liegt im
+         Arbeitsspeicher und beginnt nach einem Neustart von vorn.</p>
+      <div class="row" style="margin-bottom:.8rem">
+        <label class="inline">Zeitraum
+          <select id="hist-range">
+            <option value="60">1 Stunde</option>
+            <option value="360">6 Stunden</option>
+            <option value="1440" selected>24 Stunden</option>
+          </select>
+        </label>
+        <span class="chip plain" id="hist-info"></span>
+      </div>
+      <div class="chartbox"><canvas id="chart"></canvas></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <section id="sys">
+    <div class="card">
+      <h2>Gerät</h2>
+      <div class="fields">
+        <label>Bezeichnung<input id="s-site" maxlength="31"></label>
+        <label>Netzname<input id="s-host" maxlength="31"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-dev-save">Speichern</button></div>
+    </div>
+
+    <div class="card">
+      <h2>1-Wire-Bus</h2>
+      <p class="lede">Die beiden Geräte sind unterschiedlich verdrahtet, deshalb steht die
+         Belegung hier und nicht in der Firmware. Eine Änderung wirkt erst nach einem
+         Neustart. Als Eingang ausgelegte Anschlüsse (GPIO 34 bis 39) können den Bus nicht
+         treiben.</p>
+      <div class="fields">
+        <label>Bus 1<input type="number" id="s-bus0" min="-1" max="33"></label>
+        <label>Bus 2<input type="number" id="s-bus1" min="-1" max="33"></label>
+        <label>Abtastabstand (s)<input type="number" id="s-poll" min="1" max="600"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-bus-save">Speichern</button></div>
+    </div>
+
+    <div class="card">
+      <h2>WLAN</h2>
+      <div class="fields">
+        <label>Netz<input id="s-ssid" list="s-nets" maxlength="32"></label>
+        <datalist id="s-nets"></datalist>
+        <label>Kennwort<input id="s-pass" type="password" placeholder="unverändert"></label>
+      </div>
+      <div class="actions">
+        <button class="btn" id="s-wifi-save">Speichern und verbinden</button>
+        <button class="btn quiet" id="s-scan">Netze suchen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>MQTT</h2>
+      <p class="lede">Für Home Assistant. Die Entitäten meldet das Gerät selbst an;
+         in Stufe 1 wird noch nichts veröffentlicht.</p>
+      <div class="fields">
+        <label class="inline"><input type="checkbox" id="s-mq-on">eingeschaltet</label>
+        <label>Broker<input id="s-mq-uri" placeholder="mqtt://192.168.1.10:1883"></label>
+        <label>Benutzer<input id="s-mq-user"></label>
+        <label>Kennwort<input id="s-mq-pass" type="password" placeholder="unverändert"></label>
+        <label>Themenpräfix<input id="s-mq-prefix"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-mq-save">Speichern</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Firmware</h2>
+      <p class="lede" id="s-fw"></p>
+      <div class="row">
+        <input type="file" id="s-file" accept=".bin">
+        <button class="btn" id="s-ota">Einspielen</button>
+      </div>
+      <div class="actions">
+        <button class="btn quiet" id="s-restart">
+          <svg class="ic"><use href="#i-power"/></svg>Neu starten</button>
+        <button class="btn risky" id="s-factory">Auf Werksvorgabe zurücksetzen</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="wiz-back" id="wizard" hidden><div class="wiz">
+  <div class="wiz-head">
+    <h1 id="wiz-title"></h1>
+    <div class="wiz-steps" id="wiz-steps"></div>
+    <div class="wiz-bar"><i id="wiz-bar"></i></div>
+  </div>
+  <div id="wiz-body"></div>
+  <div class="wiz-nav">
+    <button class="btn quiet" id="wiz-back">Zurück</button>
+    <button class="btn" id="wiz-next">Weiter</button>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* Rollen in der Reihenfolge, in der das Wasser sie durchläuft. */
+const ROLES = [
+  ["abgas",        "Abgas",                  "hot"],
+  ["kessel_vl",    "Kessel Vorlauf",         "hot"],
+  ["kessel_rl",    "Kessel Rücklauf",        "cold"],
+  ["puffer",       "Pufferspeicher",         "hot"],
+  ["puffer_unten", "Pufferspeicher unten",   "cold"],
+  ["hk1_vl",       "Heizkreis 1 Vorlauf",    "hot"],
+  ["hk1_rl",       "Heizkreis 1 Rücklauf",   "cold"],
+  ["hk2_vl",       "Heizkreis 2 Vorlauf",    "hot"],
+  ["hk2_rl",       "Heizkreis 2 Rücklauf",   "cold"],
+];
+const ROLE_LABEL = Object.fromEntries(ROLES.map(r => [r[0], r[1]]));
+const ROLE_TONE  = Object.fromEntries(ROLES.map(r => [r[0], r[2]]));
+
+const POLL_MS = 5000;
+let state = null, cfg = null, pollTimer = null;
+
+/* ---------------- Netzwerkschicht ---------------- */
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { msg = (await r.json()).error || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+const put = (p, o) => api(p, {method:"PUT", headers:{"Content-Type":"application/json"},
+                             body:JSON.stringify(o)});
+const post = (p, o) => api(p, {method:"POST", headers:{"Content-Type":"application/json"},
+                              body:o ? JSON.stringify(o) : undefined});
+
+function toast(msg, bad) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("on");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.classList.remove("on"), 3400);
+}
+
+const num = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v))
+  ? "—" : v.toFixed(d).replace(".", ",");
+
+/* ---------------- Reiter ---------------- */
+
+function selectTab(id) {
+  $$("nav .tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === id));
+  $$("main section").forEach(s => s.classList.toggle("on", s.id === id));
+  if (id === "hist") loadHistory();
+}
+
+/* ---------------- Nachbargeräte ---------------- */
+
+let peers = [], peersLoaded = 0;
+
+async function loadPeers() {
+  if (Date.now() - peersLoaded < 30000) return;
+  try {
+    const d = await api("/api/peers");
+    peers = d.peers || [];
+    peersLoaded = Date.now();
+    renderPeers();
+    loadRemote();
+  } catch (e) { /* ältere Firmware kennt die Liste nicht */ }
+}
+
+function renderPeers() {
+  const el = $("#floors");
+  const link = p => `<a href="http://${p.host}/" title="${p.hostname || p.host}">`
+                  + `${p.site || p.host}</a>`;
+  const verteiler = peers.filter(p => p.role !== "heat");
+  const heizung   = peers.filter(p => p.role === "heat");
+  el.innerHTML = heizung.map(link).join("")
+    + (verteiler.length ? `<span class="floors-sep">Verteiler</span>`
+                          + verteiler.map(link).join("") : "");
+}
+
+/*
+ * Messwerte des anderen Heizungsgeräts. Sie werden nur angezeigt, nie
+ * verrechnet — das Zusammenführen auf dem Gerät kommt mit der Ladeerkennung.
+ * Fällt der Abruf aus, bleibt das Schema an diesen Stellen leer.
+ */
+let remote = {};
+
+async function loadRemote() {
+  const andere = peers.filter(p => p.role === "heat");
+  for (const p of andere) {
+    try {
+      const d = await api(`http://${p.host}/api/measurements`);
+      for (const m of d.probes || []) remote[m.role] = {c:m.c, age_s:m.age_s, from:d.site};
+    } catch (e) { /* anderes Gerät nicht erreichbar */ }
+  }
+  if (state) renderSchema();
+}
+
+/* ---------------- Werte ---------------- */
+
+const probeOf = role => (state?.probes || []).find(p => p.role === role && p.temp_c !== null);
+
+function valueOf(role) {
+  const p = probeOf(role);
+  if (p) return {c:p.temp_c, own:true};
+  const r = remote[role];
+  if (r) return {c:r.c, own:false, from:r.from};
+  return null;
+}
+
+/* ---------------- Anlagenschema ---------------- */
+
+function renderSchema() {
+  /* Im Schema stehen kurze Bezeichnungen: welcher Kessel und welcher Kreis
+     gemeint ist, ergibt sich aus der Stelle. Die vollen Namen stehen in den
+     Kacheln darunter. */
+  const KURZ = {abgas:"Abgas", kessel_vl:"Vorlauf", kessel_rl:"Rücklauf",
+                puffer:"oben", puffer_unten:"unten",
+                hk1_vl:"Vorlauf", hk1_rl:"Rücklauf",
+                hk2_vl:"Vorlauf", hk2_rl:"Rücklauf"};
+
+  /* Messpunkt: Bezeichnung, darunter der Wert in der Farbe des Mediums. Fehlt
+     der Fühler auf diesem Gerät, wird der Wert des Nachbargeräts blass
+     eingeblendet. */
+  const M = (role, x, y, anchor = "middle", abstand = 18) => {
+    const v = valueOf(role);
+    const tone = v ? (ROLE_TONE[role] || "") : "off";
+    const titel = v && !v.own ? `<title>gemessen von ${v.from || "einem anderen Gerät"}</title>`
+                              : "";
+    return `<g${v && !v.own ? ' class="sc-remote"' : ""}>${titel}`
+         + `<text class="sc-label" x="${x}" y="${y}" text-anchor="${anchor}">`
+         + `${KURZ[role]}</text>`
+         + `<text class="sc-val ${tone}" x="${x}" y="${y + abstand}" text-anchor="${anchor}">`
+         + `${v ? num(v.c, 1) + " °C" : "—"}</text></g>`;
+  };
+  const L = (text, x, y, anchor = "middle") =>
+    `<text class="sc-label" x="${x}" y="${y}" text-anchor="${anchor}">${text}</text>`;
+
+  /* Füllstand nur als grobe Andeutung zwischen 30 und 65 Grad. */
+  const puffer = valueOf("puffer");
+  const anteil = puffer ? Math.max(0, Math.min(1, (puffer.c - 30) / 35)) : 0;
+  const hoehe = Math.round(174 * anteil);
+
+  $("#schema").innerHTML = `
+<svg viewBox="0 0 720 286" role="img" aria-label="Anlagenschema">
+  <!-- Abgasrohr -->
+  <path class="sc-pipe hot" d="M86 100 V58"/>
+  ${M("abgas", 100, 54, "start")}
+
+  <!-- Kessel -->
+  <rect class="sc-body" x="28" y="100" width="116" height="112" rx="8"/>
+  <path class="sc-pipe hot" d="M74 176 C 74 164 86 162 86 150 C 94 160 96 166 92 176 Z"/>
+  ${L("Ölkessel", 86, 232)}
+
+  <!-- Kessel zum Speicher -->
+  <path class="sc-pipe hot" d="M144 126 H248"/>
+  ${M("kessel_vl", 196, 110, "middle", 32)}
+  <path class="sc-pipe cold" d="M144 192 H248"/>
+  ${M("kessel_rl", 196, 176, "middle", 32)}
+
+  <!-- Pufferspeicher -->
+  <rect class="sc-body" x="248" y="60" width="112" height="178" rx="12"/>
+  <rect class="sc-fill" x="250" y="${236 - hoehe}" width="108" height="${hoehe}" rx="10"/>
+  ${L("Pufferspeicher", 304, 50)}
+  ${M("puffer", 304, 102)}
+  ${M("puffer_unten", 304, 194)}
+
+  <!-- Heizkreis 1: Keller und Erdgeschoss -->
+  <path class="sc-pipe hot" d="M360 96 H420"/>
+  <circle class="sc-body" cx="438" cy="96" r="16"/>
+  ${L("Mischer", 438, 74)}
+  <path class="sc-pipe hot" d="M454 96 H544"/>
+  ${M("hk1_vl", 556, 92, "start")}
+  <path class="sc-pipe cold" d="M544 132 H360"/>
+  ${M("hk1_rl", 556, 128, "start")}
+  ${L("Heizkreis 1 · Keller und Erdgeschoss", 360, 162, "start")}
+
+  <!-- Heizkreis 2: Obergeschoss -->
+  <path class="sc-pipe hot" d="M360 200 H420"/>
+  <circle class="sc-body" cx="438" cy="200" r="16"/>
+  ${L("Mischer", 438, 178)}
+  <path class="sc-pipe hot" d="M454 200 H544"/>
+  ${M("hk2_vl", 556, 196, "start")}
+  <path class="sc-pipe cold" d="M544 232 H360"/>
+  ${M("hk2_rl", 556, 228, "start")}
+  ${L("Heizkreis 2 · Obergeschoss", 360, 262, "start")}
+</svg>`;
+}
+
+/* ---------------- Kacheln ---------------- */
+
+function renderTiles() {
+  const zugeordnet = (state.probes || []).filter(p => p.role);
+  if (!zugeordnet.length) {
+    $("#tiles").innerHTML = `<p class="lede" style="grid-column:1/-1">Diesem Gerät ist noch
+      kein Fühler zugeordnet. Die Zuordnung erfolgt unter <b>Fühler</b>.</p>`;
+    return;
+  }
+  const reihenfolge = ROLES.map(r => r[0]);
+  zugeordnet.sort((a, b) => reihenfolge.indexOf(a.role) - reihenfolge.indexOf(b.role));
+
+  const abl = state.derived || {};
+  let html = zugeordnet.map(p => {
+    const tone = p.temp_c === null ? "off" : (ROLE_TONE[p.role] || "");
+    const alt = p.age_s !== null && p.age_s > 120
+      ? `<div class="foot">Messwert ${Math.round(p.age_s / 60)} min alt</div>` : "";
+    return `<div class="tile ${tone}"><dt>${p.role_label || p.name}</dt>
+      <dd>${num(p.temp_c, 1)}<small>°C</small></dd>${alt}</div>`;
+  }).join("");
+
+  for (const [k, label] of [["kessel_spreizung_k", "Spreizung Kessel"],
+                            ["hk1_spreizung_k", "Spreizung Heizkreis 1"],
+                            ["hk2_spreizung_k", "Spreizung Heizkreis 2"]]) {
+    if (abl[k] === undefined) continue;
+    html += `<div class="tile"><dt>${label}</dt><dd>${num(abl[k], 1)}<small>K</small></dd></div>`;
+  }
+  $("#tiles").innerHTML = html;
+}
+
+/* ---------------- Fühlerliste ---------------- */
+
+/* Solange an einer Auswahl gearbeitet wird, darf das Neuzeichnen sie nicht
+   überschreiben. */
+const editingProbes = () => $("#probe-table")?.contains(document.activeElement);
+
+function roleOptions(sel, own) {
+  const vergeben = new Set((state.probes || []).filter(p => p.rom !== own && p.role)
+                                               .map(p => p.role));
+  let html = `<option value=""${sel ? "" : " selected"}>— nicht zugeordnet —</option>`;
+  for (const [key, label] of ROLES) {
+    if (vergeben.has(key) && key !== sel) continue;
+    html += `<option value="${key}"${key === sel ? " selected" : ""}>${label}</option>`;
+  }
+  return html;
+}
+
+function renderProbes() {
+  if (editingProbes()) return;
+  const ps = state.probes || [];
+  if (!ps.length) {
+    $("#probe-table").innerHTML = `<tr><td class="empty">Am Bus meldet sich kein Fühler.
+      Prüfen Sie unter <b>System</b> die Belegung und den Anschlusswiderstand.</td></tr>`;
+    return;
+  }
+  const zeilen = ps.map(p => {
+    const d = p.delta30_c;
+    const warm = d !== null && Math.abs(d) >= 0.4;
+    const pfeil = d === null ? "" : (d > 0 ? "up" : (d < 0 ? "down" : ""));
+    return `<tr class="${warm ? "warm" : ""}" data-rom="${p.rom}">
+      <td class="mono">${p.rom}<br><span class="delta">Bus ${p.bus + 1}</span></td>
+      <td class="num">${num(p.temp_c, 2)} °C</td>
+      <td class="num"><span class="delta ${pfeil}">${d === null ? "—"
+        : (d > 0 ? "+" : "") + num(d, 2)} K</span></td>
+      <td><select data-k="role">${roleOptions(p.role, p.rom)}</select></td>
+      <td><input data-k="name" value="${p.name || ""}" maxlength="31" size="14"></td>
+      <td><input type="number" data-k="offset_k" value="${p.offset_k.toFixed(1)}"
+                 step="0.1" min="-20" max="20" style="width:5rem"></td>
+      <td class="num">${p.errors}</td></tr>`;
+  }).join("");
+  $("#probe-table").innerHTML = `<thead><tr>
+      <th>Kennung</th><th class="num">Messwert</th><th class="num">30 s</th>
+      <th>Rolle</th><th>Name</th><th>Korrektur</th><th class="num">Fehler</th>
+    </tr></thead><tbody>${zeilen}</tbody>`;
+}
+
+function collectProbes() {
+  return $$("#probe-table tbody tr").map(tr => ({
+    rom: tr.dataset.rom,
+    role: tr.querySelector("[data-k=role]").value,
+    name: tr.querySelector("[data-k=name]").value.trim(),
+    offset_k: parseFloat(tr.querySelector("[data-k=offset_k]").value) || 0,
+  })).filter(p => p.role || p.name || p.offset_k);
+}
+
+/* ---------------- Kopfzeile ---------------- */
+
+function renderStatus() {
+  $("#place").textContent = state.device.site || "";
+  document.title = state.device.site ? `Wärmeerzeuger ${state.device.site}` : "Wärmeerzeuger";
+
+  const n = state.net, o = state.onewire;
+  const netz = n.ap
+    ? `<span class="link warn"><svg class="ic"><use href="#i-ap"/></svg>&nbsp;Zugangspunkt ${n.ip}</span>`
+    : `<span class="link ok"><svg class="ic"><use href="#i-wifi"/></svg>&nbsp;${n.ip} · ${n.rssi} dBm</span>`;
+
+  $("#status").innerHTML = [
+    netz,
+    `Fühler <b>${o.assigned}</b> von <b>${o.found}</b> zugeordnet`,
+    `Leserunde <b>${o.round_ms}</b> ms`,
+    `Laufzeit <b>${formatUptime(state.uptime_s)}</b>`,
+    `Speicher <b>${Math.round(state.heap / 1024)}</b> kB`,
+    `Version <b>${state.version}</b>`,
+  ].map(x => `<span>${x}</span>`).join("");
+
+  $("#setup").hidden = !state.setup_open;
+}
+
+function formatUptime(s) {
+  if (s < 3600) return `${Math.round(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min`;
+  return `${Math.floor(s / 86400)} d ${Math.round(s % 86400 / 3600)} h`;
+}
+
+/* ---------------- Verlauf ---------------- */
+
+const SERIES_COLOR = {
+  abgas:"#d2542a", kessel_vl:"#e08a3c", kessel_rl:"#3b6ea5",
+  puffer:"#b0413e", puffer_unten:"#5b8ac6",
+  hk1_vl:"#c9762e", hk1_rl:"#4a90a4", hk2_vl:"#8a6d3b", hk2_rl:"#6a8fb5",
+};
+let hist = null;
+const hidden = new Set();
+
+async function loadHistory() {
+  const minuten = parseInt($("#hist-range").value, 10);
+  const step = Math.max(1, Math.round(minuten / 288));
+  try {
+    hist = await api(`/api/history?step=${step}&max=288`);
+    renderLegend();
+    drawChart();
+    const min = hist.points * hist.step_min;
+    const zeitraum = min >= 120 ? `${Math.round(min / 60)} Stunden` : `${min} Minuten`;
+    $("#hist-info").textContent = hist.points
+      ? `${zeitraum} · ${hist.points} Punkte im ${hist.step_min}-Minuten-Raster`
+      : "noch keine Aufzeichnung";
+  } catch (e) { toast(e.message, true); }
+}
+
+function activeSeries() {
+  if (!hist) return [];
+  return Object.entries(hist.series)
+    .filter(([k, v]) => v.some(x => x !== null) && !hidden.has(k));
+}
+
+function renderLegend() {
+  if (!hist) return;
+  $("#legend").innerHTML = Object.entries(hist.series)
+    .filter(([, v]) => v.some(x => x !== null))
+    .map(([k]) => `<button data-s="${k}" class="${hidden.has(k) ? "" : "on"}"
+       style="--c:${SERIES_COLOR[k]}"><i></i>${ROLE_LABEL[k] || k}</button>`).join("")
+    || `<span class="lede">Noch keine Messreihe aufgezeichnet.</span>`;
+}
+
+function drawChart() {
+  const cv = $("#chart");
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  const reihen = activeSeries();
+  const stil = getComputedStyle(document.body);
+  const linie = stil.getPropertyValue("--line-strong").trim();
+  const text = stil.getPropertyValue("--faint").trim();
+
+  if (!reihen.length) {
+    g.fillStyle = text; g.font = "13px " + stil.getPropertyValue("--ui");
+    g.textAlign = "center";
+    g.fillText("Keine Messreihe ausgewählt.", w / 2, h / 2);
+    return;
+  }
+
+  const alle = reihen.flatMap(([, v]) => v).filter(x => x !== null);
+  let lo = Math.min(...alle), hi = Math.max(...alle);
+  if (hi - lo < 5) { const m = (hi + lo) / 2; lo = m - 2.5; hi = m + 2.5; }
+  const pad = (hi - lo) * 0.1; lo -= pad; hi += pad;
+
+  const L = 44, R = 8, T = 10, B = 22;
+  const px = i => L + i * (w - L - R) / Math.max(1, hist.points - 1);
+  const py = v => T + (hi - v) * (h - T - B) / (hi - lo);
+
+  /* Raster und Beschriftung der Temperaturachse */
+  g.strokeStyle = linie; g.fillStyle = text; g.lineWidth = 1;
+  g.font = "10px " + stil.getPropertyValue("--data");
+  g.textAlign = "right"; g.textBaseline = "middle";
+  const schritt = Math.max(1, Math.round((hi - lo) / 5));
+  for (let v = Math.ceil(lo / schritt) * schritt; v <= hi; v += schritt) {
+    const y = Math.round(py(v)) + .5;
+    g.globalAlpha = .45; g.beginPath(); g.moveTo(L, y); g.lineTo(w - R, y); g.stroke();
+    g.globalAlpha = 1; g.fillText(v + "°", L - 6, y);
+  }
+
+  /* Zeitachse: der jüngste Punkt steht rechts */
+  g.textBaseline = "top";
+  const spanne = hist.points * hist.step_min;
+  for (let i = 0; i <= 4; i++) {
+    const x = L + i * (w - L - R) / 4;
+    const vorMin = Math.round(spanne * (1 - i / 4));
+    /* Die Randbeschriftungen werden nach innen ausgerichtet, sonst schneidet
+       der Rahmen sie an. */
+    g.textAlign = i === 0 ? "left" : (i === 4 ? "right" : "center");
+    g.fillText(vorMin === 0 ? "jetzt" : `−${vorMin >= 60
+      ? Math.round(vorMin / 60) + " h" : vorMin + " min"}`, x, h - B + 5);
+  }
+
+  for (const [key, werte] of reihen) {
+    g.strokeStyle = SERIES_COLOR[key] || "#888";
+    g.lineWidth = 1.8; g.lineJoin = "round"; g.lineCap = "round";
+    g.beginPath();
+    let offen = false;
+    werte.forEach((v, i) => {
+      if (v === null) { offen = false; return; }
+      if (!offen) { g.moveTo(px(i), py(v)); offen = true; }
+      else g.lineTo(px(i), py(v));
+    });
+    g.stroke();
+  }
+}
+
+/* ---------------- System ---------------- */
+
+function renderSystem() {
+  if (!cfg) return;
+  const setz = (sel, v) => { const e = $(sel); if (e !== document.activeElement) e.value = v; };
+  setz("#s-site", cfg.site || "");
+  setz("#s-host", cfg.wifi.hostname || "");
+  setz("#s-bus0", cfg.onewire_pin[0]);
+  setz("#s-bus1", cfg.onewire_pin[1]);
+  setz("#s-poll", cfg.poll_s);
+  setz("#s-ssid", cfg.wifi.ssid || "");
+  setz("#s-mq-uri", cfg.mqtt.uri || "");
+  setz("#s-mq-user", cfg.mqtt.user || "");
+  setz("#s-mq-prefix", cfg.mqtt.prefix || "");
+  if ($("#s-mq-on") !== document.activeElement) $("#s-mq-on").checked = !!cfg.mqtt.enabled;
+  $("#s-fw").textContent = `Version ${state?.version || "?"}, Gerät ${state?.device.id || ""}`
+    + ` (${state?.device.mac || ""}). Nach dem Einspielen startet das Gerät neu; schlägt der`
+    + ` Start fehl, kehrt der Bootlader zur vorherigen Fassung zurück.`;
+}
+
+async function saveConfig(patch, meldung) {
+  try {
+    await put("/api/config", patch);
+    cfg = await api("/api/config");
+    toast(meldung || "Gespeichert");
+    refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------------- Einrichtungsassistent ---------------- */
+
+let wizStep = 0, wizSite = "";
+
+const WIZ = [
+  {t:"Willkommen", n:"Bezeichnung"},
+  {t:"Wie heißt dieses Gerät?", n:"Fühler"},
+  {t:"Fühler zuordnen", n:"Fertig"},
+];
+
+function openWizard() {
+  wizStep = 0;
+  wizSite = cfg?.site || "";
+  $("#wizard").hidden = false;
+  renderWizard();
+}
+
+function renderWizard() {
+  const s = WIZ[wizStep];
+  $("#wiz-title").textContent = s.t;
+  $("#wiz-steps").innerHTML = WIZ.map((x, i) =>
+    i === wizStep ? `<b>${i + 1}. ${x.t}</b>` : `${i + 1}.`).join(" · ");
+  $("#wiz-bar").style.width = `${(wizStep + 1) / WIZ.length * 100}%`;
+  $("#wiz-back").style.visibility = wizStep ? "visible" : "hidden";
+  $("#wiz-next").textContent = wizStep === WIZ.length - 1 ? "Einrichtung abschließen" : s.n;
+
+  const b = $("#wiz-body");
+  if (wizStep === 0) {
+    b.innerHTML = `<p class="lede">Dieses Gerät erfasst die Temperaturen an der Heizung.
+      Am Ölkessel sind das Abgas sowie Vor- und Rücklauf, am Pufferspeicher die
+      Speichertemperatur und die beiden Heizkreise. Beide Geräte tragen dieselbe Firmware;
+      welche Aufgabe eines übernimmt, ergibt sich allein aus den zugeordneten Fühlern.</p>
+      <p class="lede">Die Einrichtung dauert zwei Schritte.</p>`;
+  } else if (wizStep === 1) {
+    b.innerHTML = `<p class="lede">Die Bezeichnung steht in der Kopfzeile und macht das Gerät
+      für die anderen Platinen im Haus auffindbar.</p>
+      <label>Bezeichnung<input id="wiz-site" value="${wizSite}" maxlength="31"
+        placeholder="Kessel"></label>
+      <div class="pick">${["Kessel", "Pufferspeicher", "Heizungsraum"].map(v =>
+        `<button data-v="${v}">${v}</button>`).join("")}</div>`;
+    $("#wiz-site").oninput = e => wizSite = e.target.value;
+    b.querySelectorAll(".pick button").forEach(x => x.onclick = () => {
+      wizSite = x.dataset.v; $("#wiz-site").value = wizSite;
+    });
+    setTimeout(() => $("#wiz-site").focus(), 30);
+  } else {
+    const ps = state?.probes || [];
+    b.innerHTML = `<p class="lede">Fassen Sie einen Fühler mit der Hand an — seine Zeile
+      hebt sich durch die Änderung sichtbar hervor. Ordnen Sie ihn dann zu. Nicht belegte
+      Rollen bleiben einfach frei.</p>`
+      + (ps.length ? ps.map(p => `<div class="wiz-probe" data-rom="${p.rom}">
+          <div class="who"><b>${num(p.temp_c, 1)} °C
+            <span class="delta ${p.delta30_c > 0 ? "up" : p.delta30_c < 0 ? "down" : ""}">
+            ${p.delta30_c === null ? "" : (p.delta30_c > 0 ? "+" : "") + num(p.delta30_c, 1) + " K"}
+            </span></b><span>${p.rom}</span></div>
+          <select data-k="role">${roleOptions(p.role, p.rom)}</select></div>`).join("")
+        : `<p class="lede"><b>Am Bus meldet sich kein Fühler.</b> Prüfen Sie den Anschluss
+           und die Belegung unter System; ohne Fühler lässt sich die Einrichtung dennoch
+           abschließen.</p>`);
+  }
+}
+
+async function wizFinish() {
+  const zuordnung = $$("#wiz-body .wiz-probe").map(el => {
+    const role = el.querySelector("[data-k=role]").value;
+    return {rom: el.dataset.rom, role, name: role ? ROLE_LABEL[role] : "", offset_k: 0};
+  }).filter(p => p.role);
+
+  try {
+    await put("/api/config", {site: wizSite.trim(), probes: zuordnung});
+    cfg = await api("/api/config");
+    $("#wizard").hidden = true;
+    toast("Einrichtung abgeschlossen");
+    refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------------- Abfragetakt ---------------- */
+
+function schedule() {
+  clearTimeout(pollTimer);
+  if (document.hidden) return;
+  pollTimer = setTimeout(poll, POLL_MS);
+}
+
+async function poll() {
+  clearTimeout(pollTimer);
+  try {
+    state = await api("/api/state");
+    renderStatus();
+    renderSchema();
+    renderTiles();
+    renderProbes();
+    renderSystem();
+    if (!$("#wizard").hidden && wizStep === 2) {
+      /* Im Assistenten laufen die Messwerte mit, damit sich ein angefasster
+         Fühler auch dort erkennen lässt. */
+      const offen = document.activeElement?.tagName === "SELECT";
+      if (!offen) renderWizard();
+    }
+  } catch (e) { /* Gerät kurz nicht erreichbar */ }
+  schedule();
+}
+
+const refresh = () => poll();
+
+/* ---------------- Start ---------------- */
+
+async function boot() {
+  $$("nav .tabs button").forEach(b => b.onclick = () => {
+    location.hash = b.dataset.tab;
+    selectTab(b.dataset.tab);
+  });
+  window.addEventListener("hashchange", () => {
+    const id = location.hash.slice(1);
+    if (id) selectTab(id);
+  });
+  if (location.hash) selectTab(location.hash.slice(1));
+
+  const theme = new URLSearchParams(location.search).get("theme");
+  if (theme) document.documentElement.dataset.theme = theme;
+
+  $("#setup-open").onclick = openWizard;
+  $("#wiz-back").onclick = () => { if (wizStep) { wizStep--; renderWizard(); } };
+  $("#wiz-next").onclick = () => {
+    if (wizStep === WIZ.length - 1) return wizFinish();
+    if (wizStep === 1 && !wizSite.trim()) return toast("Bitte eine Bezeichnung eintragen", true);
+    wizStep++; renderWizard();
+  };
+
+  $("#probe-save").onclick = () => saveConfig({probes: collectProbes()}, "Zuordnung gespeichert");
+  $("#probe-rescan").onclick = async () => {
+    try { await post("/api/probes/rescan"); toast("Bus wird neu abgesucht"); }
+    catch (e) { toast(e.message, true); }
+  };
+
+  $("#s-dev-save").onclick = () => saveConfig({
+    site: $("#s-site").value.trim(),
+    wifi: {hostname: $("#s-host").value.trim()},
+  });
+  $("#s-bus-save").onclick = () => saveConfig({
+    onewire_pin: [parseInt($("#s-bus0").value, 10), parseInt($("#s-bus1").value, 10)],
+    poll_s: parseInt($("#s-poll").value, 10),
+  }, "Gespeichert, wirkt nach dem Neustart");
+  $("#s-wifi-save").onclick = () => {
+    const w = {ssid: $("#s-ssid").value.trim()};
+    if ($("#s-pass").value) w.pass = $("#s-pass").value;
+    saveConfig({wifi: w}, "WLAN gespeichert, Verbindung wird neu aufgebaut");
+  };
+  $("#s-scan").onclick = async () => {
+    try {
+      const d = await api("/api/wifi/scan");
+      $("#s-nets").innerHTML = (d.networks || [])
+        .map(n => `<option value="${n.ssid}">${n.rssi} dBm</option>`).join("");
+      toast(`${(d.networks || []).length} Netze gefunden`);
+    } catch (e) { toast(e.message, true); }
+  };
+  $("#s-mq-save").onclick = () => {
+    const m = {enabled: $("#s-mq-on").checked, uri: $("#s-mq-uri").value.trim(),
+               user: $("#s-mq-user").value.trim(), prefix: $("#s-mq-prefix").value.trim()};
+    if ($("#s-mq-pass").value) m.pass = $("#s-mq-pass").value;
+    saveConfig({mqtt: m});
+  };
+  $("#s-restart").onclick = async () => {
+    if (!confirm("Gerät neu starten?")) return;
+    try { await post("/api/system/restart"); toast("Neustart läuft"); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#s-factory").onclick = async () => {
+    if (!confirm("Alle Einstellungen verwerfen und auf die Werksvorgabe zurücksetzen?")) return;
+    try { await post("/api/system/factory"); cfg = await api("/api/config"); toast("Zurückgesetzt"); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#s-ota").onclick = async () => {
+    const f = $("#s-file").files[0];
+    if (!f) return toast("Bitte eine Datei auswählen", true);
+    toast("Firmware wird übertragen …");
+    try {
+      await api("/api/ota", {method:"POST", body:f,
+                             headers:{"Content-Type":"application/octet-stream"}});
+      toast("Eingespielt, das Gerät startet neu");
+    } catch (e) { toast(e.message, true); }
+  };
+
+  $("#hist-range").onchange = loadHistory;
+  $("#legend").onclick = e => {
+    const b = e.target.closest("button[data-s]");
+    if (!b) return;
+    const k = b.dataset.s;
+    hidden.has(k) ? hidden.delete(k) : hidden.add(k);
+    renderLegend(); drawChart();
+  };
+  window.addEventListener("resize", () => { if (hist) drawChart(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+
+  try { cfg = await api("/api/config"); } catch (e) {}
+  await poll();
+  if (state?.setup_open) openWizard();
+
+  loadPeers();
+  setInterval(() => { if (!document.hidden) loadPeers(); }, 60000);
+  setInterval(() => { if (!document.hidden && $("#hist").classList.contains("on")) loadHistory(); },
+              60000);
+}
+
+boot();
+</script>
+</body>
+</html>

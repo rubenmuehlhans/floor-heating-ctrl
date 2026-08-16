@@ -689,6 +689,7 @@ static esp_err_t peers_get_handler(httpd_req_t *req)
         cJSON *j = cJSON_CreateObject();
         cJSON_AddStringToObject(j, "id", list[i].id);
         cJSON_AddStringToObject(j, "site", list[i].site);
+        cJSON_AddStringToObject(j, "role", list[i].role);
         cJSON_AddStringToObject(j, "host", list[i].host);
         cJSON_AddStringToObject(j, "hostname", list[i].hostname);
         cJSON_AddItemToArray(arr, j);

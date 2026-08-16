@@ -11,6 +11,20 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/*
+ * Achtung: Dieser Baustein nimmt app_config_t aus config_store.h entgegen,
+ * benutzt daraus aber nur einen kleinen Ausschnitt:
+ *
+ *     cfg->wifi.ssid, .pass, .hostname, .ap_pass
+ *     cfg->timezone
+ *     cfg_peek()->reboot_hour, ->reboot_minute
+ *     cfg_lock(), cfg_unlock(), cfg_peek()
+ *
+ * Eine Anwendung mit eigenem Konfigurationsschema stellt deshalb eine eigene
+ * Komponente unter dem Namen config_store bereit, die genau diesen Ausschnitt
+ * anbietet; ESP-IDF laesst sie die gemeinsame Fassung verdraengen. Wird der
+ * Ausschnitt hier erweitert, muessen alle Fassungen nachziehen.
+ */
 #include "config_store.h"
 #include "esp_err.h"
 

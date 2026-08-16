@@ -21,11 +21,17 @@
 extern "C" {
 #endif
 
-#define PEERS_MAX 8
+#define PEERS_MAX 12
+
+/* Geraeteart. Sie steht im TXT-Satz, damit die Oberflaechen Verteiler und
+ * Heizungsgeraete getrennt auffuehren koennen. */
+#define PEERS_ROLE_MANIFOLD "manifold"
+#define PEERS_ROLE_HEAT     "heat"
 
 typedef struct {
     char id[24];       /* Geraetekennung, etwa fbh_c2e55c */
     char site[32];     /* Bezeichnung der Anlage, etwa Obergeschoss */
+    char role[12];     /* siehe PEERS_ROLE_*; leer bei aelterer Firmware */
     char host[16];     /* IPv4-Adresse */
     char hostname[32]; /* Name ohne .local */
     uint32_t seen_ms;  /* Zeitpunkt der letzten Antwort */
@@ -35,10 +41,11 @@ typedef struct {
  * Meldet das eigene Geraet an und beginnt zu suchen.
  *
  * hostname, site und device_id stammen aus der Konfiguration beziehungsweise
- * der MAC. Ohne WLAN-Verbindung bleibt die Suche wirkungslos, sie wird
+ * der MAC; role ist eine der PEERS_ROLE_-Angaben. Ohne WLAN-Verbindung bleibt die Suche wirkungslos, sie wird
  * spaeter von selbst erfolgreich.
  */
-esp_err_t peers_start(const char *hostname, const char *site, const char *device_id);
+esp_err_t peers_start(const char *hostname, const char *site, const char *device_id,
+                      const char *role);
 
 /* Uebernimmt eine geaenderte Anlagenbezeichnung oder einen neuen Namen. */
 void peers_update_identity(const char *hostname, const char *site);
