@@ -39,8 +39,25 @@ kein Funkprotokoll: Die Antriebe werden über eigene H-Brücken elektrisch
 angesteuert, also durch Anlegen der Motorspannung. Verwendete
 Produktbezeichnungen dienen allein der Angabe, welche Bauteile verbaut sind.
 
+## Herkunft
+
+Diese Firmware ist die Portierung eines ESPHome-Aufbaus auf das ESP-IDF. Jener
+Aufbau geht seinerseits auf [floor-heating-controller][fhc] von nliaudat
+zurück, eine ESPHome-Konfiguration für das Shield
+[esp32_8ch_motor_shield][shield] desselben Urhebers. Von dort stammen der
+Grundgedanke der Endlagenerkennung über die Gegenspannung, die Kanalauswahl
+über Schieberegister und das Regelgesetz, das hier in
+[`components/roomctrl`](components/roomctrl/) steht.
+
+Die Vorlage steht unter der GPL-3.0. Dieser Quelltextbestand folgt ihr darin;
+siehe [Lizenz](#lizenz).
+
+[fhc]: https://github.com/nliaudat/floor-heating-controller
+[shield]: https://github.com/nliaudat/esp32_8ch_motor_shield
+
 ## Inhalt
 
+- [Herkunft](#herkunft)
 - [Dokumentation](#dokumentation)
 - [Voraussetzungen](#voraussetzungen)
 - [Hardware](#hardware)
@@ -666,7 +683,13 @@ pvvx. Das Gehäuse ist mit CadQuery konstruiert.
 
 ## Lizenz
 
-Apache License 2.0, siehe [LICENSE](LICENSE) und [NOTICE](NOTICE).
+GNU General Public License, Version 3, siehe [LICENSE](LICENSE) und
+[NOTICE](NOTICE). Die Wahl folgt der Vorlage, auf die dieses Projekt
+zurückgeht — siehe [Herkunft](#herkunft).
+
+Die eingebundenen Fremdkomponenten stehen unter MIT und Apache-2.0. Beide
+lassen sich mit der GPL-3.0 zusammenführen; die zusammengesetzte Firmware
+unterliegt dann der GPL-3.0.
 
 Die Software wird ohne jede Gewährleistung bereitgestellt. Sie steuert eine
 Heizungsanlage: Wenn Sie sie einsetzen, tun Sie das auf eigenes Risiko. Gehen

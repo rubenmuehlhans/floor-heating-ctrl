@@ -1,15 +1,48 @@
 Ventilsteuerung Fußbodenheizung
 Copyright 2026 Ruben Mühlhans
 
-Lizenziert unter der Apache License, Version 2.0. Der vollständige Lizenztext
+Dieses Programm ist freie Software: Sie können es unter den Bedingungen der
+GNU General Public License, Version 3, weitergeben und bearbeiten, wie sie von
+der Free Software Foundation veröffentlicht wurde. Der vollständige Lizenztext
 steht in der Datei LICENSE.
+
+Weitergegeben wird es in der Hoffnung, dass es nützlich ist, aber OHNE JEDE
+GEWÄHRLEISTUNG -- sogar ohne die stillschweigende Gewährleistung der
+MARKTGÄNGIGKEIT oder EIGNUNG FÜR EINEN BESTIMMTEN ZWECK.
+
+Herkunft
+--------
+
+Diese Firmware ist die Portierung eines ESPHome-Aufbaus auf das ESP-IDF. Jener
+Aufbau geht auf floor-heating-controller von nliaudat zurück, eine
+ESPHome-Konfiguration für das Shield esp32_8ch_motor_shield desselben
+Urhebers:
+
+  https://github.com/nliaudat/floor-heating-controller   (GPL-3.0)
+  https://github.com/nliaudat/esp32_8ch_motor_shield     (CC BY-NC-SA 4.0)
+
+Übernommen sind der Grundgedanke der Endlagenerkennung über die Gegenspannung,
+die Kanalauswahl über Schieberegister und das Regelgesetz in
+components/roomctrl.
+
+Die Platine unter board/ ist eine eigene Entwicklung. Vom Vorbild unterscheidet
+sie sich in der Kanalzahl (11 statt 8), der Stromversorgung (Netzteil auf der
+Platine statt USB-C oder 5 bis 12 V) sowie darin, dass Anzeige und
+Schaltschrankfühler mit auf der Platine sitzen. Die Entwurfsdaten des Vorbilds
+liegen bei OSHWLab und sind nicht in diesen Bestand eingeflossen. Gemeinsam ist
+das Konzept: gesteckter ESP32-Devkit, Kanalauswahl über Schieberegister,
+Endlagenerkennung über die Gegenspannung.
 
 HmIP und Homematic IP sind Marken der eQ-3 AG. Sie werden in diesem Projekt
 ausschließlich genannt, um die verbauten Stellantriebe zu bezeichnen. Es
 besteht keine Verbindung zu eQ-3.
 
+Fremdkomponenten
+----------------
+
 Dieses Projekt bindet zur Bauzeit Komponenten aus der ESP-IDF-Registry ein,
-die eigenen Lizenzen unterliegen und nicht Teil dieses Quelltextbestands sind:
+die eigenen Lizenzen unterliegen und nicht Teil dieses Quelltextbestands sind.
+MIT und Apache-2.0 lassen sich mit der GPL-3.0 zusammenführen:
 
   espressif/cjson          (MIT)
   espressif/mqtt           (Apache-2.0)
