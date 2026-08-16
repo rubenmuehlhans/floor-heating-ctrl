@@ -329,6 +329,31 @@ a.btn:hover{filter:none}
     </div>
 
     <div class="card">
+      <h2>Schutzlauf der Pumpen</h2>
+      <p class="lede">Im Sommer stehen die Umwälzpumpen über Monate still. Zum eingestellten
+         Termin läuft jede Pumpe drei Minuten, damit sie nicht festsitzt. Übergangen wird,
+         wer am selben Tag ohnehin gelaufen ist. Gemessen wird an der Uhr, nicht an der
+         Laufzeit seit dem Einschalten — sonst begänne die Zählung nach jedem Stromausfall
+         von vorn.</p>
+      <div class="fields">
+        <label>Wochentag
+          <select id="s-seize-day">
+            <option value="-1">kein Termin</option>
+            <option value="0">Sonntag</option>
+            <option value="1">Montag</option>
+            <option value="2">Dienstag</option>
+            <option value="3">Mittwoch</option>
+            <option value="4">Donnerstag</option>
+            <option value="5">Freitag</option>
+            <option value="6">Samstag</option>
+          </select></label>
+        <label>Stunde<input type="number" id="s-seize-hour" min="0" max="23"
+               style="width:5rem"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-seize-save">Speichern</button></div>
+    </div>
+
+    <div class="card">
       <h2>1-Wire-Bus</h2>
       <p class="lede">Die beiden Geräte sind unterschiedlich verdrahtet, deshalb steht die
          Belegung hier und nicht in der Firmware. Eine Änderung wirkt sofort. Der Bus
@@ -1175,6 +1200,8 @@ function renderSystem() {
   $("#s-pass").placeholder = cfg.wifi.pass_set ? "gespeichert" : "nicht gesetzt";
   $("#s-appass").placeholder = cfg.wifi.ap_pass_set ? "gespeichert" : "nicht gesetzt";
   $("#s-mq-pass").placeholder = cfg.mqtt.pass_set ? "gespeichert" : "nicht gesetzt";
+  setz("#s-seize-day", cfg.seize_weekday);
+  setz("#s-seize-hour", cfg.seize_hour);
   setz("#s-bus0", cfg.onewire_pin[0]);
   setz("#s-bus1", cfg.onewire_pin[1]);
   setz("#s-poll", cfg.poll_s);
@@ -1417,6 +1444,10 @@ async function boot() {
   };
 
   $("#s-dev-save").onclick = () => saveConfig({site: $("#s-site").value.trim()});
+  $("#s-seize-save").onclick = () => saveConfig({
+    seize_weekday: parseInt($("#s-seize-day").value, 10),
+    seize_hour: parseInt($("#s-seize-hour").value, 10),
+  }, "Termin gespeichert");
   $("#s-bus-save").onclick = () => saveConfig({
     onewire_pin: [parseInt($("#s-bus0").value, 10), parseInt($("#s-bus1").value, 10)],
     poll_s: parseInt($("#s-poll").value, 10),

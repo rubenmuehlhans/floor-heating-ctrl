@@ -11,7 +11,6 @@ void pump_defaults(pump_cfg_t *cfg)
     cfg->min_pause_s = 180;
     cfg->min_buffer_c = 40.0f;
     cfg->frost_c = 6.0f;
-    cfg->seize_days = 7;
     cfg->seize_run_s = 180;
 }
 
@@ -93,9 +92,9 @@ void pump_tick(pump_state_t *st, const pump_cfg_t *cfg, const pump_input_t *in, 
         return;
     }
 
-    /* Schutzlauf: steht die Pumpe zu lange, laeuft sie kurz an. Er laeuft
-     * unabhaengig von Bedarf und Speichertemperatur -- er dient dem Lager,
-     * nicht der Waerme. */
+    /* Schutzlauf: zum woechentlichen Termin laeuft die Pumpe kurz an, damit
+     * sie ueber den Sommer nicht festsitzt. Er laeuft unabhaengig von Bedarf
+     * und Speichertemperatur -- er dient dem Lager, nicht der Waerme. */
     if (st->seize_until_ms != 0) {
         if (!erreicht(now_ms, st->seize_until_ms)) {
             schalten(st, true, PUMP_REASON_SEIZE, now_ms);
@@ -103,8 +102,11 @@ void pump_tick(pump_state_t *st, const pump_cfg_t *cfg, const pump_input_t *in, 
         }
         st->seize_until_ms = 0;
     }
-    if (!st->on && cfg->seize_days > 0 &&
-        verstrichen(now_ms, st->last_run_ms) >= cfg->seize_days * MS_PRO_TAG) {
+    if (!st->on && in->seize_due && cfg->seize_run_s > 0 &&
+        (st->last_run_ms == 0 || verstrichen(now_ms, st->last_run_ms) >= MS_PRO_TAG)) {
+        /* Eine Pumpe, die am selben Tag ohnehin gelaufen ist, sitzt nicht
+         * fest. last_run_ms == 0 heisst "seit dem Einschalten nie gelaufen"
+         * und zaehlt deshalb als lange Standzeit. */
         st->seize_until_ms = now_ms + cfg->seize_run_s * 1000UL;
         schalten(st, true, PUMP_REASON_SEIZE, now_ms);
         return;

@@ -17,6 +17,7 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Fühler des Heizungsgeräts zuordnen](#fühler-des-heizungsgeräts-zuordnen)
 - [Pumpen einrichten](#pumpen-einrichten)
 - [Brenner und Pufferspeicher](#brenner-und-pufferspeicher)
+- [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
 - [Verlauf und Aufzeichnung](#verlauf-und-aufzeichnung)
 - [Home Assistant](#home-assistant)
 - [Wartung](#wartung)
@@ -391,6 +392,42 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 > Die Vorgabewerte (8 K Spreizung, 62 °C voll, 35 °C leer, Warnung unter 40 °C) sind Annahmen.
 > Ziehen Sie sie nach der ersten aufgezeichneten Ladung nach.
 
+## Schutzfahrt und Schutzlauf
+
+Im Sommer stehen die Ventile über Monate geschlossen und die Umwälzpumpen still. Beides setzt
+sich mit der Zeit fest. Einmal in der Woche fahren deshalb alle Ventile einmal durch und alle
+Pumpen laufen kurz an.
+
+Der Termin steht auf beiden Gerätearten unter **System** und ist ab Werk **Samstag 11 Uhr** —
+eine Stunde nach dem täglichen Neustart der Verteilerplatinen, damit sich beides nicht in die
+Quere kommt. Wochentag auf „kein Termin" schaltet ihn ab.
+
+**An der Verteilerplatine.** Jeder Kreis fährt einmal auf Anschlag auf, wieder zu und danach auf
+seine vorherige Stellung zurück. Gefahren wird auf Anschlag, nicht auf eine Stellung: Die Fahrt
+soll den ganzen Weg abdecken, und die Stellung ist danach wieder gesichert statt geschätzt. Die
+Kreise fahren nacheinander, je Messgruppe einer; für alle elf dauert das rund zwanzig Minuten.
+
+| Übergangen wird | Grund |
+|---|---|
+| Kreise, die seit der letzten Schutzfahrt gefahren sind | wer regelt, sitzt nicht fest — und die Fahrt käme dem Raum in die Quere |
+| Kreise in Notstellung von Hand | die Handbedienung hat Vorrang |
+| Kreise, die gerade vermessen werden | die Messfahrt darf nicht gestört werden |
+
+**Jetzt fahren** stößt die Schutzfahrt außerhalb des Termins an, **Alle Kreise fahren** nimmt
+auch die zwischenzeitlich gefahrenen mit. **Abbrechen** streicht die noch offenen Kreise;
+angefangene Fahrten laufen zu Ende, weil ein Ventil auf halbem Weg schlechter stünde als eines,
+das seine Fahrt abschließt.
+
+**Am Heizungsgerät.** Jede Umwälzpumpe läuft drei Minuten. Übergangen wird, wer am selben Tag
+ohnehin gelaufen ist. Der Schutzlauf gilt unabhängig von Bedarf und Speichertemperatur — er dient
+dem Lager, nicht der Wärme.
+
+Gemessen wird der Termin an der Uhr, nicht an der Laufzeit seit dem Einschalten. Das ist der
+Unterschied, auf den es ankommt: Die Verteilerplatinen starten täglich um 10 Uhr neu und
+erreichen nie sieben Tage Laufzeit; ein Termin, der daran hinge, käme nie. Steht die Uhr noch
+nicht, fällt der Termin aus, statt im Jahr 1970 zu liegen. Wer zur Terminstunde aus war und
+später am selben Tag angeht, holt ihn nach.
+
 ## Verlauf und Aufzeichnung
 
 ![Verlauf](screenshots/heizung/verlauf.png)
@@ -566,6 +603,9 @@ GET     /api/config             Konfiguration ohne Kennwoerter
 PUT     /api/config             Konfiguration aendern
 GET     /api/peers              gefundene Geraete im Haus
 GET     /api/wifi/scan          erreichbare Netze
+POST    /api/system/seize       Schutzfahrt jetzt fahren
+POST    /api/system/seize-all   dasselbe, auch die zwischenzeitlich gefahrenen
+POST    /api/system/seize-abort offene Kreise streichen
 POST    /api/system/restart     Neustart
 POST    /api/system/factory     auf Werksvorgabe zuruecksetzen
 POST    /api/ota                Firmware einspielen

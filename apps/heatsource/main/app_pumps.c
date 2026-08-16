@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "app_sensors.h"
 #include "cJSON.h"
@@ -13,6 +14,7 @@
 #include "freertos/task.h"
 #include "mqttc.h"
 #include "peers.h"
+#include "schedule.h"
 
 static const char *TAG = "pumps";
 
@@ -61,6 +63,7 @@ static size_t s_peer_count;
 static SemaphoreHandle_t s_mtx;
 static volatile bool s_cfg_dirty;
 static uint32_t s_heartbeat_ms;
+static sched_weekly_t s_seize_sched;
 
 static inline uint32_t now_ms(void)
 {
@@ -126,7 +129,6 @@ static void apply_config(void)
         z->cfg.min_pause_s = c->min_pause_s;
         z->cfg.min_buffer_c = c->min_buffer_c;
         z->cfg.frost_c = c->frost_c;
-        z->cfg.seize_days = c->seize_days;
         z->cfg.seize_run_s = 180;
     }
 
@@ -495,10 +497,36 @@ static void push_heartbeat(uint32_t t)
 /* Aufgabe                                                             */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Faellt der woechentliche Schutzlauf? Gefragt wird die Uhr, nicht die
+ * Laufzeit: nach jedem Neustart finge eine Standzeitzaehlung von vorn an, und
+ * ein Geraet mit taeglichem Neustart erreichte nie eine Woche.
+ */
+static bool seize_due_now(const app_config_t *cfg)
+{
+    if (cfg->seize_weekday < 0) {
+        return false;
+    }
+    time_t jetzt = time(NULL);
+    if (jetzt < 1700000000) {
+        return false; /* Uhr nicht gestellt */
+    }
+    struct tm tm;
+    localtime_r(&jetzt, &tm);
+    return sched_weekly_due(&s_seize_sched, cfg->seize_weekday, cfg->seize_hour, tm.tm_wday,
+                            tm.tm_hour, tm.tm_yday, tm.tm_year);
+}
+
 static void evaluate(uint32_t t)
 {
     static app_config_t cfg;
     cfg_copy(&cfg);
+
+    /* Einmal je Durchlauf gefragt, sonst saehe ihn nur der erste Kreis. */
+    bool schutzlauf_faellig = seize_due_now(&cfg);
+    if (schutzlauf_faellig) {
+        ESP_LOGI(TAG, "Woechentlicher Schutzlauf der Pumpen faellig");
+    }
 
     for (uint8_t i = 0; i < s_circ_count; i++) {
         circuit_t *z = &s_circ[i];
@@ -539,6 +567,7 @@ static void evaluate(uint32_t t)
         in.min_room_c = bedarf.min_room_c;
         in.buffer_valid = sensors_role_value(ROLE_PUFFER, &in.buffer_c, NULL);
         in.flow_valid = sensors_role_value(z->vl_role, &in.flow_c, NULL);
+        in.seize_due = schutzlauf_faellig;
 
         /* Ein abgeschalteter Kreis wird nicht geregelt und nicht geschaltet. */
         if (!z->enabled) {

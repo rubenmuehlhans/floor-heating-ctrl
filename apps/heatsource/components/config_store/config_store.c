@@ -119,6 +119,10 @@ void cfg_defaults(app_config_t *out)
 
     out->reboot_hour = -1; /* Heizungsgeraete laufen durch */
     out->reboot_minute = 0;
+    /* Samstag 11 Uhr, wie auf den Verteilerplatinen: die Schutzfahrt der
+     * Ventile und der Schutzlauf der Pumpen fallen so zusammen. */
+    out->seize_weekday = 6;
+    out->seize_hour = 11;
     copy_str(out->timezone, sizeof(out->timezone), "CET-1CEST,M3.5.0,M10.5.0/3");
 
     copy_str(out->wifi.hostname, sizeof(out->wifi.hostname), "heizung");
@@ -165,6 +169,9 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         return ESP_ERR_INVALID_ARG;       \
     } while (0)
 
+    if (cfg->seize_weekday > 6 || cfg->seize_hour < 0 || cfg->seize_hour > 23) {
+        FEHLER("Termin der Schutzfahrt liegt ausserhalb des Moeglichen");
+    }
     if (cfg->probe_count > CFG_MAX_PROBES) {
         FEHLER("Hoechstens %d Fuehler moeglich", CFG_MAX_PROBES);
     }
@@ -306,7 +313,6 @@ void cfg_circuit_defaults(cfg_circuit_t *c, uint8_t id)
     c->min_pause_s = 180;
     c->min_buffer_c = 40.0f;
     c->frost_c = 6.0f;
-    c->seize_days = 7;
 }
 
 const cfg_circuit_t *cfg_circuit(const app_config_t *cfg, uint8_t id)
@@ -416,7 +422,6 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
         cJSON_AddNumberToObject(j, "min_pause_s", c->min_pause_s);
         cJSON_AddNumberToObject(j, "min_buffer_c", c->min_buffer_c);
         cJSON_AddNumberToObject(j, "frost_c", c->frost_c);
-        cJSON_AddNumberToObject(j, "seize_days", c->seize_days);
         cJSON_AddItemToArray(kreise, j);
     }
     cJSON_AddNumberToObject(root, "demand_poll_s", cfg->demand_poll_s);
@@ -438,6 +443,8 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(sp, "kessel_hot_c", cfg->buffer.kessel_hot_c);
 
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
+    cJSON_AddNumberToObject(root, "seize_weekday", cfg->seize_weekday);
+    cJSON_AddNumberToObject(root, "seize_hour", cfg->seize_hour);
     cJSON_AddNumberToObject(root, "reboot_minute", cfg->reboot_minute);
     cJSON_AddStringToObject(root, "timezone", cfg->timezone);
 
@@ -611,7 +618,6 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             c->min_pause_s = (uint16_t)cfgjson_num(j, "min_pause_s", c->min_pause_s);
             c->min_buffer_c = (float)cfgjson_num(j, "min_buffer_c", c->min_buffer_c);
             c->frost_c = (float)cfgjson_num(j, "frost_c", c->frost_c);
-            c->seize_days = (uint8_t)cfgjson_num(j, "seize_days", c->seize_days);
             out->circuit_count++;
         }
     }
@@ -641,6 +647,8 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
     }
 
     out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);
+    out->seize_weekday = (int8_t)cfgjson_num(root, "seize_weekday", out->seize_weekday);
+    out->seize_hour = (int8_t)cfgjson_num(root, "seize_hour", out->seize_hour);
     out->reboot_minute = (int8_t)cfgjson_num(root, "reboot_minute", out->reboot_minute);
     cfgjson_str(root, "timezone", out->timezone, sizeof(out->timezone));
 

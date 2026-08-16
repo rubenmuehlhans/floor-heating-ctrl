@@ -68,7 +68,7 @@ def kreis_default(kid: int) -> dict:
             "vl_role": f"hk{kid}_vl", "rl_role": f"hk{kid}_rl",
             "pump": {"topic": "", "host": "", "user": "", "relay": 1, "pass_set": False},
             "mode": "auto", "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
-            "min_buffer_c": 40.0, "frost_c": 6.0, "seize_days": 7}
+            "min_buffer_c": 40.0, "frost_c": 6.0}
 
 
 REC = {"state": "fertig", "samples": 1043, "period_s": 5,
@@ -86,6 +86,8 @@ CFG = {
     "poll_s": 10,
     "probes": [],
     "reboot_hour": -1,
+    "seize_weekday": 6,
+    "seize_hour": 11,
     "reboot_minute": 0,
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
     "wifi": {"ssid": "Heimnetz", "hostname": "heizung", "pass_set": True, "ap_pass_set": True},
@@ -439,7 +441,7 @@ if __name__ == "__main__":
              "pump": {"topic": k["topic"], "host": "", "user": "", "relay": k["relay"],
                       "pass_set": False},
              "mode": "auto", "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
-             "min_buffer_c": 40.0, "frost_c": 6.0, "seize_days": 7}
+             "min_buffer_c": 40.0, "frost_c": 6.0}
             for k in KREISE]
 
     print(f"Attrappe {'Kessel' if args.kessel else 'Speicher'} "

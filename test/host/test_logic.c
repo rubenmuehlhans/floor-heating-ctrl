@@ -14,6 +14,7 @@
 #include "heatlogic.h"
 #include "hw_map.h"
 #include "roomctrl.h"
+#include "schedule.h"
 #include "valve.h"
 
 static int s_failed;
@@ -479,7 +480,6 @@ static void test_pump_seize(void)
 
     pump_cfg_t cfg;
     pump_defaults(&cfg);
-    cfg.seize_days = 1;
     cfg.seize_run_s = 60;
     pump_state_t st;
     pump_init(&st, PUMP_MODE_AUTO);
@@ -489,16 +489,41 @@ static void test_pump_seize(void)
     pump_tick(&st, &cfg, &in, t);
     CHECK(!st.on, "zu Beginn steht die Pumpe");
 
-    /* Einen Tag ohne Bedarf: der Schutzlauf muss anspringen. */
-    t += 86400UL * 1000UL + 1000UL;
-    pump_tick(&st, &cfg, &in, t);
-    CHECK(st.on, "nach der Standzeit laeuft der Schutzlauf an");
+    /* Ohne faelligen Termin passiert auch nach Tagen nichts. */
+    t = pumpe_laufen(&st, &cfg, in, t, 3 * 86400UL);
+    CHECK(!st.on, "ohne Termin laeuft kein Schutzlauf");
+
+    /* Der Termin faellt. */
+    pump_input_t faellig = in;
+    faellig.seize_due = true;
+    t += 1000;
+    pump_tick(&st, &cfg, &faellig, t);
+    CHECK(st.on, "zum Termin laeuft der Schutzlauf an");
     CHECK(st.reason == PUMP_REASON_SEIZE, "Grund ist der Schutzlauf, nicht %s",
           pump_reason_text(st.reason));
 
     /* Er endet von selbst. */
     t = pumpe_laufen(&st, &cfg, in, t, cfg.seize_run_s + cfg.min_run_s + 5);
     CHECK(!st.on, "der Schutzlauf endet von selbst");
+
+    /*
+     * Eine Pumpe, die am selben Tag ohnehin gelaufen ist, sitzt nicht fest --
+     * der Termin geht dann an ihr vorbei.
+     */
+    pump_init(&st, PUMP_MODE_AUTO);
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, 600);
+    CHECK(st.on, "sie laeuft wegen Bedarf");
+    t = pumpe_laufen(&st, &cfg, in, t, cfg.overrun_s + cfg.min_run_s + 30);
+    CHECK(!st.on, "und geht danach aus");
+    t += 1000;
+    pump_tick(&st, &cfg, &faellig, t);
+    CHECK(!st.on, "kurz nach einem Lauf braucht sie keinen Schutzlauf");
+
+    /* Einen Tag spaeter schon. */
+    t = pumpe_laufen(&st, &cfg, in, t, 86400UL + 60);
+    t += 1000;
+    pump_tick(&st, &cfg, &faellig, t);
+    CHECK(st.on, "einen Tag spaeter laeuft er an");
 }
 
 /* ------------------------------------------------------------------ */
@@ -1103,6 +1128,76 @@ static void test_rec_trigger_hand(void)
     CHECK(st.phase == REC_TRIG_DONE, "ein voller Puffer beendet sie");
 }
 
+/* ------------------------------------------------------------------ */
+/* Woechentlicher Termin                                               */
+/* ------------------------------------------------------------------ */
+
+#define SA 6   /* Samstag */
+#define SO 0
+
+static void test_sched_weekly(void)
+{
+    printf("Terminplan: woechentlich\n");
+
+    sched_weekly_t st;
+    sched_weekly_init(&st);
+
+    /* Termin: Samstag 11 Uhr. Der Freitag geht leer aus. */
+    CHECK(!sched_weekly_due(&st, SA, 11, 5, 23, 100, 2026), "am Freitag faellt nichts an");
+    CHECK(!sched_weekly_due(&st, SA, 11, SA, 10, 101, 2026), "vor der Stunde noch nicht");
+    CHECK(sched_weekly_due(&st, SA, 11, SA, 11, 101, 2026), "zur Stunde loest er aus");
+    CHECK(!sched_weekly_due(&st, SA, 11, SA, 11, 101, 2026), "und dann am selben Tag nicht mehr");
+    CHECK(!sched_weekly_due(&st, SA, 11, SA, 23, 101, 2026), "auch spaeter am Tag nicht");
+    CHECK(!sched_weekly_due(&st, SA, 11, SO, 12, 102, 2026), "am Sonntag ebenso wenig");
+
+    /* Eine Woche weiter. */
+    CHECK(sched_weekly_due(&st, SA, 11, SA, 11, 108, 2026), "am naechsten Samstag wieder");
+
+    /*
+     * Verpasst wird nichts: Ein Geraet, das zur Terminstunde aus war und
+     * mittags angeht, holt den Termin am selben Tag nach.
+     */
+    sched_weekly_init(&st);
+    CHECK(sched_weekly_due(&st, SA, 11, SA, 17, 115, 2026), "nachmittags wird nachgeholt");
+
+    /* Ohne gestellte Uhr faellt nichts an -- sonst laege der Termin nach
+     * jedem Neustart im Jahr 1970. */
+    sched_weekly_init(&st);
+    CHECK(!sched_weekly_due(&st, SA, 11, SA, 11, 101, -1), "ohne Uhr faellt nichts an");
+
+    /* Abgeschaltet. */
+    sched_weekly_init(&st);
+    CHECK(!sched_weekly_due(&st, -1, 11, SA, 11, 101, 2026), "abgeschaltet loest nicht aus");
+
+    /*
+     * Jahreswechsel: Der 1. Januar hat wieder den Tag 0. Ohne das Jahr im
+     * Vergleich fiele er mit dem 1. Januar des Vorjahres zusammen.
+     */
+    sched_weekly_init(&st);
+    CHECK(sched_weekly_due(&st, SA, 11, SA, 11, 0, 2026), "erster Samstag des Jahres");
+    CHECK(!sched_weekly_due(&st, SA, 11, SA, 11, 0, 2026), "am selben Tag nur einmal");
+    CHECK(sched_weekly_due(&st, SA, 11, SA, 11, 0, 2027), "im naechsten Jahr wieder");
+}
+
+static void test_sched_days_left(void)
+{
+    printf("Terminplan: Tage bis zum naechsten Termin\n");
+
+    sched_weekly_t st;
+    sched_weekly_init(&st);
+
+    CHECK(sched_weekly_days_left(&st, SA, 11, SO, 8, 100, 2026) == 6,
+          "vom Sonntag sind es sechs Tage, nicht %d",
+          sched_weekly_days_left(&st, SA, 11, SO, 8, 100, 2026));
+    CHECK(sched_weekly_days_left(&st, SA, 11, SA, 8, 106, 2026) == 0, "am Terminmorgen null");
+
+    sched_weekly_due(&st, SA, 11, SA, 11, 106, 2026);
+    CHECK(sched_weekly_days_left(&st, SA, 11, SA, 12, 106, 2026) == 7,
+          "nach dem Termin sind es sieben");
+    CHECK(sched_weekly_days_left(&st, -1, 11, SA, 8, 106, 2026) == -1, "abgeschaltet: -1");
+    CHECK(sched_weekly_days_left(&st, SA, 11, SA, 8, 106, -1) == -1, "ohne Uhr: -1");
+}
+
 int main(void)
 {
     test_control_law();
@@ -1134,6 +1229,8 @@ int main(void)
     test_rec_trigger_speicher();
     test_rec_trigger_ohne_zeichen();
     test_rec_trigger_hand();
+    test_sched_weekly();
+    test_sched_days_left();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

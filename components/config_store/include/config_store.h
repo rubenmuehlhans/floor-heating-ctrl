@@ -87,6 +87,14 @@ typedef struct {
     uint16_t sensor_timeout_s; /* danach gilt der Messwert als veraltet */
     int8_t reboot_hour;        /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;
+
+    /*
+     * Woechentliche Schutzfahrt gegen Festsitzen. Gemessen an der Uhr, nicht
+     * an der Laufzeit: ein Geraet mit taeglichem Neustart erreicht nie sieben
+     * Tage Laufzeit.
+     */
+    int8_t seize_weekday;      /* 0 = Sonntag ... 6 = Samstag, -1 = aus */
+    int8_t seize_hour;
     char timezone[CFG_TZ_LEN];
 
     cfg_wifi_t wifi;

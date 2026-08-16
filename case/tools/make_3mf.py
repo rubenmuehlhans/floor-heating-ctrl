@@ -56,9 +56,15 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OUT
 # PROBEN=1 bleibt als Schreibweise erhalten und bedeutet PLATTE=proben.
 PLATTE = os.environ.get("PLATTE", "proben" if os.environ.get("PROBEN", "0") != "0"
                         else "gehaeuse")
-if PLATTE not in ("gehaeuse", "zubehoer", "proben"):
-    sys.exit(f"PLATTE={PLATTE} unbekannt — gehaeuse | zubehoer | proben")
-MIT_GEHAEUSE = PLATTE == "gehaeuse"
+#   PLATTE=schale                NUR die Unterschale — fuer die Varianten der
+#                                Platinenbefestigung (PCB_HALT). Der Deckel ist
+#                                dort identisch, ihn jedes Mal mitzuliefern
+#                                waere eine Einladung, ihn versehentlich
+#                                mitzudrucken.
+if PLATTE not in ("gehaeuse", "schale", "zubehoer", "proben"):
+    sys.exit(f"PLATTE={PLATTE} unbekannt — gehaeuse | schale | zubehoer | proben")
+MIT_GEHAEUSE = PLATTE in ("gehaeuse", "schale")
+NUR_SCHALE = PLATTE == "schale"
 MIT_ZUBEHOER = PLATTE == "zubehoer"
 MIT_PROBEN = PLATTE == "proben"
 TOL, ATOL = 0.008, 0.15
@@ -115,7 +121,7 @@ def mesh_xml(shape, dx, dy):
 # ---- Deckelgruppe in Druckstellung, gemeinsame Bezugsbox ----
 lid_bb = c.lid.val().BoundingBox()
 lid_posed = ([(n, print_pose(wp, lid_bb), e) for n, wp, e in LID_PARTS]
-             if MIT_GEHAEUSE else [])
+             if MIT_GEHAEUSE and not NUR_SCHALE else [])
 lb = lid_posed[0][1].val().BoundingBox() if lid_posed else lid_bb
 bb = c.base.val().BoundingBox()          # Schale steht schon richtig (Boden unten)
 
@@ -152,7 +158,8 @@ def pack(units, bed=BED, gap=GAP):
     return ({k: (dx + sx, dy + sy) for k, (dx, dy) in pos.items()},
             max(xs) - min(xs), max(ys) - min(ys))
 
-units = [("lid", lb), ("base", bb)] if MIT_GEHAEUSE else []
+units = ([("base", bb)] if NUR_SCHALE else
+         [("lid", lb), ("base", bb)] if MIT_GEHAEUSE else [])
 
 # Tasten: auf den Kopf stellen (Kopf aufs Bett = keine Stuetze fuer den Flansch).
 caps_up = []
@@ -214,10 +221,11 @@ if MIT_GEHAEUSE:
     # ⚠️ BEIDE Objekte als Component-Container: ein direkt referenziertes
     # Mesh-Objekt zentriert Bambu um seinen eigenen Schwerpunkt und ignoriert
     # die eingebackene Plattenposition (die Schale kam mit min_z = -9,5 an).
-    objs.append('<object id="10" type="model"><components>'
-                + "".join(f'<component objectid="{i}"/>'
-                          for i in range(1, len(lid_posed) + 1))
-                + "</components></object>")
+    if not NUR_SCHALE:
+        objs.append('<object id="10" type="model"><components>'
+                    + "".join(f'<component objectid="{i}"/>'
+                              for i in range(1, len(lid_posed) + 1))
+                    + "</components></object>")
     objs.append(f'<object id="11" type="model"><components>'
                 f'<component objectid="{BASE_ID}"/></components></object>')
 PROBE_ID0 = 40
@@ -244,8 +252,9 @@ model = ('<?xml version="1.0" encoding="UTF-8"?>\n'
          ' <metadata name="BambuStudio:3mfVersion">1</metadata>\n'
          ' <resources>' + "".join(objs) + '</resources>\n'
          ' <build>'
-         + (f'<item objectid="10" transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="{PR_TEIL}"/>'
-            f'<item objectid="11" transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="{PR_TEIL}"/>'
+         + ((f'<item objectid="10" transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="{PR_TEIL}"/>'
+             if not NUR_SCHALE else "")
+            + f'<item objectid="11" transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="{PR_TEIL}"/>'
             if MIT_GEHAEUSE else "")
          + "".join(f'<item objectid="{20+k}" transform="1 0 0 0 1 0 0 0 1 0 0 0" printable="{PR_TEIL}"/>'
                    for k in range(len(caps_posed)))
@@ -263,7 +272,7 @@ def part(pid, name, extr):
             f' facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n'
             f'    </part>\n')
 
-gehaeuse_cfg = ('  <object id="10">\n'
+gehaeuse_cfg = ("" if NUR_SCHALE else '  <object id="10">\n'
                 f'    <metadata key="name" value="Deckel ({len(lid_posed)} Farben)"/>\n'
                 '    <metadata key="extruder" value="1"/>\n'
                 + "".join(part(i, n, e) for i, (n, _, e) in enumerate(lid_posed, start=1))
@@ -273,6 +282,11 @@ gehaeuse_cfg = ('  <object id="10">\n'
                 '    <metadata key="extruder" value="1"/>\n'
                 + part(BASE_ID, "Unterschale", 1)
                 + '  </object>\n') if MIT_GEHAEUSE else ""
+if NUR_SCHALE:
+    gehaeuse_cfg = ('  <object id="11">\n'
+                    '    <metadata key="name" value="Unterschale"/>\n'
+                    '    <metadata key="extruder" value="1"/>\n'
+                    + part(BASE_ID, "Unterschale", 1) + '  </object>\n')
 
 settings = ('<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'
             + gehaeuse_cfg
@@ -316,8 +330,8 @@ for k, (n, _, _, _) in enumerate(proben_posed):
     print(f"   Objekt {50+k}: {n:20s} druckbar      {faces[PROBE_ID0+k]:6d} Dreiecke")
 print(f"   Platte {BED:.0f} mm: Block belegt {span_x:.0f} x {span_y:.0f} mm")
 _boxes = []
-for nm, b, dx, dy in (([("Deckel", lb, lid_dx, lid_dy),
-                        ("Schale", bb, base_dx, base_dy)] if MIT_GEHAEUSE else [])
+for nm, b, dx, dy in ((([("Deckel", lb, lid_dx, lid_dy)] if not NUR_SCHALE else [])
+                       + [("Schale", bb, base_dx, base_dy)] if MIT_GEHAEUSE else [])
                       + [(n, w.val().BoundingBox(), x, y) for n, w, x, y in caps_posed]
                       + [(n, w.val().BoundingBox(), x, y) for n, w, x, y in proben_posed]):
     x0, x1, y0, y1 = b.xmin + dx, b.xmax + dx, b.ymin + dy, b.ymax + dy

@@ -97,6 +97,8 @@ PLATTE=proben .venv/bin/python tools/make_3mf.py fussbodenheizung-pruefstuecke.3
 |---|---|---|
 | `fussbodenheizung-gehaeuse.3mf` | Deckel (3 Teile: Korpus, Logo-Ring, Logo-Akzent) und Unterschale | 184 × 214 mm |
 | `fussbodenheizung-gehaeuse-ohne-display.3mf` | dasselbe mit geschlossenem Deckel | 184 × 214 mm |
+| `fussbodenheizung-schale-schnapper.3mf` | nur die Unterschale, Schnapp-Dome | 184 × 103 mm |
+| `fussbodenheizung-schale-randclips.3mf` | nur die Unterschale, Federzungen | 184 × 103 mm |
 | `fussbodenheizung-zubehoer.3mf` | Displayrahmen, 2 × Hutschienen-Clip | 154 × 50 mm |
 | `fussbodenheizung-pruefstuecke.3mf` | Prüfstück Südwand, Prüfstück Display | 232 × 58 mm |
 
@@ -144,6 +146,8 @@ RJ_OPEN_Z0=2.4 RJ_OPEN_Z1=11.8 DSP_GLASS_D=2.4 .venv/bin/python fbh_case.py
 | `KF250_H`, `HDR_H` | 10,5 / 8,5 | Klemme, 1×2-Buchsenleisten |
 | `TOP_CLEAR` | 21,0 | Lichte Höhe über der Platine |
 | `WALL` / `BOTTOM` | 2,0 / 2,0 | Wand- und Bodenstärke |
+| `SNAP_D` / `SNAP_SLOT` / `SNAP_BARB_D` | 2,5 / 0,8 / 3,3 | Schnapp-Dom: Schaft, Schlitz, Widerhaken |
+| `CLIP_T` / `CLIP_OVER` | 1,0 / 0,6 | Federzunge: Dicke und Übergriff |
 
 ⭐ = am Board gemessen. `BOT_CLEAR` liegt fest auf 3,6 mm: die längsten
 Lötstellen stehen 3,0 mm unter der Platine vor, darunter bleiben 0,6 mm Luft.
@@ -190,8 +194,41 @@ Zentrierlippe läuft ringsum ununterbrochen. Die Südkante bekommt keine
 Schraube — dort steht über die volle Breite die Steckerreihe; sie wird von der
 Lippe und den beiden Ohren bei Y = 12 gehalten.
 
-**Platine.** Vier M2,5 selbstschneidend von oben in Dome (Ø 6,0, Kernloch
-Ø 2,05 — 1,98 mm Domwand). Die Dome sind 3 mm hoch, also unkritisch schlank.
+**Platine.** Drei Varianten der Befestigung, über `PCB_HALT` wählbar. Alle
+drei haben dieselben Außenmaße und **denselben Deckel** — wer die Wahl später
+revidiert, druckt nur die Unterschale neu.
+
+| `PCB_HALT` | Prinzip | Randdehnung | Demontage |
+|---|---|---|---|
+| `schrauben` (Vorgabe) | 4 × M2,5 selbstschneidend in Dome Ø 6,0 | — | beliebig oft |
+| `schnapper` | Schnapp-Dome durch die vorhandenen Ø 2,7-Bohrungen | 1,59 % | Schenkel mit der Pinzette zusammendrücken |
+| `randclips` | 4 Federzungen an der Platinenkante | 2,34 % | Zunge mit dem Finger wegdrücken |
+
+```bash
+PCB_HALT=schnapper PLATTE=schale .venv/bin/python tools/make_3mf.py fussbodenheizung-schale-schnapper.3mf
+```
+
+⚠️⚠️ **Die Federwege sind gerechnet, nicht geraten.** Randdehnung einer
+eingespannten Biegefeder: `ε = 3·t·δ / (2·L²)`. PETG verträgt dauerhaft etwa
+2 … 3 %; darüber bleibt die Feder verformt oder reißt. Diese Rechnung setzt der
+Zungendicke die Grenze — mit 1,4 mm und 0,9 mm Übergriff wären es **4,1 %**,
+die Zunge bliebe nach dem ersten Einclipsen offen stehen. Mehr Übergriff
+braucht eine **längere** Feder, also `BOT_CLEAR` 6,0 statt 3,6 und damit ein
+2,4 mm höheres Gehäuse.
+
+⚠️ Beim Schnapp-Dom entscheidet der **Schlitz** über die Federlänge: er reicht
+bis 0,8 mm über den Boden hinunter, tief in den Dom hinein. Endete er an der
+Platinenunterkante, wäre die Feder nur 2,1 mm lang und die Randdehnung spränge
+auf über 8 %.
+
+⚠️ Die Ausweichtaschen der Randclips liegen **in der Wand**. Ohne die örtliche
+Verdickung nach außen hätten sie die Wand durchbrochen — bei einem Netzgerät
+ein Loch nach außen. `sonden.py` prüft an allen vier Zungen, dass dahinter
+Material steht.
+
+Die Dome selbst sind in allen Varianten gleich: Ø 6,0, 3,6 mm hoch, also
+unkritisch schlank. Bei `schrauben` sitzt darin das Ø 2,05-Kernloch (1,98 mm
+Domwand).
 
 **Wandstärke.** 2,0 mm für Wand und Boden, 3,0 mm für den Deckel. Die 2,0
 sind nicht nur Material: der Steckertunnel vor den RJ11-Buchsen ist
@@ -362,7 +399,7 @@ einen Körper und ein dichtes Netz.
 
 | Datei | Inhalt |
 |---|---|
-| `fbh_case.py` | Konstruktion — Quelle der Wahrheit (`DISPLAY_MODUL=0` für den geschlossenen Deckel) |
+| `fbh_case.py` | Konstruktion — Quelle der Wahrheit (`DISPLAY_MODUL=0`, `PCB_HALT=…`) |
 | `sonden.py` | Sondenprüfung (Öffnungen, Freiräume, Netzbereich, Zubehör) |
 | `laser_gravur.py` | Gravurvorlage aus der Gehäusegeometrie |
 | `reference/platine_auslesen.py` | Platinengeometrie aus Gerber und EasyEDA-JSON |

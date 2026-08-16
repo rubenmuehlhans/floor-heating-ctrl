@@ -348,8 +348,18 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddBoolToObject(jc, "calibrated", cfg.channels[i].calibrated);
         cJSON_AddStringToObject(jc, "last_stop", stop_reason_name(c->last_stop_reason));
         cJSON_AddNumberToObject(jc, "last_move_ms", c->last_move_ms);
+        cJSON_AddNumberToObject(jc, "seize_step", c->seize_step);
+        cJSON_AddBoolToObject(jc, "moved_since_seize", c->moved_since_seize);
         cJSON_AddItemToArray(chans, jc);
     }
+
+    cJSON *sz = cJSON_AddObjectToObject(root, "seize");
+    cJSON_AddBoolToObject(sz, "running", snap.seize.running);
+    cJSON_AddNumberToObject(sz, "pending", snap.seize.pending);
+    cJSON_AddNumberToObject(sz, "done", snap.seize.done);
+    cJSON_AddNumberToObject(sz, "days_left", snap.seize.days_left);
+    cJSON_AddNumberToObject(sz, "weekday", snap.seize.weekday);
+    cJSON_AddNumberToObject(sz, "hour", snap.seize.hour);
 
     cJSON *bemf = cJSON_AddArrayToObject(root, "bemf_mv");
     for (int g = 0; g < HW_BEMF_GROUP_COUNT; g++) {
@@ -829,6 +839,17 @@ static esp_err_t system_post(httpd_req_t *req)
 
     if (strcmp(action, "restart") == 0) {
         xTaskCreate(restart_task, "restart", 2048, NULL, 5, NULL);
+        return send_ok(req);
+    }
+    if (strcmp(action, "seize") == 0 || strcmp(action, "seize-all") == 0) {
+        uint8_t n = control_seize_start(action[5] == '-');
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddBoolToObject(root, "ok", true);
+        cJSON_AddNumberToObject(root, "channels", n);
+        return send_json_obj(req, root);
+    }
+    if (strcmp(action, "seize-abort") == 0) {
+        control_seize_abort();
         return send_ok(req);
     }
     if (strcmp(action, "factory") == 0) {

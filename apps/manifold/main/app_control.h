@@ -29,6 +29,8 @@ typedef struct {
     float request_target;
     uint32_t last_move_ms;
     int last_stop_reason;
+    uint8_t seize_step;  /* 0 = keine Schutzfahrt, sonst 1 bis 3 */
+    bool moved_since_seize;
 } ctl_channel_t;
 
 typedef struct {
@@ -49,12 +51,23 @@ typedef struct {
     uint32_t next_check_s;
 } ctl_room_t;
 
+/* Woechentliche Schutzfahrt gegen Festsitzen. */
+typedef struct {
+    bool running;        /* mindestens ein Kanal ist gerade dabei */
+    uint8_t pending;     /* Kanaele, die noch kommen oder gerade fahren */
+    uint8_t done;        /* in diesem Durchgang bereits gefahren */
+    int days_left;       /* Tage bis zum naechsten Termin, -1 = kein Termin */
+    int8_t weekday;      /* eingestellter Termin */
+    int8_t hour;
+} ctl_seize_t;
+
 typedef struct {
     ctl_channel_t ch[HW_CHANNEL_COUNT];
     ctl_room_t rooms[CFG_MAX_ROOMS];
     uint8_t room_count;
     uint16_t bemf_mv[HW_BEMF_GROUP_COUNT];
     uint32_t uptime_s;
+    ctl_seize_t seize;
 } ctl_snapshot_t;
 
 esp_err_t control_start(void);
@@ -84,6 +97,20 @@ void control_cmd_auto(uint8_t channel);
  * frei ist. */
 void control_cmd_all(bool open);
 void control_cmd_all_auto(void);
+
+/*
+ * Startet die Schutzfahrt von Hand: jeder Kanal, der seit der letzten
+ * Schutzfahrt stillstand, faehrt einmal auf Anschlag auf, wieder zu und danach
+ * auf seine vorherige Stellung zurueck. Liefert die Zahl der vorgemerkten
+ * Kanaele; 0 heisst, dass alle in der Zwischenzeit ohnehin gefahren sind.
+ *
+ * alle = true nimmt jeden Kanal mit, auch die zwischenzeitlich gefahrenen --
+ * fuer die Erprobung.
+ */
+uint8_t control_seize_start(bool alle);
+
+/* Bricht eine laufende Schutzfahrt ab. Angefangene Fahrten laufen zu Ende. */
+void control_seize_abort(void);
 
 void control_room_set_target(uint8_t room_id, float target_c);
 void control_room_set_mode(uint8_t room_id, bool heat);

@@ -73,6 +73,10 @@ void cfg_defaults(app_config_t *out)
 
     out->sensor_timeout_s = 900;
     out->reboot_hour = 10;
+    /* Samstag 11 Uhr: eine Stunde nach dem taeglichen Neustart, damit sich
+     * beides nicht in die Quere kommt. */
+    out->seize_weekday = 6;
+    out->seize_hour = 11;
     out->reboot_minute = 0;
     snprintf(out->timezone, sizeof(out->timezone), "CET-1CEST,M3.5.0,M10.5.0/3");
 
@@ -171,6 +175,9 @@ static esp_err_t cfg_validate(const app_config_t *c, char *err, size_t err_len)
 
     if (c->sensor_timeout_s < 60 || c->sensor_timeout_s > 43200) {
         FAIL("Sensorueberwachung ausserhalb 60..43200 s");
+    }
+    if (c->seize_weekday > 6 || c->seize_hour < 0 || c->seize_hour > 23) {
+        FAIL("Termin der Schutzfahrt liegt ausserhalb des Moeglichen");
     }
     if (c->reboot_hour > 23 || c->reboot_minute < 0 || c->reboot_minute > 59) {
         FAIL("Zeitpunkt des taeglichen Neustarts ist ungueltig");
@@ -275,6 +282,8 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
 
     cJSON_AddNumberToObject(root, "sensor_timeout_s", cfg->sensor_timeout_s);
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
+    cJSON_AddNumberToObject(root, "seize_weekday", cfg->seize_weekday);
+    cJSON_AddNumberToObject(root, "seize_hour", cfg->seize_hour);
     cJSON_AddNumberToObject(root, "reboot_minute", cfg->reboot_minute);
     cJSON_AddStringToObject(root, "timezone", cfg->timezone);
 
@@ -413,6 +422,8 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
 
     out->sensor_timeout_s = (uint16_t)cfgjson_num(root, "sensor_timeout_s", out->sensor_timeout_s);
     out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);
+    out->seize_weekday = (int8_t)cfgjson_num(root, "seize_weekday", out->seize_weekday);
+    out->seize_hour = (int8_t)cfgjson_num(root, "seize_hour", out->seize_hour);
     out->reboot_minute = (int8_t)cfgjson_num(root, "reboot_minute", out->reboot_minute);
     cfgjson_str(root, "timezone", out->timezone, sizeof(out->timezone));
 

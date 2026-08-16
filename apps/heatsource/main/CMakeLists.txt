@@ -11,6 +11,7 @@ idf_component_register(SRCS
                            config_store
                            onewire_temp
                            heatlogic
+                           schedule
                            mqttc
                            netmgr
                            esp_http_client

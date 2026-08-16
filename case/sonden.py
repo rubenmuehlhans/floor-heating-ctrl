@@ -230,6 +230,58 @@ for nm, wp in getattr(c, "EXTRA_PARTS", []) or []:
     sagt(f"{nm:22s} {len(sol)} Solid(s), offene Kanten {offen}"
          + ("" if ok else "  <- erwartet: 1 Koerper, 0 offene Kanten"), ok)
 
+print(f"\n6) Platinenbefestigung: {c.PCB_HALT}\n")
+
+
+def dehnung(t, delta, L):
+    """Randdehnung einer eingespannten Biegefeder in Prozent."""
+    return 3 * t * delta / (2 * L * L) * 100
+
+
+if c.PCB_HALT == "schrauben":
+    wand = (c.BOSS_D - c.BOSS_PILOT) / 2
+    sagt(f"Domwand um das Kernloch: {wand:.2f} mm"
+         + ("" if wand >= 1.8 else "  <- unter 1,8 mm"), wand >= 1.8)
+
+elif c.PCB_HALT == "schnapper":
+    # ⚠️ Ein Widerhaken, der nicht groesser ist als die Bohrung, haelt nichts.
+    ueber = (c.SNAP_BARB_D - 2.7) / 2
+    sagt(f"Uebergriff des Widerhakens ueber die Ø2,7-Bohrung: {ueber:.2f} mm"
+         + ("" if ueber >= 0.2 else "  <- haelt nicht"), ueber >= 0.2)
+    luft = (2.7 - c.SNAP_D) / 2
+    sagt(f"Luft zwischen Schaft und Bohrung: {luft:.2f} mm"
+         + ("" if 0.05 <= luft <= 0.25 else "  <- zu stramm oder zu lose"),
+         0.05 <= luft <= 0.25)
+    schenkel = (c.SNAP_D - c.SNAP_SLOT) / 2
+    L = (c.PCB_TOP + c.SNAP_BARB_H) - (c.BOTTOM + 0.8)
+    e = dehnung(schenkel, ueber, L)
+    sagt(f"Schenkel {schenkel:.2f} mm, Federlaenge {L:.2f} mm -> {e:.2f} % Randdehnung"
+         + ("" if e <= 3.0 else "  <- ueber 3 %, PETG bleibt verformt"), e <= 3.0)
+    sagt(f"Schenkelbreite {schenkel:.2f} mm"
+         + ("" if schenkel >= 0.8 else "  <- unter zwei Bahnbreiten, druckt nicht sauber"),
+         schenkel >= 0.8)
+
+elif c.PCB_HALT == "randclips":
+    e = dehnung(c.CLIP_T, c.CLIP_OVER, (c.PCB_TOP + c.CLIP_HOOK_H) - c.BOTTOM)
+    sagt(f"Zunge {c.CLIP_T:.2f} mm dick, Uebergriff {c.CLIP_OVER:.2f} mm "
+         f"-> {e:.2f} % Randdehnung"
+         + ("" if e <= 3.0 else "  <- ueber 3 %, Zunge bleibt offen stehen"), e <= 3.0)
+    sagt(f"Uebergriff gegen Kavitaetsluft: {c.CLIP_OVER:.2f} > {c.CLR:.2f} mm?"
+         + ("" if c.CLIP_OVER > c.CLR - 0.3 else "  <- Platine kann unter dem Haken weg"),
+         c.CLIP_OVER > c.CLR - 0.3)
+    # ⚠️⚠️ Die Ausweichtasche liegt IN der Wand. Ohne die oertliche Verdickung
+    #    haette sie die Wand durchbrochen — bei einem Netzgeraet ein Loch nach
+    #    aussen. Die Sonde muss hier Material FINDEN.
+    for seite, cy in c.CLIP_POS:
+        x = (c.out_x0 - c.CLIP_BULGE - 1.0) if seite == "W" else \
+            (c.out_x1 + c.CLIP_BULGE + 1.0)
+        laenge = (c.CLIP_BULGE + 3.0) * (1 if seite == "W" else -1)
+        pr = cq.Workplane("YZ", origin=(x, cy, c.PCB_TOP - 1.0)).circle(0.8) \
+            .extrude(laenge)
+        v = volumen(pr.intersect(c.base))
+        sagt(f"Wand hinter der Zunge {seite} Y={cy:.0f}: {v:6.3f} mm³"
+             + ("" if v > 1.0 else "  <- Tasche ist durchgebrochen"), v > 1.0)
+
 print()
 if befunde:
     print(f"⚠️ {len(befunde)} Befund(e) — siehe oben.")

@@ -469,6 +469,7 @@ components/       von allen Anwendungen gemeinsam genutzt
   valve/          Zustandsmaschine je Kreis (frei von IDF-Abhängigkeiten)
   bemf/           ADC-Abtastung, gleitender Median, Schwellwertauswertung
   roomctrl/       Regelgesetz (frei von IDF-Abhängigkeiten)
+  schedule/       wöchentlicher Termin an der Uhr, für die Schutzfahrt
   config_store/   Konfiguration als JSON im NVS
   atc_ble/        NimBLE-Observer, ATC- und pvvx-Dekoder
   ssd1327/        Anzeigetreiber mit Bitmap-Schrift
@@ -477,7 +478,8 @@ components/       von allen Anwendungen gemeinsam genutzt
   netmgr/         WLAN, SNTP, täglicher Neustart
   captive_dns/    Namensdienst des Einrichtungsportals
   i2cbus/         gemeinsamer I²C-Bus
-board/            Fertigungsdaten der Platine: Gerber, DXF, Stückliste
+board/            Fertigungsdaten der Platine: Gerber, DXF, Stückliste (eigene
+                  README und eigene Lizenz)
 case/             Druckgehäuse, mit CadQuery konstruiert (eigene README)
 test/host/        Prüfungen ohne IDF und ohne Hardware
 tools/            Geräteattrappe, Bildschirmaufnahmen, Prüfung der Schnittstelle

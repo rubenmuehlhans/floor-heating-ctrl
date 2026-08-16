@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #include "bemf.h"
 #include "esp_log.h"
@@ -10,6 +11,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "roomctrl.h"
+#include "schedule.h"
 #include "sr74hc595.h"
 
 static const char *TAG = "ctl";
@@ -26,6 +28,14 @@ typedef struct {
     float req_min_delta;
     bool req_force;    /* Notfahrt bis zum Anschlag statt auf eine Stellung */
     bool manual_hold;  /* die Regelung laesst diesen Kreis in Ruhe */
+
+    /*
+     * Schutzfahrt: 0 = keine, 1 = auf Anschlag auf, 2 = auf Anschlag zu,
+     * 3 = zurueck auf die vorherige Stellung.
+     */
+    uint8_t seize_step;
+    float seize_back;
+    bool moved_since_seize;
 } channel_rt_t;
 
 typedef struct {
@@ -51,6 +61,8 @@ static uint32_t s_revision;
 static bool s_positions_dirty;
 static uint32_t s_positions_saved_ms;
 static uint32_t s_boot_ms;
+static sched_weekly_t s_seize_sched;
+static uint8_t s_seize_done;
 
 static inline uint32_t now_ms(void)
 {
@@ -232,8 +244,8 @@ static void room_run_check(int ri, uint32_t t)
             continue;
         }
         channel_rt_t *ch = &s_ch[n - 1];
-        if (ch->reserved || ch->manual_hold) {
-            continue; /* Kalibrierung oder Notstellung von Hand */
+        if (ch->reserved || ch->manual_hold || ch->seize_step != 0) {
+            continue; /* Kalibrierung, Notstellung von Hand oder Schutzfahrt */
         }
         if (!ch->valve.position_known ||
             roomctrl_needs_move(ch->valve.position, target, r->min_delta)) {
@@ -244,6 +256,112 @@ static void room_run_check(int ri, uint32_t t)
 
     ESP_LOGI(TAG, "%s: ist %.2f, soll %.2f, Zielstellung %.0f%%%s", r->name, rt->sensor.temp_c,
              r->target_c, target * 100.0f, pending ? "" : " (keine Fahrt noetig)");
+}
+
+/* ------------------------------------------------------------------ */
+/* Schutzfahrt                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Im Sommer stehen die Ventile ueber Monate geschlossen. Damit sie nicht
+ * festsitzen, faehrt jeder Kanal einmal in der Woche auf Anschlag auf, wieder
+ * zu und danach auf seine vorherige Stellung zurueck.
+ *
+ * Gefahren wird auf Anschlag, nicht auf eine Stellung: die Schutzfahrt soll
+ * den ganzen Weg abdecken, und nebenbei ist die Stellung danach wieder
+ * gesichert statt geschaetzt.
+ *
+ * Uebergangen wird, wer in der Zwischenzeit ohnehin gefahren ist -- ein Kanal,
+ * der taeglich regelt, sitzt nicht fest, und die Fahrt kaeme dem Raum in die
+ * Quere. Uebergangen wird auch, wer von Hand gehalten oder von der Messfahrt
+ * belegt ist.
+ */
+static uint8_t seize_arm_locked(bool alle)
+{
+    uint8_t n = 0;
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        channel_rt_t *ch = &s_ch[i];
+        if (ch->reserved || ch->manual_hold || ch->seize_step != 0) {
+            continue;
+        }
+        if (!alle && ch->moved_since_seize) {
+            continue;
+        }
+        ch->seize_step = 1;
+        ch->seize_back = ch->valve.position_known ? ch->valve.position : 0.0f;
+        n++;
+    }
+    /* Der Zaehler beginnt mit jedem Durchgang von vorn. */
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        s_ch[i].moved_since_seize = false;
+    }
+    s_seize_done = 0;
+    return n;
+}
+
+/* Faellt der Termin? Gefragt wird die Uhr, nicht die Laufzeit. */
+static void seize_check_due(void)
+{
+    if (s_cfg.seize_weekday < 0) {
+        return;
+    }
+    time_t jetzt = time(NULL);
+    if (jetzt < 1700000000) {
+        return; /* Uhr nicht gestellt */
+    }
+    struct tm tm;
+    localtime_r(&jetzt, &tm);
+    if (!sched_weekly_due(&s_seize_sched, s_cfg.seize_weekday, s_cfg.seize_hour, tm.tm_wday,
+                          tm.tm_hour, tm.tm_yday, tm.tm_year)) {
+        return;
+    }
+    uint8_t n = seize_arm_locked(false);
+    ESP_LOGI(TAG, "Schutzfahrt faellig, %u Kanaele vorgemerkt", n);
+}
+
+/* Arbeitet die vorgemerkten Kanaele ab, einen je Messgruppe. */
+static void seize_serve(uint32_t t)
+{
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        channel_rt_t *ch = &s_ch[i];
+        if (ch->seize_step == 0 || ch->reserved) {
+            continue;
+        }
+        if (ch->manual_hold) {
+            /* Jemand hat den Kreis in der Zwischenzeit von Hand uebernommen.
+             * Die Schutzfahrt tritt zurueck, statt gegen ihn anzufahren. */
+            ch->seize_step = 0;
+            ESP_LOGI(TAG, "CH%d Schutzfahrt entfaellt, Kreis ist von Hand gehalten", i + 1);
+            continue;
+        }
+        if (valve_is_moving(&ch->valve) || group_busy(i + 1) || ch->req_valid) {
+            continue;
+        }
+        switch (ch->seize_step) {
+        case 1:
+            valve_force(&ch->valve, true, t);
+            ch->seize_step = 2;
+            ESP_LOGI(TAG, "CH%d Schutzfahrt: auf", i + 1);
+            break;
+        case 2:
+            valve_force(&ch->valve, false, t);
+            ch->seize_step = 3;
+            ESP_LOGI(TAG, "CH%d Schutzfahrt: zu", i + 1);
+            break;
+        default:
+            /* Zurueck auf die Stellung von vorher. Die Regelung uebernimmt
+             * beim naechsten Raumdurchlauf ohnehin wieder. */
+            valve_goto(&ch->valve, ch->seize_back, 0.01f, t);
+            ch->seize_step = 0;
+            ch->moved_since_seize = false;
+            s_seize_done++;
+            ESP_LOGI(TAG, "CH%d Schutzfahrt beendet, zurueck auf %.0f%%", i + 1,
+                     ch->seize_back * 100.0f);
+            break;
+        }
+        apply_channel(i);
+        s_revision++;
+    }
 }
 
 /* Versucht, offene Fahrbefehle zu starten - sowohl aus der Regelung als auch
@@ -273,6 +391,7 @@ static void serve_requests(uint32_t t)
             }
             if (valve_goto(&ch->valve, rt->target_position, r->min_delta, t)) {
                 ESP_LOGI(TAG, "CH%d faehrt auf %.0f%%", n, rt->target_position * 100.0f);
+                ch->moved_since_seize = true;
                 apply_channel(n - 1);
                 s_revision++;
             }
@@ -300,6 +419,7 @@ static void serve_requests(uint32_t t)
         ch->req_valid = false;
         ch->req_force = false;
         if (started) {
+            ch->moved_since_seize = true;
             apply_channel(i);
             s_revision++;
         }
@@ -341,7 +461,9 @@ static void control_task(void *arg)
             }
         }
 
+        seize_check_due();
         serve_requests(t);
+        seize_serve(t);
 
         if (s_positions_dirty && (t - s_positions_saved_ms) >= POSITION_SAVE_MS) {
             cfg_positions_t pos;
@@ -371,6 +493,7 @@ esp_err_t control_start(void)
 
     s_boot_ms = now_ms();
     s_positions_saved_ms = s_boot_ms;
+    sched_weekly_init(&s_seize_sched);
 
     valve_cfg_t vc = {.open_ms = 39000, .close_ms = 40000, .max_ms = 45000, .blank_ms = 2000};
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
@@ -551,6 +674,31 @@ static void room_patch(uint8_t room_id, float target_c, const bool *mode_heat)
     control_room_check_now(room_id);
 }
 
+uint8_t control_seize_start(bool alle)
+{
+    lock();
+    uint8_t n = seize_arm_locked(alle);
+    unlock();
+    ESP_LOGI(TAG, "Schutzfahrt von Hand angestossen, %u Kanaele", n);
+    return n;
+}
+
+void control_seize_abort(void)
+{
+    lock();
+    uint8_t offen = 0;
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        /* Eine angefangene Fahrt laeuft zu Ende -- ein Ventil auf halbem Weg
+         * stehen zu lassen waere schlechter als die Fahrt abzuschliessen. */
+        if (s_ch[i].seize_step != 0 && !valve_is_moving(&s_ch[i].valve)) {
+            s_ch[i].seize_step = 0;
+            offen++;
+        }
+    }
+    unlock();
+    ESP_LOGI(TAG, "Schutzfahrt abgebrochen, %u Kanaele gestrichen", offen);
+}
+
 void control_room_set_target(uint8_t room_id, float target_c)
 {
     room_patch(room_id, target_c, NULL);
@@ -684,6 +832,29 @@ void control_snapshot(ctl_snapshot_t *out)
         out->ch[i].request_target = rt->req_target;
         out->ch[i].last_move_ms = rt->valve.last_move_ms;
         out->ch[i].last_stop_reason = rt->valve.last_stop_reason;
+        out->ch[i].seize_step = rt->seize_step;
+        out->ch[i].moved_since_seize = rt->moved_since_seize;
+    }
+
+    out->seize.weekday = s_cfg.seize_weekday;
+    out->seize.hour = s_cfg.seize_hour;
+    out->seize.done = s_seize_done;
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        if (s_ch[i].seize_step != 0) {
+            out->seize.pending++;
+            if (valve_is_moving(&s_ch[i].valve)) {
+                out->seize.running = true;
+            }
+        }
+    }
+    out->seize.days_left = -1;
+    time_t jetzt = time(NULL);
+    if (jetzt >= 1700000000) {
+        struct tm tm;
+        localtime_r(&jetzt, &tm);
+        out->seize.days_left =
+            sched_weekly_days_left(&s_seize_sched, s_cfg.seize_weekday, s_cfg.seize_hour,
+                                   tm.tm_wday, tm.tm_hour, tm.tm_yday, tm.tm_year);
     }
 
     out->room_count = s_cfg.room_count;

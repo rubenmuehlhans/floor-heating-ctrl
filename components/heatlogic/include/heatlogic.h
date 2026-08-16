@@ -53,7 +53,6 @@ typedef struct {
     uint32_t min_pause_s; /* Mindestpause */
     float min_buffer_c;   /* darunter bringt Umwaelzen nichts */
     float frost_c;        /* darunter laeuft die Pumpe in jedem Fall */
-    uint32_t seize_days;  /* Schutzlauf nach so vielen Tagen Stillstand */
     uint32_t seize_run_s; /* Dauer des Schutzlaufs */
 } pump_cfg_t;
 
@@ -65,6 +64,13 @@ typedef struct {
     float min_room_c;
     bool flow_valid;     /* Vorlauftemperatur des Kreises liegt vor */
     float flow_c;
+    /*
+     * Der woechentliche Termin faellt gerade. Gemessen wird er an der Uhr
+     * (components/schedule), nicht an der Laufzeit: ein Geraet mit taeglichem
+     * Neustart erreicht nie sieben Tage Laufzeit, und nach jedem Stromausfall
+     * finge eine Standzeitzaehlung von vorn an.
+     */
+    bool seize_due;
 } pump_input_t;
 
 typedef struct {
@@ -86,8 +92,8 @@ typedef struct {
 } pump_state_t;
 
 /* Vorgabewerte: 5 min Nachlauf, je 3 min Mindestlaufzeit und -pause,
- * 40 °C Mindesttemperatur des Speichers, 6 °C Frostgrenze, Schutzlauf alle
- * sieben Tage fuer drei Minuten. */
+ * 40 °C Mindesttemperatur des Speichers, 6 °C Frostgrenze, Schutzlauf drei
+ * Minuten lang. Wann er faellt, entscheidet der Termin von aussen. */
 void pump_defaults(pump_cfg_t *cfg);
 
 void pump_init(pump_state_t *st, pump_mode_t mode);

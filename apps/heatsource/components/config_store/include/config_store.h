@@ -111,7 +111,6 @@ typedef struct {
     uint16_t min_pause_s;
     float min_buffer_c;
     float frost_c;
-    uint8_t seize_days;
 } cfg_circuit_t;
 
 /* Brennererkennung am Abgasfuehler; nur wirksam, wenn die Rolle vergeben ist. */
@@ -179,6 +178,15 @@ typedef struct {
 
     int8_t reboot_hour;    /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;
+
+    /*
+     * Woechentlicher Schutzlauf gegen Festsitzen. Gemessen an der Uhr, nicht
+     * an der Laufzeit: ein Geraet mit taeglichem Neustart erreicht nie sieben
+     * Tage Laufzeit, ein Schutzlauf daran gemessen kaeme nie.
+     */
+    int8_t seize_weekday;  /* 0 = Sonntag ... 6 = Samstag, -1 = aus */
+    int8_t seize_hour;
+
     char timezone[CFG_TZ_LEN];
 
     cfg_wifi_t wifi;

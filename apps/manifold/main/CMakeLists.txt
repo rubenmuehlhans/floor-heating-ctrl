@@ -13,6 +13,7 @@ idf_component_register(SRCS
                            valve
                            bemf
                            roomctrl
+                           schedule
                            netmgr
                            i2cbus
                            peers

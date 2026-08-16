@@ -174,7 +174,53 @@ LID_CSK_H = (LID_CSK_D - LID_SCREW_C) / 2      # 90° -> Tiefe = halbe Differenz
 # Wandlaschen an den vier seitlichen Ohren
 TAB, TAB_T, TAB_HOLE = 13.0, 3.2, 4.5
 
+# ---------------------------------------------- Platinenbefestigung --------
+# Drei Varianten, ueber die Umgebung waehlbar:
+#     PCB_HALT=schrauben   (Vorgabe)  4 x M2,5 selbstschneidend in Dome
+#     PCB_HALT=schnapper              Schnapp-Dome DURCH die vorhandenen Ø2,7
+#     PCB_HALT=randclips              Federzungen an der Platinenkante
+# ⭐ Alle drei haben dieselben Aussenmasse und denselben Deckel. Wer die Wahl
+#    spaeter revidiert, druckt nur die Unterschale neu.
+#
+# ⚠️⚠️ Die Federwege sind GERECHNET, nicht geraten. Randdehnung einer
+#    eingespannten Biegefeder: eps = 3*t*delta / (2*L^2). PETG vertraegt
+#    dauerhaft etwa 2 … 3 %; darueber bleibt die Feder verformt oder reisst.
+#      Schnapp-Dom   t 0,85  delta 0,30  L 4,9  ->  1,6 %
+#      Federzunge    t 1,10  delta 0,60  L 6,8  ->  2,1 %
+#    ⚠️ Genau diese Rechnung setzt der Zungendicke die Grenze: mit 1,4 mm und
+#    0,9 mm Uebergriff waeren es 4,1 % — die Zunge bliebe nach dem ersten
+#    Einclipsen offen stehen. Wer mehr Uebergriff will, braucht eine LAENGERE
+#    Feder, also BOT_CLEAR 6,0 statt 3,6 und damit ein 2,4 mm hoeheres Gehaeuse.
+PCB_HALT = os.environ.get("PCB_HALT", "schrauben")
+if PCB_HALT not in ("schrauben", "schnapper", "randclips"):
+    raise SystemExit(f"PCB_HALT={PCB_HALT} unbekannt — "
+                     "schrauben | schnapper | randclips")
+
 BOSS_D, BOSS_PILOT = 6.0, 2.05         # Platinendome, M2,5 selbstschneidend
+
+# Schnapp-Dom: Schaft durch die Bohrung, Widerhaken darueber, Laengsschlitz
+# bis tief in den Dom hinein — der Schlitz IST die Federlaenge.
+SNAP_D = float(os.environ.get("SNAP_D", "2.5"))        # Bohrung 2,7
+SNAP_SLOT = float(os.environ.get("SNAP_SLOT", "0.8"))
+SNAP_BARB_D = float(os.environ.get("SNAP_BARB_D", "3.3"))
+SNAP_BARB_H = 0.5                      # gerade Unterseite, haelt die Platine
+SNAP_LEAD = 1.6                        # Einfuehrkegel darueber
+
+# Federzungen an der Kante. Sie stehen auf dem Boden und weichen in eine Tasche
+# aus, die von aussen durch eine oertliche Wandverdickung gedeckt bleibt.
+CLIP_POS = [("W", 25.0), ("W", 70.0), ("E", 25.0), ("E", 58.0)]
+# ⚠️ 1,0 statt 1,1 mm Zungendicke: `sonden.py` rechnet die Federlaenge bis zur
+#    HAKENoberkante (6,2 mm) und nicht bis zur Platinenoberkante, wie meine
+#    Ueberschlagsrechnung — damit standen 2,58 % statt 2,14 % im Protokoll. Die
+#    duennere Zunge bringt es auf 2,34 %. Die Sonde hat recht: belastet wird die
+#    Zunge dort, wo die Platine am Haken vorbeilaeuft.
+CLIP_W, CLIP_T = 8.0, 1.0              # Breite laengs der Wand, Dicke
+# ⚠️ CLIP_GAP begrenzt das Spiel der Platine ZWISCHEN den Zungen. Bei 0,15 je
+#    Seite bleiben vom 0,6er Uebergriff im unguenstigsten Fall nur 0,3 mm
+#    Eingriff — die Platine liegt ja an einer Seite an. 0,10 macht daraus 0,4.
+CLIP_GAP = 0.10                        # Luft zur Platinenkante
+CLIP_OVER, CLIP_HOOK_H, CLIP_LEAD = 0.6, 1.0, 1.2
+CLIP_FLEX, CLIP_BULGE = 1.2, 3.0
 
 # Displaymodul (Waveshare 1,5" OLED, SSD1327, 128 x 128).
 # ⚠️ Modulplatine und Bohrbild sind NICHT aus einem Datenblatt geprueft.
@@ -194,7 +240,9 @@ BOSS_D, BOSS_PILOT = 6.0, 2.05         # Platinendome, M2,5 selbstschneidend
 #    Bauhoehe sind unveraendert. TOP_CLEAR folgt dem Netzteil (18,4), nicht dem
 #    Display — der Deckel ohne Display macht das Gehaeuse also nicht flacher.
 MIT_DISPLAY = os.environ.get("DISPLAY_MODUL", "1") != "0"
-FILE_SFX = "" if MIT_DISPLAY else "_ohne_display"
+_SFX_HALT = "" if os.environ.get("PCB_HALT", "schrauben") == "schrauben" \
+            else "_" + os.environ.get("PCB_HALT")
+FILE_SFX = ("" if MIT_DISPLAY else "_ohne_display") + _SFX_HALT
 DSP_CX, DSP_CY = 110.0, 37.0
 DSP_W = float(os.environ.get("DSP_W", "42.0"))
 DSP_H = float(os.environ.get("DSP_H", "37.5"))
@@ -328,10 +376,55 @@ for seite, ex in (("W", EAR_W_X), ("E", EAR_E_X)):
 
 base = base.cut(rrect(cav_x0, cav_y0, cav_x1, cav_y1, BOTTOM, Z_WALL + 1, 2.0))
 
-# Platinendome (M2,5 selbstschneidend von oben, Kernloch blind)
+# Platinendome — in allen Varianten die Auflage, darueber je nach PCB_HALT
 for (hx, hy) in HOLES:
     base = base.union(zyl(hx, hy, BOSS_D, BOTTOM, PCB_BOT))
-    base = base.cut(zyl(hx, hy, BOSS_PILOT, PCB_BOT - 2.8, PCB_BOT + 0.1))
+
+if PCB_HALT == "schrauben":
+    for (hx, hy) in HOLES:              # Kernloch blind, Boden bleibt zu
+        base = base.cut(zyl(hx, hy, BOSS_PILOT, PCB_BOT - 2.8, PCB_BOT + 0.1))
+
+elif PCB_HALT == "schnapper":
+    for (hx, hy) in HOLES:
+        z_barb = PCB_TOP                # Unterseite des Widerhakens
+        base = base.union(zyl(hx, hy, SNAP_D, PCB_BOT, z_barb + SNAP_BARB_H))
+        base = base.union(zyl(hx, hy, SNAP_BARB_D, z_barb, z_barb + SNAP_BARB_H))
+        # Einfuehrkegel: laeuft flach genug aus, um sich selbst zu tragen
+        base = base.union(cq.Workplane("XY", origin=(hx, hy, z_barb + SNAP_BARB_H))
+                          .circle(SNAP_BARB_D / 2)
+                          .workplane(offset=SNAP_LEAD).circle(0.4).loft())
+        # ⚠️ Der Schlitz ZULETZT und bis Z = BOTTOM + 0,8 hinunter — er ist die
+        #    Federlaenge. Endet er an der Platinenunterkante, ist die Feder nur
+        #    2,1 mm lang und die Randdehnung springt auf ueber 8 %.
+        base = base.cut(rrect(hx - 6, hy - SNAP_SLOT / 2, hx + 6, hy + SNAP_SLOT / 2,
+                              BOTTOM + 0.8, z_barb + SNAP_BARB_H + SNAP_LEAD + 0.1, 0))
+
+elif PCB_HALT == "randclips":
+    for seite, cy in CLIP_POS:
+        vz = 1.0 if seite == "W" else -1.0          # +1: Zunge zeigt nach Osten
+        kante = 0.0 if seite == "W" else PCB_W      # Platinenkante
+        innen = kante - vz * CLIP_GAP               # Innenflaeche der Zunge
+        aussen = innen - vz * CLIP_T
+        # oertliche Wandverdickung nach AUSSEN, damit hinter der Tasche Wand bleibt
+        wa = (out_x0 if seite == "W" else out_x1) - vz * CLIP_BULGE
+        wb = out_x0 if seite == "W" else out_x1
+        base = base.union(rrect(min(wa, wb), cy - CLIP_W / 2 - 2.5,
+                                max(wa, wb), cy + CLIP_W / 2 + 2.5, 0, Z_WALL, 0))
+        # Tasche: Ausweichraum hinter der Zunge, offen zur Kavitaet
+        ta = aussen - vz * CLIP_FLEX
+        base = base.cut(rrect(min(ta, innen + vz * 0.05), cy - CLIP_W / 2 - 0.6,
+                              max(ta, innen + vz * 0.05), cy + CLIP_W / 2 + 0.6,
+                              BOTTOM, Z_WALL + 1, 0))
+        # Zunge
+        base = base.union(rrect(min(aussen, innen), cy - CLIP_W / 2,
+                                max(aussen, innen), cy + CLIP_W / 2,
+                                BOTTOM, PCB_TOP + CLIP_HOOK_H + CLIP_LEAD, 0))
+        # Haken: gerade Unterseite auf PCB_TOP, darueber 63°-Einfuehrschraege
+        prof = [(innen, PCB_TOP), (innen + vz * CLIP_OVER, PCB_TOP),
+                (innen + vz * CLIP_OVER, PCB_TOP + CLIP_HOOK_H),
+                (innen, PCB_TOP + CLIP_HOOK_H + CLIP_LEAD)]
+        base = base.union(cq.Workplane("XZ", origin=(0, cy + CLIP_W / 2, 0))
+                          .polyline(prof).close().extrude(CLIP_W))
 
 # Kernloecher der Deckelschrauben ZULETZT, sonst fuellt die Wand sie wieder zu.
 for (px, py) in PILLARS:
@@ -624,8 +717,8 @@ else:
         asm.add(logo[1], name="logo_akzent", color=cq.Color(0.914, 0.651, 0.231))
     asm.save(f"fbh_gehaeuse{FILE_SFX}.step")
 
-    exporters.export(base, "fbh_unterschale.stl", tolerance=0.01)
-    exporters.export(wallprobe, "fbh_pruefstueck_suedwand.stl", tolerance=0.01)
+    exporters.export(base, f"fbh_unterschale{_SFX_HALT}.stl", tolerance=0.01)
+    exporters.export(wallprobe, f"fbh_pruefstueck_suedwand{_SFX_HALT}.stl", tolerance=0.01)
     if dsp_frame is not None:
         exporters.export(dsp_frame, "fbh_displayrahmen.stl", tolerance=0.01)
     if frame is not None:
