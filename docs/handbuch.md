@@ -83,7 +83,9 @@ zurück. Bestätigt wird eine Fassung erst, wenn sie vollständig angelaufen ist
    `floor-heating-XXXX` beziehungsweise `heizung-XXXX`, Kennwort `fussboden`. Die vier Stellen
    sind die letzten beiden Bytes der MAC-Adresse.
 2. Verbinden Sie sich damit. Das Einrichtungsfenster öffnet sich von selbst; andernfalls rufen
-   Sie `http://192.168.4.1` auf.
+   Sie `http://192.168.4.1` auf. Der Zugangspunkt ist WPA2-verschlüsselt — manche Rechner
+   brauchen zwei, drei Anläufe, bis die Verbindung steht, weil das Netz keinen Weg ins
+   Internet hat.
 3. **Netze suchen**, Ihr Netz wählen, Kennwort eintragen, speichern.
 
 <img src="screenshots/einrichtung.png" width="46%" alt="Einrichtungsportal">

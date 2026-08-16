@@ -226,7 +226,11 @@ static void start_ap_fallback(const netmgr_cfg_t *cfg)
         captive_dns_start(info.ip.addr);
     }
     s_status.ap_active = true;
-    ESP_LOGW(TAG, "Einrichtungs-Zugangspunkt \"%s\" ist offen, Adresse %s", ap.ap.ssid,
+    /* "offen" waere hier zweideutig: gemeint ist "in Betrieb", gelesen wird
+     * "unverschluesselt" -- und wer das liest, sucht kein Kennwort. */
+    ESP_LOGW(TAG, "Einrichtungs-Zugangspunkt \"%s\" laeuft, %s, Adresse %s", ap.ap.ssid,
+             ap.ap.authmode == WIFI_AUTH_OPEN ? "ohne Kennwort"
+                                              : "Kennwort noetig (WPA2)",
              s_status.ap_ip);
 }
 
@@ -384,8 +388,11 @@ esp_err_t netmgr_start(const netmgr_cfg_t *cfg)
             captive_dns_start(info.ip.addr);
         }
         s_status.ap_active = true;
-        ESP_LOGW(TAG, "Kein WLAN hinterlegt - Einrichtungs-Zugangspunkt \"%s\" ist offen, "
-                      "Adresse %s", ap.ap.ssid, s_status.ap_ip);
+        ESP_LOGW(TAG, "Kein WLAN hinterlegt - Einrichtungs-Zugangspunkt \"%s\" laeuft, %s, "
+                      "Adresse %s", ap.ap.ssid,
+                 ap.ap.authmode == WIFI_AUTH_OPEN ? "ohne Kennwort"
+                                                  : "Kennwort noetig (WPA2)",
+                 s_status.ap_ip);
     }
 
     s_cfg_copy = *cfg;
