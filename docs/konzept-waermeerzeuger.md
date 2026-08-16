@@ -118,7 +118,15 @@ eine gleitende Bezugslinie: das Minimum des Abgasfühlers über die letzten 24 S
 | aus → läuft | `abgas > bezug + delta_on` über `on_hold_s` | 12 K, 60 s |
 | läuft → aus | `abgas < bezug + delta_off` über `off_hold_s` | 6 K, 300 s |
 
-Erfasst werden Laufzeit und Anzahl der Starts je Tag, beides täglich im NVS abgelegt. Aus der
+Die Bezugslinie wird nicht aus einer vollständigen Messreihe gebildet, sondern als kleinstes
+Vorkommen in einem wandernden 24-Stunden-Fenster mitgeführt. Das ist träger als ein echtes
+gleitendes Minimum und spart den Speicher für einen Tag Messwerte; die Temperatur des kalten
+Rohrs ändert sich ohnehin über Wochen, nicht über Stunden.
+
+Erfasst werden Laufzeit und Anzahl der Starts je Tag. Sie liegen im NVS und überdauern einen
+Neustart, geschrieben wird alle fünf Minuten und zum Tageswechsel — häufiger wäre für das Flash
+nicht zuträglich, und ein verlorener Wert von wenigen Minuten fällt in einer Tagesbilanz nicht
+ins Gewicht. Aus der
 Laufzeit und dem eingetragenen Düsendurchsatz in Litern je Stunde ergibt sich eine Schätzung des
 Ölverbrauchs. Häufige kurze Starts bei geringer Gesamtlaufzeit weisen auf Taktbetrieb hin und
 werden gesondert ausgewiesen.
@@ -132,8 +140,13 @@ werden können. Das Vorgehen ist daher zweistufig.
 ### Zuerst messen, nicht bewerten
 
 - alle Temperaturen im Ein-Minuten-Raster über 24 Stunden
-- zusätzlich eine hochaufgelöste Aufzeichnung einer vollständigen Ladung: 5-Sekunden-Raster, rund
-  2 Stunden, etwa 12 kB im Arbeitsspeicher, ausgebbar als CSV
+- zusätzlich eine hochaufgelöste Aufzeichnung einer vollständigen Ladung: 5-Sekunden-Raster,
+  1600 Zeilen für gut zwei Stunden, ausgebbar als CSV
+
+Aufgezeichnet werden nur die Messstellen, die beim Start belegt sind — am Kessel drei, am
+Speicher sechs. Der Speicherbedarf richtet sich danach (rund 19 kB statt 45 kB bei allen
+vierzehn möglichen Rollen), und die CSV-Datei bleibt ohne leere Spalten. Der Puffer wird erst
+beim Start belegt und lässt sich über „Verwerfen" wieder freigeben.
 
 Das Speicherboard nimmt die Kesselwerte über `/api/measurements` mit auf, sodass eine
 Aufzeichnung alle acht Messstellen enthält. Erst aus diesen Kurven werden die Schwellwerte
@@ -439,7 +452,7 @@ die passenden Entitäten ein.
 | 0 | Projektstruktur umbauen, Nachweis, OTA — siehe [umbau-projektstruktur.md](umbau-projektstruktur.md) | umgesetzt |
 | 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke | umgesetzt, noch nicht auf der Hardware erprobt |
 | 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; Tasmota-Anbindung noch nicht an einem Relais erprobt |
-| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | offen |
+| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | umgesetzt; am Abgasfühler noch nicht erprobt |
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
 | 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | offen |
 

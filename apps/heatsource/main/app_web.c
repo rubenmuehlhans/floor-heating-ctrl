@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app_burner.h"
 #include "app_pumps.h"
 #include "app_sensors.h"
 #include "cJSON.h"
@@ -329,6 +330,36 @@ static esp_err_t state_get(httpd_req_t *req)
     }
     cJSON_AddBoolToObject(root, "mqtt_connected", mqttc_connected());
 
+    /* Brenner. Ohne zugeordneten Abgasfuehler bleibt known falsch. */
+    burner_status_t br;
+    burner_get(&br);
+    cJSON *cb = cJSON_AddObjectToObject(root, "burner");
+    cJSON_AddBoolToObject(cb, "known", br.known);
+    cJSON_AddBoolToObject(cb, "running", br.running);
+    if (br.known) {
+        cJSON_AddNumberToObject(cb, "abgas_c", br.abgas_c);
+        cJSON_AddNumberToObject(cb, "baseline_c", br.baseline_c);
+        cJSON_AddNumberToObject(cb, "since_s", br.since_s);
+    }
+    cJSON_AddNumberToObject(cb, "runtime_today_s", br.runtime_today_s);
+    cJSON_AddNumberToObject(cb, "starts_today", br.starts_today);
+    cJSON_AddNumberToObject(cb, "runtime_yesterday_s", br.runtime_yesterday_s);
+    cJSON_AddNumberToObject(cb, "starts_yesterday", br.starts_yesterday);
+    cJSON_AddNumberToObject(cb, "litres_today", br.litres_today);
+    cJSON_AddBoolToObject(cb, "short_cycling", br.short_cycling);
+
+    rec_status_t rec;
+    rec_get_status(&rec);
+    cJSON *cr = cJSON_AddObjectToObject(root, "record");
+    cJSON_AddStringToObject(cr, "state",
+                            rec.state == REC_RUNNING ? "laeuft"
+                            : (rec.state == REC_DONE ? "fertig" : "aus"));
+    cJSON_AddNumberToObject(cr, "samples", rec.samples);
+    cJSON_AddNumberToObject(cr, "period_s", rec.period_s);
+    cJSON_AddNumberToObject(cr, "started_epoch", rec.started_epoch);
+    cJSON_AddNumberToObject(cr, "cols", rec.cols);
+    cJSON_AddNumberToObject(cr, "bytes", rec.bytes);
+
     cJSON_AddNumberToObject(root, "history_len", sensors_history_len());
     return send_json_obj(req, root);
 }
@@ -502,6 +533,7 @@ static esp_err_t config_put(httpd_req_t *req)
 
     sensors_config_changed();
     pumps_config_changed();
+    burner_config_changed();
     peers_update_identity(next.wifi.hostname, next.site);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Fuehler zugeordnet", next.probe_count);
 
@@ -518,6 +550,77 @@ static esp_err_t config_put(httpd_req_t *req)
         xTaskCreate(wifi_apply_task, "wifi_apply", 4096, NULL, 4, NULL);
     }
     return sent;
+}
+
+/*
+ * Aufzeichnung einer Ladung als CSV. Die Datei ist der Ausgangspunkt fuer die
+ * Schwellwerte des Ladezustands -- sie laesst sich in test/host gegen die
+ * Auswertung halten, statt die Werte zu schaetzen.
+ */
+static esp_err_t record_get(httpd_req_t *req)
+{
+    rec_status_t st;
+    rec_get_status(&st);
+
+    httpd_resp_set_type(req, "text/csv; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"ladung.csv\"");
+
+    char zeile[256];
+    int n = snprintf(zeile, sizeof(zeile), "# Aufzeichnung einer Ladung, %u Zeilen im "
+                                           "%u-Sekunden-Raster, Beginn %lu\nsekunde",
+                     (unsigned)st.samples, (unsigned)st.period_s,
+                     (unsigned long)st.started_epoch);
+    for (uint8_t c = 0; c < st.cols; c++) {
+        n += snprintf(zeile + n, sizeof(zeile) - n, ",%s", cfg_role_key(st.role[c]));
+    }
+    snprintf(zeile + n, sizeof(zeile) - n, "\n");
+    httpd_resp_sendstr_chunk(req, zeile);
+
+    int16_t row[ROLE_COUNT];
+    for (size_t i = 0; i < st.samples; i++) {
+        if (!rec_row(i, row, ROLE_COUNT)) {
+            break;
+        }
+        n = snprintf(zeile, sizeof(zeile), "%u", (unsigned)(i * st.period_s));
+        for (uint8_t c = 0; c < st.cols; c++) {
+            if (row[c] == SENS_HIST_NONE) {
+                n += snprintf(zeile + n, sizeof(zeile) - n, ",");
+            } else {
+                n += snprintf(zeile + n, sizeof(zeile) - n, ",%d.%d", row[c] / 10,
+                              abs(row[c] % 10));
+            }
+        }
+        snprintf(zeile + n, sizeof(zeile) - n, "\n");
+        httpd_resp_sendstr_chunk(req, zeile);
+    }
+    httpd_resp_sendstr_chunk(req, NULL);
+    return ESP_OK;
+}
+
+static esp_err_t record_post(httpd_req_t *req)
+{
+    const char *action = last_segment(req->uri);
+    if (strcmp(action, "start") == 0) {
+        if (rec_start() != ESP_OK) {
+            rec_status_t st;
+            rec_get_status(&st);
+            return send_error(req, "400 Bad Request",
+                              st.cols == 0
+                                  ? "Diesem Geraet ist keine Messstelle zugeordnet"
+                                  : "Kein Speicher fuer die Aufzeichnung");
+        }
+        return send_ok(req);
+    }
+    if (strcmp(action, "stop") == 0) {
+        rec_stop();
+        return send_ok(req);
+    }
+    if (strcmp(action, "discard") == 0) {
+        rec_discard();
+        return send_ok(req);
+    }
+    return send_error(req, "404 Not Found", "Unbekannte Aktion");
 }
 
 /* POST /api/circuit/<id>/mode  mit {"mode":"auto|ein|aus"} */
@@ -705,6 +808,8 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
     {.uri = "/api/measurements", .method = HTTP_GET, .handler = measurements_get},
     {.uri = "/api/history", .method = HTTP_GET, .handler = history_get},
+    {.uri = "/api/record", .method = HTTP_GET, .handler = record_get},
+    {.uri = "/api/record/*", .method = HTTP_POST, .handler = record_post},
     {.uri = "/api/config", .method = HTTP_GET, .handler = config_get},
     {.uri = "/api/config", .method = HTTP_PUT, .handler = config_put},
     {.uri = "/api/probes/*", .method = HTTP_POST, .handler = probes_post},

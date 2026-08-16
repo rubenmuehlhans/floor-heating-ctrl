@@ -205,3 +205,112 @@ void demand_evaluate(const demand_source_t *src, uint32_t count, uint32_t timeou
         }
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* Brennererkennung                                                    */
+/* ------------------------------------------------------------------ */
+
+/* Laenge des Fensters fuer die Bezugslinie. */
+#define BASELINE_WINDOW_MS (24UL * 60UL * 60UL * 1000UL)
+
+void burner_defaults(burner_cfg_t *cfg)
+{
+    cfg->delta_on_k = 12.0f;
+    cfg->delta_off_k = 6.0f;
+    cfg->on_hold_s = 60;
+    cfg->off_hold_s = 300;
+    cfg->duese_l_h = 2.2f;
+}
+
+void burner_init(burner_state_t *st)
+{
+    memset(st, 0, sizeof(*st));
+}
+
+void burner_new_day(burner_state_t *st)
+{
+    st->runtime_today_s = 0;
+    st->starts_today = 0;
+}
+
+float burner_litres_today(const burner_state_t *st, const burner_cfg_t *cfg)
+{
+    if (cfg->duese_l_h <= 0.0f) {
+        return 0.0f;
+    }
+    return (float)st->runtime_today_s / 3600.0f * cfg->duese_l_h;
+}
+
+void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, float abgas_c,
+                 uint32_t now_ms)
+{
+    if (!abgas_valid) {
+        st->known = false;
+        st->last_ms = now_ms;
+        return;
+    }
+
+    if (!st->started) {
+        st->started = true;
+        st->min_seen_c = abgas_c;
+        st->baseline_c = abgas_c;
+        st->window_ms = now_ms;
+        st->since_ms = now_ms;
+        st->cond_since_ms = now_ms;
+        st->last_ms = now_ms;
+    }
+
+    uint32_t dt = now_ms - st->last_ms;
+    st->last_ms = now_ms;
+    st->known = true;
+    st->abgas_c = abgas_c;
+
+    /*
+     * Bezugslinie: das Minimum ueber ein wanderndes Fenster. Statt alle
+     * Messwerte eines Tages vorzuhalten, wird das kleinste Vorkommen im
+     * laufenden Fenster mitgefuehrt und das Fenster nach 24 Stunden mit dem
+     * aktuellen Wert neu begonnen. Das ist gegenueber einem echten gleitenden
+     * Minimum traege, aber die Rohrtemperatur aendert sich ueber Wochen, nicht
+     * ueber Stunden.
+     */
+    if (abgas_c < st->min_seen_c) {
+        st->min_seen_c = abgas_c;
+    }
+    if (now_ms - st->window_ms >= BASELINE_WINDOW_MS) {
+        st->baseline_c = st->min_seen_c;
+        st->min_seen_c = abgas_c;
+        st->window_ms = now_ms;
+    }
+    /* Solange das erste Fenster laeuft, folgt die Bezugslinie dem Minimum
+     * unmittelbar -- sonst haette die Erkennung einen Tag lang keinen Bezug. */
+    if (st->min_seen_c < st->baseline_c) {
+        st->baseline_c = st->min_seen_c;
+    }
+
+    bool bedingung = st->running ? (abgas_c < st->baseline_c + cfg->delta_off_k)
+                                 : (abgas_c > st->baseline_c + cfg->delta_on_k);
+
+    if (bedingung != st->cond) {
+        st->cond = bedingung;
+        st->cond_since_ms = now_ms;
+    }
+
+    if (st->running) {
+        /* Der Rest wird mitgefuehrt: bei einem Takt, der nicht genau eine
+         * Sekunde trifft, summierte sich der Fehler sonst ueber den Tag. */
+        st->runtime_rest_ms += dt;
+        st->runtime_today_s += st->runtime_rest_ms / 1000;
+        st->runtime_rest_ms %= 1000;
+    }
+
+    uint32_t haltezeit = st->running ? cfg->off_hold_s : cfg->on_hold_s;
+    if (bedingung && (now_ms - st->cond_since_ms) >= haltezeit * 1000UL) {
+        st->running = !st->running;
+        st->since_ms = now_ms;
+        st->cond = false;
+        st->cond_since_ms = now_ms;
+        if (st->running) {
+            st->starts_today++;
+        }
+    }
+}

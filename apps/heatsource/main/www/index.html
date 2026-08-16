@@ -248,6 +248,7 @@ tr.warm td{background:var(--heat-soft)}
 .legend button.on{color:var(--ink); border-color:var(--line-strong)}
 .legend button.on i{background:var(--c)}
 .legend button:not(.on){opacity:.55}
+a.btn{text-decoration:none}
 
 /* ---------------- Einrichtung ---------------- */
 
@@ -336,6 +337,13 @@ tr.warm td{background:var(--heat-soft)}
          dort, wo der Fühler sitzt. Blass dargestellte Werte misst ein anderes Gerät.</p>
       <div class="schema" id="schema"></div>
     </div>
+    <div class="card" id="burner-card" hidden>
+      <h2>Brenner</h2>
+      <p class="lede">Erkannt am Abgasfühler: liegt er deutlich über der Temperatur des kalten
+         Rohrs, läuft der Brenner. Die Bezugslinie ist das Minimum der letzten 24 Stunden und
+         wandert mit der Jahreszeit mit.</p>
+      <div id="burner-body"></div>
+    </div>
     <div class="card">
       <h2>Messwerte</h2>
       <p class="lede">Alle zugeordneten Messstellen dieses Geräts.</p>
@@ -387,6 +395,21 @@ tr.warm td{background:var(--heat-soft)}
       </div>
       <div class="chartbox"><canvas id="chart"></canvas></div>
       <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="card">
+      <h2>Ladung aufzeichnen</h2>
+      <p class="lede">Zeichnet alle Messstellen im Fünfsekundenraster auf, gut zwei Stunden
+         lang. Aus diesen Kurven werden die Schwellwerte für den Ladezustand abgeleitet —
+         gemessen statt geschätzt, wie schon bei der Messfahrt der Verteilerplatine. Starten
+         Sie die Aufzeichnung, wenn der Kessel anspringt.</p>
+      <div class="row" id="rec-state"></div>
+      <div class="actions">
+        <button class="btn" id="rec-start">Aufzeichnung starten</button>
+        <button class="btn quiet" id="rec-stop">Beenden</button>
+        <a class="btn quiet" id="rec-csv" href="/api/record" download="ladung.csv">Als CSV holen</a>
+        <button class="btn risky" id="rec-discard">Verwerfen</button>
+      </div>
     </div>
   </section>
 
@@ -692,6 +715,46 @@ function renderSchema() {
   ${M("puffer_unten", 304, tankUnten - 44)}
   ${kreisTeile}
 </svg>`;
+}
+
+/* ---------------- Brenner ---------------- */
+
+function renderBurner() {
+  const b = state.burner;
+  const karte = $("#burner-card");
+  /* Ohne zugeordneten Abgasfühler gibt es nichts zu zeigen. */
+  karte.hidden = !b || (!b.known && !b.runtime_today_s && !b.starts_today);
+  if (karte.hidden) return;
+
+  const laufzeit = s => s >= 3600
+    ? `${Math.floor(s / 3600)} h ${Math.round(s % 3600 / 60)} min`
+    : `${Math.round(s / 60)} min`;
+
+  const marken = [];
+  if (!b.known) marken.push(`<span class="chip warn">kein Abgasfühler</span>`);
+  if (b.short_cycling) marken.push(`<span class="chip warn">taktet</span>`);
+
+  $("#burner-body").innerHTML = `
+    <div class="pump-state">
+      <i class="pump-dot ${b.running ? "on" : ""}"></i>
+      <div><b>${!b.known ? "unbekannt" : b.running ? "Brenner läuft" : "Brenner aus"}</b>
+        ${b.known ? `<span>seit ${formatUptime(b.since_s)}</span>` : ""}</div>
+    </div>
+    ${marken.length ? `<div class="row" style="margin-bottom:.9rem">${marken.join("")}</div>` : ""}
+    <dl class="tiles">
+      <div class="tile ${b.known ? "hot" : "off"}"><dt>Abgas</dt>
+        <dd>${num(b.abgas_c, 1)}<small>°C</small></dd>
+        ${b.known ? `<div class="foot">kaltes Rohr ${num(b.baseline_c, 1)} °C</div>` : ""}</div>
+      <div class="tile"><dt>Laufzeit heute</dt>
+        <dd>${laufzeit(b.runtime_today_s)}</dd>
+        <div class="foot">gestern ${laufzeit(b.runtime_yesterday_s)}</div></div>
+      <div class="tile"><dt>Starts heute</dt>
+        <dd>${b.starts_today}</dd>
+        <div class="foot">gestern ${b.starts_yesterday}</div></div>
+      <div class="tile"><dt>Öl heute</dt>
+        <dd>${num(b.litres_today, 1)}<small>l</small></dd>
+        <div class="foot">geschätzt aus der Laufzeit</div></div>
+    </dl>`;
 }
 
 /* ---------------- Kacheln ---------------- */
@@ -1061,6 +1124,25 @@ function drawChart() {
 
 /* ---------------- System ---------------- */
 
+function renderRecord() {
+  const r = state.record;
+  if (!r) return;
+  const dauer = r.samples * r.period_s;
+  const speicher = r.bytes ? ` · ${Math.round(r.bytes / 1024)} kB belegt` : "";
+  const text = r.state === "laeuft"
+    ? `<span class="chip heat">läuft</span> ${r.samples} Zeilen aus ${r.cols} Messstellen`
+      + ` · ${formatUptime(dauer)}${speicher}`
+    : r.state === "fertig"
+      ? `<span class="chip ok">fertig</span> ${r.samples} Zeilen aus ${r.cols} Messstellen`
+        + ` · ${formatUptime(dauer)}${speicher}`
+      : `<span class="chip plain">keine Aufzeichnung</span>`;
+  $("#rec-state").innerHTML = text;
+  $("#rec-start").disabled = r.state === "laeuft";
+  $("#rec-stop").disabled = r.state !== "laeuft";
+  $("#rec-csv").style.display = r.samples ? "" : "none";
+  $("#rec-discard").style.display = r.bytes ? "" : "none";
+}
+
 function renderSystem() {
   if (!cfg) return;
   const setz = (sel, v) => { const e = $(sel); if (e !== document.activeElement) e.value = v; };
@@ -1182,9 +1264,11 @@ async function poll() {
     state = await api("/api/state");
     renderStatus();
     renderSchema();
+    renderBurner();
     renderTiles();
     renderCircuits();
     renderProbes();
+    renderRecord();
     renderSystem();
     if (!$("#wizard").hidden && wizStep === 2) {
       /* Im Assistenten laufen die Messwerte mit, damit sich ein angefasster
@@ -1308,6 +1392,19 @@ async function boot() {
                              headers:{"Content-Type":"application/octet-stream"}});
       toast("Eingespielt, das Gerät startet neu");
     } catch (e) { toast(e.message, true); }
+  };
+
+  $("#rec-start").onclick = async () => {
+    try { await post("/api/record/start"); toast("Aufzeichnung gestartet"); refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#rec-discard").onclick = async () => {
+    try { await post("/api/record/discard"); toast("Aufzeichnung verworfen"); refresh(); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#rec-stop").onclick = async () => {
+    try { await post("/api/record/stop"); toast("Aufzeichnung beendet"); refresh(); }
+    catch (e) { toast(e.message, true); }
   };
 
   $("#hist-range").onchange = loadHistory;

@@ -102,6 +102,13 @@ void cfg_defaults(app_config_t *out)
     out->demand_poll_s = 5;
     out->demand_timeout_s = 180;
 
+    /* Dieselben Vorgaben wie in components/heatlogic. */
+    out->burner.delta_on_k = 12.0f;
+    out->burner.delta_off_k = 6.0f;
+    out->burner.on_hold_s = 60;
+    out->burner.off_hold_s = 300;
+    out->burner.duese_l_h = 2.2f;
+
     out->reboot_hour = -1; /* Heizungsgeraete laufen durch */
     out->reboot_minute = 0;
     copy_str(out->timezone, sizeof(out->timezone), "CET-1CEST,M3.5.0,M10.5.0/3");
@@ -204,6 +211,15 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
                 FEHLER("Heizkreis %u ist doppelt angelegt", (unsigned)c->id);
             }
         }
+    }
+    if (cfg->burner.delta_on_k <= cfg->burner.delta_off_k) {
+        FEHLER("Die Einschaltschwelle des Brenners muss ueber der Ausschaltschwelle liegen");
+    }
+    if (cfg->burner.delta_on_k < 1.0f || cfg->burner.delta_on_k > 100.0f) {
+        FEHLER("Einschaltschwelle des Brenners muss zwischen 1 und 100 K liegen");
+    }
+    if (cfg->burner.duese_l_h < 0.0f || cfg->burner.duese_l_h > 20.0f) {
+        FEHLER("Duesendurchsatz muss zwischen 0 und 20 Litern je Stunde liegen");
     }
     if (cfg->demand_poll_s < 1 || cfg->demand_poll_s > 300) {
         FEHLER("Abfrage der Verteiler muss zwischen 1 und 300 Sekunden liegen");
@@ -377,6 +393,13 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     }
     cJSON_AddNumberToObject(root, "demand_poll_s", cfg->demand_poll_s);
     cJSON_AddNumberToObject(root, "demand_timeout_s", cfg->demand_timeout_s);
+
+    cJSON *b = cJSON_AddObjectToObject(root, "burner");
+    cJSON_AddNumberToObject(b, "delta_on_k", cfg->burner.delta_on_k);
+    cJSON_AddNumberToObject(b, "delta_off_k", cfg->burner.delta_off_k);
+    cJSON_AddNumberToObject(b, "on_hold_s", cfg->burner.on_hold_s);
+    cJSON_AddNumberToObject(b, "off_hold_s", cfg->burner.off_hold_s);
+    cJSON_AddNumberToObject(b, "duese_l_h", cfg->burner.duese_l_h);
 
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
     cJSON_AddNumberToObject(root, "reboot_minute", cfg->reboot_minute);
@@ -579,6 +602,15 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
     }
     out->demand_poll_s = (uint16_t)json_num(root, "demand_poll_s", out->demand_poll_s);
     out->demand_timeout_s = (uint16_t)json_num(root, "demand_timeout_s", out->demand_timeout_s);
+
+    const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "burner");
+    if (cJSON_IsObject(b)) {
+        out->burner.delta_on_k = (float)json_num(b, "delta_on_k", out->burner.delta_on_k);
+        out->burner.delta_off_k = (float)json_num(b, "delta_off_k", out->burner.delta_off_k);
+        out->burner.on_hold_s = (uint16_t)json_num(b, "on_hold_s", out->burner.on_hold_s);
+        out->burner.off_hold_s = (uint16_t)json_num(b, "off_hold_s", out->burner.off_hold_s);
+        out->burner.duese_l_h = (float)json_num(b, "duese_l_h", out->burner.duese_l_h);
+    }
 
     out->reboot_hour = (int8_t)json_num(root, "reboot_hour", out->reboot_hour);
     out->reboot_minute = (int8_t)json_num(root, "reboot_minute", out->reboot_minute);

@@ -6,11 +6,13 @@
  * Geraet mit der Rolle "abgas" erkennt den Brennerlauf, eines mit "puffer"
  * beurteilt den Ladezustand. Einen Rollenschalter gibt es nicht.
  *
- * Umgesetzt sind Fuehlererfassung, Bedarfsabfrage bei den Verteilern und die
- * Pumpensteuerung ueber ein Tasmota-Relais. Brennererkennung und Ladezustand
- * folgen; siehe docs/konzept-waermeerzeuger.md.
+ * Umgesetzt sind Fuehlererfassung, Bedarfsabfrage bei den Verteilern, die
+ * Pumpensteuerung ueber ein Tasmota-Relais sowie Brennererkennung und
+ * Aufzeichnung einer Ladung. Der Ladezustand folgt; siehe
+ * docs/konzept-waermeerzeuger.md.
  */
 
+#include "app_burner.h"
 #include "app_pumps.h"
 #include "app_sensors.h"
 #include "app_web.h"
@@ -76,6 +78,9 @@ void app_main(void)
         }
     }
 
+    if (burner_start() != ESP_OK) {
+        ESP_LOGW(TAG, "Brennererkennung nicht verfuegbar");
+    }
     if (pumps_start() != ESP_OK) {
         ESP_LOGW(TAG, "Pumpensteuerung nicht verfuegbar");
     }

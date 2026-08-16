@@ -113,6 +113,15 @@ typedef struct {
     uint8_t seize_days;
 } cfg_circuit_t;
 
+/* Brennererkennung am Abgasfuehler; nur wirksam, wenn die Rolle vergeben ist. */
+typedef struct {
+    float delta_on_k;
+    float delta_off_k;
+    uint16_t on_hold_s;
+    uint16_t off_hold_s;
+    float duese_l_h;      /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */
+} cfg_burner_t;
+
 typedef struct {
     char ssid[33];
     char pass[64];
@@ -153,6 +162,8 @@ typedef struct {
     /* Abfrage der Verteiler. */
     uint16_t demand_poll_s;
     uint16_t demand_timeout_s;
+
+    cfg_burner_t burner;
 
     int8_t reboot_hour;    /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;

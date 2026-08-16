@@ -129,6 +129,69 @@ typedef struct {
 void demand_evaluate(const demand_source_t *src, uint32_t count, uint32_t timeout_s,
                      demand_result_t *out);
 
+/*
+ * Brennererkennung am Abgasfuehler.
+ *
+ * Der Fuehler sitzt aussen am Rohr und liefert ein gedaempftes, verzoegertes
+ * Signal. Ein fester Schwellwert waere von der Raumtemperatur des
+ * Heizungsraums abhaengig -- im Sommer stuende er zu tief, im Winter zu hoch.
+ * Gemessen wird deshalb gegen eine gleitende Bezugslinie: das Minimum des
+ * Abgasfuehlers ueber die letzten 24 Stunden. Das ist die Temperatur des
+ * kalten Rohrs und wandert mit der Jahreszeit mit.
+ *
+ * Die Haltezeiten unterscheiden einen Brennerlauf von einer Stoerung im
+ * Messwert. Sie sind unsymmetrisch: das Anlaufen soll rasch erkannt werden,
+ * das Abschalten erst, wenn das Rohr wirklich abkuehlt.
+ */
+typedef struct {
+    float delta_on_k;    /* ueber der Bezugslinie gilt der Brenner als laufend */
+    float delta_off_k;   /* darunter als aus */
+    uint32_t on_hold_s;  /* so lange muss die Bedingung anhalten */
+    uint32_t off_hold_s;
+    float duese_l_h;     /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */
+} burner_cfg_t;
+
+typedef struct {
+    bool known;          /* ein Abgaswert liegt vor */
+    bool running;
+    float baseline_c;    /* gleitende Bezugslinie */
+    float abgas_c;
+    uint32_t since_ms;   /* letzter Zustandswechsel */
+
+    /* Tageswerte. Sie werden von der Anwendung zum Tageswechsel gesichert und
+     * zurueckgesetzt; dieses Modul zaehlt nur. */
+    uint32_t runtime_today_s;
+    uint32_t starts_today;
+
+    /* Innere Groessen. */
+    uint32_t cond_since_ms; /* seit wann die Bedingung anliegt */
+    bool cond;              /* welche Bedingung gerade anliegt */
+    bool started;
+    uint32_t last_ms;
+    float min_seen_c;       /* kleinster Wert im laufenden Fenster */
+    uint32_t window_ms;     /* Beginn des Fensters */
+    uint32_t runtime_rest_ms; /* angebrochene Sekunde der Laufzeit */
+} burner_state_t;
+
+/* Vorgabe: 12 K ein, 6 K aus, 60 s und 300 s Haltezeit, 2,2 l/h. */
+void burner_defaults(burner_cfg_t *cfg);
+
+void burner_init(burner_state_t *st);
+
+/*
+ * Ein Rechenschritt. abgas_valid ist false, wenn kein Abgasfuehler zugeordnet
+ * ist oder sein Wert fehlt -- dann bleibt der Zustand stehen und known ist
+ * falsch.
+ */
+void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, float abgas_c,
+                 uint32_t now_ms);
+
+/* Verbrauchsschaetzung des Tages in Litern. */
+float burner_litres_today(const burner_state_t *st, const burner_cfg_t *cfg);
+
+/* Tageswechsel: Laufzeit und Starts zuruecksetzen. */
+void burner_new_day(burner_state_t *st);
+
 #ifdef __cplusplus
 }
 #endif

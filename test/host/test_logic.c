@@ -549,6 +549,151 @@ static void test_demand(void)
     CHECK(!out.demand, "und es entsteht kein Bedarf");
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Brennererkennung                                                    */
+/* ------------------------------------------------------------------ */
+
+/* Laesst die Erkennung eine Zeitspanne mit festem Abgaswert laufen. */
+static uint32_t brenner_laufen(burner_state_t *st, const burner_cfg_t *cfg, float abgas,
+                               uint32_t von_ms, uint32_t dauer_s)
+{
+    uint32_t t = von_ms;
+    for (uint32_t i = 0; i < dauer_s; i++) {
+        t += 1000;
+        burner_tick(st, cfg, true, abgas, t);
+    }
+    return t;
+}
+
+static void test_burner_detect(void)
+{
+    printf("Brenner: Erkennung\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+    burner_init(&st);
+
+    /* Kaltes Rohr bei 22 Grad -- das ist die Bezugslinie. */
+    uint32_t t = brenner_laufen(&st, &cfg, 22.0f, 1000, 120);
+    CHECK(st.known, "der Abgaswert liegt vor");
+    CHECK(!st.running, "am kalten Rohr laeuft kein Brenner");
+    CHECK(CLOSE(st.baseline_c, 22.0f, 0.1f), "Bezugslinie ist 22, nicht %.1f", st.baseline_c);
+
+    /* Rohr wird warm: erst nach der Haltezeit gilt der Brenner als laufend. */
+    t = brenner_laufen(&st, &cfg, 22.0f + cfg.delta_on_k + 5.0f, t, cfg.on_hold_s - 10);
+    CHECK(!st.running, "vor Ablauf der Haltezeit gilt er noch nicht als laufend");
+    t = brenner_laufen(&st, &cfg, 22.0f + cfg.delta_on_k + 5.0f, t, 20);
+    CHECK(st.running, "nach der Haltezeit laeuft er");
+    CHECK(st.starts_today == 1, "ein Start gezaehlt, nicht %u", (unsigned)st.starts_today);
+
+    /* Laufzeit zaehlt mit. */
+    uint32_t vorher = st.runtime_today_s;
+    t = brenner_laufen(&st, &cfg, 22.0f + cfg.delta_on_k + 5.0f, t, 60);
+    CHECK(st.runtime_today_s - vorher >= 59 && st.runtime_today_s - vorher <= 61,
+          "60 Sekunden Laufzeit gezaehlt, nicht %u", (unsigned)(st.runtime_today_s - vorher));
+
+    /* Rohr kuehlt ab: erst nach der laengeren Haltezeit gilt er als aus. */
+    t = brenner_laufen(&st, &cfg, 22.0f + 2.0f, t, cfg.off_hold_s - 30);
+    CHECK(st.running, "kurzes Abkuehlen beendet den Lauf noch nicht");
+    t = brenner_laufen(&st, &cfg, 22.0f + 2.0f, t, 60);
+    CHECK(!st.running, "nach der Haltezeit ist er aus");
+    CHECK(st.starts_today == 1, "kein zweiter Start gezaehlt");
+}
+
+static void test_burner_hysteresis(void)
+{
+    printf("Brenner: Hysterese\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+    burner_init(&st);
+
+    uint32_t t = brenner_laufen(&st, &cfg, 20.0f, 1000, 60);
+
+    /* Ein Wert zwischen den beiden Schwellen darf keinen Wechsel ausloesen --
+     * weder von aus nach ein noch umgekehrt. */
+    float mitte = 20.0f + (cfg.delta_on_k + cfg.delta_off_k) / 2.0f;
+    t = brenner_laufen(&st, &cfg, mitte, t, 600);
+    CHECK(!st.running, "zwischen den Schwellen bleibt er aus");
+
+    /* Ueber die obere Schwelle, dann zurueck in die Mitte. */
+    t = brenner_laufen(&st, &cfg, 20.0f + cfg.delta_on_k + 3.0f, t, cfg.on_hold_s + 10);
+    CHECK(st.running, "ueber der oberen Schwelle laeuft er");
+    t = brenner_laufen(&st, &cfg, mitte, t, 900);
+    CHECK(st.running, "in der Mitte laeuft er weiter");
+}
+
+static void test_burner_baseline(void)
+{
+    printf("Brenner: Bezugslinie\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+    burner_init(&st);
+
+    /* Im Winter ist der Heizungsraum kalt. */
+    uint32_t t = brenner_laufen(&st, &cfg, 12.0f, 1000, 120);
+    CHECK(CLOSE(st.baseline_c, 12.0f, 0.1f), "Bezugslinie folgt nach unten");
+
+    /* Steigt der Heizungsraum ueber die Jahreszeit von 12 auf 20 Grad, sind
+     * das 8 K ueber der kalten Linie -- weniger als die Einschaltschwelle von
+     * 12 K. Genau dafuer ist der Abstand da: eine langsame Erwaermung des
+     * Raums darf keinen Brennerlauf vortaeuschen. */
+    t = brenner_laufen(&st, &cfg, 20.0f, t, 1800);
+    CHECK(!st.running, "8 K ueber der Linie sind noch kein Lauf");
+
+    /* Ein wirklicher Lauf hebt das Rohr deutlich weiter an. */
+    t = brenner_laufen(&st, &cfg, 12.0f + cfg.delta_on_k + 8.0f, t, cfg.on_hold_s + 10);
+    CHECK(st.running, "ueber der Einschaltschwelle gilt er als laufend");
+
+    /* Faellt der Wert wieder, endet der Lauf und die Linie bleibt unten. */
+    t = brenner_laufen(&st, &cfg, 12.0f, t, cfg.off_hold_s + 10);
+    CHECK(!st.running, "zurueck am kalten Rohr ist er aus");
+    CHECK(CLOSE(st.baseline_c, 12.0f, 0.1f), "die Bezugslinie bleibt beim Minimum");
+}
+
+static void test_burner_consumption(void)
+{
+    printf("Brenner: Verbrauch und Tageswechsel\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    cfg.duese_l_h = 2.4f;
+    burner_state_t st;
+    burner_init(&st);
+    st.runtime_today_s = 3600;
+
+    CHECK(CLOSE(burner_litres_today(&st, &cfg), 2.4f, 0.01f),
+          "eine Stunde Laufzeit ergibt 2,4 Liter, nicht %.2f", burner_litres_today(&st, &cfg));
+
+    cfg.duese_l_h = 0.0f;
+    CHECK(burner_litres_today(&st, &cfg) == 0.0f, "ohne Duesenangabe keine Schaetzung");
+
+    st.starts_today = 7;
+    burner_new_day(&st);
+    CHECK(st.runtime_today_s == 0 && st.starts_today == 0, "der Tageswechsel setzt zurueck");
+}
+
+static void test_burner_no_probe(void)
+{
+    printf("Brenner: ohne Abgasfuehler\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+    burner_init(&st);
+
+    for (uint32_t i = 0; i < 100; i++) {
+        burner_tick(&st, &cfg, false, 0.0f, 1000 + i * 1000);
+    }
+    CHECK(!st.known, "ohne Fuehler ist der Zustand unbekannt");
+    CHECK(!st.running, "und es wird kein Lauf gemeldet");
+}
+
 int main(void)
 {
     test_control_law();
@@ -565,6 +710,11 @@ int main(void)
     test_pump_manual();
     test_pump_seize();
     test_demand();
+    test_burner_detect();
+    test_burner_hysteresis();
+    test_burner_baseline();
+    test_burner_consumption();
+    test_burner_no_probe();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;
