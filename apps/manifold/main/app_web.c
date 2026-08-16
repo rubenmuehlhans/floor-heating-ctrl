@@ -675,6 +675,86 @@ static esp_err_t ble_get(httpd_req_t *req)
 }
 
 /* ------------------------------------------------------------------ */
+/* Waermebedarf                                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Schlanke Auskunft fuer das Heizungsgeraet: liegt an diesem Verteiler
+ * ueberhaupt Waermebedarf an? Der Endpunkt wird im Sekundentakt abgefragt und
+ * rechnet deshalb nichts, sondern gibt nur aus, was die Regelung ohnehin
+ * fuehrt.
+ *
+ * Bedarf besteht, sobald bei einem Kanal die groessere von Ist- und
+ * Zielstellung ueber der Schwelle liegt. Die Zielstellung geht mit ein, damit
+ * die Pumpe nicht erst vierzig Sekunden spaeter anlaeuft, wenn das Ventil
+ * offen ist.
+ */
+#define DEMAND_THRESHOLD 0.05f
+
+static esp_err_t demand_get(httpd_req_t *req)
+{
+    static ctl_snapshot_t snap;
+    static app_config_t cfg;
+    control_snapshot(&snap);
+    cfg_copy(&cfg);
+
+    float max_target = 0.0f;
+    int open_channels = 0;
+    for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+        float soll = snap.ch[i].request_open ? snap.ch[i].request_target : snap.ch[i].position;
+        float wert = soll > snap.ch[i].position ? soll : snap.ch[i].position;
+        if (wert > max_target) {
+            max_target = wert;
+        }
+        if (wert > DEMAND_THRESHOLD) {
+            open_channels++;
+        }
+    }
+
+    int rooms_calling = 0;
+    bool sensor_ok = false;
+    float min_room = 0.0f;
+    bool min_gesetzt = false;
+    for (uint8_t r = 0; r < snap.room_count; r++) {
+        const ctl_room_t *room = &snap.rooms[r];
+        if (room->target_position > DEMAND_THRESHOLD) {
+            rooms_calling++;
+        }
+        if (room->temp_valid) {
+            sensor_ok = true;
+            if (!min_gesetzt || room->temp_c < min_room) {
+                min_room = room->temp_c;
+                min_gesetzt = true;
+            }
+        }
+    }
+
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char id[24];
+    snprintf(id, sizeof(id), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "id", id);
+    cJSON_AddStringToObject(root, "site", cfg.site);
+    cJSON_AddBoolToObject(root, "demand", max_target > DEMAND_THRESHOLD);
+    cJSON_AddNumberToObject(root, "max_target", max_target);
+    cJSON_AddNumberToObject(root, "open_channels", open_channels);
+    cJSON_AddNumberToObject(root, "rooms_calling", rooms_calling);
+    if (min_gesetzt) {
+        cJSON_AddNumberToObject(root, "min_room_c", min_room);
+    } else {
+        cJSON_AddNullToObject(root, "min_room_c");
+    }
+    cJSON_AddBoolToObject(root, "sensor_ok", sensor_ok);
+
+    /* Wird auch aus der Oberflaeche des Heizungsgeraets heraus gelesen, also
+     * von einem anderen Ursprung. Rein lesend und ohne Zugangsdaten. */
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    return send_json_obj(req, root);
+}
+
+/* ------------------------------------------------------------------ */
 /* Weitere Platinen im Haus                                            */
 /* ------------------------------------------------------------------ */
 
@@ -807,6 +887,7 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/calib", .method = HTTP_GET, .handler = calib_get},
     {.uri = "/api/calib/*", .method = HTTP_POST, .handler = calib_post},
     {.uri = "/api/ble", .method = HTTP_GET, .handler = ble_get},
+    {.uri = "/api/demand", .method = HTTP_GET, .handler = demand_get},
     {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
     {.uri = "/api/system/*", .method = HTTP_POST, .handler = system_post},

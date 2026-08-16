@@ -422,7 +422,7 @@ die passenden Entitäten ein.
 |---|---|---|
 | 0 | Projektstruktur umbauen, Nachweis, OTA — siehe [umbau-projektstruktur.md](umbau-projektstruktur.md) | umgesetzt |
 | 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke | umgesetzt, noch nicht auf der Hardware erprobt |
-| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | offen |
+| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; Tasmota-Anbindung noch nicht an einem Relais erprobt |
 | 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | offen |
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
 | 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | offen |
@@ -436,6 +436,16 @@ neu gestartet.
 Die Stufen 0 bis 2 ergeben betriebsfähige Geräte; alles Weitere ist additiv.
 
 ## Prüfungen
+
+### Stand
+
+Geprüft ist die Kette Verteiler → Bedarf → Pumpenlogik am laufenden Aufbau: das Heizungsgerät
+findet den Verteiler über mDNS, holt `/api/demand` im Fünfsekundentakt und schaltet danach.
+Handbetrieb und Rückkehr in die Automatik greifen sofort.
+
+Nicht erprobt ist alles, wofür Hardware fehlt: das Schalten eines Tasmota-Relais (kein Broker
+eingerichtet), die Rückmeldung aus `stat/…`, die Regel für das Lebenszeichen und sämtliche
+Messwerte, weil an keinem der beiden Geräte Fühler hängen.
 
 ### Ohne Hardware
 

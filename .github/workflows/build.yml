@@ -32,3 +32,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make -C test/host
+      - run: python3 tools/check_www.py

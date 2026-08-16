@@ -1,12 +1,16 @@
 idf_component_register(SRCS
                            "main.c"
+                           "app_pumps.c"
                            "app_sensors.c"
                            "app_web.c"
                        INCLUDE_DIRS "."
                        REQUIRES
                            config_store
                            onewire_temp
+                           heatlogic
+                           mqttc
                            netmgr
+                           esp_http_client
                            peers
                            esp_timer
                            esp_http_server

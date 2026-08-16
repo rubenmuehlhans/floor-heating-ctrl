@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "app_pumps.h"
 #include "app_sensors.h"
 #include "cJSON.h"
 #include "config_store.h"
@@ -15,6 +16,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mqttc.h"
 #include "netmgr.h"
 #include "peers.h"
 
@@ -257,6 +259,70 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddNumberToObject(abl, "hk2_spreizung_k", vl - rl);
     }
 
+    /* Heizkreise mit Pumpenzustand. */
+    static circuit_status_t kreise[CFG_MAX_CIRCUITS];
+    size_t kn = pumps_status(kreise, CFG_MAX_CIRCUITS);
+    cJSON *ck = cJSON_AddArrayToObject(root, "circuits");
+    for (size_t i = 0; i < kn; i++) {
+        const circuit_status_t *c = &kreise[i];
+        cJSON *j = cJSON_CreateObject();
+        cJSON_AddNumberToObject(j, "id", c->id);
+        cJSON_AddStringToObject(j, "name", c->name);
+        cJSON_AddBoolToObject(j, "enabled", c->enabled);
+        cJSON_AddStringToObject(j, "mode",
+                                c->mode == PUMP_MODE_ON ? "ein"
+                                : (c->mode == PUMP_MODE_OFF ? "aus" : "auto"));
+        cJSON_AddBoolToObject(j, "on", c->on);
+        cJSON_AddStringToObject(j, "reason", pump_reason_text(c->reason));
+        cJSON_AddNumberToObject(j, "since_s", c->since_s);
+        cJSON_AddBoolToObject(j, "demand", c->demand);
+        cJSON_AddBoolToObject(j, "stale", c->stale);
+        cJSON_AddBoolToObject(j, "any_seen", c->any_seen);
+        if (c->vl_valid) {
+            cJSON_AddNumberToObject(j, "vl_c", c->vl_c);
+        } else {
+            cJSON_AddNullToObject(j, "vl_c");
+        }
+        if (c->rl_valid) {
+            cJSON_AddNumberToObject(j, "rl_c", c->rl_c);
+        } else {
+            cJSON_AddNullToObject(j, "rl_c");
+        }
+        if (c->vl_valid && c->rl_valid) {
+            cJSON_AddNumberToObject(j, "spread_k", c->vl_c - c->rl_c);
+        } else {
+            cJSON_AddNullToObject(j, "spread_k");
+        }
+        cJSON *rel = cJSON_AddObjectToObject(j, "relay");
+        cJSON_AddBoolToObject(rel, "known", c->relay_known);
+        cJSON_AddBoolToObject(rel, "on", c->relay_on);
+        cJSON_AddBoolToObject(rel, "online", c->relay_online);
+        cJSON_AddNumberToObject(rel, "age_s", c->relay_age_s);
+        cJSON_AddBoolToObject(rel, "mismatch", c->relay_mismatch);
+        cJSON_AddItemToArray(ck, j);
+    }
+
+    /* Abgefragte Verteiler. */
+    static peer_demand_t quellen[CFG_MAX_PEERS * CFG_MAX_CIRCUITS];
+    size_t qn = pumps_peers(quellen, sizeof(quellen) / sizeof(quellen[0]));
+    cJSON *cq = cJSON_AddArrayToObject(root, "demand_sources");
+    for (size_t i = 0; i < qn; i++) {
+        const peer_demand_t *p = &quellen[i];
+        cJSON *j = cJSON_CreateObject();
+        cJSON_AddStringToObject(j, "id", p->id);
+        cJSON_AddStringToObject(j, "site", p->site);
+        cJSON_AddStringToObject(j, "host", p->host);
+        cJSON_AddBoolToObject(j, "seen", p->seen);
+        cJSON_AddBoolToObject(j, "demand", p->demand);
+        cJSON_AddNumberToObject(j, "max_target", p->max_target);
+        cJSON_AddNumberToObject(j, "open_channels", p->open_channels);
+        cJSON_AddNumberToObject(j, "rooms_calling", p->rooms_calling);
+        cJSON_AddNumberToObject(j, "age_s", p->age_s);
+        cJSON_AddNumberToObject(j, "errors", p->errors);
+        cJSON_AddItemToArray(cq, j);
+    }
+    cJSON_AddBoolToObject(root, "mqtt_connected", mqttc_connected());
+
     cJSON_AddNumberToObject(root, "history_len", sensors_history_len());
     return send_json_obj(req, root);
 }
@@ -429,6 +495,7 @@ static esp_err_t config_put(httpd_req_t *req)
     }
 
     sensors_config_changed();
+    pumps_config_changed();
     peers_update_identity(next.wifi.hostname, next.site);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Fuehler zugeordnet", next.probe_count);
 
@@ -445,6 +512,55 @@ static esp_err_t config_put(httpd_req_t *req)
         xTaskCreate(wifi_apply_task, "wifi_apply", 4096, NULL, 4, NULL);
     }
     return sent;
+}
+
+/* POST /api/circuit/<id>/mode  mit {"mode":"auto|ein|aus"} */
+static esp_err_t circuit_post(httpd_req_t *req)
+{
+    const char *action = last_segment(req->uri);
+    if (strcmp(action, "mode") != 0) {
+        return send_error(req, "404 Not Found", "Unbekannte Aktion");
+    }
+
+    /* Kennung steht im vorletzten Pfadsegment. */
+    int id = 0;
+    const char *p = req->uri + strlen(req->uri);
+    int slashes = 0;
+    while (p > req->uri) {
+        p--;
+        if (*p == '/' && ++slashes == 2) {
+            id = atoi(p + 1);
+            break;
+        }
+    }
+
+    char *body = read_body(req);
+    if (body == NULL) {
+        return send_error(req, "400 Bad Request", "Anfrage konnte nicht gelesen werden");
+    }
+    cJSON *root = cJSON_Parse(body);
+    free(body);
+    if (root == NULL) {
+        return send_error(req, "400 Bad Request", "Ungueltiges JSON");
+    }
+    const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, "mode");
+    if (!cJSON_IsString(v)) {
+        cJSON_Delete(root);
+        return send_error(req, "400 Bad Request", "Feld mode fehlt");
+    }
+
+    pump_mode_t modus = PUMP_MODE_AUTO;
+    if (strcmp(v->valuestring, "ein") == 0) {
+        modus = PUMP_MODE_ON;
+    } else if (strcmp(v->valuestring, "aus") == 0) {
+        modus = PUMP_MODE_OFF;
+    }
+    cJSON_Delete(root);
+
+    if (pumps_set_mode((uint8_t)id, modus) != ESP_OK) {
+        return send_error(req, "404 Not Found", "Heizkreis nicht gefunden");
+    }
+    return send_ok(req);
 }
 
 static esp_err_t probes_post(httpd_req_t *req)
@@ -586,6 +702,7 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/config", .method = HTTP_GET, .handler = config_get},
     {.uri = "/api/config", .method = HTTP_PUT, .handler = config_put},
     {.uri = "/api/probes/*", .method = HTTP_POST, .handler = probes_post},
+    {.uri = "/api/circuit/*", .method = HTTP_POST, .handler = circuit_post},
     {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
     {.uri = "/api/system/*", .method = HTTP_POST, .handler = system_post},

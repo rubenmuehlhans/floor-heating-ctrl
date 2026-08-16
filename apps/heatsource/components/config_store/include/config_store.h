@@ -34,6 +34,10 @@ extern "C" {
 #define CFG_TZ_LEN       48
 #define CFG_MAX_PROBES   12
 #define CFG_MAX_BUSES    2
+#define CFG_MAX_CIRCUITS 2
+#define CFG_MAX_PEERS    4
+#define CFG_ID_LEN       24
+#define CFG_TOPIC_LEN    48
 
 /*
  * Messstelle einer Anlage. Welche Rollen ein Geraet fuehrt, entscheidet ueber
@@ -61,6 +65,37 @@ typedef struct {
     char name[CFG_NAME_LEN];
     float offset_k;        /* Korrektur, etwa bei ungeschickt sitzendem Fuehler */
 } cfg_probe_t;
+
+/*
+ * Heizkreis mit eigener Pumpe.
+ *
+ * peers nennt die Verteilerplatinen, die diesen Kreis versorgen -- Kreis 1
+ * bekommt ueblicherweise Keller und Erdgeschoss, Kreis 2 das Obergeschoss.
+ * Geschaltet wird ueber ein Tasmota-Relais: cmnd/<topic>/POWER<relay>.
+ */
+typedef struct {
+    uint8_t id;                 /* 1..CFG_MAX_CIRCUITS */
+    char name[CFG_NAME_LEN];
+    bool enabled;
+
+    probe_role_t vl_role;       /* Vorlauffuehler dieses Kreises */
+    probe_role_t rl_role;
+
+    uint8_t peer_count;
+    char peers[CFG_MAX_PEERS][CFG_ID_LEN];   /* Geraetekennungen, etwa fbh_c2e55c */
+
+    char pump_topic[CFG_TOPIC_LEN];          /* Tasmota-Thema, etwa pumpe_hk1 */
+    uint8_t pump_relay;                      /* 1..4 */
+
+    uint8_t mode;               /* 0 = auto, 1 = ein, 2 = aus */
+
+    uint16_t overrun_s;
+    uint16_t min_run_s;
+    uint16_t min_pause_s;
+    float min_buffer_c;
+    float frost_c;
+    uint8_t seize_days;
+} cfg_circuit_t;
 
 typedef struct {
     char ssid[33];
@@ -96,6 +131,13 @@ typedef struct {
     uint8_t probe_count;
     cfg_probe_t probes[CFG_MAX_PROBES];
 
+    uint8_t circuit_count;
+    cfg_circuit_t circuits[CFG_MAX_CIRCUITS];
+
+    /* Abfrage der Verteiler. */
+    uint16_t demand_poll_s;
+    uint16_t demand_timeout_s;
+
     int8_t reboot_hour;    /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;
     char timezone[CFG_TZ_LEN];
@@ -128,6 +170,12 @@ const cfg_probe_t *cfg_probe_of_role(const app_config_t *cfg, probe_role_t role)
 
 /* Eintrag zu einer Werkskennung, oder NULL. */
 const cfg_probe_t *cfg_probe_of_rom(const app_config_t *cfg, uint64_t rom);
+
+/* Heizkreis anhand seiner Kennung, oder NULL. */
+const cfg_circuit_t *cfg_circuit(const app_config_t *cfg, uint8_t id);
+
+/* Vorbelegter Heizkreis, wie ihn der Einrichtungsassistent anlegt. */
+void cfg_circuit_defaults(cfg_circuit_t *c, uint8_t id);
 
 /* Kurzname und Klartext einer Rolle, etwa "kessel_vl" und "Kessel Vorlauf". */
 const char *cfg_role_key(probe_role_t role);

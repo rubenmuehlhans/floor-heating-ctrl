@@ -6,11 +6,12 @@
  * Geraet mit der Rolle "abgas" erkennt den Brennerlauf, eines mit "puffer"
  * beurteilt den Ladezustand. Einen Rollenschalter gibt es nicht.
  *
- * Stufe 1 misst und stellt dar. Bedarfsabfrage bei den Verteilern,
- * Pumpensteuerung und Brennererkennung folgen in den naechsten Stufen; siehe
- * docs/konzept-waermeerzeuger.md.
+ * Umgesetzt sind Fuehlererfassung, Bedarfsabfrage bei den Verteilern und die
+ * Pumpensteuerung ueber ein Tasmota-Relais. Brennererkennung und Ladezustand
+ * folgen; siehe docs/konzept-waermeerzeuger.md.
  */
 
+#include "app_pumps.h"
 #include "app_sensors.h"
 #include "app_web.h"
 #include "config_store.h"
@@ -20,6 +21,7 @@
 #include "esp_ota_ops.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mqttc.h"
 #include "netmgr.h"
 #include "peers.h"
 
@@ -53,6 +55,31 @@ void app_main(void)
     if (peers_start(cfg.wifi.hostname, cfg.site, device_id, PEERS_ROLE_HEAT) != ESP_OK) {
         ESP_LOGW(TAG, "Suche nach weiteren Geraeten nicht verfuegbar");
     }
+
+    /* MQTT dient hier zwei Zwecken: dem Schalten des Relais und spaeter der
+     * Anmeldung bei Home Assistant. Ohne Broker laeuft alles Uebrige weiter,
+     * nur die Pumpen lassen sich dann nicht schalten. */
+    if (cfg.mqtt.enabled && cfg.mqtt.uri[0]) {
+        char lwt[80];
+        snprintf(lwt, sizeof(lwt), "%s/status", cfg.mqtt.prefix);
+        mqttc_cfg_t mc = {
+            .uri = cfg.mqtt.uri,
+            .user = cfg.mqtt.user,
+            .pass = cfg.mqtt.pass,
+            .client_id = device_id,
+            .lwt_topic = lwt,
+            .lwt_msg = "offline",
+            .online_msg = "online",
+        };
+        if (mqttc_start(&mc, NULL, NULL) != ESP_OK) {
+            ESP_LOGW(TAG, "MQTT liess sich nicht starten");
+        }
+    }
+
+    if (pumps_start() != ESP_OK) {
+        ESP_LOGW(TAG, "Pumpensteuerung nicht verfuegbar");
+    }
+    netmgr_set_reboot_guard(pumps_busy);
 
     ESP_ERROR_CHECK(web_start());
 

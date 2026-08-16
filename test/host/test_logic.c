@@ -1,5 +1,6 @@
 /*
- * Prueft Regelgesetz und Ventil-Zustandsmaschine auf dem Rechner.
+ * Prueft Regelgesetz, Ventil-Zustandsmaschine und Pumpensteuerung auf dem
+ * Rechner.
  *
  * Beide Module sind bewusst frei von IDF-Abhaengigkeiten, deshalb genuegt hier
  * ein gewoehnlicher C-Uebersetzer. Aufruf: make -C test/host
@@ -10,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "heatlogic.h"
 #include "hw_map.h"
 #include "roomctrl.h"
 #include "valve.h"
@@ -311,6 +313,242 @@ static void test_hw_map(void)
     }
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Pumpensteuerung                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Laesst die Zustandsmaschine eine Zeitspanne im Sekundentakt laufen. */
+static uint32_t pumpe_laufen(pump_state_t *st, const pump_cfg_t *cfg, pump_input_t in,
+                             uint32_t von_ms, uint32_t dauer_s)
+{
+    uint32_t t = von_ms;
+    for (uint32_t i = 0; i < dauer_s; i++) {
+        t += 1000;
+        pump_tick(st, cfg, &in, t);
+    }
+    return t;
+}
+
+static pump_input_t bedarf(bool da)
+{
+    pump_input_t in = {0};
+    in.demand = da;
+    in.buffer_valid = true;
+    in.buffer_c = 55.0f;   /* warm genug */
+    return in;
+}
+
+static void test_pump_basic(void)
+{
+    printf("Pumpe: Bedarf und Nachlauf\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_AUTO);
+
+    uint32_t t = 1000;
+    pump_tick(&st, &cfg, &(pump_input_t){0}, t);
+    CHECK(!st.on, "ohne Bedarf steht die Pumpe");
+
+    /* Bedarf: laeuft sofort an. */
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, 2);
+    CHECK(st.on, "mit Bedarf laeuft die Pumpe");
+    CHECK(st.reason == PUMP_REASON_DEMAND, "Grund ist der Abnehmer, nicht %s",
+          pump_reason_text(st.reason));
+
+    /* Mindestlaufzeit ueberschreiten, damit sie danach abschalten darf. */
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, cfg.min_run_s + 5);
+
+    /* Bedarf faellt weg: Nachlauf. */
+    t = pumpe_laufen(&st, &cfg, bedarf(false), t, cfg.overrun_s - 10);
+    CHECK(st.on, "im Nachlauf laeuft die Pumpe weiter");
+    CHECK(st.reason == PUMP_REASON_OVERRUN, "Grund ist der Nachlauf, nicht %s",
+          pump_reason_text(st.reason));
+
+    /* Nachlauf abgelaufen: aus. */
+    t = pumpe_laufen(&st, &cfg, bedarf(false), t, 20);
+    CHECK(!st.on, "nach dem Nachlauf steht die Pumpe");
+    CHECK(st.reason == PUMP_REASON_NO_DEMAND, "Grund ist der fehlende Abnehmer, nicht %s",
+          pump_reason_text(st.reason));
+}
+
+static void test_pump_min_times(void)
+{
+    printf("Pumpe: Mindestlaufzeit und Mindestpause\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    cfg.overrun_s = 0; /* Nachlauf hier ausblenden */
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_AUTO);
+
+    uint32_t t = pumpe_laufen(&st, &cfg, bedarf(true), 1000, 5);
+    CHECK(st.on, "Pumpe laeuft");
+
+    /* Bedarf sofort wieder weg: die Mindestlaufzeit haelt sie an. */
+    t = pumpe_laufen(&st, &cfg, bedarf(false), t, 30);
+    CHECK(st.on, "Mindestlaufzeit haelt die Pumpe");
+    CHECK(st.reason == PUMP_REASON_MIN_RUN, "Grund ist die Mindestlaufzeit, nicht %s",
+          pump_reason_text(st.reason));
+
+    t = pumpe_laufen(&st, &cfg, bedarf(false), t, cfg.min_run_s);
+    CHECK(!st.on, "nach der Mindestlaufzeit schaltet sie ab");
+
+    /* Bedarf kommt sofort zurueck: die Mindestpause haelt sie aus. */
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, 30);
+    CHECK(!st.on, "Mindestpause haelt die Pumpe aus");
+    CHECK(st.reason == PUMP_REASON_MIN_PAUSE, "Grund ist die Mindestpause, nicht %s",
+          pump_reason_text(st.reason));
+
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, cfg.min_pause_s);
+    CHECK(st.on, "nach der Mindestpause laeuft sie wieder");
+}
+
+static void test_pump_buffer_cold(void)
+{
+    printf("Pumpe: kalter Speicher\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_AUTO);
+
+    pump_input_t in = bedarf(true);
+    in.buffer_c = cfg.min_buffer_c - 5.0f;
+
+    uint32_t t = pumpe_laufen(&st, &cfg, in, 1000, 10);
+    CHECK(!st.on, "unter der Mindesttemperatur bleibt die Pumpe aus");
+    CHECK(st.reason == PUMP_REASON_BUFFER_COLD, "Grund ist der kalte Speicher, nicht %s",
+          pump_reason_text(st.reason));
+
+    /* Ohne gueltigen Messwert wird nicht gesperrt: eine fehlende Angabe darf
+     * die Heizung nicht stilllegen. */
+    pump_init(&st, PUMP_MODE_AUTO);
+    in.buffer_valid = false;
+    t = pumpe_laufen(&st, &cfg, in, t, 10);
+    CHECK(st.on, "ohne Speicherwert wird nicht gesperrt");
+}
+
+static void test_pump_frost(void)
+{
+    printf("Pumpe: Frostschutz\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_OFF); /* von Hand ausgeschaltet */
+
+    pump_input_t in = bedarf(false);
+    in.buffer_c = 20.0f; /* auch der Speicher ist kalt */
+    in.room_valid = true;
+    in.min_room_c = cfg.frost_c - 1.0f;
+
+    pumpe_laufen(&st, &cfg, in, 1000, 5);
+    CHECK(st.on, "Frostschutz geht auch dem Handbetrieb vor");
+    CHECK(st.reason == PUMP_REASON_FROST, "Grund ist der Frostschutz, nicht %s",
+          pump_reason_text(st.reason));
+}
+
+static void test_pump_manual(void)
+{
+    printf("Pumpe: Handbetrieb\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_ON);
+
+    uint32_t t = pumpe_laufen(&st, &cfg, bedarf(false), 1000, 5);
+    CHECK(st.on, "auf Ein laeuft die Pumpe ohne Bedarf");
+
+    pump_set_mode(&st, PUMP_MODE_OFF, t);
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, 5);
+    CHECK(!st.on, "auf Aus steht sie trotz Bedarf");
+
+    /* Der Wechsel der Betriebsart soll nicht auf die Mindestpause warten. */
+    pump_set_mode(&st, PUMP_MODE_AUTO, t);
+    t = pumpe_laufen(&st, &cfg, bedarf(true), t, 5);
+    CHECK(st.on, "zurueck auf Automatik laeuft sie sofort an");
+}
+
+static void test_pump_seize(void)
+{
+    printf("Pumpe: Schutzlauf\n");
+
+    pump_cfg_t cfg;
+    pump_defaults(&cfg);
+    cfg.seize_days = 1;
+    cfg.seize_run_s = 60;
+    pump_state_t st;
+    pump_init(&st, PUMP_MODE_AUTO);
+
+    pump_input_t in = bedarf(false);
+    uint32_t t = 1000;
+    pump_tick(&st, &cfg, &in, t);
+    CHECK(!st.on, "zu Beginn steht die Pumpe");
+
+    /* Einen Tag ohne Bedarf: der Schutzlauf muss anspringen. */
+    t += 86400UL * 1000UL + 1000UL;
+    pump_tick(&st, &cfg, &in, t);
+    CHECK(st.on, "nach der Standzeit laeuft der Schutzlauf an");
+    CHECK(st.reason == PUMP_REASON_SEIZE, "Grund ist der Schutzlauf, nicht %s",
+          pump_reason_text(st.reason));
+
+    /* Er endet von selbst. */
+    t = pumpe_laufen(&st, &cfg, in, t, cfg.seize_run_s + cfg.min_run_s + 5);
+    CHECK(!st.on, "der Schutzlauf endet von selbst");
+}
+
+/* ------------------------------------------------------------------ */
+/* Bedarfsauswertung                                                   */
+/* ------------------------------------------------------------------ */
+
+static void test_demand(void)
+{
+    printf("Bedarf der Verteiler\n");
+
+    demand_result_t out;
+
+    /* Zwei Verteiler, einer meldet Bedarf. */
+    demand_source_t a[2] = {
+        {.seen = true, .demand = false, .age_s = 3, .room_valid = true, .min_room_c = 21.0f},
+        {.seen = true, .demand = true, .age_s = 4, .room_valid = true, .min_room_c = 19.5f},
+    };
+    demand_evaluate(a, 2, 180, &out);
+    CHECK(out.demand, "ein meldender Verteiler genuegt");
+    CHECK(!out.stale, "beide sind frisch");
+    CHECK(CLOSE(out.min_room_c, 19.5f, 0.01f), "kaelteste Raumtemperatur ist 19,5, nicht %.1f",
+          out.min_room_c);
+
+    /* Einer ist verstummt: im Zweifel heizen. */
+    demand_source_t b[2] = {
+        {.seen = true, .demand = false, .age_s = 3},
+        {.seen = true, .demand = false, .age_s = 400},
+    };
+    demand_evaluate(b, 2, 180, &out);
+    CHECK(out.demand, "ein verstummter Verteiler gilt als bedarfsmeldend");
+    CHECK(out.stale, "die Stoerung wird ausgewiesen");
+
+    /* Einer hat nie geantwortet: er wird nicht gewertet, sonst liefe die
+     * Pumpe wegen eines abgeschalteten Geraets durchgehend. */
+    demand_source_t c[2] = {
+        {.seen = true, .demand = false, .age_s = 3},
+        {.seen = false, .demand = false, .age_s = 99999},
+    };
+    demand_evaluate(c, 2, 180, &out);
+    CHECK(!out.demand, "ein nie erreichtes Geraet erzeugt keinen Bedarf");
+    CHECK(!out.stale, "und auch keine Stoerungsmeldung");
+    CHECK(out.any_seen, "der erreichbare zaehlt");
+
+    /* Gar keiner erreichbar. */
+    demand_source_t d[1] = {{.seen = false}};
+    demand_evaluate(d, 1, 180, &out);
+    CHECK(!out.any_seen, "keine Quelle hat je geantwortet");
+    CHECK(!out.demand, "und es entsteht kein Bedarf");
+}
+
 int main(void)
 {
     test_control_law();
@@ -320,6 +558,13 @@ int main(void)
     test_valve_reference_run();
     test_valve_force();
     test_hw_map();
+    test_pump_basic();
+    test_pump_min_times();
+    test_pump_buffer_cold();
+    test_pump_frost();
+    test_pump_manual();
+    test_pump_seize();
+    test_demand();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

@@ -94,6 +94,9 @@ void cfg_defaults(app_config_t *out)
     out->onewire_pin[1] = -1;
     out->poll_s = 10;
     out->probe_count = 0;
+    out->circuit_count = 0;
+    out->demand_poll_s = 5;
+    out->demand_timeout_s = 180;
 
     out->reboot_hour = -1; /* Heizungsgeraete laufen durch */
     out->reboot_minute = 0;
@@ -166,6 +169,45 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         }
     }
 
+    if (cfg->circuit_count > CFG_MAX_CIRCUITS) {
+        FEHLER("Hoechstens %d Heizkreise moeglich", CFG_MAX_CIRCUITS);
+    }
+    for (uint8_t i = 0; i < cfg->circuit_count; i++) {
+        const cfg_circuit_t *c = &cfg->circuits[i];
+        if (c->id == 0 || c->id > CFG_MAX_CIRCUITS) {
+            FEHLER("Heizkreis mit unzulaessiger Kennung %u", (unsigned)c->id);
+        }
+        if (c->pump_relay < 1 || c->pump_relay > 8) {
+            FEHLER("Relaisnummer von %s muss zwischen 1 und 8 liegen", c->name);
+        }
+        if (c->mode > 2) {
+            FEHLER("Unbekannte Betriebsart bei %s", c->name);
+        }
+        if (c->min_buffer_c < 0.0f || c->min_buffer_c > 90.0f) {
+            FEHLER("Mindesttemperatur von %s liegt ausserhalb von 0 bis 90 Grad", c->name);
+        }
+        if (c->frost_c < -10.0f || c->frost_c > 20.0f) {
+            FEHLER("Frostgrenze von %s liegt ausserhalb von -10 bis 20 Grad", c->name);
+        }
+        if (c->overrun_s > 3600 || c->min_run_s > 3600 || c->min_pause_s > 3600) {
+            FEHLER("Zeiten von %s duerfen hoechstens eine Stunde betragen", c->name);
+        }
+        if (c->peer_count > CFG_MAX_PEERS) {
+            FEHLER("Hoechstens %d Verteiler je Heizkreis", CFG_MAX_PEERS);
+        }
+        for (uint8_t j = 0; j < i; j++) {
+            if (cfg->circuits[j].id == c->id) {
+                FEHLER("Heizkreis %u ist doppelt angelegt", (unsigned)c->id);
+            }
+        }
+    }
+    if (cfg->demand_poll_s < 1 || cfg->demand_poll_s > 300) {
+        FEHLER("Abfrage der Verteiler muss zwischen 1 und 300 Sekunden liegen");
+    }
+    if (cfg->demand_timeout_s < 10 || cfg->demand_timeout_s > 3600) {
+        FEHLER("Zeitgrenze der Verteiler muss zwischen 10 und 3600 Sekunden liegen");
+    }
+
     if (cfg->wifi.ap_pass[0] && strlen(cfg->wifi.ap_pass) < 8) {
         FEHLER("Das Kennwort des Zugangspunkts braucht mindestens acht Zeichen");
     }
@@ -188,6 +230,38 @@ const cfg_probe_t *cfg_probe_of_role(const app_config_t *cfg, probe_role_t role)
     for (uint8_t i = 0; i < cfg->probe_count; i++) {
         if (cfg->probes[i].role == role) {
             return &cfg->probes[i];
+        }
+    }
+    return NULL;
+}
+
+void cfg_circuit_defaults(cfg_circuit_t *c, uint8_t id)
+{
+    memset(c, 0, sizeof(*c));
+    c->id = id;
+    c->enabled = true;
+    snprintf(c->name, sizeof(c->name), "Heizkreis %u", (unsigned)id);
+    c->vl_role = id == 1 ? ROLE_HK1_VL : ROLE_HK2_VL;
+    c->rl_role = id == 1 ? ROLE_HK1_RL : ROLE_HK2_RL;
+    c->pump_relay = 1;
+    c->mode = 0;
+
+    /* Dieselben Vorgaben wie in components/heatlogic. Die Mindesttemperatur
+     * des Speichers liegt bewusst ueber der noetigen Vorlauftemperatur: der
+     * Mischer kann nur herunterregeln. */
+    c->overrun_s = 300;
+    c->min_run_s = 180;
+    c->min_pause_s = 180;
+    c->min_buffer_c = 40.0f;
+    c->frost_c = 6.0f;
+    c->seize_days = 7;
+}
+
+const cfg_circuit_t *cfg_circuit(const app_config_t *cfg, uint8_t id)
+{
+    for (uint8_t i = 0; i < cfg->circuit_count; i++) {
+        if (cfg->circuits[i].id == id) {
+            return &cfg->circuits[i];
         }
     }
     return NULL;
@@ -260,6 +334,34 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
         cJSON_AddNumberToObject(j, "offset_k", p->offset_k);
         cJSON_AddItemToArray(probes, j);
     }
+
+    cJSON *kreise = cJSON_AddArrayToObject(root, "circuits");
+    for (uint8_t i = 0; i < cfg->circuit_count; i++) {
+        const cfg_circuit_t *c = &cfg->circuits[i];
+        cJSON *j = cJSON_CreateObject();
+        cJSON_AddNumberToObject(j, "id", c->id);
+        cJSON_AddStringToObject(j, "name", c->name);
+        cJSON_AddBoolToObject(j, "enabled", c->enabled);
+        cJSON_AddStringToObject(j, "vl_role", cfg_role_key(c->vl_role));
+        cJSON_AddStringToObject(j, "rl_role", cfg_role_key(c->rl_role));
+        cJSON *peers = cJSON_AddArrayToObject(j, "peers");
+        for (uint8_t k = 0; k < c->peer_count; k++) {
+            cJSON_AddItemToArray(peers, cJSON_CreateString(c->peers[k]));
+        }
+        cJSON *pump = cJSON_AddObjectToObject(j, "pump");
+        cJSON_AddStringToObject(pump, "topic", c->pump_topic);
+        cJSON_AddNumberToObject(pump, "relay", c->pump_relay);
+        cJSON_AddStringToObject(j, "mode", c->mode == 1 ? "ein" : (c->mode == 2 ? "aus" : "auto"));
+        cJSON_AddNumberToObject(j, "overrun_s", c->overrun_s);
+        cJSON_AddNumberToObject(j, "min_run_s", c->min_run_s);
+        cJSON_AddNumberToObject(j, "min_pause_s", c->min_pause_s);
+        cJSON_AddNumberToObject(j, "min_buffer_c", c->min_buffer_c);
+        cJSON_AddNumberToObject(j, "frost_c", c->frost_c);
+        cJSON_AddNumberToObject(j, "seize_days", c->seize_days);
+        cJSON_AddItemToArray(kreise, j);
+    }
+    cJSON_AddNumberToObject(root, "demand_poll_s", cfg->demand_poll_s);
+    cJSON_AddNumberToObject(root, "demand_timeout_s", cfg->demand_timeout_s);
 
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
     cJSON_AddNumberToObject(root, "reboot_minute", cfg->reboot_minute);
@@ -363,6 +465,73 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             out->probe_count++;
         }
     }
+
+    const cJSON *kreise = cJSON_GetObjectItemCaseSensitive(root, "circuits");
+    if (cJSON_IsArray(kreise)) {
+        out->circuit_count = 0;
+        const cJSON *j = NULL;
+        cJSON_ArrayForEach(j, kreise) {
+            if (out->circuit_count >= CFG_MAX_CIRCUITS) {
+                break;
+            }
+            cfg_circuit_t *c = &out->circuits[out->circuit_count];
+            uint8_t id = (uint8_t)json_num(j, "id", out->circuit_count + 1);
+            cfg_circuit_defaults(c, id);
+
+            json_str(j, "name", c->name, sizeof(c->name));
+            c->enabled = json_bool(j, "enabled", c->enabled);
+
+            char rolle[24] = {0};
+            json_str(j, "vl_role", rolle, sizeof(rolle));
+            if (rolle[0]) {
+                c->vl_role = cfg_role_from_key(rolle);
+            }
+            rolle[0] = '\0';
+            json_str(j, "rl_role", rolle, sizeof(rolle));
+            if (rolle[0]) {
+                c->rl_role = cfg_role_from_key(rolle);
+            }
+
+            const cJSON *peers = cJSON_GetObjectItemCaseSensitive(j, "peers");
+            if (cJSON_IsArray(peers)) {
+                c->peer_count = 0;
+                const cJSON *pv = NULL;
+                cJSON_ArrayForEach(pv, peers) {
+                    if (c->peer_count >= CFG_MAX_PEERS || !cJSON_IsString(pv)) {
+                        continue;
+                    }
+                    copy_str(c->peers[c->peer_count], CFG_ID_LEN, pv->valuestring);
+                    c->peer_count++;
+                }
+            }
+
+            const cJSON *pump = cJSON_GetObjectItemCaseSensitive(j, "pump");
+            if (cJSON_IsObject(pump)) {
+                json_str(pump, "topic", c->pump_topic, sizeof(c->pump_topic));
+                c->pump_relay = (uint8_t)json_num(pump, "relay", c->pump_relay);
+            }
+
+            char modus[12] = {0};
+            json_str(j, "mode", modus, sizeof(modus));
+            if (strcmp(modus, "ein") == 0) {
+                c->mode = 1;
+            } else if (strcmp(modus, "aus") == 0) {
+                c->mode = 2;
+            } else if (modus[0]) {
+                c->mode = 0;
+            }
+
+            c->overrun_s = (uint16_t)json_num(j, "overrun_s", c->overrun_s);
+            c->min_run_s = (uint16_t)json_num(j, "min_run_s", c->min_run_s);
+            c->min_pause_s = (uint16_t)json_num(j, "min_pause_s", c->min_pause_s);
+            c->min_buffer_c = (float)json_num(j, "min_buffer_c", c->min_buffer_c);
+            c->frost_c = (float)json_num(j, "frost_c", c->frost_c);
+            c->seize_days = (uint8_t)json_num(j, "seize_days", c->seize_days);
+            out->circuit_count++;
+        }
+    }
+    out->demand_poll_s = (uint16_t)json_num(root, "demand_poll_s", out->demand_poll_s);
+    out->demand_timeout_s = (uint16_t)json_num(root, "demand_timeout_s", out->demand_timeout_s);
 
     out->reboot_hour = (int8_t)json_num(root, "reboot_hour", out->reboot_hour);
     out->reboot_minute = (int8_t)json_num(root, "reboot_minute", out->reboot_minute);
