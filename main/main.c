@@ -19,7 +19,9 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_mac.h"
 #include "netmgr.h"
+#include "peers.h"
 #include "sensors_local.h"
 #include "sr74hc595.h"
 
@@ -67,6 +69,16 @@ void app_main(void)
     ESP_ERROR_CHECK(netmgr_start(&cfg));
     netmgr_set_reboot_guard(control_busy);
     ESP_ERROR_CHECK(atc_ble_start(on_ble_measurement, NULL));
+
+    /* Geschwistergeraete im Haus: je Etage eine Platine. Sie melden sich
+     * gegenseitig an, damit die Oberflaeche einen Wechsel anbieten kann. */
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char device_id[24];
+    snprintf(device_id, sizeof(device_id), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
+    if (peers_start(cfg.wifi.hostname, cfg.site, device_id) != ESP_OK) {
+        ESP_LOGW(TAG, "Suche nach weiteren Geraeten nicht verfuegbar");
+    }
     ESP_ERROR_CHECK(web_start());
     ESP_ERROR_CHECK(mqtt_start());
 

@@ -74,6 +74,13 @@ header{
 .status .link{display:inline-flex; align-items:center}
 .status .link.ok{color:var(--ok)}
 .status .link.warn{color:var(--warn)}
+/* Wechsel zu den Platinen der anderen Etagen. Sie melden sich gegenseitig
+   ueber mDNS an; gesteuert wird stets nur das gerade geoeffnete Geraet. */
+.floors{display:inline-flex; gap:.3rem; flex-wrap:wrap; margin-left:.3rem}
+.floors a{font-size:.75rem; padding:.12rem .55rem; border-radius:99px;
+  border:1px solid var(--line-strong); color:var(--accent); text-decoration:none;
+  white-space:nowrap; transition:background .15s, border-color .15s}
+.floors a:hover{background:var(--accent-soft); border-color:var(--accent)}
 
 nav{position:sticky; top:0; z-index:19; background:var(--surface);
   border-bottom:1px solid var(--line); padding:0 .6rem .6rem; overflow-x:auto}
@@ -105,6 +112,27 @@ section.on{display:flex}
 h3.sub{margin:1.3rem 0 .55rem; font-size:.7rem; font-weight:600;
   text-transform:uppercase; letter-spacing:.1em; color:var(--faint)}
 h3.sub:first-child{margin-top:0}
+
+/* Weitere Platinen im Haus. Die Liste kommt vom Gerät, das sie über mDNS
+   findet; ein Klick öffnet deren Oberfläche. */
+let peers = [], peersLoaded = 0;
+
+async function loadPeers() {
+  if (Date.now() - peersLoaded < 30000) return;
+  try {
+    const d = await api("/api/peers");
+    peers = d.peers || [];
+    peersLoaded = Date.now();
+    renderPeers();
+  } catch (e) { /* ältere Firmware kennt die Liste nicht */ }
+}
+
+function renderPeers() {
+  const el = $("#floors");
+  if (!el) return;
+  el.innerHTML = peers.map(p =>
+    `<a href="http://${p.host}/" title="${p.hostname || p.host}">${p.site || p.host}</a>`).join("");
+}
 
 /* ---------------- Verteilerbalken ---------------- */
 
@@ -341,6 +369,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   <div class="brand">
     <h1>Fußbodenheizung</h1>
     <span class="place" id="place"></span>
+    <span class="floors" id="floors"></span>
   </div>
   <div class="status" id="status">verbindet …</div>
 </header>
@@ -467,7 +496,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
       <p class="lede">Alle in Reichweite empfangenen Geräte mit ATC- oder pvvx-Firmware.
         Zugeordnet werden sie unter „Räume“.</p>
       <div class="scroll"><table><thead><tr>
-        <th>Adresse</th><th class="num">Temperatur</th><th class="num">Feuchte</th>
+        <th>Gerät</th><th class="num">Temperatur</th><th class="num">Feuchte</th>
         <th class="num">Batterie</th><th class="num">Empfang</th><th class="num">Pakete</th>
         <th>Format</th><th>Raum</th>
       </tr></thead><tbody id="bleBody"></tbody></table></div>
@@ -665,6 +694,27 @@ function renderStatus() {
     + `<span>Version <b>${state.version}</b></span>`;
 }
 
+/* Weitere Platinen im Haus. Die Liste kommt vom Gerät, das sie über mDNS
+   findet; ein Klick öffnet deren Oberfläche. */
+let peers = [], peersLoaded = 0;
+
+async function loadPeers() {
+  if (Date.now() - peersLoaded < 30000) return;
+  try {
+    const d = await api("/api/peers");
+    peers = d.peers || [];
+    peersLoaded = Date.now();
+    renderPeers();
+  } catch (e) { /* ältere Firmware kennt die Liste nicht */ }
+}
+
+function renderPeers() {
+  const el = $("#floors");
+  if (!el) return;
+  el.innerHTML = peers.map(p =>
+    `<a href="http://${p.host}/" title="${p.hostname || p.host}">${p.site || p.host}</a>`).join("");
+}
+
 /* ---------------- Verteilerbalken ---------------- */
 
 function renderManifold() {
@@ -836,6 +886,9 @@ async function setMode(id, mode) {
 
 /* ---------------- Raumeditor ---------------- */
 
+/* Name aus dem Rundruf, falls vorhanden — sonst bleibt nur die Adresse. */
+const bleLabel = d => d.name ? `${d.name} (${d.mac})` : d.mac;
+
 function sensorOptions(mac) {
   let html = `<option value=""${mac ? "" : " selected"}>— kein Thermometer —</option>`;
   let seen = false;
@@ -843,7 +896,7 @@ function sensorOptions(mac) {
     const on = d.mac === mac;
     if (on) seen = true;
     html += `<option value="${d.mac}"${on ? " selected" : ""}>`
-          + `${d.mac} · ${num(d.temp_c,1)} °C · ${d.rssi} dBm</option>`;
+          + `${bleLabel(d)} · ${num(d.temp_c,1)} °C · ${d.rssi} dBm</option>`;
   }
   /* Ein zugeordnetes, gerade nicht empfangenes Gerät muss sichtbar bleiben,
      sonst geht die Zuordnung beim nächsten Speichern verloren. */
@@ -1246,7 +1299,8 @@ async function loadBle() {
   } catch (e) { return; }
   $("#bleBody").innerHTML = ble.map(d => {
     const room = (config ? config.rooms : []).find(r => r.sensor_mac === d.mac);
-    return `<tr><td class="mono">${d.mac}</td>
+    return `<tr><td>${d.name ? `<b>${d.name}</b><br><span class="mono muted">${d.mac}</span>`
+                              : `<span class="mono">${d.mac}</span>`}</td>
       <td class="num">${num(d.temp_c,2)} °C</td><td class="num">${num(d.humidity,1)} %</td>
       <td class="num">${d.battery} % · ${d.battery_mv} mV</td>
       <td class="num">${d.rssi} dBm</td><td class="num">${d.packets}</td>
@@ -1527,7 +1581,7 @@ function drawSensorStep() {
       return `<label class="${r.sensor_mac === d.mac ? "on" : ""}">
         <input type="radio" name="s${i}" data-r="${i}" data-mac="${d.mac}"
           ${r.sensor_mac === d.mac ? "checked" : ""}>
-        <span class="mac">${d.mac}</span>
+        <span class="mac">${bleLabel(d)}</span>
         ${other ? `<span class="taken">→ ${assigned[d.mac]}</span>` : ""}
         <span class="val">${num(d.temp_c,1)} °C · ${d.rssi} dBm</span></label>`;
     }).join("");
@@ -1640,6 +1694,7 @@ async function poll() {
       applySetupMode();
       renderStatus(); renderManifold(); renderRooms();
       renderChannels(); renderLocalSensors(); renderManual();
+      renderPeers();
       if (calibInfo && calibInfo.state !== "idle") renderCalib();
     }
   } catch (e) {
@@ -1680,6 +1735,8 @@ async function boot() {
   setInterval(tickLocal, TICK_MS);
   setInterval(() => { if (calibInfo && calibInfo.state === "running") pollCalib(); }, 400);
   setInterval(() => { if (!document.hidden) loadBle(); }, 30000);
+  loadPeers();
+  setInterval(() => { if (!document.hidden) loadPeers(); }, 60000);
 }
 boot();
 </script>

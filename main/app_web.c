@@ -20,6 +20,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "netmgr.h"
+#include "peers.h"
 #include "sensors_local.h"
 
 static const char *TAG = "web";
@@ -660,6 +661,7 @@ static esp_err_t ble_get(httpd_req_t *req)
                  d->mac[3], d->mac[4], d->mac[5]);
         cJSON *jd = cJSON_CreateObject();
         cJSON_AddStringToObject(jd, "mac", mac);
+        cJSON_AddStringToObject(jd, "name", d->name);
         cJSON_AddNumberToObject(jd, "rssi", d->rssi);
         cJSON_AddNumberToObject(jd, "temp_c", d->temp_c);
         cJSON_AddNumberToObject(jd, "humidity", d->humidity);
@@ -668,6 +670,28 @@ static esp_err_t ble_get(httpd_req_t *req)
         cJSON_AddNumberToObject(jd, "packets", d->packets);
         cJSON_AddStringToObject(jd, "format", d->pvvx ? "pvvx" : "atc1441");
         cJSON_AddItemToArray(arr, jd);
+    }
+    return send_json_obj(req, root);
+}
+
+/* ------------------------------------------------------------------ */
+/* Weitere Platinen im Haus                                            */
+/* ------------------------------------------------------------------ */
+
+static esp_err_t peers_get_handler(httpd_req_t *req)
+{
+    static peer_t list[PEERS_MAX];
+    size_t n = peers_get(list, PEERS_MAX);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *arr = cJSON_AddArrayToObject(root, "peers");
+    for (size_t i = 0; i < n; i++) {
+        cJSON *j = cJSON_CreateObject();
+        cJSON_AddStringToObject(j, "id", list[i].id);
+        cJSON_AddStringToObject(j, "site", list[i].site);
+        cJSON_AddStringToObject(j, "host", list[i].host);
+        cJSON_AddStringToObject(j, "hostname", list[i].hostname);
+        cJSON_AddItemToArray(arr, j);
     }
     return send_json_obj(req, root);
 }
@@ -782,6 +806,7 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/calib", .method = HTTP_GET, .handler = calib_get},
     {.uri = "/api/calib/*", .method = HTTP_POST, .handler = calib_post},
     {.uri = "/api/ble", .method = HTTP_GET, .handler = ble_get},
+    {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
     {.uri = "/api/system/*", .method = HTTP_POST, .handler = system_post},
     {.uri = "/api/ota", .method = HTTP_POST, .handler = ota_post},

@@ -15,6 +15,7 @@ idf_component_register(SRCS
                            roomctrl
                            netmgr
                            i2cbus
+                           peers
                            atc_ble
                            ssd1327
                            sensors_local

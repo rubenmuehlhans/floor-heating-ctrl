@@ -56,14 +56,22 @@ static void store_device(const atc_device_t *in)
         }
         memset(slot, 0, sizeof(*slot));
         memcpy(slot->mac, in->mac, 6);
-        ESP_LOGI(TAG, "Neues Thermometer %02X:%02X:%02X:%02X:%02X:%02X (%s)", in->mac[0],
-                 in->mac[1], in->mac[2], in->mac[3], in->mac[4], in->mac[5],
-                 in->pvvx ? "pvvx" : "atc1441");
+        ESP_LOGI(TAG, "Neues Thermometer %s %02X:%02X:%02X:%02X:%02X:%02X (%s)",
+                 in->name[0] ? in->name : "ohne Namen", in->mac[0], in->mac[1], in->mac[2],
+                 in->mac[3], in->mac[4], in->mac[5], in->pvvx ? "pvvx" : "atc1441");
     }
 
     uint32_t packets = slot->packets + 1;
+    char kept_name[sizeof(slot->name)];
+    snprintf(kept_name, sizeof(kept_name), "%s", slot->name);
+
     *slot = *in;
     slot->packets = packets;
+
+    /* Nicht jedes Paket fuehrt den Namen mit - einmal empfangen, bleibt er. */
+    if (slot->name[0] == '\0' && kept_name[0] != '\0') {
+        snprintf(slot->name, sizeof(slot->name), "%s", kept_name);
+    }
 
     atc_device_t copy = *slot;
     xSemaphoreGive(s_mtx);
@@ -71,6 +79,27 @@ static void store_device(const atc_device_t *in)
     if (s_cb) {
         s_cb(&copy, s_ctx);
     }
+}
+
+/*
+ * Der Name kommt bei der pvvx-Firmware nicht im Rundruf, sondern erst in der
+ * Antwort auf eine Scan-Anfrage - und damit in einem eigenen Paket ohne
+ * Messwerte. Er wird deshalb getrennt nachgetragen.
+ */
+static void update_name(const uint8_t mac[6], const char *name)
+{
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    for (size_t i = 0; i < s_device_count; i++) {
+        if (memcmp(s_devices[i].mac, mac, 6) == 0) {
+            if (strcmp(s_devices[i].name, name) != 0) {
+                snprintf(s_devices[i].name, sizeof(s_devices[i].name), "%s", name);
+                ESP_LOGI(TAG, "Thermometer %02X:%02X:%02X:%02X:%02X:%02X heisst \"%s\"", mac[0],
+                         mac[1], mac[2], mac[3], mac[4], mac[5], name);
+            }
+            break;
+        }
+    }
+    xSemaphoreGive(s_mtx);
 }
 
 size_t atc_ble_devices(atc_device_t *out, size_t max)
@@ -126,13 +155,36 @@ static void handle_adv(const struct ble_gap_disc_desc *disc)
     if (ble_hs_adv_parse_fields(&fields, disc->data, disc->length_data) != 0) {
         return;
     }
+
+    /* Die Sendeadresse steht in umgekehrter Reihenfolge; hier wird sie gleich
+     * in die uebliche Schreibweise gebracht. */
+    uint8_t addr[6];
+    for (int i = 0; i < 6; i++) {
+        addr[i] = disc->addr.val[5 - i];
+    }
+
+    char name[sizeof(((atc_device_t *)0)->name)] = {0};
+    if (fields.name != NULL && fields.name_len > 0) {
+        size_t n = fields.name_len;
+        if (n > sizeof(name) - 1) {
+            n = sizeof(name) - 1;
+        }
+        memcpy(name, fields.name, n);
+    }
+
     if (fields.svc_data_uuid16 == NULL || fields.svc_data_uuid16_len < 3) {
+        if (name[0] != '\0') {
+            update_name(addr, name);
+        }
         return;
     }
 
     const uint8_t *sd = fields.svc_data_uuid16;
     uint16_t uuid = (uint16_t)(sd[0] | (sd[1] << 8));
     if (uuid != UUID_ENV_SENSING) {
+        if (name[0] != '\0') {
+            update_name(addr, name);
+        }
         return;
     }
 
@@ -158,6 +210,8 @@ static void handle_adv(const struct ble_gap_disc_desc *disc)
     if (dev.humidity < 0.0f || dev.humidity > 100.0f) {
         dev.humidity = 0.0f;
     }
+
+    snprintf(dev.name, sizeof(dev.name), "%s", name);
 
     dev.rssi = disc->rssi;
     dev.last_seen_ms = now_ms();
@@ -191,7 +245,10 @@ static void start_scan(void)
         .window = 160, /* durchgehend hoeren */
         .filter_policy = BLE_HCI_SCAN_FILT_NO_WL,
         .limited = 0,
-        .passive = 1, /* keine Scan-Anfragen senden */
+        /* Aktiv: die Thermometer senden ihren Namen erst auf Nachfrage. Er
+         * wird einmal je Geraet gebraucht, die Messwerte kommen unabhaengig
+         * davon weiter im Rundruf. */
+        .passive = 0,
         .filter_duplicates = 0,
     };
     int rc = ble_gap_disc(BLE_OWN_ADDR_PUBLIC, BLE_HS_FOREVER, &params, gap_event, NULL);

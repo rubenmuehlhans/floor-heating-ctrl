@@ -27,6 +27,10 @@ extern "C" {
 
 typedef struct {
     uint8_t mac[6];
+    /* Name aus dem Rundruf. Die pvvx-Firmware laesst ihn frei setzen, die
+     * atc1441-Fassung sendet ATC_<letzte drei MAC-Bytes>. Leer, wenn das
+     * Geraet keinen Namen mitsendet. */
+    char name[24];
     int8_t rssi;
     float temp_c;
     float humidity;
