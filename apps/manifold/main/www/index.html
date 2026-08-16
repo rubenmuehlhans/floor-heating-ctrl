@@ -85,7 +85,7 @@ header{
   color:var(--faint); align-self:center; margin-left:.25rem}
 
 nav{position:sticky; top:0; z-index:19; background:var(--surface);
-  border-bottom:1px solid var(--line); padding:0 .6rem .6rem; overflow-x:auto}
+  border-bottom:1px solid var(--line); padding:.55rem .6rem .6rem; overflow-x:auto}
 .tabs{display:inline-flex; gap:2px; padding:3px; background:var(--sunken);
   border:1px solid var(--line); border-radius:99px}
 .tabs button{
@@ -101,7 +101,7 @@ nav{position:sticky; top:0; z-index:19; background:var(--surface);
 
 main{padding:1.1rem 1rem 3rem; max-width:1120px; margin:0 auto;
   display:flex; flex-direction:column; gap:1.1rem}
-section{display:none; flex-direction:column; gap:1.1rem}
+section{display:none; flex-direction:column; gap:1.1rem; scroll-margin-top:7.5rem}
 section.on{display:flex}
 
 /* ---------------- Flächen ---------------- */
@@ -640,6 +640,10 @@ function selectTab(id) {
   document.querySelectorAll("main section").forEach(s =>
     s.classList.toggle("on", s.id === id || s.id === id + "-tab"));
   if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+  /* Ein Reiter ist eine ganze Seite. Ohne das bliebe die Seite dort stehen,
+     wohin der Browser wegen der Adresszeile gesprungen ist, und die feste
+     Kopfzeile verdeckte die erste Karte. */
+  window.scrollTo(0, 0);
   if (id === "sensors") loadBle();
 }
 document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => selectTab(b.dataset.tab));
@@ -1714,6 +1718,10 @@ document.addEventListener("visibilitychange", () => {
 
 async function boot() {
   await poll();
+  /* Der Browser springt wegen der Adresszeile erst, wenn der Inhalt steht --
+     also nach dem ersten Abruf. Ein Reiter ist eine ganze Seite, deshalb hier
+     noch einmal nach oben. */
+  if (location.hash) window.scrollTo(0, 0);
   await loadCalibSamples();
   await loadBle();
   await loadConfig();
