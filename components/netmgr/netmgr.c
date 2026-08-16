@@ -254,7 +254,7 @@ static void stop_ap_when_unused(void)
 }
 
 /*
- * Taeglicher Neustart zur eingestellten Uhrzeit. Im ESPHome-Aufbau lag er auf
+ * Taeglicher Neustart zur eingestellten Uhrzeit. Er liegt auf
  * 10:00 Uhr. Ein laufender Stellantrieb wird abgewartet - ein Neustart mitten
  * in einer Fahrt liesse das Ventil in unbekannter Stellung zurueck.
  */

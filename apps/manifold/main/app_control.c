@@ -18,7 +18,7 @@ static const char *TAG = "ctl";
 
 #define TICK_MS            50
 #define POSITION_SAVE_MS   60000
-#define FIRST_CHECK_DELAY_MS 50000 /* wie im ESPHome-Aufbau: erst einlaufen lassen */
+#define FIRST_CHECK_DELAY_MS 50000 /* nach dem Start erst einlaufen lassen */
 
 typedef struct {
     valve_t valve;

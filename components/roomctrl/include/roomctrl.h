@@ -1,15 +1,13 @@
 /*
  * Regelgesetz der Raumregelung.
  *
- * Uebernommen aus den *_check_temp-Skripten des ESPHome-Aufbaus: die
- * Ventilstellung folgt der Regelabweichung proportional, ueber ein Band von
- * plus/minus einem Kelvin von ganz zu bis ganz auf, gerastert auf Zehntel.
+ * Die Ventilstellung folgt der Regelabweichung proportional, ueber ein Band
+ * von plus/minus einem Kelvin von ganz zu bis ganz auf, gerastert auf
+ * Zehntel.
  *
  *   diff = soll - ist
  *   pos  = runden(((diff / band) + 1) / 2 / raster) * raster,  begrenzt auf 0..1
  *
- * Mit band = 1 K und raster = 0,1 ist das rechnerisch identisch zum
- * urspruenglichen round(((diff+1)/2)/0.1)*0.1.
  *
  * Frei von IDF-Abhaengigkeiten, damit das Verhalten auf dem Rechner pruefbar
  * bleibt.

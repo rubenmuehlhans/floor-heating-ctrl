@@ -37,8 +37,7 @@ static void test_control_law(void)
 {
     printf("Regelgesetz\n");
 
-    /* Proportionalband 1 K, Rasterung 0,1 - die Vorgabe aus dem
-     * ESPHome-Aufbau. */
+    /* Proportionalband 1 K, Rasterung 0,1 - die Vorgabe. */
     const float band = 1.0f, step = 0.1f;
 
     /* Zwei Kelvin zu warm: Ventil ganz zu. */
@@ -67,7 +66,7 @@ static void test_control_law(void)
     CHECK(CLOSE(roomctrl_target_position(20.0f, 19.0f, 2.0f, step), 0.8f, 0.001f),
           "Band 2 K: 1 K zu kalt muss 0,8 ergeben");
 
-    /* Uebereinstimmung mit der urspruenglichen Formel aus der YAML. */
+    /* Uebereinstimmung mit der geschlossenen Form der Kennlinie. */
     for (float ist = 15.0f; ist <= 25.0f; ist += 0.1f) {
         float expected = roundf(((20.0f - ist) + 1.0f) / 2.0f / 0.1f) * 0.1f;
         if (expected > 1.0f) {
@@ -283,9 +282,8 @@ static void test_hw_map(void)
         used |= (1U << c->sr_bit_ia) | (1U << c->sr_bit_ib);
     }
 
-    /* Die Gruppentabelle muss zur Kanaltabelle passen - hier laege sonst der
-     * Fehler, der in der YAML CH9 bis CH11 der falschen Messgruppe zugewiesen
-     * hat. */
+    /* Die Gruppentabelle muss zur Kanaltabelle passen: eine Endlagenmeldung
+     * traefe sonst den falschen Kanal. */
     for (uint8_t g = 0; g < HW_BEMF_GROUP_COUNT; g++) {
         const hw_bemf_group_t *grp = hw_bemf_group(g);
         CHECK(grp != NULL, "Gruppe %u muss beschrieben sein", g);

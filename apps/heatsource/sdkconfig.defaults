@@ -28,7 +28,7 @@ CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
 # Start belegte Halden-Anteil des BLE-Steuerwerks.
 CONFIG_BT_ENABLED=n
 
-# Drei Zeitserver wie im ESPHome-Aufbau
+# Drei Zeitserver
 CONFIG_LWIP_SNTP_MAX_SERVERS=3
 
 # HTTP-Server fuer die Oberflaeche

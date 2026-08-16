@@ -25,7 +25,7 @@ extern "C" {
 esp_err_t ssd1327_init(void);
 bool ssd1327_present(void);
 
-/* Helligkeit in Prozent. Im ESPHome-Aufbau standen 2 Prozent. */
+/* Helligkeit in Prozent. Zwei Prozent genuegen im Schaltschrank. */
 esp_err_t ssd1327_set_brightness(uint8_t percent);
 
 void ssd1327_clear(uint8_t gray);

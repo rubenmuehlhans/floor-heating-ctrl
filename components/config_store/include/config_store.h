@@ -82,7 +82,7 @@ typedef struct {
      * faellt. */
     bool touch_enabled;
     uint16_t touch_thresh[HW_TOUCH_COUNT];
-    uint8_t display_brightness; /* Prozent, im ESPHome-Aufbau standen 2 */
+    uint8_t display_brightness; /* Prozent; zwei genuegen im Schaltschrank */
 
     uint16_t sensor_timeout_s; /* danach gilt der Messwert als veraltet */
     int8_t reboot_hour;        /* -1 = kein taeglicher Neustart */

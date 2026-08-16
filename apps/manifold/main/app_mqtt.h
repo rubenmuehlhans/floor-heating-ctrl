@@ -1,9 +1,8 @@
 /*
  * Anbindung an Home Assistant ueber MQTT.
  *
- * Ersetzt die native ESPHome-API. Die Entities werden ueber die
- * MQTT-Discovery angemeldet und bei jeder Konfigurationsaenderung neu
- * berechnet; entfallene Raeume werden mit leerem Retained-Payload wieder
+ * Die Entities werden ueber die MQTT-Discovery angemeldet und bei jeder
+ * Konfigurationsaenderung neu berechnet; entfallene Raeume werden mit leerem Retained-Payload wieder
  * entfernt.
  */
 #pragma once

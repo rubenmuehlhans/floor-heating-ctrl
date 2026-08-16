@@ -107,6 +107,11 @@ für Telefon und Rechner gleichermaßen gedacht.
 
 ![Übersicht der Verteilerplatine](screenshots/uebersicht.png)
 
+Der Verteilerbalken zeigt alle elf Kreise in der Reihenfolge am Verteiler, nach Räumen
+gruppiert. Ein **gestrichelter** Kreis gehört zu keinem Raum: er wird nicht geregelt und fährt
+nur von Hand. Ein **schraffierter** Kreis hat eine unbekannte Stellung — nach einem Neustart ohne
+gespeicherte Stellung, bis er das erste Mal auf Anschlag gefahren ist.
+
 **Kopfzeile.** Links die Bezeichnung des Geräts, daneben die übrigen Geräte im Haus. Darunter
 Adresse, Empfangsstärke, Laufzeit, freier Speicher und Version.
 
@@ -393,6 +398,8 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 > Ziehen Sie sie nach der ersten aufgezeichneten Ladung nach.
 
 ## Schutzfahrt und Schutzlauf
+
+![Schutzfahrt](screenshots/schutzfahrt.png)
 
 Im Sommer stehen die Ventile über Monate geschlossen und die Umwälzpumpen still. Beides setzt
 sich mit der Zeit fest. Einmal in der Woche fahren deshalb alle Ventile einmal durch und alle

@@ -128,7 +128,7 @@ esp_err_t bemf_start(void)
     }
 
     adc_oneshot_chan_cfg_t chan = {
-        .atten = ADC_ATTEN_DB_6, /* rund 0..1750 mV, wie im ESPHome-Aufbau */
+        .atten = ADC_ATTEN_DB_6, /* rund 0..1750 mV */
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
     for (uint8_t gi = 0; gi < HW_BEMF_GROUP_COUNT; gi++) {

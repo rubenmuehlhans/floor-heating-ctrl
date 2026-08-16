@@ -3,7 +3,7 @@
  * Kleinschreibung, das scharfe s und das Gradzeichen.
  *
  * Je Zeichen fuenf Spalten; in jeder Spalte steht das unterste Bit fuer die
- * oberste Zeile. Der ESPHome-Aufbau hat Source Code Pro zur Bauzeit gerastert;
+ * oberste Zeile. Frueher wurde Source Code Pro zur Bauzeit gerastert;
  * hier liegt die Schrift fest im Programm, damit die Uebersetzung ohne
  * zusaetzliche Werkzeuge auskommt.
  */

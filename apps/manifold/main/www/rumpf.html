@@ -12,6 +12,9 @@
 .gauge.moving{border-color:var(--heat)}
 .gauge.moving>i{animation:breathe 1.6s ease-in-out infinite}
 .gauge.unknown{background:repeating-linear-gradient(135deg,var(--sunken) 0 4px,var(--line) 4px 5px)}
+/* Kreis ohne Raum: er wird nicht geregelt und faehrt nur von Hand. */
+.gauge.free{border-style:dashed; border-color:var(--line-strong)}
+.gauge.free>i{background:var(--faint)}
 @keyframes breathe{50%{opacity:.55}}
 .mf-ch span{font:11px/1 var(--data); color:var(--faint)}
 .mf-label{font-size:.74rem; color:var(--muted); text-align:center;
@@ -629,7 +632,7 @@ function renderManifold() {
   }
   const rest = [];
   for (let n = 1; n <= CH_COUNT; n++) if (!claimed.has(n)) rest.push(n);
-  if (rest.length) groups.push({name: "ohne Raum", channels: rest, active: false});
+  if (rest.length) groups.push({name: "ohne Raum", channels: rest, active: false, free: true});
 
   $("#manifold").innerHTML = groups.map(g => {
     const bars = g.channels.map(n => {
@@ -638,9 +641,14 @@ function renderManifold() {
       if (c.position > 0.005 && g.active) cls.push("hot");
       if (c.op !== "idle") cls.push("moving");
       if (!c.known) cls.push("unknown");
+      /* Ohne Raum bleibt der Kreis gestrichelt. Das hing früher daran, dass
+         seine Stellung unbekannt war — nach der ersten Schutzfahrt ist sie das
+         aber nicht mehr, und die Unterscheidung wäre verschwunden. */
+      if (g.free) cls.push("free");
       const title = `Kreis ${n}: ${pct(c.position)} %`
         + (c.op === "idle" ? "" : c.op === "opening" ? ", öffnet" : ", schließt")
-        + (c.known ? "" : ", Stellung unbekannt");
+        + (c.known ? "" : ", Stellung unbekannt")
+        + (g.free ? ", keinem Raum zugeordnet" : "");
       return `<div class="mf-ch" title="${title}">
         <div class="${cls.join(" ")}"><i style="height:${pct(c.position)}%"></i></div>
         <span>${n}</span></div>`;

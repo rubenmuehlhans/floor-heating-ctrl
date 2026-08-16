@@ -152,7 +152,9 @@ def state():
     for n in range(1, 12):
         moving = moving_now() and n == 4
         channels.append({
-            "id": n, "position": POSITIONS[n - 1], "known": n <= 10,
+            "id": n, "position": POSITIONS[n - 1], # CH5 steht mit unbekannter Stellung (schraffiert), CH11 ohne Raum
+            # (gestrichelt) -- so sind beide Zustaende auseinanderzuhalten.
+            "known": n != 5,
             "op": "opening" if moving else "idle", "group": (n + 1) // 2,
             "reserved": CALIB["state"] == "running" and CALIB["channel"] == n,
             "manual": n in MANUAL,

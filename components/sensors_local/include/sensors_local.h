@@ -3,7 +3,7 @@
  * HDC1080 fuer Temperatur und Luftfeuchte im Schaltschrank.
  *
  * Die Fuehler werden zyklisch abgefragt; der Wert 85 Grad ist der
- * Ruecksetzwert des DS18B20 und wird verworfen, wie im ESPHome-Aufbau.
+ * Ruecksetzwert des DS18B20 und wird verworfen.
  */
 #pragma once
 

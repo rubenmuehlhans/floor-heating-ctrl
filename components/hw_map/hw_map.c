@@ -4,7 +4,7 @@
 
 /*
  * Belegung der Schieberegister: Kanal n benutzt die Bits 2*(n-1) und
- * 2*(n-1)+1. IA schliesst, IB oeffnet - so ist es im ESPHome-Aufbau
+ * 2*(n-1)+1. IA schliesst, IB oeffnet - so ist es
  * verdrahtet (open_action schaltet IB ein und IA aus).
  */
 static const hw_channel_t s_channels[HW_CHANNEL_COUNT] = {

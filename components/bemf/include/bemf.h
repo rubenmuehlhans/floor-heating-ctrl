@@ -6,7 +6,7 @@
  * blockiert der Motor und die Spannung steigt deutlich. Ueberschreitet der
  * gleitende Median die Schwelle, gilt die Endlage als erreicht.
  *
- * Gegenueber dem ESPHome-Aufbau wird schneller abgetastet (50 ms statt 250 ms)
+ * Abgetastet wird alle 50 ms
  * und der Median bei jedem Wert ausgewertet statt nur jedem fuenften. Der Motor
  * laeuft dadurch nach Erreichen des Anschlags kuerzer weiter.
  */

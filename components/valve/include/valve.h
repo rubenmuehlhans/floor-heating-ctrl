@@ -5,7 +5,7 @@
  * die Ansteuerung geht als Wunschzustand heraus. Dadurch laesst sich das
  * Fahrverhalten auf dem Rechner testen.
  *
- * Position 0.0 = geschlossen, 1.0 = geoeffnet - wie im ESPHome-Aufbau.
+ * Position 0.0 = geschlossen, 1.0 = geoeffnet.
  */
 #pragma once
 

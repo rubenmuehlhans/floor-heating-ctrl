@@ -18,6 +18,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/docs/screenshots"
 mkdir -p "$OUT"
 
+# Ausschnitt aus einer ganzseitigen Aufnahme: manche Karten liegen unterhalb
+# des Sichtbereichs.
+crop() {  # ziel  breite  hoehe  pfad  ausschnitt
+  "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
+    --window-size="$2,$3" --screenshot=/tmp/fbh-voll.png \
+    --virtual-time-budget=9000 "$BASE$4" >/dev/null 2>&1
+  magick /tmp/fbh-voll.png -crop "$5" +repage "$OUT/$1.png"
+  echo "  $1.png  $(magick "$OUT/$1.png" -format '%wx%h' info:)"
+}
+
 shoot() {  # ziel  breite  hoehe  pfad
   "$CHROME" --headless=new --disable-gpu --hide-scrollbars \
     --window-size="$2,$3" --screenshot="$OUT/$1.png" \
@@ -40,7 +50,10 @@ shoot uebersicht-dark 1280  900 "/?theme=dark#ov"
 shoot raeume          1280 1000 "/?theme=light#rooms"
 shoot kreise          1280  900 "/?theme=light#chans"
 shoot sensoren        1280  900 "/?theme=light#sensors"
-shoot system          1280 1000 "/?theme=light#sys"
+shoot system          1280 1400 "/?theme=light#sys"
+
+# Karte der Schutzfahrt allein, fuer das Handbuch.
+crop schutzfahrt 1280 1400 "/?theme=light#sys" "1216x400+32+1020"
 shoot mobil            500  900 "/?theme=light#ov"
 
 # Die Kalibrierkarte liegt unten auf der Kreise-Seite: ganze Seite aufnehmen

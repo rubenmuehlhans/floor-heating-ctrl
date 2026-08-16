@@ -2,13 +2,10 @@
  * Bedienung am Geraet: Anzeige und die drei kapazitiven Tasten.
  *
  * Die Anzeige richtet sich nach der Konfiguration - sie zeigt genau die Raeume,
- * die eingerichtet sind, und teilt die Breite unter ihnen auf. Im ESPHome-
- * Aufbau war die Aufteilung auf vier Bereiche fest verdrahtet.
+ * die eingerichtet sind, und teilt die Breite unter ihnen auf.
  *
  * Tastenbelegung: die rechte Taste waehlt den Raum, die beiden anderen
- * verstellen dessen Solltemperatur um ein halbes Grad. Im ESPHome-Aufbau war
- * die Belegung wirkungslos, weil die Raumauswahl 0 bis 3 zaehlte, die Tasten
- * aber gegen 10 bis 13 verglichen haben.
+ * verstellen dessen Solltemperatur um ein halbes Grad.
  */
 #pragma once
 

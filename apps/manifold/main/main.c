@@ -1,9 +1,8 @@
 /*
  * Ventilsteuerung Fussbodenheizung.
  *
- * Portierung des ESPHome-Aufbaus floor-heating-ctrl-groundfloor.yaml auf
- * natives ESP-IDF. Raeume, Kanalzuordnung und Regelparameter sind zur Laufzeit
- * ueber die Weboberflaeche aenderbar.
+ * Raeume, Kanalzuordnung und Regelparameter sind zur Laufzeit ueber die
+ * Weboberflaeche aenderbar.
  */
 
 #include "app_control.h"

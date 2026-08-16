@@ -80,7 +80,7 @@ static void ds_read_all(void)
             continue;
         }
         /* 85 Grad ist der Ruecksetzwert nach dem Einschalten und kein
-         * Messwert - im ESPHome-Aufbau war dafuer filter_out gesetzt. */
+         * Messwert. */
         if (t > 84.9f && t < 85.1f) {
             continue;
         }

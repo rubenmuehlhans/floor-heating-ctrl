@@ -58,13 +58,13 @@ void cfg_defaults(app_config_t *out)
         out->channels[i].close_ms = 40000;
         out->channels[i].max_ms = 45000;
         out->channels[i].blank_ms = 2000;
-        out->channels[i].bemf_mv = 190; /* bisheriger Wert aus der YAML */
+        out->channels[i].bemf_mv = 190; /* Ausgangswert, die Messfahrt ersetzt ihn */
         out->channels[i].bemf_hyst_mv = 30;
         out->channels[i].calibrated = false;
     }
 
-    /* Werte aus dem ESPHome-Aufbau. Die Messdauer der neuen Treiberfassung
-     * weicht ab, deshalb sind sie nur ein Ausgangspunkt. */
+    /* Ausgangswerte. Die Messdauer haengt an der Treiberfassung, deshalb
+     * sind sie nur ein Anhaltspunkt und werden am Geraet abgeglichen. */
     out->touch_enabled = true;
     out->touch_thresh[0] = 1000;
     out->touch_thresh[1] = 870;

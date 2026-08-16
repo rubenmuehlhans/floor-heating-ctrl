@@ -8,7 +8,7 @@
  *   - atc1441: 13 Byte Dienstdaten unter UUID 0x181A, Werte in Big Endian
  *   - pvvx:    15 Byte Dienstdaten unter UUID 0x181A, Werte in Little Endian
  *
- * Damit ist die Regelung unabhaengig von Home Assistant; im ESPHome-Aufbau kam
+ * Damit ist die Regelung unabhaengig von Home Assistant; frueher kam
  * die Temperatur ueber die Home-Assistant-API herein.
  */
 #pragma once

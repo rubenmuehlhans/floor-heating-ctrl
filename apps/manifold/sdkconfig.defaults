@@ -45,7 +45,7 @@ CONFIG_BTDM_CTRL_MODE_BTDM=n
 CONFIG_ESP_COEX_ENABLED=y
 CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
 
-# Drei Zeitserver wie im ESPHome-Aufbau
+# Drei Zeitserver
 CONFIG_LWIP_SNTP_MAX_SERVERS=3
 
 # HTTP-Server fuer die Oberflaeche
