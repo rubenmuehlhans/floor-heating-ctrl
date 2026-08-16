@@ -800,7 +800,7 @@ function renderCircuits() {
 
     return `<div class="card" data-circ="${k.id}">
       <div class="circ-head">
-        <h2>${k.name}</h2>
+        <h2>${c.name || k.name}</h2>
         <div class="seg" data-mode="${k.id}">
           ${["auto", "ein", "aus"].map(m =>
             `<button data-m="${m}" class="${k.mode === m ? "on" : ""}">${
@@ -902,9 +902,17 @@ function collectCircuit(id) {
    überschreiben. */
 const editingProbes = () => $("#probe-table")?.contains(document.activeElement);
 
+/*
+ * Die Zuordnung steht in der Konfiguration, die Messwerte im Zustand. Der
+ * Zustand folgt einer Änderung erst mit der nächsten Leserunde, also bis zu
+ * eine Sekunde später — würde die Auswahl daraus gespeist, spränge sie
+ * unmittelbar nach dem Speichern noch einmal auf „nicht zugeordnet" zurück.
+ */
+const probeCfg = rom => (cfg?.probes || []).find(p => p.rom === rom) || {};
+
 function roleOptions(sel, own) {
-  const vergeben = new Set((state.probes || []).filter(p => p.rom !== own && p.role)
-                                               .map(p => p.role));
+  const vergeben = new Set((cfg?.probes || []).filter(p => p.rom !== own && p.role)
+                                              .map(p => p.role));
   let html = `<option value=""${sel ? "" : " selected"}>— nicht zugeordnet —</option>`;
   for (const [key, label] of ROLES) {
     if (vergeben.has(key) && key !== sel) continue;
@@ -925,14 +933,18 @@ function renderProbes() {
     const d = p.delta30_c;
     const warm = d !== null && Math.abs(d) >= 0.4;
     const pfeil = d === null ? "" : (d > 0 ? "up" : (d < 0 ? "down" : ""));
+    const c = probeCfg(p.rom);
+    const rolle = c.role ?? p.role;
+    const bez = c.name ?? p.name ?? "";
+    const korrektur = c.offset_k ?? p.offset_k;
     return `<tr class="${warm ? "warm" : ""}" data-rom="${p.rom}">
       <td class="mono">${p.rom}<br><span class="delta">Bus ${p.bus + 1}</span></td>
       <td class="num">${num(p.temp_c, 2)} °C</td>
       <td class="num"><span class="delta ${pfeil}">${d === null ? "—"
         : (d > 0 ? "+" : "") + num(d, 2)} K</span></td>
-      <td><select data-k="role">${roleOptions(p.role, p.rom)}</select></td>
-      <td><input data-k="name" value="${p.name || ""}" maxlength="31" size="14"></td>
-      <td><input type="number" data-k="offset_k" value="${p.offset_k.toFixed(1)}"
+      <td><select data-k="role">${roleOptions(rolle, p.rom)}</select></td>
+      <td><input data-k="name" value="${bez}" maxlength="31" size="14"></td>
+      <td><input type="number" data-k="offset_k" value="${korrektur.toFixed(1)}"
                  step="0.1" min="-20" max="20" style="width:5rem"></td>
       <td class="num">${p.errors}</td></tr>`;
   }).join("");
@@ -1261,7 +1273,8 @@ function renderWizard() {
             <span class="delta ${p.delta30_c > 0 ? "up" : p.delta30_c < 0 ? "down" : ""}">
             ${p.delta30_c === null ? "" : (p.delta30_c > 0 ? "+" : "") + num(p.delta30_c, 1) + " K"}
             </span></b><span>${p.rom}</span></div>
-          <select data-k="role">${roleOptions(p.role, p.rom)}</select></div>`).join("")
+          <select data-k="role">${roleOptions(probeCfg(p.rom).role ?? p.role, p.rom)}
+          </select></div>`).join("")
         : `<p class="lede"><b>Am Bus meldet sich kein Fühler.</b> Prüfen Sie den Anschluss
            und die Belegung unter System; ohne Fühler lässt sich die Einrichtung dennoch
            abschließen.</p>`);
