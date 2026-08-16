@@ -585,10 +585,15 @@ Ventil offen ist. Das Repository trägt dafür eine zweite Anwendung unter
 [`apps/heatsource/`](apps/heatsource/), die sich die Komponenten mit der Verteiler-Firmware
 teilt.
 
-Umgesetzt ist die erste Stufe: Fühlererfassung mit Zuordnung über die Weboberfläche,
-Anlagenschema, Verlauf über 24 Stunden und gegenseitiges Auffinden der Geräte. Bedarfsabfrage
-bei den Verteilern, Pumpensteuerung über ein Tasmota-Relais, Brennererkennung und Ladezustand
-folgen.
+Umgesetzt sind Fühlererfassung mit Zuordnung über die Weboberfläche, Anlagenschema, Verlauf über
+24 Stunden, Bedarfsabfrage bei den Verteilern, Pumpensteuerung über ein Tasmota-Relais (über MQTT
+oder unmittelbar über HTTP), Brennererkennung mit Tagesstatistik und Verbrauchsschätzung,
+Aufzeichnung einer Ladung als CSV sowie die Beurteilung des Ladezustands. Die Zahl der
+Heizkreise ist nicht festgelegt; vorgesehen sind bis zu vier.
+
+Erprobt ist bislang der Teil, für den keine Fühler nötig sind: Bedarfsabfrage, Pumpenlogik,
+gegenseitiges Auffinden und die Oberfläche. Alles, was Messwerte braucht, wartet auf den Anschluss
+der Fühler.
 
 - [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](docs/konzept-waermeerzeuger.md)
   — Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Schnittstellen

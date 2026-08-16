@@ -109,6 +109,13 @@ void cfg_defaults(app_config_t *out)
     out->burner.off_hold_s = 300;
     out->burner.duese_l_h = 2.2f;
 
+    out->buffer.spread_full_k = 8.0f;
+    out->buffer.spread_hold_s = 300;
+    out->buffer.voll_c = 62.0f;
+    out->buffer.leer_c = 35.0f;
+    out->buffer.warn_c = 40.0f;
+    out->buffer.kessel_hot_c = 60.0f;
+
     out->reboot_hour = -1; /* Heizungsgeraete laufen durch */
     out->reboot_minute = 0;
     copy_str(out->timezone, sizeof(out->timezone), "CET-1CEST,M3.5.0,M10.5.0/3");
@@ -220,6 +227,12 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
     }
     if (cfg->burner.duese_l_h < 0.0f || cfg->burner.duese_l_h > 20.0f) {
         FEHLER("Duesendurchsatz muss zwischen 0 und 20 Litern je Stunde liegen");
+    }
+    if (cfg->buffer.voll_c <= cfg->buffer.leer_c) {
+        FEHLER("Der Wert fuer \"voll\" muss ueber dem fuer \"leer\" liegen");
+    }
+    if (cfg->buffer.spread_full_k < 1.0f || cfg->buffer.spread_full_k > 40.0f) {
+        FEHLER("Die Spreizung fuer \"geladen\" muss zwischen 1 und 40 K liegen");
     }
     if (cfg->demand_poll_s < 1 || cfg->demand_poll_s > 300) {
         FEHLER("Abfrage der Verteiler muss zwischen 1 und 300 Sekunden liegen");
@@ -400,6 +413,14 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(b, "on_hold_s", cfg->burner.on_hold_s);
     cJSON_AddNumberToObject(b, "off_hold_s", cfg->burner.off_hold_s);
     cJSON_AddNumberToObject(b, "duese_l_h", cfg->burner.duese_l_h);
+
+    cJSON *sp = cJSON_AddObjectToObject(root, "buffer");
+    cJSON_AddNumberToObject(sp, "spread_full_k", cfg->buffer.spread_full_k);
+    cJSON_AddNumberToObject(sp, "spread_hold_s", cfg->buffer.spread_hold_s);
+    cJSON_AddNumberToObject(sp, "voll_c", cfg->buffer.voll_c);
+    cJSON_AddNumberToObject(sp, "leer_c", cfg->buffer.leer_c);
+    cJSON_AddNumberToObject(sp, "warn_c", cfg->buffer.warn_c);
+    cJSON_AddNumberToObject(sp, "kessel_hot_c", cfg->buffer.kessel_hot_c);
 
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
     cJSON_AddNumberToObject(root, "reboot_minute", cfg->reboot_minute);
@@ -610,6 +631,19 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         out->burner.on_hold_s = (uint16_t)json_num(b, "on_hold_s", out->burner.on_hold_s);
         out->burner.off_hold_s = (uint16_t)json_num(b, "off_hold_s", out->burner.off_hold_s);
         out->burner.duese_l_h = (float)json_num(b, "duese_l_h", out->burner.duese_l_h);
+    }
+
+    const cJSON *sp = cJSON_GetObjectItemCaseSensitive(root, "buffer");
+    if (cJSON_IsObject(sp)) {
+        out->buffer.spread_full_k =
+            (float)json_num(sp, "spread_full_k", out->buffer.spread_full_k);
+        out->buffer.spread_hold_s =
+            (uint16_t)json_num(sp, "spread_hold_s", out->buffer.spread_hold_s);
+        out->buffer.voll_c = (float)json_num(sp, "voll_c", out->buffer.voll_c);
+        out->buffer.leer_c = (float)json_num(sp, "leer_c", out->buffer.leer_c);
+        out->buffer.warn_c = (float)json_num(sp, "warn_c", out->buffer.warn_c);
+        out->buffer.kessel_hot_c =
+            (float)json_num(sp, "kessel_hot_c", out->buffer.kessel_hot_c);
     }
 
     out->reboot_hour = (int8_t)json_num(root, "reboot_hour", out->reboot_hour);

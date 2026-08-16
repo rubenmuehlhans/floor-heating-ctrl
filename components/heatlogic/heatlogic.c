@@ -314,3 +314,124 @@ void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, 
         }
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* Ladezustand des Pufferspeichers                                     */
+/* ------------------------------------------------------------------ */
+
+void charge_defaults(charge_cfg_t *cfg)
+{
+    cfg->spread_full_k = 8.0f;
+    cfg->spread_hold_s = 300;
+    cfg->voll_c = 62.0f;
+    cfg->leer_c = 35.0f;
+    cfg->warn_c = 40.0f;
+    cfg->kessel_hot_c = 60.0f;
+}
+
+void charge_init(charge_state_t *st)
+{
+    memset(st, 0, sizeof(*st));
+}
+
+const char *charge_phase_text(charge_phase_t p)
+{
+    switch (p) {
+    case CHARGE_IDLE:
+        return "keine Ladung";
+    case CHARGE_LOADING:
+        return "wird geladen";
+    case CHARGE_FULL:
+        return "geladen";
+    default:
+        return "unbekannt";
+    }
+}
+
+static void charge_set(charge_state_t *st, charge_phase_t p, uint32_t now_ms)
+{
+    if (st->phase != p) {
+        st->phase = p;
+        st->since_ms = now_ms;
+    }
+}
+
+void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input_t *in,
+                 uint32_t now_ms)
+{
+    if (!st->started) {
+        st->started = true;
+        st->since_ms = now_ms;
+        st->cond_since_ms = now_ms;
+    }
+
+    /* Schaetzung aus dem Pufferfuehler. */
+    st->level_valid = in->puffer_valid;
+    if (in->puffer_valid) {
+        float spanne = cfg->voll_c - cfg->leer_c;
+        float v = spanne > 0.1f ? (in->puffer_c - cfg->leer_c) / spanne : 0.0f;
+        st->level = v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+        st->warn_dhw = in->puffer_c < cfg->warn_c;
+    } else {
+        st->level = 0.0f;
+        st->warn_dhw = false;
+    }
+
+    st->spread_valid = in->kessel_valid;
+    st->spread_k = in->kessel_valid ? in->kessel_vl_c - in->kessel_rl_c : 0.0f;
+
+    /* Ohne Kesselwerte oder ohne Brennerzustand bleibt nur die Schaetzung. */
+    st->limited = !in->kessel_valid || !in->burner_known;
+
+    if (st->limited) {
+        /* Die Phase laesst sich dann nicht bestimmen; der Fuellstand steht
+         * trotzdem. Ein einmal erreichtes "geladen" bleibt stehen, bis der
+         * Speicher merklich abkuehlt -- sonst spraenge die Anzeige, sobald das
+         * andere Geraet kurz nicht antwortet. */
+        if (st->phase == CHARGE_FULL && st->level_valid && st->level < 0.85f) {
+            charge_set(st, CHARGE_IDLE, now_ms);
+        } else if (st->phase == CHARGE_UNKNOWN) {
+            charge_set(st, CHARGE_UNKNOWN, now_ms);
+        }
+        st->last_burner_running = in->burner_running;
+        return;
+    }
+
+    st->had_burner = true;
+
+    if (in->burner_running) {
+        /*
+         * Der Ruecklauf naehert sich dem Vorlauf: der Speicher nimmt keine
+         * Waerme mehr auf. Die Haltezeit trennt das vom kurzen Angleichen
+         * beim Anfahren, wenn der ganze Kessel noch kalt ist.
+         */
+        bool eng = st->spread_k < cfg->spread_full_k;
+        if (eng != st->cond) {
+            st->cond = eng;
+            st->cond_since_ms = now_ms;
+        }
+        if (eng && (now_ms - st->cond_since_ms) >= cfg->spread_hold_s * 1000UL) {
+            charge_set(st, CHARGE_FULL, now_ms);
+        } else if (st->phase != CHARGE_FULL) {
+            charge_set(st, CHARGE_LOADING, now_ms);
+        }
+    } else {
+        /*
+         * Schaltet der Brenner bei hohem Vorlauf von selbst ab, hat die
+         * Regelung des Kessels die Ladung fuer beendet erklaert.
+         */
+        if (st->last_burner_running && in->kessel_vl_c > cfg->kessel_hot_c) {
+            charge_set(st, CHARGE_FULL, now_ms);
+        } else if (st->phase != CHARGE_FULL) {
+            charge_set(st, CHARGE_IDLE, now_ms);
+        }
+        /* "Geladen" haelt, bis der Speicher merklich abgibt. */
+        if (st->phase == CHARGE_FULL && st->level_valid && st->level < 0.85f) {
+            charge_set(st, CHARGE_IDLE, now_ms);
+        }
+        st->cond = false;
+        st->cond_since_ms = now_ms;
+    }
+
+    st->last_burner_running = in->burner_running;
+}

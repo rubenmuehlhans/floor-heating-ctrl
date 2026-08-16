@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import FloorHeatingApi, FloorHeatingError
-from .const import CONF_HOST, DOMAIN
+from .const import CONF_HOST, DOMAIN, ROLE_HEAT
 
 SCHEMA = vol.Schema({vol.Required(CONF_HOST): str})
 
@@ -44,8 +44,10 @@ class FloorHeatingConfigFlow(ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(device_id)
                     self._abort_if_unique_id_configured(updates={CONF_HOST: host})
                     site = device.get("site") or host
+                    art = ("Wärmeerzeuger" if device.get("role") == ROLE_HEAT
+                           else "Fußbodenheizung")
                     return self.async_create_entry(
-                        title=f"Fußbodenheizung {site}".strip(),
+                        title=f"{art} {site}".strip(),
                         data={CONF_HOST: host},
                     )
 

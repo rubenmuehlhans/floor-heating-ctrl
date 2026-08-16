@@ -4,7 +4,9 @@
 #include <string.h>
 
 #include "app_burner.h"
+#include "app_mqtt.h"
 #include "app_pumps.h"
+#include "app_remote.h"
 #include "app_sensors.h"
 #include "cJSON.h"
 #include "config_store.h"
@@ -348,6 +350,41 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddNumberToObject(cb, "litres_today", br.litres_today);
     cJSON_AddBoolToObject(cb, "short_cycling", br.short_cycling);
 
+    charge_status_t ch;
+    charge_get(&ch);
+    cJSON *cc = cJSON_AddObjectToObject(root, "charge");
+    cJSON_AddStringToObject(cc, "phase", charge_phase_text(ch.phase));
+    cJSON_AddBoolToObject(cc, "limited", ch.limited);
+    cJSON_AddBoolToObject(cc, "warn_dhw", ch.warn_dhw);
+    cJSON_AddBoolToObject(cc, "kessel_remote", ch.kessel_remote);
+    cJSON_AddNumberToObject(cc, "since_s", ch.since_s);
+    if (ch.level_valid) {
+        cJSON_AddNumberToObject(cc, "level", ch.level);
+    } else {
+        cJSON_AddNullToObject(cc, "level");
+    }
+    if (ch.spread_valid) {
+        cJSON_AddNumberToObject(cc, "spread_k", ch.spread_k);
+    } else {
+        cJSON_AddNullToObject(cc, "spread_k");
+    }
+
+    /* Nachbargeraete im Heizungsbereich. */
+    static remote_peer_t rp[4];
+    size_t rn = remote_peers(rp, 4);
+    cJSON *cn = cJSON_AddArrayToObject(root, "heat_peers");
+    for (size_t i = 0; i < rn; i++) {
+        cJSON *j = cJSON_CreateObject();
+        cJSON_AddStringToObject(j, "id", rp[i].id);
+        cJSON_AddStringToObject(j, "site", rp[i].site);
+        cJSON_AddStringToObject(j, "host", rp[i].host);
+        cJSON_AddBoolToObject(j, "seen", rp[i].seen);
+        cJSON_AddNumberToObject(j, "age_s", rp[i].age_s);
+        cJSON_AddNumberToObject(j, "roles", rp[i].roles);
+        cJSON_AddNumberToObject(j, "errors", rp[i].errors);
+        cJSON_AddItemToArray(cn, j);
+    }
+
     rec_status_t rec;
     rec_get_status(&rec);
     cJSON *cr = cJSON_AddObjectToObject(root, "record");
@@ -399,6 +436,17 @@ static esp_err_t measurements_get(httpd_req_t *req)
         cJSON_AddNumberToObject(j, "age_s", p->age_s);
         cJSON_AddItemToArray(arr, j);
     }
+
+    /* Der Brennerzustand gehoert dazu: das Geraet am Speicher braucht ihn fuer
+     * die Ladeerkennung und kann ihn selbst nicht messen. */
+    burner_status_t br;
+    burner_get(&br);
+    cJSON *b = cJSON_AddObjectToObject(root, "burner");
+    cJSON_AddBoolToObject(b, "known", br.known);
+    cJSON_AddBoolToObject(b, "running", br.running);
+    cJSON_AddNumberToObject(b, "runtime_today_s", br.runtime_today_s);
+    cJSON_AddNumberToObject(b, "starts_today", br.starts_today);
+
     return send_json_obj(req, root);
 }
 
@@ -534,6 +582,7 @@ static esp_err_t config_put(httpd_req_t *req)
     sensors_config_changed();
     pumps_config_changed();
     burner_config_changed();
+    hamqtt_config_changed();
     peers_update_identity(next.wifi.hostname, next.site);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Fuehler zugeordnet", next.probe_count);
 

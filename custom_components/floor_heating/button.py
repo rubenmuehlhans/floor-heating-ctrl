@@ -20,10 +20,11 @@ async def async_setup_entry(
     state = coordinator.data or {}
 
     entities: list[ButtonEntity] = [FloorHeatingRestartButton(coordinator)]
-    for room in state.get("rooms", []):
-        entities.append(FloorHeatingCheckNowButton(coordinator, room["id"]))
-    for ch in state.get("channels", []):
-        entities.append(FloorHeatingReleaseButton(coordinator, ch["id"]))
+    if not coordinator.is_heat:
+        for room in state.get("rooms", []):
+            entities.append(FloorHeatingCheckNowButton(coordinator, room["id"]))
+        for ch in state.get("channels", []):
+            entities.append(FloorHeatingReleaseButton(coordinator, ch["id"]))
 
     async_add_entities(entities)
 

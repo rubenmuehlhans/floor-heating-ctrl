@@ -249,6 +249,11 @@ tr.warm td{background:var(--heat-soft)}
 .legend button.on i{background:var(--c)}
 .legend button:not(.on){opacity:.55}
 a.btn{text-decoration:none}
+.track{height:8px; background:var(--sunken); border:1px solid var(--line);
+  border-radius:99px; overflow:hidden}
+.track>i{display:block; height:100%; background:var(--accent);
+  transition:width .6s cubic-bezier(.4,0,.2,1)}
+.track.hot>i{background:var(--heat)}
 
 /* ---------------- Einrichtung ---------------- */
 
@@ -336,6 +341,13 @@ a.btn{text-decoration:none}
       <p class="lede">Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen
          dort, wo der Fühler sitzt. Blass dargestellte Werte misst ein anderes Gerät.</p>
       <div class="schema" id="schema"></div>
+    </div>
+    <div class="card" id="charge-card" hidden>
+      <h2>Pufferspeicher</h2>
+      <p class="lede">Der Füllstand ist eine Schätzung aus dem Pufferfühler. Ob eine Ladung
+         läuft und wann sie fertig ist, ergibt sich aus Brennerzustand und Kesselspreizung —
+         nähert sich der Rücklauf dem Vorlauf, nimmt der Speicher keine Wärme mehr auf.</p>
+      <div id="charge-body"></div>
     </div>
     <div class="card" id="burner-card" hidden>
       <h2>Brenner</h2>
@@ -650,9 +662,9 @@ function renderSchema() {
   const L = (text, x, y, anchor = "middle") =>
     `<text class="sc-label" x="${x}" y="${y}" text-anchor="${anchor}">${text}</text>`;
 
-  /* Füllstand nur als grobe Andeutung zwischen 30 und 65 Grad. */
-  const puffer = valueOf("puffer");
-  const anteil = puffer ? Math.max(0, Math.min(1, (puffer.c - 30) / 35)) : 0;
+  /* Der Füllstand kommt vom Gerät -- dieselbe Schätzung wie in der Karte
+     darunter, damit nicht zwei Rechnungen nebeneinander stehen. */
+  const anteil = state?.charge?.level ?? 0;
 
   /*
    * Die Zahl der Heizkreise steht nicht fest. Gezeichnet werden die
@@ -715,6 +727,40 @@ function renderSchema() {
   ${M("puffer_unten", 304, tankUnten - 44)}
   ${kreisTeile}
 </svg>`;
+}
+
+/* ---------------- Ladezustand ---------------- */
+
+function renderCharge() {
+  const c = state.charge;
+  const karte = $("#charge-card");
+  /* Ohne Pufferfühler und ohne Kesselwerte gibt es nichts zu beurteilen. */
+  karte.hidden = !c || (c.level === null && c.spread_k === null);
+  if (karte.hidden) return;
+
+  const marken = [];
+  if (c.limited) marken.push(`<span class="chip warn">nur Schätzung, Kesselwerte fehlen</span>`);
+  if (c.kessel_remote) marken.push(`<span class="chip plain">Kesselwerte vom Nachbargerät</span>`);
+  if (c.warn_dhw) marken.push(`<span class="chip bad">Warmwasserreserve knapp</span>`);
+
+  const prozent = c.level === null ? null : Math.round(c.level * 100);
+
+  $("#charge-body").innerHTML = `
+    <div class="pump-state">
+      <i class="pump-dot ${c.phase === "wird geladen" ? "on" : ""}"></i>
+      <div><b>${c.phase}</b><span>seit ${formatUptime(c.since_s)}</span></div>
+    </div>
+    ${marken.length ? `<div class="row" style="margin-bottom:.9rem">${marken.join("")}</div>` : ""}
+    <dl class="tiles">
+      <div class="tile ${prozent === null ? "off" : "hot"}"><dt>Füllstand</dt>
+        <dd>${prozent === null ? "—" : prozent}<small>%</small></dd>
+        <div class="foot">geschätzt aus dem Pufferfühler</div></div>
+      <div class="tile ${c.spread_k === null ? "off" : ""}"><dt>Spreizung Kessel</dt>
+        <dd>${num(c.spread_k, 1)}<small>K</small></dd>
+        <div class="foot">Vorlauf minus Rücklauf</div></div>
+    </dl>
+    ${prozent === null ? "" : `<div class="track hot" style="margin-top:.9rem">
+      <i style="width:${prozent}%"></i></div>`}`;
 }
 
 /* ---------------- Brenner ---------------- */
@@ -1264,6 +1310,7 @@ async function poll() {
     state = await api("/api/state");
     renderStatus();
     renderSchema();
+    renderCharge();
     renderBurner();
     renderTiles();
     renderCircuits();

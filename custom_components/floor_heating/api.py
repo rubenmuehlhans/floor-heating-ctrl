@@ -91,6 +91,13 @@ class FloorHeatingApi:
             raise FloorHeatingError("Unerwartete Antwort auf /api/config")
         return body
 
+    async def async_get_demand(self) -> dict[str, Any]:
+        """Waermebedarf einer Verteilerplatine."""
+        _, body, _ = await self._request("GET", "/api/demand")
+        if not isinstance(body, dict):
+            raise FloorHeatingError("Unerwartete Antwort auf /api/demand")
+        return body
+
     # -- Räume ---------------------------------------------------------
 
     async def async_set_room_target(self, room_id: int, target_c: float) -> None:
@@ -125,6 +132,25 @@ class FloorHeatingApi:
 
     async def async_calibrate_abort(self) -> None:
         await self._request("POST", "/api/calib/abort", json={})
+
+    # -- Heizungsgeraet ------------------------------------------------
+
+    async def async_get_measurements(self) -> dict[str, Any]:
+        """Schlanke Auskunft: Messstellen und Brennerzustand."""
+        _, body, _ = await self._request("GET", "/api/measurements")
+        if not isinstance(body, dict):
+            raise FloorHeatingError("Unerwartete Antwort auf /api/measurements")
+        return body
+
+    async def async_set_pump_mode(self, circuit_id: int, mode: str) -> None:
+        """Betriebsart eines Heizkreises: auto, ein oder aus."""
+        await self._request("POST", f"/api/circuit/{circuit_id}/mode", json={"mode": mode})
+
+    async def async_record_start(self) -> None:
+        await self._request("POST", "/api/record/start", json={})
+
+    async def async_record_stop(self) -> None:
+        await self._request("POST", "/api/record/stop", json={})
 
     # -- System --------------------------------------------------------
 

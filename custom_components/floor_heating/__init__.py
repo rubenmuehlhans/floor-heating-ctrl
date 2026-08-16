@@ -25,11 +25,20 @@ from .const import (
 )
 from .coordinator import FloorHeatingCoordinator
 
-PLATFORMS: list[Platform] = [
+# Die Verteilerplatine bringt Ventile und Räume mit, das Heizungsgerät statt
+# dessen Pumpen und Messstellen. Beide teilen sich Diagnose und Neustart.
+PLATFORMS_MANIFOLD: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.CLIMATE,
     Platform.COVER,
+    Platform.SENSOR,
+]
+
+PLATFORMS_HEAT: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.SELECT,
     Platform.SENSOR,
 ]
 
@@ -49,15 +58,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    platforms = PLATFORMS_HEAT if coordinator.is_heat else PLATFORMS_MANIFOLD
+    entry.runtime_data = platforms
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
 
-    _register_services(hass)
+    # Die Dienste betreffen Ventile und Messfahrten; ohne Verteilerplatine
+    # gibt es nichts, worauf sie wirken koennten.
+    if not coordinator.is_heat:
+        _register_services(hass)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Gerät entfernen."""
-    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    platforms = getattr(entry, "runtime_data", None) or PLATFORMS_MANIFOLD
+    unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id)
         if not hass.data[DOMAIN]:

@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN, MANUFACTURER, ROLE_HEAT
 from .coordinator import FloorHeatingCoordinator
 
 
@@ -23,13 +23,15 @@ class FloorHeatingEntity(CoordinatorEntity[FloorHeatingCoordinator]):
         self._attr_unique_id = f"{self._device_id}_{key}"
 
         site = dev.get("site") or ""
-        name = f"Fußbodenheizung {site}".strip()
+        heizung = dev.get("role") == ROLE_HEAT
+        name = (f"Wärmeerzeuger {site}" if heizung else f"Fußbodenheizung {site}").strip()
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self._device_id)},
             name=name,
             manufacturer=MANUFACTURER,
-            model=dev.get("model") or "ESP32 Ventilsteuerung",
+            model=dev.get("model")
+            or ("ESP32 Heizungserfassung" if heizung else "ESP32 Ventilsteuerung"),
             sw_version=(coordinator.data or {}).get("version"),
             configuration_url=f"http://{coordinator.api.host}/",
             connections=(

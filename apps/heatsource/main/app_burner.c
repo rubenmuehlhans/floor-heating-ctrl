@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "app_remote.h"
 #include "app_sensors.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -34,6 +35,9 @@ typedef struct {
 
 static burner_cfg_t s_cfg;
 static burner_state_t s_st;
+static charge_cfg_t s_ccfg;
+static charge_state_t s_cst;
+static bool s_kessel_remote;
 static stats_t s_stats;
 static SemaphoreHandle_t s_mtx;
 static volatile bool s_cfg_dirty;
@@ -121,14 +125,13 @@ esp_err_t rec_start(void)
     static sens_snapshot_t snap;
     sensors_get(&snap);
 
+    (void)snap;
     probe_role_t rollen[ROLE_COUNT];
     uint8_t n = 0;
     for (int r = 1; r < ROLE_COUNT; r++) {
-        for (size_t i = 0; i < snap.count; i++) {
-            if (snap.probes[i].role == (probe_role_t)r) {
-                rollen[n++] = (probe_role_t)r;
-                break;
-            }
+        float wert = 0.0f;
+        if (any_role_value((probe_role_t)r, &wert, NULL)) {
+            rollen[n++] = (probe_role_t)r;
         }
     }
     if (n == 0) {
@@ -213,18 +216,18 @@ static void rec_append(const sens_snapshot_t *snap)
     int16_t *row = &s_rec[(size_t)s_rec_len * s_rec_cols];
     for (uint8_t c = 0; c < s_rec_cols; c++) {
         row[c] = SENS_HIST_NONE;
-        for (size_t i = 0; i < snap->count; i++) {
-            const sens_probe_t *p = &snap->probes[i];
-            if (p->role != s_rec_role[c] || !p->valid) {
-                continue;
-            }
-            float v = p->temp_c * 10.0f;
+        /* Erst der eigene Fuehler, dann der des Nachbargeraets: eine
+         * Aufzeichnung soll die ganze Anlage zeigen, nicht nur die Haelfte,
+         * die an diesem Geraet haengt. */
+        float wert = 0.0f;
+        if (any_role_value(s_rec_role[c], &wert, NULL)) {
+            float v = wert * 10.0f;
             if (v <= 32000.0f && v >= -32000.0f) {
                 row[c] = (int16_t)lroundf(v);
             }
-            break;
         }
     }
+    (void)snap;
     s_rec_len++;
 }
 
@@ -242,6 +245,12 @@ static void apply_config(void)
     s_cfg.on_hold_s = cfg.burner.on_hold_s;
     s_cfg.off_hold_s = cfg.burner.off_hold_s;
     s_cfg.duese_l_h = cfg.burner.duese_l_h;
+    s_ccfg.spread_full_k = cfg.buffer.spread_full_k;
+    s_ccfg.spread_hold_s = cfg.buffer.spread_hold_s;
+    s_ccfg.voll_c = cfg.buffer.voll_c;
+    s_ccfg.leer_c = cfg.buffer.leer_c;
+    s_ccfg.warn_c = cfg.buffer.warn_c;
+    s_ccfg.kessel_hot_c = cfg.buffer.kessel_hot_c;
     xSemaphoreGive(s_mtx);
 }
 
@@ -272,6 +281,32 @@ static void burner_task(void *arg)
 
         xSemaphoreTake(s_mtx, portMAX_DELAY);
         burner_tick(&s_st, &s_cfg, gueltig, abgas, t);
+        xSemaphoreGive(s_mtx);
+
+        /*
+         * Ladezustand. Die Kesselwerte kommen vom eigenen Fuehler, wenn dieses
+         * Geraet am Kessel sitzt, sonst vom Nachbargeraet. Der Brennerzustand
+         * ebenso.
+         */
+        charge_input_t cin = {0};
+        bool eigen_vl = false, eigen_rl = false;
+        bool vl = any_role_value(ROLE_KESSEL_VL, &cin.kessel_vl_c, &eigen_vl);
+        bool rl = any_role_value(ROLE_KESSEL_RL, &cin.kessel_rl_c, &eigen_rl);
+        cin.kessel_valid = vl && rl;
+        cin.puffer_valid = sensors_role_value(ROLE_PUFFER, &cin.puffer_c, NULL);
+
+        if (gueltig) {
+            cin.burner_known = s_st.known;
+            cin.burner_running = s_st.running;
+        } else {
+            bool laeuft = false;
+            cin.burner_known = remote_burner(&laeuft);
+            cin.burner_running = laeuft;
+        }
+
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        s_kessel_remote = cin.kessel_valid && !(eigen_vl && eigen_rl);
+        charge_tick(&s_cst, &s_ccfg, &cin, t);
         xSemaphoreGive(s_mtx);
 
         /* Tageswechsel. Ohne gestellte Uhr wird nicht umgeschaltet -- sonst
@@ -329,6 +364,8 @@ esp_err_t burner_start(void)
     }
     burner_defaults(&s_cfg);
     burner_init(&s_st);
+    charge_defaults(&s_ccfg);
+    charge_init(&s_cst);
     s_stats.tag = -1;
 
     if (xTaskCreate(burner_task, "burner", 4096, NULL, 3, NULL) != pdPASS) {
@@ -363,5 +400,24 @@ void burner_get(burner_status_t *out)
     out->short_cycling = s_st.starts_today >= TAKT_STARTS &&
                          s_st.runtime_today_s / (s_st.starts_today ? s_st.starts_today : 1) <
                              TAKT_LAUF_S;
+    xSemaphoreGive(s_mtx);
+}
+
+void charge_get(charge_status_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    if (s_mtx == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    out->phase = s_cst.phase;
+    out->limited = s_cst.limited;
+    out->level_valid = s_cst.level_valid;
+    out->level = s_cst.level;
+    out->warn_dhw = s_cst.warn_dhw;
+    out->spread_valid = s_cst.spread_valid;
+    out->spread_k = s_cst.spread_k;
+    out->since_s = s_cst.started ? (now_ms() - s_cst.since_ms) / 1000 : 0;
+    out->kessel_remote = s_kessel_remote;
     xSemaphoreGive(s_mtx);
 }

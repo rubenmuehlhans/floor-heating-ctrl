@@ -1,7 +1,9 @@
 idf_component_register(SRCS
                            "main.c"
                            "app_burner.c"
+                           "app_mqtt.c"
                            "app_pumps.c"
+                           "app_remote.c"
                            "app_sensors.c"
                            "app_web.c"
                        INCLUDE_DIRS "."

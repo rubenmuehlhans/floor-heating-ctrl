@@ -192,6 +192,75 @@ float burner_litres_today(const burner_state_t *st, const burner_cfg_t *cfg);
 /* Tageswechsel: Laufzeit und Starts zuruecksetzen. */
 void burner_new_day(burner_state_t *st);
 
+/*
+ * Ladezustand des Pufferspeichers.
+ *
+ * Mit einem einzigen, ungeschickt sitzenden Fuehler ist keine belastbare
+ * Aussage moeglich, und der Mischer verhindert, dass die Heizkreisfuehler
+ * ergaenzend herangezogen werden koennen. Ausgewertet wird deshalb zweierlei:
+ *
+ *   - Der Kessel. Waehrend der Ladung ist der Ruecklauf kalt; naehert er sich
+ *     dem Vorlauf, nimmt der Speicher keine Waerme mehr auf. Ebenso, wenn der
+ *     Brenner bei hohem Vorlauf von selbst abschaltet -- dann hat die eigene
+ *     Regelung des Kessels entschieden.
+ *   - Der Pufferfuehler. Er liefert eine lineare Schaetzung zwischen leer und
+ *     voll. Sie wird ausdruecklich als Schaetzung ausgewiesen.
+ *
+ * Fehlen die Kesselwerte, weil das Geraet am Kessel nicht erreichbar ist,
+ * bleibt nur die Schaetzung. Das meldet limited.
+ */
+typedef struct {
+    float spread_full_k;    /* darunter gilt der Speicher als voll */
+    uint32_t spread_hold_s; /* so lange muss die Bedingung anhalten */
+    float voll_c;           /* Pufferwert, der 100 Prozent entspricht */
+    float leer_c;           /* Pufferwert, der 0 Prozent entspricht */
+    float warn_c;           /* darunter wird das Warmwasser knapp */
+    float kessel_hot_c;     /* darueber gilt der Kesselvorlauf als heiss */
+} charge_cfg_t;
+
+typedef enum {
+    CHARGE_UNKNOWN = 0,
+    CHARGE_IDLE,    /* Brenner aus, keine Ladung im Gange */
+    CHARGE_LOADING, /* Brenner laeuft, der Speicher nimmt auf */
+    CHARGE_FULL,    /* fertig geladen */
+} charge_phase_t;
+
+typedef struct {
+    bool burner_known;
+    bool burner_running;
+    bool kessel_valid;
+    float kessel_vl_c;
+    float kessel_rl_c;
+    bool puffer_valid;
+    float puffer_c;
+} charge_input_t;
+
+typedef struct {
+    charge_phase_t phase;
+    bool limited;      /* ohne Kesselwerte nur die Schaetzung */
+    bool level_valid;
+    float level;       /* 0 bis 1 */
+    bool warn_dhw;     /* Warmwasserreserve knapp */
+    bool spread_valid;
+    float spread_k;
+    uint32_t since_ms; /* letzter Wechsel der Phase */
+
+    /* Innere Groessen. */
+    bool started;
+    bool cond;
+    uint32_t cond_since_ms;
+    bool last_burner_running;
+    bool had_burner;
+} charge_state_t;
+
+/* Vorgabe: 8 K Spreizung, 5 min Haltezeit, 62/35 Grad, Warnung unter 40,
+ * Kesselvorlauf ab 60 Grad als heiss. */
+void charge_defaults(charge_cfg_t *cfg);
+void charge_init(charge_state_t *st);
+void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input_t *in,
+                 uint32_t now_ms);
+const char *charge_phase_text(charge_phase_t p);
+
 #ifdef __cplusplus
 }
 #endif

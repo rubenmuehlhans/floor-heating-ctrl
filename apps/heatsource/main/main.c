@@ -13,7 +13,9 @@
  */
 
 #include "app_burner.h"
+#include "app_mqtt.h"
 #include "app_pumps.h"
+#include "app_remote.h"
 #include "app_sensors.h"
 #include "app_web.h"
 #include "config_store.h"
@@ -73,16 +75,24 @@ void app_main(void)
             .lwt_msg = "offline",
             .online_msg = "online",
         };
-        if (mqttc_start(&mc, NULL, NULL) != ESP_OK) {
+        if (mqttc_start(&mc, hamqtt_on_connected(), NULL) != ESP_OK) {
             ESP_LOGW(TAG, "MQTT liess sich nicht starten");
         }
     }
 
+    /* Messwerte des anderen Heizungsgeraets. Ohne sie laeuft alles weiter,
+     * nur der Ladezustand bleibt eine Schaetzung aus dem Pufferfuehler. */
+    if (remote_start() != ESP_OK) {
+        ESP_LOGW(TAG, "Abfrage des Nachbargeraets nicht verfuegbar");
+    }
     if (burner_start() != ESP_OK) {
         ESP_LOGW(TAG, "Brennererkennung nicht verfuegbar");
     }
     if (pumps_start() != ESP_OK) {
         ESP_LOGW(TAG, "Pumpensteuerung nicht verfuegbar");
+    }
+    if (cfg.mqtt.enabled && cfg.mqtt.uri[0] && hamqtt_start() != ESP_OK) {
+        ESP_LOGW(TAG, "Anmeldung bei Home Assistant nicht verfuegbar");
     }
     netmgr_set_reboot_guard(pumps_busy);
 

@@ -694,6 +694,153 @@ static void test_burner_no_probe(void)
     CHECK(!st.running, "und es wird kein Lauf gemeldet");
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Ladezustand des Pufferspeichers                                     */
+/* ------------------------------------------------------------------ */
+
+static uint32_t laden_laufen(charge_state_t *st, const charge_cfg_t *cfg, charge_input_t in,
+                             uint32_t von_ms, uint32_t dauer_s)
+{
+    uint32_t t = von_ms;
+    for (uint32_t i = 0; i < dauer_s; i++) {
+        t += 1000;
+        charge_tick(st, cfg, &in, t);
+    }
+    return t;
+}
+
+/* Kessel heizt: Vorlauf heiss, Ruecklauf noch kalt. */
+static charge_input_t ladung(bool brenner, float vl, float rl, float puffer)
+{
+    charge_input_t in = {0};
+    in.burner_known = true;
+    in.burner_running = brenner;
+    in.kessel_valid = true;
+    in.kessel_vl_c = vl;
+    in.kessel_rl_c = rl;
+    in.puffer_valid = true;
+    in.puffer_c = puffer;
+    return in;
+}
+
+static void test_charge_cycle(void)
+{
+    printf("Ladung: Verlauf einer Kesselladung\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);
+    charge_state_t st;
+    charge_init(&st);
+
+    /* Ruhe: Brenner aus, Speicher halbvoll. */
+    uint32_t t = laden_laufen(&st, &cfg, ladung(false, 45.0f, 44.0f, 48.0f), 1000, 30);
+    CHECK(st.phase == CHARGE_IDLE, "ohne Brenner keine Ladung, nicht %s",
+          charge_phase_text(st.phase));
+    CHECK(!st.limited, "mit Kesselwerten ist die Auswertung vollstaendig");
+
+    /* Brenner an, Ruecklauf kalt: es wird geladen. */
+    t = laden_laufen(&st, &cfg, ladung(true, 72.0f, 45.0f, 50.0f), t, 60);
+    CHECK(st.phase == CHARGE_LOADING, "bei weiter Spreizung wird geladen, nicht %s",
+          charge_phase_text(st.phase));
+    CHECK(CLOSE(st.spread_k, 27.0f, 0.1f), "Spreizung 27 K, nicht %.1f", st.spread_k);
+
+    /* Ruecklauf zieht nach: erst nach der Haltezeit gilt der Speicher als voll. */
+    t = laden_laufen(&st, &cfg, ladung(true, 74.0f, 69.0f, 60.0f), t, cfg.spread_hold_s - 30);
+    CHECK(st.phase == CHARGE_LOADING, "vor Ablauf der Haltezeit noch nicht voll");
+    t = laden_laufen(&st, &cfg, ladung(true, 74.0f, 69.0f, 61.0f), t, 60);
+    CHECK(st.phase == CHARGE_FULL, "nach der Haltezeit ist er geladen, nicht %s",
+          charge_phase_text(st.phase));
+
+    /* Brenner aus, Speicher bleibt warm: geladen haelt. */
+    t = laden_laufen(&st, &cfg, ladung(false, 70.0f, 66.0f, 61.0f), t, 600);
+    CHECK(st.phase == CHARGE_FULL, "nach dem Abschalten bleibt er geladen");
+
+    /* Der Speicher gibt ab: unter 85 Prozent faellt die Anzeige zurueck. */
+    t = laden_laufen(&st, &cfg, ladung(false, 50.0f, 48.0f, 50.0f), t, 60);
+    CHECK(st.phase == CHARGE_IDLE, "beim Entladen faellt er zurueck, nicht %s",
+          charge_phase_text(st.phase));
+}
+
+static void test_charge_burner_decides(void)
+{
+    printf("Ladung: Kessel schaltet selbst ab\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);
+    charge_state_t st;
+    charge_init(&st);
+
+    /* Waehrend der Ladung bleibt die Spreizung weit -- der Kessel schaltet
+     * trotzdem ab, weil seine eigene Regelung die Ladung fuer beendet haelt. */
+    uint32_t t = laden_laufen(&st, &cfg, ladung(true, 75.0f, 55.0f, 58.0f), 1000, 120);
+    CHECK(st.phase == CHARGE_LOADING, "es wird geladen");
+
+    t = laden_laufen(&st, &cfg, ladung(false, 74.0f, 60.0f, 60.0f), t, 30);
+    CHECK(st.phase == CHARGE_FULL, "Abschalten bei heissem Vorlauf gilt als fertig, nicht %s",
+          charge_phase_text(st.phase));
+}
+
+static void test_charge_level(void)
+{
+    printf("Ladung: Fuellstand und Warnung\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);   /* leer 35, voll 62, Warnung 40 */
+    charge_state_t st;
+    charge_init(&st);
+
+    laden_laufen(&st, &cfg, ladung(false, 40.0f, 39.0f, 35.0f), 1000, 5);
+    CHECK(CLOSE(st.level, 0.0f, 0.01f), "35 Grad sind leer, nicht %.2f", st.level);
+    CHECK(st.warn_dhw, "unter 40 Grad wird das Warmwasser knapp");
+
+    laden_laufen(&st, &cfg, ladung(false, 40.0f, 39.0f, 62.0f), 6000, 5);
+    CHECK(CLOSE(st.level, 1.0f, 0.01f), "62 Grad sind voll, nicht %.2f", st.level);
+    CHECK(!st.warn_dhw, "ueber der Warnschwelle keine Meldung");
+
+    laden_laufen(&st, &cfg, ladung(false, 40.0f, 39.0f, 48.5f), 12000, 5);
+    CHECK(CLOSE(st.level, 0.5f, 0.02f), "48,5 Grad sind die Haelfte, nicht %.2f", st.level);
+
+    /* Ausserhalb der Spanne wird begrenzt, nicht extrapoliert. */
+    laden_laufen(&st, &cfg, ladung(false, 40.0f, 39.0f, 80.0f), 18000, 5);
+    CHECK(CLOSE(st.level, 1.0f, 0.01f), "ueber voll bleibt es bei 100 Prozent");
+}
+
+static void test_charge_limited(void)
+{
+    printf("Ladung: ohne Kesselwerte\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);
+    charge_state_t st;
+    charge_init(&st);
+
+    charge_input_t in = {0};
+    in.puffer_valid = true;
+    in.puffer_c = 55.0f;
+    /* kessel_valid und burner_known bleiben falsch */
+
+    uint32_t t = laden_laufen(&st, &cfg, in, 1000, 60);
+    CHECK(st.limited, "ohne Kesselwerte ist die Auswertung eingeschraenkt");
+    CHECK(st.level_valid, "der Fuellstand steht trotzdem");
+    CHECK(CLOSE(st.level, (55.0f - 35.0f) / 27.0f, 0.02f), "Fuellstand aus dem Pufferfuehler");
+    CHECK(st.phase == CHARGE_UNKNOWN, "die Phase bleibt unbekannt, nicht %s",
+          charge_phase_text(st.phase));
+
+    /* War der Speicher zuvor als geladen erkannt, haelt das -- bis er
+     * merklich abkuehlt. Sonst spraenge die Anzeige, sobald das Geraet am
+     * Kessel kurz nicht antwortet. */
+    charge_init(&st);
+    laden_laufen(&st, &cfg, ladung(true, 74.0f, 69.0f, 61.0f), 1000, cfg.spread_hold_s + 30);
+    CHECK(st.phase == CHARGE_FULL, "erst geladen");
+    in.puffer_c = 60.0f;
+    t = laden_laufen(&st, &cfg, in, 400000, 30);
+    CHECK(st.phase == CHARGE_FULL, "bei warmem Speicher haelt die Anzeige");
+    in.puffer_c = 45.0f;
+    laden_laufen(&st, &cfg, in, t, 30);
+    CHECK(st.phase == CHARGE_IDLE, "kuehlt er ab, faellt sie zurueck");
+}
+
 int main(void)
 {
     test_control_law();
@@ -715,6 +862,10 @@ int main(void)
     test_burner_baseline();
     test_burner_consumption();
     test_burner_no_probe();
+    test_charge_cycle();
+    test_charge_burner_decides();
+    test_charge_level();
+    test_charge_limited();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

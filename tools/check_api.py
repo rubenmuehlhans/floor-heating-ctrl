@@ -7,8 +7,12 @@ zueinander passen, bevor die Integration installiert wird.
 
     python3 tools/check_api.py 192.168.1.250
 
+Beide Gerätearten werden unterstützt: die Verteilerplatine und das
+Heizungsgerät. Welche geprüft wird, entscheidet das Feld device.role.
+
 Lesende Prüfungen laufen immer. Mit --schreiben wird zusätzlich ein Sollwert
-verstellt und wieder zurückgesetzt; Ventile fährt das Skript nicht.
+beziehungsweise eine Betriebsart verstellt und wieder zurückgesetzt; Ventile
+fährt das Skript nicht.
 """
 
 from __future__ import annotations
@@ -61,22 +65,65 @@ async def main(host: str, schreiben: bool) -> int:
             print(f"  nicht erreichbar: {err}")
             return 1
 
-        for schluessel in ("rooms", "channels", "device", "net", "calib", "local_sensors"):
-            pruefe(schluessel in state, f"/api/state enthält {schluessel}")
-
         device = state.get("device", {})
+        rolle = device.get("role", "manifold")
+        print(f"  Hinweis  Geräteart: {rolle}")
+
         pruefe(bool(device.get("id")), f"Gerätekennung vorhanden: {device.get('id')}")
         pruefe(bool(device.get("mac")), f"MAC vorhanden: {device.get('mac')}")
 
-        for ch in state.get("channels", []):
-            fehlend = {"id", "position", "op", "known", "group", "manual", "calibrated"} - set(ch)
-            pruefe(not fehlend, f"Heizkreis {ch.get('id')} vollständig")
-            break
+        if rolle == "heat":
+            for schluessel in ("device", "net", "probes", "circuits", "burner", "charge",
+                               "record", "onewire"):
+                pruefe(schluessel in state, f"/api/state enthält {schluessel}")
 
-        for room in state.get("rooms", []):
-            fehlend = {"id", "name", "mode", "target_c", "temp_valid", "target_position"} - set(room)
-            pruefe(not fehlend, f"Raum {room.get('name')} vollständig")
-            break
+            for probe in state.get("probes", []):
+                fehlend = {"rom", "role", "name", "temp_c", "assigned", "errors"} - set(probe)
+                pruefe(not fehlend, f"Fühler {probe.get('rom')} vollständig")
+                break
+
+            for c in state.get("circuits", []):
+                fehlend = {"id", "name", "mode", "on", "reason", "demand", "relay",
+                           "path"} - set(c)
+                pruefe(not fehlend, f"Heizkreis {c.get('name')} vollständig")
+                break
+
+            fehlend = {"known", "running", "runtime_today_s", "starts_today",
+                       "litres_today"} - set(state.get("burner", {}))
+            pruefe(not fehlend, "Brennerangaben vollständig")
+
+            fehlend = {"phase", "limited", "level", "warn_dhw"} - set(state.get("charge", {}))
+            pruefe(not fehlend, "Ladezustand vollständig")
+
+            print("\n  Nebenauskünfte")
+            try:
+                m = await api.async_get_measurements()
+                pruefe("probes" in m and "burner" in m, "/api/measurements liefert Messstellen "
+                                                        "und Brennerzustand")
+            except FloorHeatingError as err:
+                pruefe(False, f"/api/measurements: {err}")
+        else:
+            for schluessel in ("rooms", "channels", "device", "net", "calib", "local_sensors"):
+                pruefe(schluessel in state, f"/api/state enthält {schluessel}")
+
+            for ch in state.get("channels", []):
+                fehlend = ({"id", "position", "op", "known", "group", "manual", "calibrated"}
+                           - set(ch))
+                pruefe(not fehlend, f"Heizkreis {ch.get('id')} vollständig")
+                break
+
+            for room in state.get("rooms", []):
+                fehlend = ({"id", "name", "mode", "target_c", "temp_valid", "target_position"}
+                           - set(room))
+                pruefe(not fehlend, f"Raum {room.get('name')} vollständig")
+                break
+
+            try:
+                d = await api.async_get_demand()
+                fehlend = {"id", "demand", "max_target", "open_channels"} - set(d)
+                pruefe(not fehlend, "/api/demand vollständig")
+            except FloorHeatingError as err:
+                pruefe(False, f"/api/demand: {err}")
 
         print("\nZwischenspeicher über den Änderungszähler")
         vorher = state
@@ -87,14 +134,40 @@ async def main(host: str, schreiben: bool) -> int:
         print("\nKonfiguration")
         try:
             cfg = await api.async_get_config()
-            pruefe("rooms" in cfg and "channels" in cfg, "/api/config lesbar")
             pruefe("site" in cfg, f"Anlagenbezeichnung: {cfg.get('site')!r}")
-            kalibriert = sum(1 for c in cfg["channels"] if c["calibrated"])
-            print(f"  Hinweis  {kalibriert} von {len(cfg['channels'])} Heizkreisen kalibriert")
+            if rolle == "heat":
+                pruefe("probes" in cfg and "circuits" in cfg, "/api/config lesbar")
+                zugeordnet = sum(1 for p in cfg["probes"] if p.get("role"))
+                print(f"  Hinweis  {zugeordnet} Fühler zugeordnet, "
+                      f"{len(cfg['circuits'])} Heizkreise angelegt")
+            else:
+                pruefe("rooms" in cfg and "channels" in cfg, "/api/config lesbar")
+                kalibriert = sum(1 for c in cfg["channels"] if c["calibrated"])
+                print(f"  Hinweis  {kalibriert} von {len(cfg['channels'])} "
+                      f"Heizkreisen kalibriert")
         except FloorHeatingError as err:
             pruefe(False, f"/api/config: {err}")
 
-        if schreiben and state.get("rooms"):
+        if schreiben and rolle == "heat" and state.get("circuits"):
+            print("\nSchreibzugriff (Betriebsart)")
+            kreis = state["circuits"][0]
+            alt = kreis["mode"]
+            neu = "aus" if alt != "aus" else "auto"
+            try:
+                await api.async_set_pump_mode(kreis["id"], neu)
+                await asyncio.sleep(1.5)
+                geprueft = await api.async_get_state()
+                jetzt = next(c["mode"] for c in geprueft["circuits"] if c["id"] == kreis["id"])
+                pruefe(jetzt == neu, f"Betriebsart gesetzt: {jetzt}")
+                await api.async_set_pump_mode(kreis["id"], alt)
+                await asyncio.sleep(1.5)
+                zurueck = await api.async_get_state()
+                jetzt = next(c["mode"] for c in zurueck["circuits"] if c["id"] == kreis["id"])
+                pruefe(jetzt == alt, f"Betriebsart zurückgesetzt: {jetzt}")
+            except FloorHeatingError as err:
+                pruefe(False, f"Schreibzugriff: {err}")
+
+        if schreiben and rolle != "heat" and state.get("rooms"):
             print("\nSchreibzugriff (Sollwert)")
             raum = state["rooms"][0]
             alt = raum["target_c"]

@@ -24,13 +24,127 @@ async def async_setup_entry(
     coordinator: FloorHeatingCoordinator = hass.data[DOMAIN][entry.entry_id]
     state = coordinator.data or {}
 
-    entities: list[BinarySensorEntity] = [FloorHeatingCalibrationRunning(coordinator)]
+    entities: list[BinarySensorEntity] = []
+
+    if coordinator.is_heat:
+        if coordinator.probe("abgas"):
+            entities.append(HeatBurnerRunning(coordinator))
+            entities.append(HeatShortCycling(coordinator))
+        if coordinator.probe("puffer"):
+            entities.append(HeatDhwWarning(coordinator))
+        for c in state.get("circuits", []):
+            entities.append(HeatPumpRunning(coordinator, c["id"]))
+            entities.append(HeatCircuitDemand(coordinator, c["id"]))
+        async_add_entities(entities)
+        return
+
+    entities.append(FloorHeatingCalibrationRunning(coordinator))
     for ch in state.get("channels", []):
         entities.append(FloorHeatingManualHold(coordinator, ch["id"]))
     for room in state.get("rooms", []):
         entities.append(FloorHeatingRoomStale(coordinator, room["id"]))
 
     async_add_entities(entities)
+
+
+# ---------------------------------------------------------------------
+# Heizungsgerät
+# ---------------------------------------------------------------------
+
+
+class HeatBurnerRunning(FloorHeatingEntity, BinarySensorEntity):
+    """Am Abgasfühler erkannt."""
+
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+    _attr_name = "Brenner"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "burner")
+
+    @property
+    def is_on(self) -> bool | None:
+        b = (self.coordinator.data or {}).get("burner") or {}
+        return b.get("running") if b.get("known") else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        b = (self.coordinator.data or {}).get("burner") or {}
+        return {
+            "abgas_c": b.get("abgas_c"),
+            "kaltes_rohr_c": b.get("baseline_c"),
+            "seit_s": b.get("since_s"),
+        }
+
+
+class HeatShortCycling(FloorHeatingEntity, BinarySensorEntity):
+    """Viele kurze Starts: der Kessel taktet, statt durchzuheizen."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Taktbetrieb"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "short_cycling")
+
+    @property
+    def is_on(self) -> bool:
+        return bool(((self.coordinator.data or {}).get("burner") or {}).get("short_cycling"))
+
+
+class HeatDhwWarning(FloorHeatingEntity, BinarySensorEntity):
+    """Das Trinkwasser wird im Durchlauf aus dem Puffer erwärmt."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_name = "Warmwasserreserve knapp"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "dhw_warn")
+
+    @property
+    def is_on(self) -> bool:
+        return bool(((self.coordinator.data or {}).get("charge") or {}).get("warn_dhw"))
+
+
+class HeatPumpRunning(FloorHeatingEntity, BinarySensorEntity):
+    """Zustand der Umwälzpumpe eines Heizkreises."""
+
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+
+    def __init__(self, coordinator: FloorHeatingCoordinator, circuit_id: int) -> None:
+        super().__init__(coordinator, f"circuit{circuit_id}_pump")
+        self._id = circuit_id
+        c = coordinator.circuit(circuit_id) or {}
+        self._attr_name = f"{c.get('name') or f'Heizkreis {circuit_id}'} Pumpe"
+
+    @property
+    def is_on(self) -> bool:
+        return bool((self.coordinator.circuit(self._id) or {}).get("on"))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self.coordinator.circuit(self._id) or {}
+        return {"grund": c.get("reason"), "seit_s": c.get("since_s")}
+
+
+class HeatCircuitDemand(FloorHeatingEntity, BinarySensorEntity):
+    """Meldet ein zugeordneter Verteiler Wärmebedarf?"""
+
+    _attr_device_class = BinarySensorDeviceClass.HEAT
+
+    def __init__(self, coordinator: FloorHeatingCoordinator, circuit_id: int) -> None:
+        super().__init__(coordinator, f"circuit{circuit_id}_demand")
+        self._id = circuit_id
+        c = coordinator.circuit(circuit_id) or {}
+        self._attr_name = f"{c.get('name') or f'Heizkreis {circuit_id}'} Bedarf"
+
+    @property
+    def is_on(self) -> bool:
+        return bool((self.coordinator.circuit(self._id) or {}).get("demand"))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self.coordinator.circuit(self._id) or {}
+        return {"verteiler_stumm": c.get("stale"), "je_erreicht": c.get("any_seen")}
 
 
 class FloorHeatingManualHold(FloorHeatingEntity, BinarySensorEntity):

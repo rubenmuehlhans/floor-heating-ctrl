@@ -59,9 +59,22 @@ typedef struct {
     uint32_t bytes;   /* belegter Arbeitsspeicher */
 } rec_status_t;
 
+typedef struct {
+    charge_phase_t phase;
+    bool limited;        /* ohne Kesselwerte nur die Schaetzung */
+    bool level_valid;
+    float level;         /* 0 bis 1 */
+    bool warn_dhw;
+    bool spread_valid;
+    float spread_k;
+    uint32_t since_s;
+    bool kessel_remote;  /* die Kesselwerte kommen vom Nachbargeraet */
+} charge_status_t;
+
 esp_err_t burner_start(void);
 void burner_config_changed(void);
 void burner_get(burner_status_t *out);
+void charge_get(charge_status_t *out);
 
 /* Aufzeichnung einer Ladung. */
 esp_err_t rec_start(void);

@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import FloorHeatingApi, FloorHeatingError
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, ROLE_HEAT, ROLE_MANIFOLD
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +39,27 @@ class FloorHeatingCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def device_info_raw(self) -> dict[str, Any]:
         return (self.data or {}).get("device", {})
+
+    @property
+    def role(self) -> str:
+        """Geräteart: Verteilerplatine oder Heizungsgerät."""
+        return self.device_info_raw.get("role") or ROLE_MANIFOLD
+
+    @property
+    def is_heat(self) -> bool:
+        return self.role == ROLE_HEAT
+
+    def circuit(self, circuit_id: int) -> dict[str, Any] | None:
+        for c in (self.data or {}).get("circuits", []):
+            if c["id"] == circuit_id:
+                return c
+        return None
+
+    def probe(self, role: str) -> dict[str, Any] | None:
+        for p in (self.data or {}).get("probes", []):
+            if p.get("role") == role:
+                return p
+        return None
 
     def room(self, room_id: int) -> dict[str, Any] | None:
         for room in (self.data or {}).get("rooms", []):

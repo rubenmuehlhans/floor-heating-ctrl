@@ -122,6 +122,16 @@ typedef struct {
     float duese_l_h;      /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */
 } cfg_burner_t;
 
+/* Beurteilung des Ladezustands. */
+typedef struct {
+    float spread_full_k;   /* darunter nimmt der Speicher keine Waerme mehr auf */
+    uint16_t spread_hold_s;
+    float voll_c;          /* Pufferwert fuer 100 Prozent */
+    float leer_c;          /* Pufferwert fuer 0 Prozent */
+    float warn_c;          /* darunter wird das Warmwasser knapp */
+    float kessel_hot_c;    /* darueber gilt der Kesselvorlauf als heiss */
+} cfg_buffer_t;
+
 typedef struct {
     char ssid[33];
     char pass[64];
@@ -164,6 +174,7 @@ typedef struct {
     uint16_t demand_timeout_s;
 
     cfg_burner_t burner;
+    cfg_buffer_t buffer;
 
     int8_t reboot_hour;    /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;

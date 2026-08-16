@@ -24,7 +24,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import DOMAIN, ROLE_LABELS
 from .coordinator import FloorHeatingCoordinator
 from .entity import FloorHeatingEntity
 
@@ -103,6 +103,23 @@ async def async_setup_entry(
     entities: list[SensorEntity] = [
         FloorHeatingDiagnosticSensor(coordinator, d) for d in DIAGNOSTICS
     ]
+
+    if coordinator.is_heat:
+        # Je zugeordneter Messstelle ein Fühler.
+        for probe in state.get("probes", []):
+            if probe.get("role"):
+                entities.append(HeatProbeSensor(coordinator, probe["role"]))
+        if coordinator.probe("abgas"):
+            entities.append(HeatBurnerRuntime(coordinator))
+            entities.append(HeatBurnerStarts(coordinator))
+            entities.append(HeatOilToday(coordinator))
+        if coordinator.probe("puffer"):
+            entities.append(HeatChargeLevel(coordinator))
+            entities.append(HeatChargePhase(coordinator))
+        for c in state.get("circuits", []):
+            entities.append(HeatCircuitSpread(coordinator, c["id"]))
+        async_add_entities(entities)
+        return
 
     # Je Raum die Werte des zugeordneten Thermometers.
     for room in state.get("rooms", []):
@@ -213,3 +230,160 @@ class FloorHeatingProbeSensor(FloorHeatingEntity, SensorEntity):
             return None
         probe = probes[self._index]
         return probe["temp_c"] if probe.get("valid") else None
+
+
+# ---------------------------------------------------------------------
+# Heizungsgerät
+# ---------------------------------------------------------------------
+
+
+class HeatProbeSensor(FloorHeatingEntity, SensorEntity):
+    """Eine zugeordnete Messstelle des Heizungsgeräts."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: FloorHeatingCoordinator, role: str) -> None:
+        super().__init__(coordinator, f"probe_{role}")
+        self._role = role
+        self._attr_name = ROLE_LABELS.get(role, role)
+
+    @property
+    def native_value(self) -> float | None:
+        return (self.coordinator.probe(self._role) or {}).get("temp_c")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        p = self.coordinator.probe(self._role) or {}
+        return {
+            "kennung": p.get("rom"),
+            "korrektur_k": p.get("offset_k"),
+            "alter_s": p.get("age_s"),
+            "verworfene_messungen": p.get("errors"),
+        }
+
+
+class HeatBurnerRuntime(FloorHeatingEntity, SensorEntity):
+    """Laufzeit des Brenners seit Mitternacht."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_name = "Brennerlaufzeit heute"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "burner_runtime")
+
+    @property
+    def native_value(self) -> int | None:
+        return ((self.coordinator.data or {}).get("burner") or {}).get("runtime_today_s")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        b = (self.coordinator.data or {}).get("burner") or {}
+        return {"gestern_s": b.get("runtime_yesterday_s")}
+
+
+class HeatBurnerStarts(FloorHeatingEntity, SensorEntity):
+    """Anzahl der Brennerstarts seit Mitternacht."""
+
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_name = "Brennerstarts heute"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "burner_starts")
+
+    @property
+    def native_value(self) -> int | None:
+        return ((self.coordinator.data or {}).get("burner") or {}).get("starts_today")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        b = (self.coordinator.data or {}).get("burner") or {}
+        return {"gestern": b.get("starts_yesterday")}
+
+
+class HeatOilToday(FloorHeatingEntity, SensorEntity):
+    """Schätzung aus Laufzeit und Düsendurchsatz — keine Messung."""
+
+    _attr_native_unit_of_measurement = "L"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 2
+    _attr_name = "Ölverbrauch heute"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "oil_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return ((self.coordinator.data or {}).get("burner") or {}).get("litres_today")
+
+
+class HeatChargeLevel(FloorHeatingEntity, SensorEntity):
+    """Füllstand des Pufferspeichers, geschätzt aus dem Pufferfühler."""
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:storage-tank"
+    _attr_name = "Füllstand Pufferspeicher"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "charge_level")
+
+    @property
+    def native_value(self) -> float | None:
+        level = ((self.coordinator.data or {}).get("charge") or {}).get("level")
+        return None if level is None else level * 100.0
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = (self.coordinator.data or {}).get("charge") or {}
+        return {
+            "nur_schaetzung": c.get("limited"),
+            "kesselwerte_vom_nachbargeraet": c.get("kessel_remote"),
+        }
+
+
+class HeatChargePhase(FloorHeatingEntity, SensorEntity):
+    """Ruhe, Ladung oder geladen."""
+
+    _attr_icon = "mdi:water-boiler"
+    _attr_name = "Ladezustand"
+
+    def __init__(self, coordinator: FloorHeatingCoordinator) -> None:
+        super().__init__(coordinator, "charge_phase")
+
+    @property
+    def native_value(self) -> str | None:
+        return ((self.coordinator.data or {}).get("charge") or {}).get("phase")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = (self.coordinator.data or {}).get("charge") or {}
+        return {"spreizung_kessel_k": c.get("spread_k"), "seit_s": c.get("since_s")}
+
+
+class HeatCircuitSpread(FloorHeatingEntity, SensorEntity):
+    """Vorlauf minus Rücklauf: der Beleg, dass Wärme abgegeben wird."""
+
+    _attr_native_unit_of_measurement = UnitOfTemperature.KELVIN
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: FloorHeatingCoordinator, circuit_id: int) -> None:
+        super().__init__(coordinator, f"circuit{circuit_id}_spread")
+        self._id = circuit_id
+        c = coordinator.circuit(circuit_id) or {}
+        self._attr_name = f"{c.get('name') or f'Heizkreis {circuit_id}'} Spreizung"
+
+    @property
+    def native_value(self) -> float | None:
+        return (self.coordinator.circuit(self._id) or {}).get("spread_k")
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        c = self.coordinator.circuit(self._id) or {}
+        return {"vorlauf_c": c.get("vl_c"), "ruecklauf_c": c.get("rl_c")}

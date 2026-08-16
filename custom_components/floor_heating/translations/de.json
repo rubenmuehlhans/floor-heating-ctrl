@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Ventilsteuerung hinzufügen",
-        "description": "Adresse des Geräts im Netzwerk. Sie steht in der Kopfzeile der Weboberfläche.",
+        "description": "Adresse des Geräts im Netzwerk. Sie steht in der Kopfzeile der Weboberfläche. Es lassen sich beide Gerätearten hinzufügen: die Verteilerplatine und das Heizungsgerät.",
         "data": {
           "host": "Adresse oder Gerätename"
         }

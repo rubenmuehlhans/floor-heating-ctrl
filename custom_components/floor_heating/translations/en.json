@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Add valve controller",
-        "description": "Network address of the device. It is shown in the header of its web interface.",
+        "description": "Network address of the device. It is shown in the header of its web interface. Both device kinds can be added: the manifold board and the heat source.",
         "data": {
           "host": "Address or host name"
         }
