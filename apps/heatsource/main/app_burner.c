@@ -57,6 +57,10 @@ static rec_trigger_t s_trig;
 static rec_trig_cfg_t s_tcfg;
 static rec_input_t s_tin;       /* letzte Zeichen: Brenner und Speicher */
 
+/* Brennerzustand, wie er tatsaechlich gilt: eigener Abgasfuehler, sonst das
+ * Geraet am Kessel. */
+static bool s_eff_known, s_eff_running, s_eff_remote;
+
 static inline uint32_t now_ms(void)
 {
     return (uint32_t)(esp_timer_get_time() / 1000);
@@ -401,6 +405,11 @@ static void burner_task(void *arg)
             cin.burner_known = remote_burner(&laeuft);
             cin.burner_running = laeuft;
         }
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        s_eff_known = cin.burner_known;
+        s_eff_running = cin.burner_running;
+        s_eff_remote = cin.burner_known && !gueltig;
+        xSemaphoreGive(s_mtx);
 
         xSemaphoreTake(s_mtx, portMAX_DELAY);
         s_kessel_remote = cin.kessel_valid && !(eigen_vl && eigen_rl);
@@ -504,8 +513,14 @@ void burner_get(burner_status_t *out)
         return;
     }
     xSemaphoreTake(s_mtx, portMAX_DELAY);
-    out->known = s_st.known;
-    out->running = s_st.running;
+    /*
+     * Ohne eigenen Abgasfuehler gilt der Zustand vom Geraet am Kessel. Die
+     * Tageswerte bleiben dabei die eigenen und damit null -- gezaehlt wird
+     * dort, wo gemessen wird.
+     */
+    out->known = s_eff_known;
+    out->running = s_eff_running;
+    out->remote = s_eff_remote;
     out->abgas_c = s_st.abgas_c;
     out->baseline_c = s_st.baseline_c;
     out->since_s = s_st.started ? (now_ms() - s_st.since_ms) / 1000 : 0;

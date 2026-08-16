@@ -332,9 +332,13 @@ static esp_err_t state_get(httpd_req_t *req)
     burner_status_t br;
     burner_get(&br);
     cJSON *cb = cJSON_AddObjectToObject(root, "burner");
+    cJSON_AddBoolToObject(cb, "remote", br.remote);
     cJSON_AddBoolToObject(cb, "known", br.known);
     cJSON_AddBoolToObject(cb, "running", br.running);
-    if (br.known) {
+    /* Abgaswert, Bezugslinie und Standzeit gehoeren zur eigenen Erkennung.
+     * Kommt der Zustand vom Nachbargeraet, gibt es sie hier nicht -- die
+     * Oberflaeche holt den Abgaswert dann aus remote_probes. */
+    if (br.known && !br.remote) {
         cJSON_AddNumberToObject(cb, "abgas_c", br.abgas_c);
         cJSON_AddNumberToObject(cb, "baseline_c", br.baseline_c);
         cJSON_AddNumberToObject(cb, "since_s", br.since_s);

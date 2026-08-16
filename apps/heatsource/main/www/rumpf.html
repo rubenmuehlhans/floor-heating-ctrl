@@ -679,7 +679,8 @@ function renderCharge() {
 function renderBurner() {
   const b = state.burner;
   const karte = $("#burner-card");
-  /* Ohne zugeordneten Abgasfühler gibt es nichts zu zeigen. */
+  /* Ohne zugeordneten Abgasfühler und ohne Gerät am Kessel gibt es nichts
+     zu zeigen. */
   karte.hidden = !b || (!b.known && !b.runtime_today_s && !b.starts_today);
   if (karte.hidden) return;
 
@@ -688,30 +689,42 @@ function renderBurner() {
     : `${Math.round(s / 60)} min`;
 
   const marken = [];
-  if (!b.known) marken.push(`<span class="chip warn">kein Abgasfühler</span>`);
+  if (b.remote) marken.push(`<span class="chip plain">vom Gerät am Kessel</span>`);
+  else if (!b.known) marken.push(`<span class="chip warn">kein Abgasfühler</span>`);
   if (b.short_cycling) marken.push(`<span class="chip warn">taktet</span>`);
+
+  /* Der Abgaswert des Nachbargeräts steht unter den Fremdwerten, nicht in der
+     eigenen Brennererkennung. */
+  const abgas = b.remote ? state.remote_probes?.abgas : b.abgas_c;
+
+  const kacheln = b.remote
+    ? `<div class="tile hot"><dt>Abgas</dt>
+         <dd>${num(abgas, 1)}<small>°C</small></dd>
+         <div class="foot">gemessen am Kessel</div></div>`
+    : `<div class="tile ${b.known ? "hot" : "off"}"><dt>Abgas</dt>
+         <dd>${num(abgas, 1)}<small>°C</small></dd>
+         ${b.known ? `<div class="foot">kaltes Rohr ${num(b.baseline_c, 1)} °C</div>` : ""}</div>
+       <div class="tile"><dt>Laufzeit heute</dt>
+         <dd>${laufzeit(b.runtime_today_s)}</dd>
+         <div class="foot">gestern ${laufzeit(b.runtime_yesterday_s)}</div></div>
+       <div class="tile"><dt>Starts heute</dt>
+         <dd>${b.starts_today}</dd>
+         <div class="foot">gestern ${b.starts_yesterday}</div></div>
+       <div class="tile"><dt>Öl heute</dt>
+         <dd>${num(b.litres_today, 1)}<small>l</small></dd>
+         <div class="foot">geschätzt aus der Laufzeit</div></div>`;
 
   $("#burner-body").innerHTML = `
     <div class="pump-state">
       <i class="pump-dot ${b.running ? "on" : ""}"></i>
       <div><b>${!b.known ? "unbekannt" : b.running ? "Brenner läuft" : "Brenner aus"}</b>
-        ${b.known ? `<span>seit ${formatUptime(b.since_s)}</span>` : ""}</div>
+        ${b.known && !b.remote ? `<span>seit ${formatUptime(b.since_s)}</span>` : ""}</div>
     </div>
     ${marken.length ? `<div class="row" style="margin-bottom:.9rem">${marken.join("")}</div>` : ""}
-    <dl class="tiles">
-      <div class="tile ${b.known ? "hot" : "off"}"><dt>Abgas</dt>
-        <dd>${num(b.abgas_c, 1)}<small>°C</small></dd>
-        ${b.known ? `<div class="foot">kaltes Rohr ${num(b.baseline_c, 1)} °C</div>` : ""}</div>
-      <div class="tile"><dt>Laufzeit heute</dt>
-        <dd>${laufzeit(b.runtime_today_s)}</dd>
-        <div class="foot">gestern ${laufzeit(b.runtime_yesterday_s)}</div></div>
-      <div class="tile"><dt>Starts heute</dt>
-        <dd>${b.starts_today}</dd>
-        <div class="foot">gestern ${b.starts_yesterday}</div></div>
-      <div class="tile"><dt>Öl heute</dt>
-        <dd>${num(b.litres_today, 1)}<small>l</small></dd>
-        <div class="foot">geschätzt aus der Laufzeit</div></div>
-    </dl>`;
+    <dl class="tiles">${kacheln}</dl>
+    ${b.remote ? `<p class="lede" style="margin:.8rem 0 0">Laufzeit, Starts und Verbrauch
+       zählt das Gerät am Kessel — dort sitzt der Abgasfühler. Hier steht nur, ob der Brenner
+       gerade läuft; danach richten sich Ladezustand und Aufzeichnung.</p>` : ""}`;
 }
 
 /* ---------------- Kacheln ---------------- */

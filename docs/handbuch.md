@@ -416,6 +416,16 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 > Die Vorgabewerte (8 K Spreizung, 62 °C voll, 35 °C leer, Warnung unter 40 °C) sind Annahmen.
 > Ziehen Sie sie nach der ersten aufgezeichneten Ladung nach.
 
+### Brennerzustand am Pufferspeicher
+
+Das Gerät am Pufferspeicher hat keinen Abgasfühler — der sitzt am Kessel. Es zeigt den
+Brennerzustand trotzdem an, mit der Marke **vom Gerät am Kessel**, sobald jenes im Netz ist.
+Laufzeit, Starts und Verbrauch bleiben dort, wo gemessen wird; hier steht nur, ob der Brenner
+gerade läuft. Danach richten sich Ladezustand und Aufzeichnung.
+
+Ohne erreichbares Gerät am Kessel steht dort **kein Abgasfühler**, und die Aufzeichnung weicht
+auf die Speichertemperatur aus.
+
 ## Schutzfahrt und Schutzlauf
 
 ![Schutzfahrt](screenshots/schutzfahrt.png)

@@ -30,6 +30,13 @@ extern "C" {
 typedef struct {
     bool known;
     bool running;
+    /*
+     * Der Zustand kommt vom Geraet am Kessel, nicht vom eigenen Abgasfuehler.
+     * Das Geraet am Pufferspeicher hat keinen; ihn deshalb als "unbekannt" zu
+     * zeigen, waehrend die Aufzeichnung daneben darauf ausloest, waere
+     * widerspruechlich.
+     */
+    bool remote;
     float abgas_c;
     float baseline_c;
     uint32_t since_s;          /* seit dem letzten Wechsel */

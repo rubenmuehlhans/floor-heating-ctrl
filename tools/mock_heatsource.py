@@ -249,6 +249,7 @@ def state() -> dict:
         "mqtt_connected": True,
         "remote_probes": fremd,
         "burner": {
+            "remote": not KESSELBOARD,
             "known": True,
             "running": brenner_laeuft,
             "abgas_c": belegt.get("abgas", fremd.get("abgas")),
