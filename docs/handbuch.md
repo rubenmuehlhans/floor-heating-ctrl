@@ -266,9 +266,24 @@ Einschaltwert eines DS18B20 nach einem Spannungseinbruch, −127 °C zeigt eine 
 Leitung an. Beide werden verworfen; steigt der Zähler stetig, stimmt etwas mit der Verkabelung
 nicht.
 
-**Busbelegung.** Unter **System → 1-Wire-Bus** stehen die GPIO der bis zu zwei Busse und der
-Abtastabstand. Als Eingang ausgelegte Anschlüsse (GPIO 34 bis 39) können den Bus nicht treiben.
-Eine Änderung wirkt erst nach einem Neustart.
+### Anschluss des Busses
+
+Der 1-Wire-Bus hängt an einem frei wählbaren Anschluss und braucht einen Anschlusswiderstand
+von **4,7 kΩ nach 3,3 V**. Die Wahl steht im Einrichtungsassistenten und später unter
+**System → 1-Wire-Bus**; eine Änderung wirkt sofort, ein Neustart ist nicht nötig.
+
+| Anschluss | Geeignet |
+|---|---|
+| 13, 14, 16 bis 19, 21 bis 23, 25 bis 27, 32, 33 | ja — freie Anschlüsse ohne Sonderaufgabe |
+| 6 bis 11 | nein, sie gehören zum Flash-Speicher |
+| 34 bis 39 | nein, nur als Eingang ausgelegt und damit nicht treibfähig |
+| 1 und 3 | nein, das ist die serielle Schnittstelle |
+| 12 | nein, entscheidet beim Start über die Flash-Spannung; der Anschlusswiderstand verhindert den Start |
+| 0, 2, 15 | möglich, aber ungünstig — sie werden beim Start ausgewertet |
+
+Die Firmware lehnt die ungeeigneten Anschlüsse mit Begründung ab. Im Assistenten zeigt die
+Seite laufend, wie viele Fühler sich am eingetragenen Anschluss melden; nach dem Umstellen
+dauert es bis zu einer Minute, bis der Bus neu abgesucht ist.
 
 ## Pumpen einrichten
 

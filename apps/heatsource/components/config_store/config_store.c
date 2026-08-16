@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "cfgjson.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -127,20 +128,33 @@ void cfg_defaults(app_config_t *out)
     copy_str(out->mqtt.prefix, sizeof(out->mqtt.prefix), "heiz");
 }
 
-static bool pin_ok(int8_t pin)
+/*
+ * Warum ein Anschluss nicht taugt, oder NULL wenn er taugt.
+ *
+ * Der 1-Wire-Bus braucht einen Anschlusswiderstand nach 3,3 V und muss in
+ * beide Richtungen treiben koennen. Das schliesst mehr Anschluesse aus, als
+ * man zunaechst denkt -- und eine blosse Ablehnung ohne Grund hilft beim
+ * Verdrahten nicht weiter.
+ */
+static const char *pin_problem(int8_t pin)
 {
     if (pin < 0) {
-        return true; /* nicht belegt */
+        return NULL; /* nicht belegt */
     }
-    /* Eingang-nur-Pins (34..39) koennen 1-Wire nicht treiben, GPIO 6..11
-     * haengen am Flash. */
     if (pin > 33) {
-        return false;
+        return "ist nur als Eingang ausgelegt und kann den Bus nicht treiben";
     }
     if (pin >= 6 && pin <= 11) {
-        return false;
+        return "gehoert zum Flash-Speicher";
     }
-    return true;
+    if (pin == 1 || pin == 3) {
+        return "ist die serielle Schnittstelle";
+    }
+    if (pin == 12) {
+        return "entscheidet beim Start ueber die Flash-Spannung; der noetige "
+               "Anschlusswiderstand wuerde den Start verhindern";
+    }
+    return NULL;
 }
 
 static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len)
@@ -155,8 +169,9 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         FEHLER("Hoechstens %d Fuehler moeglich", CFG_MAX_PROBES);
     }
     for (int i = 0; i < CFG_MAX_BUSES; i++) {
-        if (!pin_ok(cfg->onewire_pin[i])) {
-            FEHLER("GPIO %d ist fuer den 1-Wire-Bus nicht geeignet", cfg->onewire_pin[i]);
+        const char *grund = pin_problem(cfg->onewire_pin[i]);
+        if (grund != NULL) {
+            FEHLER("GPIO %d %s", cfg->onewire_pin[i], grund);
         }
     }
     if (cfg->onewire_pin[0] < 0 && cfg->onewire_pin[1] < 0) {
@@ -453,27 +468,6 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     return txt;
 }
 
-/* Lesehilfen: ein fehlender Schluessel laesst den bisherigen Wert stehen. */
-static void json_str(const cJSON *o, const char *key, char *dst, size_t len)
-{
-    const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
-    if (cJSON_IsString(v) && v->valuestring) {
-        copy_str(dst, len, v->valuestring);
-    }
-}
-
-static double json_num(const cJSON *o, const char *key, double fallback)
-{
-    const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
-    return cJSON_IsNumber(v) ? v->valuedouble : fallback;
-}
-
-static bool json_bool(const cJSON *o, const char *key, bool fallback)
-{
-    const cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
-    return cJSON_IsBool(v) ? cJSON_IsTrue(v) : fallback;
-}
-
 esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t err_len)
 {
     cJSON *root = cJSON_Parse(json);
@@ -482,8 +476,8 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         return ESP_ERR_INVALID_ARG;
     }
 
-    json_str(root, "site", out->site, sizeof(out->site));
-    out->poll_s = (uint16_t)json_num(root, "poll_s", out->poll_s);
+    cfgjson_str(root, "site", out->site, sizeof(out->site));
+    out->poll_s = (uint16_t)cfgjson_num(root, "poll_s", out->poll_s);
 
     const cJSON *bus = cJSON_GetObjectItemCaseSensitive(root, "onewire_pin");
     if (cJSON_IsArray(bus)) {
@@ -516,7 +510,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             memset(p, 0, sizeof(*p));
 
             char rom[24] = {0};
-            json_str(j, "rom", rom, sizeof(rom));
+            cfgjson_str(j, "rom", rom, sizeof(rom));
             p->rom = str_to_rom(rom);
             if (p->rom == 0) {
                 continue; /* Eintrag ohne brauchbare Kennung wird uebergangen */
@@ -528,10 +522,10 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
                 }
             }
             char role[24] = {0};
-            json_str(j, "role", role, sizeof(role));
+            cfgjson_str(j, "role", role, sizeof(role));
             p->role = cfg_role_from_key(role);
-            json_str(j, "name", p->name, sizeof(p->name));
-            p->offset_k = (float)json_num(j, "offset_k", 0.0);
+            cfgjson_str(j, "name", p->name, sizeof(p->name));
+            p->offset_k = (float)cfgjson_num(j, "offset_k", 0.0);
             if (p->name[0] == '\0') {
                 copy_str(p->name, sizeof(p->name),
                          p->role != ROLE_NONE ? cfg_role_label(p->role) : rom);
@@ -555,7 +549,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         const cJSON *j = NULL;
         cJSON_ArrayForEach(j, kreise) {
             cfg_circuit_t *c = &out->circuits[out->circuit_count];
-            uint8_t id = (uint8_t)json_num(j, "id", out->circuit_count + 1);
+            uint8_t id = (uint8_t)cfgjson_num(j, "id", out->circuit_count + 1);
             cfg_circuit_defaults(c, id);
             /* Bisherigen Stand derselben Kennung als Ausgangsbasis nehmen,
              * damit eine Teilangabe die uebrigen Felder stehen laesst. */
@@ -566,16 +560,16 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
                 }
             }
 
-            json_str(j, "name", c->name, sizeof(c->name));
-            c->enabled = json_bool(j, "enabled", c->enabled);
+            cfgjson_str(j, "name", c->name, sizeof(c->name));
+            c->enabled = cfgjson_bool(j, "enabled", c->enabled);
 
             char rolle[24] = {0};
-            json_str(j, "vl_role", rolle, sizeof(rolle));
+            cfgjson_str(j, "vl_role", rolle, sizeof(rolle));
             if (rolle[0]) {
                 c->vl_role = cfg_role_from_key(rolle);
             }
             rolle[0] = '\0';
-            json_str(j, "rl_role", rolle, sizeof(rolle));
+            cfgjson_str(j, "rl_role", rolle, sizeof(rolle));
             if (rolle[0]) {
                 c->rl_role = cfg_role_from_key(rolle);
             }
@@ -595,15 +589,15 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
 
             const cJSON *pump = cJSON_GetObjectItemCaseSensitive(j, "pump");
             if (cJSON_IsObject(pump)) {
-                json_str(pump, "topic", c->pump_topic, sizeof(c->pump_topic));
-                json_str(pump, "host", c->pump_host, sizeof(c->pump_host));
-                json_str(pump, "user", c->pump_user, sizeof(c->pump_user));
-                json_str(pump, "pass", c->pump_pass, sizeof(c->pump_pass));
-                c->pump_relay = (uint8_t)json_num(pump, "relay", c->pump_relay);
+                cfgjson_str(pump, "topic", c->pump_topic, sizeof(c->pump_topic));
+                cfgjson_str(pump, "host", c->pump_host, sizeof(c->pump_host));
+                cfgjson_str(pump, "user", c->pump_user, sizeof(c->pump_user));
+                cfgjson_str(pump, "pass", c->pump_pass, sizeof(c->pump_pass));
+                c->pump_relay = (uint8_t)cfgjson_num(pump, "relay", c->pump_relay);
             }
 
             char modus[12] = {0};
-            json_str(j, "mode", modus, sizeof(modus));
+            cfgjson_str(j, "mode", modus, sizeof(modus));
             if (strcmp(modus, "ein") == 0) {
                 c->mode = 1;
             } else if (strcmp(modus, "aus") == 0) {
@@ -612,59 +606,59 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
                 c->mode = 0;
             }
 
-            c->overrun_s = (uint16_t)json_num(j, "overrun_s", c->overrun_s);
-            c->min_run_s = (uint16_t)json_num(j, "min_run_s", c->min_run_s);
-            c->min_pause_s = (uint16_t)json_num(j, "min_pause_s", c->min_pause_s);
-            c->min_buffer_c = (float)json_num(j, "min_buffer_c", c->min_buffer_c);
-            c->frost_c = (float)json_num(j, "frost_c", c->frost_c);
-            c->seize_days = (uint8_t)json_num(j, "seize_days", c->seize_days);
+            c->overrun_s = (uint16_t)cfgjson_num(j, "overrun_s", c->overrun_s);
+            c->min_run_s = (uint16_t)cfgjson_num(j, "min_run_s", c->min_run_s);
+            c->min_pause_s = (uint16_t)cfgjson_num(j, "min_pause_s", c->min_pause_s);
+            c->min_buffer_c = (float)cfgjson_num(j, "min_buffer_c", c->min_buffer_c);
+            c->frost_c = (float)cfgjson_num(j, "frost_c", c->frost_c);
+            c->seize_days = (uint8_t)cfgjson_num(j, "seize_days", c->seize_days);
             out->circuit_count++;
         }
     }
-    out->demand_poll_s = (uint16_t)json_num(root, "demand_poll_s", out->demand_poll_s);
-    out->demand_timeout_s = (uint16_t)json_num(root, "demand_timeout_s", out->demand_timeout_s);
+    out->demand_poll_s = (uint16_t)cfgjson_num(root, "demand_poll_s", out->demand_poll_s);
+    out->demand_timeout_s = (uint16_t)cfgjson_num(root, "demand_timeout_s", out->demand_timeout_s);
 
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "burner");
     if (cJSON_IsObject(b)) {
-        out->burner.delta_on_k = (float)json_num(b, "delta_on_k", out->burner.delta_on_k);
-        out->burner.delta_off_k = (float)json_num(b, "delta_off_k", out->burner.delta_off_k);
-        out->burner.on_hold_s = (uint16_t)json_num(b, "on_hold_s", out->burner.on_hold_s);
-        out->burner.off_hold_s = (uint16_t)json_num(b, "off_hold_s", out->burner.off_hold_s);
-        out->burner.duese_l_h = (float)json_num(b, "duese_l_h", out->burner.duese_l_h);
+        out->burner.delta_on_k = (float)cfgjson_num(b, "delta_on_k", out->burner.delta_on_k);
+        out->burner.delta_off_k = (float)cfgjson_num(b, "delta_off_k", out->burner.delta_off_k);
+        out->burner.on_hold_s = (uint16_t)cfgjson_num(b, "on_hold_s", out->burner.on_hold_s);
+        out->burner.off_hold_s = (uint16_t)cfgjson_num(b, "off_hold_s", out->burner.off_hold_s);
+        out->burner.duese_l_h = (float)cfgjson_num(b, "duese_l_h", out->burner.duese_l_h);
     }
 
     const cJSON *sp = cJSON_GetObjectItemCaseSensitive(root, "buffer");
     if (cJSON_IsObject(sp)) {
         out->buffer.spread_full_k =
-            (float)json_num(sp, "spread_full_k", out->buffer.spread_full_k);
+            (float)cfgjson_num(sp, "spread_full_k", out->buffer.spread_full_k);
         out->buffer.spread_hold_s =
-            (uint16_t)json_num(sp, "spread_hold_s", out->buffer.spread_hold_s);
-        out->buffer.voll_c = (float)json_num(sp, "voll_c", out->buffer.voll_c);
-        out->buffer.leer_c = (float)json_num(sp, "leer_c", out->buffer.leer_c);
-        out->buffer.warn_c = (float)json_num(sp, "warn_c", out->buffer.warn_c);
+            (uint16_t)cfgjson_num(sp, "spread_hold_s", out->buffer.spread_hold_s);
+        out->buffer.voll_c = (float)cfgjson_num(sp, "voll_c", out->buffer.voll_c);
+        out->buffer.leer_c = (float)cfgjson_num(sp, "leer_c", out->buffer.leer_c);
+        out->buffer.warn_c = (float)cfgjson_num(sp, "warn_c", out->buffer.warn_c);
         out->buffer.kessel_hot_c =
-            (float)json_num(sp, "kessel_hot_c", out->buffer.kessel_hot_c);
+            (float)cfgjson_num(sp, "kessel_hot_c", out->buffer.kessel_hot_c);
     }
 
-    out->reboot_hour = (int8_t)json_num(root, "reboot_hour", out->reboot_hour);
-    out->reboot_minute = (int8_t)json_num(root, "reboot_minute", out->reboot_minute);
-    json_str(root, "timezone", out->timezone, sizeof(out->timezone));
+    out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);
+    out->reboot_minute = (int8_t)cfgjson_num(root, "reboot_minute", out->reboot_minute);
+    cfgjson_str(root, "timezone", out->timezone, sizeof(out->timezone));
 
     const cJSON *w = cJSON_GetObjectItemCaseSensitive(root, "wifi");
     if (cJSON_IsObject(w)) {
-        json_str(w, "ssid", out->wifi.ssid, sizeof(out->wifi.ssid));
-        json_str(w, "pass", out->wifi.pass, sizeof(out->wifi.pass));
-        json_str(w, "hostname", out->wifi.hostname, sizeof(out->wifi.hostname));
-        json_str(w, "ap_pass", out->wifi.ap_pass, sizeof(out->wifi.ap_pass));
+        cfgjson_str(w, "ssid", out->wifi.ssid, sizeof(out->wifi.ssid));
+        cfgjson_str(w, "pass", out->wifi.pass, sizeof(out->wifi.pass));
+        cfgjson_str(w, "hostname", out->wifi.hostname, sizeof(out->wifi.hostname));
+        cfgjson_str(w, "ap_pass", out->wifi.ap_pass, sizeof(out->wifi.ap_pass));
     }
 
     const cJSON *m = cJSON_GetObjectItemCaseSensitive(root, "mqtt");
     if (cJSON_IsObject(m)) {
-        out->mqtt.enabled = json_bool(m, "enabled", out->mqtt.enabled);
-        json_str(m, "uri", out->mqtt.uri, sizeof(out->mqtt.uri));
-        json_str(m, "user", out->mqtt.user, sizeof(out->mqtt.user));
-        json_str(m, "pass", out->mqtt.pass, sizeof(out->mqtt.pass));
-        json_str(m, "prefix", out->mqtt.prefix, sizeof(out->mqtt.prefix));
+        out->mqtt.enabled = cfgjson_bool(m, "enabled", out->mqtt.enabled);
+        cfgjson_str(m, "uri", out->mqtt.uri, sizeof(out->mqtt.uri));
+        cfgjson_str(m, "user", out->mqtt.user, sizeof(out->mqtt.user));
+        cfgjson_str(m, "pass", out->mqtt.pass, sizeof(out->mqtt.pass));
+        cfgjson_str(m, "prefix", out->mqtt.prefix, sizeof(out->mqtt.prefix));
     }
 
     cJSON_Delete(root);
@@ -681,15 +675,7 @@ static esp_err_t cfg_store(const app_config_t *cfg)
     if (txt == NULL) {
         return ESP_ERR_NO_MEM;
     }
-    nvs_handle_t h;
-    esp_err_t rc = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
-    if (rc == ESP_OK) {
-        rc = nvs_set_str(h, NVS_KEY_CFG, txt);
-        if (rc == ESP_OK) {
-            rc = nvs_commit(h);
-        }
-        nvs_close(h);
-    }
+    esp_err_t rc = cfgjson_save(NVS_NAMESPACE, NVS_KEY_CFG, txt);
     free(txt);
     return rc;
 }
@@ -698,40 +684,48 @@ static esp_err_t cfg_load(app_config_t *out)
 {
     cfg_defaults(out);
 
-    nvs_handle_t h;
-    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
-        return ESP_ERR_NOT_FOUND;
+    char *buf = NULL;
+    esp_err_t rc = cfgjson_load(NVS_NAMESPACE, NVS_KEY_CFG, &buf);
+    if (rc != ESP_OK) {
+        return rc;
     }
-    size_t len = 0;
-    esp_err_t rc = nvs_get_str(h, NVS_KEY_CFG, NULL, &len);
-    if (rc != ESP_OK || len == 0) {
-        nvs_close(h);
-        return ESP_ERR_NOT_FOUND;
-    }
-    char *buf = malloc(len);
-    if (buf == NULL) {
-        nvs_close(h);
-        return ESP_ERR_NO_MEM;
-    }
-    rc = nvs_get_str(h, NVS_KEY_CFG, buf, &len);
-    nvs_close(h);
 
-    if (rc == ESP_OK) {
-        char err[96] = {0};
-        if (cfg_from_json(buf, out, err, sizeof(err)) != ESP_OK) {
-            ESP_LOGW(TAG, "Gespeicherte Konfiguration unbrauchbar: %s", err);
-            cfg_defaults(out);
-            rc = ESP_ERR_INVALID_STATE;
-        }
+    char err[96] = {0};
+    if (cfg_from_json(buf, out, err, sizeof(err)) != ESP_OK) {
+        ESP_LOGW(TAG, "Gespeicherte Konfiguration unbrauchbar: %s", err);
+        cfg_defaults(out);
+        rc = ESP_ERR_INVALID_STATE;
     }
     free(buf);
     return rc;
+}
+
+void cfg_netmgr(const app_config_t *cfg, netmgr_cfg_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    copy_str(out->ssid, sizeof(out->ssid), cfg->wifi.ssid);
+    copy_str(out->pass, sizeof(out->pass), cfg->wifi.pass);
+    copy_str(out->hostname, sizeof(out->hostname), cfg->wifi.hostname);
+    copy_str(out->ap_pass, sizeof(out->ap_pass), cfg->wifi.ap_pass);
+    copy_str(out->timezone, sizeof(out->timezone), cfg->timezone);
+    out->reboot_hour = cfg->reboot_hour;
+    out->reboot_minute = cfg->reboot_minute;
 }
 
 esp_err_t cfg_init(void)
 {
     esp_err_t rc = nvs_flash_init();
     if (rc == ESP_ERR_NVS_NO_FREE_PAGES || rc == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        /*
+         * Der Speicher ist voll oder von einer anderen Fassung beschrieben.
+         * Es bleibt nur das Loeschen -- damit ist aber die gesamte
+         * Konfiguration weg, einschliesslich der WLAN-Zugangsdaten. Das darf
+         * nicht stillschweigend geschehen: wer das Geraet danach im
+         * Zugangspunkt-Betrieb vorfindet, soll im Protokoll den Grund finden.
+         */
+        ESP_LOGE(TAG, "Konfigurationsspeicher unbrauchbar (%s) -- er wird geleert. "
+                      "Die gesamte Einrichtung geht dabei verloren.",
+                 esp_err_to_name(rc));
         ESP_ERROR_CHECK(nvs_flash_erase());
         rc = nvs_flash_init();
     }

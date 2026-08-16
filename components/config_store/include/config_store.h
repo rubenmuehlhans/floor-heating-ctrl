@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "netmgr.h"
 #include "hw_map.h"
 
 #ifdef __cplusplus
@@ -98,6 +99,10 @@ typedef struct {
     float position[HW_CHANNEL_COUNT];
     bool known[HW_CHANNEL_COUNT];
 } cfg_positions_t;
+
+/* Fuellt die Angaben, die components/netmgr braucht. Der Netzbaustein kennt
+ * das Schema dieser Anwendung nicht und soll es auch nicht kennen. */
+void cfg_netmgr(const app_config_t *cfg, netmgr_cfg_t *out);
 
 /* NVS oeffnen, Konfiguration laden oder Werksvorgabe schreiben. */
 esp_err_t cfg_init(void);

@@ -66,7 +66,10 @@ void app_main(void)
 
     static app_config_t cfg;
     cfg_copy(&cfg);
-    ESP_ERROR_CHECK(netmgr_start(&cfg));
+
+    netmgr_cfg_t netz;
+    cfg_netmgr(&cfg, &netz);
+    ESP_ERROR_CHECK(netmgr_start(&netz));
     netmgr_set_reboot_guard(control_busy);
     ESP_ERROR_CHECK(atc_ble_start(on_ble_measurement, NULL));
 

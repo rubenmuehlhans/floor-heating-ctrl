@@ -440,9 +440,10 @@ a.btn:hover{filter:none}
     <div class="card">
       <h2>1-Wire-Bus</h2>
       <p class="lede">Die beiden Geräte sind unterschiedlich verdrahtet, deshalb steht die
-         Belegung hier und nicht in der Firmware. Eine Änderung wirkt erst nach einem
-         Neustart. Als Eingang ausgelegte Anschlüsse (GPIO 34 bis 39) können den Bus nicht
-         treiben.</p>
+         Belegung hier und nicht in der Firmware. Eine Änderung wirkt sofort. Der Bus
+         braucht einen Anschlusswiderstand von 4,7 kΩ nach 3,3 V; nicht geeignet sind
+         GPIO 6 bis 11 (Flash-Speicher), 34 bis 39 (nur Eingang), 1 und 3 (serielle
+         Schnittstelle) sowie 12 (Flash-Spannung beim Start).</p>
       <div class="fields">
         <label>Bus 1<input type="number" id="s-bus0" min="-1" max="33"></label>
         <label>Bus 2<input type="number" id="s-bus1" min="-1" max="33"></label>
@@ -1215,17 +1216,24 @@ async function saveConfig(patch, meldung) {
 
 /* ---------------- Einrichtungsassistent ---------------- */
 
-let wizStep = 0, wizSite = "";
+let wizStep = 0, wizSite = "", wizPin = 23;
 
 const WIZ = [
   {t:"Willkommen", n:"Bezeichnung"},
-  {t:"Wie heißt dieses Gerät?", n:"Fühler"},
+  {t:"Wie heißt dieses Gerät?", n:"Anschluss"},
+  {t:"Wo hängt der 1-Wire-Bus?", n:"Fühler"},
   {t:"Fühler zuordnen", n:"Fertig"},
 ];
+
+/* Anschlüsse, die sich für den Bus eignen. Der Bus braucht einen
+   Anschlusswiderstand nach 3,3 V und muss in beide Richtungen treiben — das
+   schließt mehr aus, als man zunächst denkt. */
+const GPIO_EMPFOHLEN = [13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
 
 function openWizard() {
   wizStep = 0;
   wizSite = cfg?.site || "";
+  wizPin = cfg?.onewire_pin?.[0] ?? 23;
   $("#wizard").hidden = false;
   renderWizard();
 }
@@ -1258,6 +1266,29 @@ function renderWizard() {
       wizSite = x.dataset.v; $("#wiz-site").value = wizSite;
     });
     setTimeout(() => $("#wiz-site").focus(), 30);
+  } else if (wizStep === 2) {
+    const gefunden = state?.onewire?.found ?? 0;
+    b.innerHTML = `<p class="lede">Der 1-Wire-Bus hängt an einem frei wählbaren Anschluss.
+      Er braucht einen Anschlusswiderstand von 4,7 kΩ nach 3,3 V. Nicht geeignet sind
+      GPIO 6 bis 11 (Flash-Speicher), 34 bis 39 (nur Eingang), 1 und 3 (serielle
+      Schnittstelle) sowie 12 (entscheidet beim Start über die Flash-Spannung).</p>
+      <label>Anschluss (GPIO)<input type="number" id="wiz-pin" value="${wizPin}"
+        min="0" max="33" style="width:6rem"></label>
+      <div class="pick">${GPIO_EMPFOHLEN.map(g =>
+        `<button data-v="${g}">${g}</button>`).join("")}</div>
+      <p class="lede" style="margin-top:1rem">${gefunden
+        ? `<b>${gefunden} Fühler gefunden.</b> Die Änderung wirkt sofort; nach dem Umstellen
+           dauert es bis zu einer Minute, bis der Bus neu abgesucht ist.`
+        : `Am eingetragenen Anschluss meldet sich noch kein Fühler. Tragen Sie den
+           richtigen ein und warten Sie einen Augenblick — die Zahl hier oben ändert sich
+           von selbst.`}</p>`;
+    $("#wiz-pin").oninput = e => wizPin = parseInt(e.target.value, 10);
+    b.querySelectorAll(".pick button").forEach(x => x.onclick = async () => {
+      wizPin = parseInt(x.dataset.v, 10);
+      $("#wiz-pin").value = wizPin;
+      await saveWizPin();
+    });
+    $("#wiz-pin").onchange = saveWizPin;
   } else {
     const ps = state?.probes || [];
     b.innerHTML = `<p class="lede">Fassen Sie einen Fühler mit der Hand an — seine Zeile
@@ -1273,6 +1304,16 @@ function renderWizard() {
            und die Belegung unter System; ohne Fühler lässt sich die Einrichtung dennoch
            abschließen.</p>`);
   }
+}
+
+/* Der Anschluss wird schon im Assistenten gespeichert: nur so lässt sich
+   sehen, ob sich am eingetragenen Anschluss etwas meldet. */
+async function saveWizPin() {
+  try {
+    await put("/api/config", {onewire_pin: [wizPin, -1]});
+    cfg = await api("/api/config");
+    refresh();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function wizFinish() {
@@ -1311,7 +1352,7 @@ async function poll() {
     renderProbes();
     renderRecord();
     renderSystem();
-    if (!$("#wizard").hidden && wizStep === 2) {
+    if (!$("#wizard").hidden && wizStep >= 2) {
       /* Im Assistenten laufen die Messwerte mit, damit sich ein angefasster
          Fühler auch dort erkennen lässt. */
       const offen = document.activeElement?.tagName === "SELECT";
@@ -1344,6 +1385,7 @@ async function boot() {
   $("#wiz-next").onclick = () => {
     if (wizStep === WIZ.length - 1) return wizFinish();
     if (wizStep === 1 && !wizSite.trim()) return toast("Bitte eine Bezeichnung eintragen", true);
+    if (wizStep === 2) saveWizPin();
     wizStep++; renderWizard();
   };
 
@@ -1385,7 +1427,7 @@ async function boot() {
   $("#s-bus-save").onclick = () => saveConfig({
     onewire_pin: [parseInt($("#s-bus0").value, 10), parseInt($("#s-bus1").value, 10)],
     poll_s: parseInt($("#s-poll").value, 10),
-  }, "Gespeichert, wirkt nach dem Neustart");
+  });
   $("#s-wifi-save").onclick = () => {
     const w = {ssid: $("#s-ssid").value.trim(), hostname: $("#s-host").value.trim()};
     if ($("#s-pass").value) w.pass = $("#s-pass").value;

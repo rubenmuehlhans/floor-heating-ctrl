@@ -331,6 +331,25 @@ static void ot_task(void *arg)
 
 /* ------------------------------------------------------------------ */
 
+/* Legt die Busse an. Der Aufrufer haelt s_mtx bereits, sofern noetig. */
+static esp_err_t open_all(const int *pins, size_t pin_count)
+{
+    s_bus_count = 0;
+    for (size_t i = 0; i < pin_count && s_bus_count < OT_MAX_BUSES; i++) {
+        if (pins[i] < 0) {
+            continue;
+        }
+        s_pin[s_bus_count] = pins[i];
+        s_fail[s_bus_count] = 0;
+        if (!open_bus(s_bus_count)) {
+            ESP_LOGE(TAG, "Bus an GPIO %d liess sich nicht anlegen", pins[i]);
+            continue;
+        }
+        s_bus_count++;
+    }
+    return s_bus_count > 0 ? ESP_OK : ESP_ERR_NOT_FOUND;
+}
+
 esp_err_t ot_start(const int *pins, size_t pin_count, uint32_t period_ms)
 {
     if (pins == NULL || pin_count == 0) {
@@ -346,27 +365,60 @@ esp_err_t ot_start(const int *pins, size_t pin_count, uint32_t period_ms)
 
     s_period_ms = period_ms < MIN_PERIOD_MS ? MIN_PERIOD_MS : period_ms;
 
-    for (size_t i = 0; i < pin_count && s_bus_count < OT_MAX_BUSES; i++) {
-        if (pins[i] < 0) {
-            continue;
-        }
-        s_pin[s_bus_count] = pins[i];
-        if (!open_bus(s_bus_count)) {
-            ESP_LOGE(TAG, "Bus an GPIO %d liess sich nicht anlegen", pins[i]);
-            continue;
-        }
-        s_bus_count++;
-    }
-
-    if (s_bus_count == 0) {
+    esp_err_t rc = open_all(pins, pin_count);
+    if (rc != ESP_OK) {
         ESP_LOGE(TAG, "Kein Bus verfuegbar");
-        return ESP_ERR_NOT_FOUND;
+        return rc;
     }
 
     if (xTaskCreate(ot_task, "1wire", 4096, NULL, 4, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
+}
+
+esp_err_t ot_reconfigure(const int *pins, size_t pin_count, uint32_t period_ms)
+{
+    if (pins == NULL || pin_count == 0 || s_mtx == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    bool gleich = true;
+    size_t belegt = 0;
+    for (size_t i = 0; i < pin_count && belegt < OT_MAX_BUSES; i++) {
+        if (pins[i] < 0) {
+            continue;
+        }
+        if (belegt >= s_bus_count || s_pin[belegt] != pins[i]) {
+            gleich = false;
+        }
+        belegt++;
+    }
+    if (belegt != s_bus_count) {
+        gleich = false;
+    }
+
+    uint32_t takt = period_ms < MIN_PERIOD_MS ? MIN_PERIOD_MS : period_ms;
+    s_period_ms = takt;
+    if (gleich) {
+        return ESP_OK; /* nur der Takt hat sich geaendert */
+    }
+
+    ESP_LOGI(TAG, "Busbelegung geaendert, wird neu angelegt");
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    forget_all();
+    for (size_t b = 0; b < OT_MAX_BUSES; b++) {
+        if (s_bus[b] != NULL) {
+            onewire_bus_del(s_bus[b]);
+            s_bus[b] = NULL;
+        }
+    }
+    memset(&s_snap, 0, sizeof(s_snap));
+    esp_err_t rc = open_all(pins, pin_count);
+    xSemaphoreGive(s_mtx);
+
+    s_rescan = true;
+    return rc;
 }
 
 void ot_get(ot_snapshot_t *out)

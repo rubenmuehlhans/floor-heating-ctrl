@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "netmgr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -183,6 +184,10 @@ typedef struct {
     cfg_wifi_t wifi;
     cfg_mqtt_t mqtt;
 } app_config_t;
+
+/* Fuellt die Angaben, die components/netmgr braucht. Der Netzbaustein kennt
+ * das Schema dieser Anwendung nicht und soll es auch nicht kennen. */
+void cfg_netmgr(const app_config_t *cfg, netmgr_cfg_t *out);
 
 /* NVS oeffnen, Konfiguration laden oder Werksvorgabe schreiben. */
 esp_err_t cfg_init(void);

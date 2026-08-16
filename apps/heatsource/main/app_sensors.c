@@ -193,6 +193,17 @@ static void sensors_task(void *arg)
 
         if (s_cfg_dirty) {
             s_cfg_dirty = false;
+
+            /* Eine geaenderte Busbelegung wird sofort uebernommen; ohne das
+             * muesste man beim Suchen des richtigen Anschlusses jedes Mal neu
+             * starten. */
+            static app_config_t cfg;
+            cfg_copy(&cfg);
+            int pins[CFG_MAX_BUSES];
+            for (int i = 0; i < CFG_MAX_BUSES; i++) {
+                pins[i] = cfg.onewire_pin[i];
+            }
+            ot_reconfigure(pins, CFG_MAX_BUSES, (uint32_t)cfg.poll_s * 1000);
             ESP_LOGI(TAG, "Zuordnung der Fuehler uebernommen");
         }
         vTaskDelay(pdMS_TO_TICKS(TICK_MS));

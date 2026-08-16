@@ -559,9 +559,11 @@ static void wifi_apply_task(void *arg)
     vTaskDelay(pdMS_TO_TICKS(600));
 
     static app_config_t cfg;
+    static netmgr_cfg_t netz;
     cfg_copy(&cfg);
+    cfg_netmgr(&cfg, &netz);
     ESP_LOGI(TAG, "WLAN-Zugangsdaten geaendert, Verbindung wird neu aufgebaut");
-    netmgr_apply(&cfg);
+    netmgr_apply(&netz);
     vTaskDelete(NULL);
 }
 

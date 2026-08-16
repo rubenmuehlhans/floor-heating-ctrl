@@ -56,6 +56,14 @@ typedef struct {
  */
 esp_err_t ot_start(const int *pins, size_t pin_count, uint32_t period_ms);
 
+/*
+ * Belegt die Busse neu. Wird eine andere Zuordnung eingetragen, muss dafuer
+ * kein Neustart abgewartet werden -- das waere gerade bei der Einrichtung
+ * unangenehm, weil man den richtigen Anschluss oft erst durch Probieren
+ * findet.
+ */
+esp_err_t ot_reconfigure(const int *pins, size_t pin_count, uint32_t period_ms);
+
 /* Kopie des letzten Standes. */
 void ot_get(ot_snapshot_t *out);
 

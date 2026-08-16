@@ -266,7 +266,7 @@ static void burner_task(void *arg)
     xSemaphoreGive(s_mtx);
 
     static sens_snapshot_t snap;
-    uint32_t letzte_sicherung = now_ms();
+    bool brenner_lief = false;
     int letzter_tag = s_stats.tag;
 
     for (;;) {
@@ -330,9 +330,17 @@ static void burner_task(void *arg)
             s_stats.tag = (int16_t)tag;
         }
 
-        /* Alle fuenf Minuten sichern. */
-        if (t - letzte_sicherung >= 300000) {
-            letzte_sicherung = t;
+        /*
+         * Gesichert wird, wenn der Brenner schaltet -- nicht in festem Takt.
+         * Ein Fuenfminutentakt waeren 288 Schreibvorgaenge am Tag; der
+         * NVS-Bereich fasst nur einige Dutzend Fassungen, bevor er
+         * aufgeraeumt werden muss, und laeuft er voll, wird er geleert und
+         * die gesamte Einrichtung ist weg. Zwischen zwei Schaltvorgaengen
+         * steht der Wert im Arbeitsspeicher; ein Neustart mitten im Brennerlauf
+         * kostet hoechstens dessen bisherige Laufzeit.
+         */
+        if (s_st.running != brenner_lief) {
+            brenner_lief = s_st.running;
             xSemaphoreTake(s_mtx, portMAX_DELAY);
             s_stats.runtime_today_s = s_st.runtime_today_s;
             s_stats.starts_today = s_st.starts_today;

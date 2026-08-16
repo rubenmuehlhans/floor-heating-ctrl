@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "cfgjson.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -301,26 +302,6 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     return out;
 }
 
-static void json_str(const cJSON *obj, const char *key, char *dst, size_t len)
-{
-    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, key);
-    if (cJSON_IsString(it) && it->valuestring) {
-        snprintf(dst, len, "%s", it->valuestring);
-    }
-}
-
-static double json_num(const cJSON *obj, const char *key, double fallback)
-{
-    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, key);
-    return cJSON_IsNumber(it) ? it->valuedouble : fallback;
-}
-
-static bool json_bool(const cJSON *obj, const char *key, bool fallback)
-{
-    const cJSON *it = cJSON_GetObjectItemCaseSensitive(obj, key);
-    return cJSON_IsBool(it) ? cJSON_IsTrue(it) : fallback;
-}
-
 esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t err_len)
 {
     cJSON *root = cJSON_Parse(json);
@@ -335,7 +316,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
      * Werte erhalten. Bestehende Zugangsdaten werden vom Aufrufer vorher in
      * out gelegt und nur bei ausdruecklicher Angabe ueberschrieben. */
     out->version = CFG_VERSION;
-    json_str(root, "site", out->site, sizeof(out->site));
+    cfgjson_str(root, "site", out->site, sizeof(out->site));
 
     esp_err_t ret = ESP_OK;
 
@@ -354,8 +335,8 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         for (int i = 0; i < n; i++) {
             const cJSON *jr = cJSON_GetArrayItem(rooms, i);
             cfg_room_t *r = &out->rooms[i];
-            room_defaults(r, (uint8_t)json_num(jr, "id", i + 1), "", 0);
-            json_str(jr, "name", r->name, sizeof(r->name));
+            room_defaults(r, (uint8_t)cfgjson_num(jr, "id", i + 1), "", 0);
+            cfgjson_str(jr, "name", r->name, sizeof(r->name));
 
             const cJSON *chs = cJSON_GetObjectItemCaseSensitive(jr, "channels");
             r->channel_mask = 0;
@@ -386,11 +367,11 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
             if (cJSON_IsString(mode) && mode->valuestring) {
                 r->mode_heat = strcmp(mode->valuestring, "off") != 0;
             }
-            r->target_c = (float)json_num(jr, "target_c", r->target_c);
-            r->p_band_k = (float)json_num(jr, "p_band_k", r->p_band_k);
-            r->interval_s = (uint16_t)json_num(jr, "interval_s", r->interval_s);
-            r->min_delta = (float)json_num(jr, "min_delta", r->min_delta);
-            r->step = (float)json_num(jr, "step", r->step);
+            r->target_c = (float)cfgjson_num(jr, "target_c", r->target_c);
+            r->p_band_k = (float)cfgjson_num(jr, "p_band_k", r->p_band_k);
+            r->interval_s = (uint16_t)cfgjson_num(jr, "interval_s", r->interval_s);
+            r->min_delta = (float)cfgjson_num(jr, "min_delta", r->min_delta);
+            r->step = (float)cfgjson_num(jr, "step", r->step);
         }
     }
 
@@ -399,24 +380,24 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         const cJSON *jc = NULL;
         cJSON_ArrayForEach(jc, chans)
         {
-            int id = (int)json_num(jc, "id", 0);
+            int id = (int)cfgjson_num(jc, "id", 0);
             if (id < 1 || id > HW_CHANNEL_COUNT) {
                 continue;
             }
             cfg_channel_t *c = &out->channels[id - 1];
-            c->open_ms = (uint32_t)json_num(jc, "open_ms", c->open_ms);
-            c->close_ms = (uint32_t)json_num(jc, "close_ms", c->close_ms);
-            c->max_ms = (uint32_t)json_num(jc, "max_ms", c->max_ms);
-            c->blank_ms = (uint32_t)json_num(jc, "blank_ms", c->blank_ms);
-            c->bemf_mv = (uint16_t)json_num(jc, "bemf_mv", c->bemf_mv);
-            c->bemf_hyst_mv = (uint16_t)json_num(jc, "bemf_hyst_mv", c->bemf_hyst_mv);
-            c->calibrated = json_bool(jc, "calibrated", c->calibrated);
+            c->open_ms = (uint32_t)cfgjson_num(jc, "open_ms", c->open_ms);
+            c->close_ms = (uint32_t)cfgjson_num(jc, "close_ms", c->close_ms);
+            c->max_ms = (uint32_t)cfgjson_num(jc, "max_ms", c->max_ms);
+            c->blank_ms = (uint32_t)cfgjson_num(jc, "blank_ms", c->blank_ms);
+            c->bemf_mv = (uint16_t)cfgjson_num(jc, "bemf_mv", c->bemf_mv);
+            c->bemf_hyst_mv = (uint16_t)cfgjson_num(jc, "bemf_hyst_mv", c->bemf_hyst_mv);
+            c->calibrated = cfgjson_bool(jc, "calibrated", c->calibrated);
         }
     }
 
     const cJSON *touch = cJSON_GetObjectItemCaseSensitive(root, "touch");
     if (cJSON_IsObject(touch)) {
-        out->touch_enabled = json_bool(touch, "enabled", out->touch_enabled);
+        out->touch_enabled = cfgjson_bool(touch, "enabled", out->touch_enabled);
         const cJSON *th = cJSON_GetObjectItemCaseSensitive(touch, "thresholds");
         if (cJSON_IsArray(th)) {
             for (int i = 0; i < HW_TOUCH_COUNT && i < cJSON_GetArraySize(th); i++) {
@@ -428,28 +409,28 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         }
     }
     out->display_brightness =
-        (uint8_t)json_num(root, "display_brightness", out->display_brightness);
+        (uint8_t)cfgjson_num(root, "display_brightness", out->display_brightness);
 
-    out->sensor_timeout_s = (uint16_t)json_num(root, "sensor_timeout_s", out->sensor_timeout_s);
-    out->reboot_hour = (int8_t)json_num(root, "reboot_hour", out->reboot_hour);
-    out->reboot_minute = (int8_t)json_num(root, "reboot_minute", out->reboot_minute);
-    json_str(root, "timezone", out->timezone, sizeof(out->timezone));
+    out->sensor_timeout_s = (uint16_t)cfgjson_num(root, "sensor_timeout_s", out->sensor_timeout_s);
+    out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);
+    out->reboot_minute = (int8_t)cfgjson_num(root, "reboot_minute", out->reboot_minute);
+    cfgjson_str(root, "timezone", out->timezone, sizeof(out->timezone));
 
     const cJSON *wifi = cJSON_GetObjectItemCaseSensitive(root, "wifi");
     if (cJSON_IsObject(wifi)) {
-        json_str(wifi, "ssid", out->wifi.ssid, sizeof(out->wifi.ssid));
-        json_str(wifi, "hostname", out->wifi.hostname, sizeof(out->wifi.hostname));
-        json_str(wifi, "pass", out->wifi.pass, sizeof(out->wifi.pass));
-        json_str(wifi, "ap_pass", out->wifi.ap_pass, sizeof(out->wifi.ap_pass));
+        cfgjson_str(wifi, "ssid", out->wifi.ssid, sizeof(out->wifi.ssid));
+        cfgjson_str(wifi, "hostname", out->wifi.hostname, sizeof(out->wifi.hostname));
+        cfgjson_str(wifi, "pass", out->wifi.pass, sizeof(out->wifi.pass));
+        cfgjson_str(wifi, "ap_pass", out->wifi.ap_pass, sizeof(out->wifi.ap_pass));
     }
 
     const cJSON *mqtt = cJSON_GetObjectItemCaseSensitive(root, "mqtt");
     if (cJSON_IsObject(mqtt)) {
-        out->mqtt.enabled = json_bool(mqtt, "enabled", out->mqtt.enabled);
-        json_str(mqtt, "uri", out->mqtt.uri, sizeof(out->mqtt.uri));
-        json_str(mqtt, "user", out->mqtt.user, sizeof(out->mqtt.user));
-        json_str(mqtt, "pass", out->mqtt.pass, sizeof(out->mqtt.pass));
-        json_str(mqtt, "prefix", out->mqtt.prefix, sizeof(out->mqtt.prefix));
+        out->mqtt.enabled = cfgjson_bool(mqtt, "enabled", out->mqtt.enabled);
+        cfgjson_str(mqtt, "uri", out->mqtt.uri, sizeof(out->mqtt.uri));
+        cfgjson_str(mqtt, "user", out->mqtt.user, sizeof(out->mqtt.user));
+        cfgjson_str(mqtt, "pass", out->mqtt.pass, sizeof(out->mqtt.pass));
+        cfgjson_str(mqtt, "prefix", out->mqtt.prefix, sizeof(out->mqtt.prefix));
     }
 
 done:
@@ -467,53 +448,39 @@ static esp_err_t cfg_store(const app_config_t *cfg)
     if (json == NULL) {
         return ESP_ERR_NO_MEM;
     }
-
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
-    if (err == ESP_OK) {
-        err = nvs_set_str(h, NVS_KEY_CFG, json);
-        if (err == ESP_OK) {
-            err = nvs_commit(h);
-        }
-        nvs_close(h);
-    }
+    esp_err_t err = cfgjson_save(NVS_NAMESPACE, NVS_KEY_CFG, json);
     free(json);
     return err;
 }
 
 static esp_err_t cfg_load(app_config_t *out)
 {
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
+    char *buf = NULL;
+    esp_err_t err = cfgjson_load(NVS_NAMESPACE, NVS_KEY_CFG, &buf);
     if (err != ESP_OK) {
         return err;
     }
 
-    size_t len = 0;
-    err = nvs_get_str(h, NVS_KEY_CFG, NULL, &len);
-    if (err != ESP_OK || len == 0) {
-        nvs_close(h);
-        return err == ESP_OK ? ESP_ERR_NVS_NOT_FOUND : err;
-    }
-
-    char *buf = malloc(len);
-    if (buf == NULL) {
-        nvs_close(h);
-        return ESP_ERR_NO_MEM;
-    }
-    err = nvs_get_str(h, NVS_KEY_CFG, buf, &len);
-    nvs_close(h);
-
-    if (err == ESP_OK) {
-        cfg_defaults(out);
-        char msg[128];
-        err = cfg_from_json(buf, out, msg, sizeof(msg));
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Gespeicherte Konfiguration unbrauchbar: %s", msg);
-        }
+    cfg_defaults(out);
+    char msg[128];
+    err = cfg_from_json(buf, out, msg, sizeof(msg));
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Gespeicherte Konfiguration unbrauchbar: %s", msg);
     }
     free(buf);
     return err;
+}
+
+void cfg_netmgr(const app_config_t *cfg, netmgr_cfg_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    snprintf(out->ssid, sizeof(out->ssid), "%s", cfg->wifi.ssid);
+    snprintf(out->pass, sizeof(out->pass), "%s", cfg->wifi.pass);
+    snprintf(out->hostname, sizeof(out->hostname), "%s", cfg->wifi.hostname);
+    snprintf(out->ap_pass, sizeof(out->ap_pass), "%s", cfg->wifi.ap_pass);
+    snprintf(out->timezone, sizeof(out->timezone), "%s", cfg->timezone);
+    out->reboot_hour = cfg->reboot_hour;
+    out->reboot_minute = cfg->reboot_minute;
 }
 
 esp_err_t cfg_init(void)
@@ -527,7 +494,16 @@ esp_err_t cfg_init(void)
 
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGW(TAG, "NVS wird neu angelegt");
+        /*
+         * Der Speicher ist voll oder von einer anderen Fassung beschrieben.
+         * Es bleibt nur das Loeschen -- damit ist aber die gesamte
+         * Konfiguration weg, einschliesslich der WLAN-Zugangsdaten. Das darf
+         * nicht stillschweigend geschehen: wer das Geraet danach im
+         * Zugangspunkt-Betrieb vorfindet, soll im Protokoll den Grund finden.
+         */
+        ESP_LOGE(TAG, "Konfigurationsspeicher unbrauchbar (%s) -- er wird geleert. "
+                      "Die gesamte Einrichtung geht dabei verloren.",
+                 esp_err_to_name(err));
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }

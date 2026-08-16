@@ -46,7 +46,10 @@ void app_main(void)
 
     static app_config_t cfg;
     cfg_copy(&cfg);
-    ESP_ERROR_CHECK(netmgr_start(&cfg));
+
+    netmgr_cfg_t netz;
+    cfg_netmgr(&cfg, &netz);
+    ESP_ERROR_CHECK(netmgr_start(&netz));
 
     /* Geschwistergeraete im Haus: drei Verteilerplatinen und das zweite
      * Heizungsgeraet. Sie melden sich gegenseitig an, damit die Oberflaeche

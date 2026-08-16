@@ -30,7 +30,12 @@ static bool s_sntp_running;
 static uint32_t s_connect_attempts;
 static netmgr_busy_fn_t s_reboot_guard;
 
-static void start_ap_fallback(const app_config_t *cfg);
+/* Eigene Kopie der Angaben. Der taegliche Neustart und die Aufsicht ueber die
+ * Verbindung laufen in eigenen Aufgaben und duerfen nicht auf die
+ * Konfiguration der Anwendung zugreifen. */
+static netmgr_cfg_t s_cfg_copy;
+
+static void start_ap_fallback(const netmgr_cfg_t *cfg);
 
 /* Kopiert eine Zeichenkette in ein Feld fester Groesse und schneidet dabei
  * sauber ab. snprintf wuerde hier nur Abschneidewarnungen erzeugen. */
@@ -119,11 +124,11 @@ void netmgr_set_timezone(const char *tz)
  * waere hier die schlechteste Antwort - das Geraet startet sonst mitten im
  * Speichern von Einstellungen neu.
  */
-static esp_err_t apply_sta_config(const app_config_t *cfg)
+static esp_err_t apply_sta_config(const netmgr_cfg_t *cfg)
 {
     wifi_config_t sta = {0};
-    copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->wifi.ssid);
-    copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->wifi.pass);
+    copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->ssid);
+    copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->pass);
     /* Netze koennen versteckt sein - ohne vollstaendige Suche werden sie
      * nicht gefunden. */
     sta.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
@@ -144,22 +149,22 @@ static esp_err_t apply_sta_config(const app_config_t *cfg)
 
 /* Baut die Beschreibung des Einrichtungs-Zugangspunkts. Der Name traegt die
  * letzten beiden Bytes der MAC, damit mehrere Geraete unterscheidbar sind. */
-static void build_ap_config(const app_config_t *cfg, wifi_config_t *out)
+static void build_ap_config(const netmgr_cfg_t *cfg, wifi_config_t *out)
 {
     uint8_t mac[6] = {0};
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
 
     char ssid[33];
     snprintf(ssid, sizeof(ssid), "%.24s-%02X%02X",
-             cfg->wifi.hostname[0] ? cfg->wifi.hostname : "floor-heating", mac[4], mac[5]);
+             cfg->hostname[0] ? cfg->hostname : "floor-heating", mac[4], mac[5]);
 
     memset(out, 0, sizeof(*out));
     out->ap.ssid_len = (uint8_t)copy_str(out->ap.ssid, sizeof(out->ap.ssid), ssid);
     out->ap.channel = 1;
     out->ap.max_connection = 4;
     out->ap.beacon_interval = 100;
-    if (cfg->wifi.ap_pass[0] && strlen(cfg->wifi.ap_pass) >= 8) {
-        copy_str(out->ap.password, sizeof(out->ap.password), cfg->wifi.ap_pass);
+    if (cfg->ap_pass[0] && strlen(cfg->ap_pass) >= 8) {
+        copy_str(out->ap.password, sizeof(out->ap.password), cfg->ap_pass);
         out->ap.authmode = WIFI_AUTH_WPA2_PSK;
     } else {
         out->ap.authmode = WIFI_AUTH_OPEN;
@@ -175,7 +180,7 @@ static void build_ap_config(const app_config_t *cfg, wifi_config_t *out)
  * zuverlaessig - er ist dann fuer Geraete in Reichweite schlicht nicht zu
  * finden. Deshalb anhalten, beides setzen, neu starten.
  */
-static void start_ap_fallback(const app_config_t *cfg)
+static void start_ap_fallback(const netmgr_cfg_t *cfg)
 {
     if (s_status.ap_active) {
         return;
@@ -185,8 +190,8 @@ static void start_ap_fallback(const app_config_t *cfg)
     build_ap_config(cfg, &ap);
 
     wifi_config_t sta = {0};
-    copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->wifi.ssid);
-    copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->wifi.pass);
+    copy_str(sta.sta.ssid, sizeof(sta.sta.ssid), cfg->ssid);
+    copy_str(sta.sta.password, sizeof(sta.sta.password), cfg->pass);
     sta.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
     sta.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
@@ -259,10 +264,8 @@ static void check_daily_reboot(void)
         return; /* es faehrt gerade ein Ventil */
     }
 
-    cfg_lock();
-    int hour = cfg_peek()->reboot_hour;
-    int minute = cfg_peek()->reboot_minute;
-    cfg_unlock();
+    int hour = s_cfg_copy.reboot_hour;
+    int minute = s_cfg_copy.reboot_minute;
 
     if (hour < 0) {
         return;
@@ -287,7 +290,7 @@ static void check_daily_reboot(void)
 /* Beobachtet die Verbindung und oeffnet bei Bedarf den Zugangspunkt. */
 static void supervisor_task(void *arg)
 {
-    app_config_t *cfg = arg;
+    netmgr_cfg_t *cfg = arg;
     TickType_t start = xTaskGetTickCount();
     int32_t retry_countdown = STA_RETRY_DELAY_MS;
 
@@ -309,19 +312,19 @@ static void supervisor_task(void *arg)
 
         /* Erneut verbinden, mit Abstand zwischen den Versuchen. */
         retry_countdown -= 2000;
-        if (retry_countdown <= 0 && cfg->wifi.ssid[0] != '\0') {
+        if (retry_countdown <= 0 && cfg->ssid[0] != '\0') {
             retry_countdown = STA_RETRY_DELAY_MS;
             esp_wifi_connect();
         }
 
         uint32_t elapsed = (xTaskGetTickCount() - start) * portTICK_PERIOD_MS;
-        if (elapsed > STA_FALLBACK_AFTER_MS || cfg->wifi.ssid[0] == '\0') {
+        if (elapsed > STA_FALLBACK_AFTER_MS || cfg->ssid[0] == '\0') {
             start_ap_fallback(cfg);
         }
     }
 }
 
-esp_err_t netmgr_start(const app_config_t *cfg)
+esp_err_t netmgr_start(const netmgr_cfg_t *cfg)
 {
     if (s_started) {
         return netmgr_apply(cfg);
@@ -334,8 +337,8 @@ esp_err_t netmgr_start(const app_config_t *cfg)
     s_netif_sta = esp_netif_create_default_wifi_sta();
     s_netif_ap = esp_netif_create_default_wifi_ap();
 
-    if (cfg->wifi.hostname[0]) {
-        esp_netif_set_hostname(s_netif_sta, cfg->wifi.hostname);
+    if (cfg->hostname[0]) {
+        esp_netif_set_hostname(s_netif_sta, cfg->hostname);
     }
 
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
@@ -353,7 +356,7 @@ esp_err_t netmgr_start(const app_config_t *cfg)
      * Moduswechsel im laufenden Betrieb laesst ihn sonst mit leerem Netznamen
      * hochkommen.
      */
-    bool need_ap = cfg->wifi.ssid[0] == '\0';
+    bool need_ap = cfg->ssid[0] == '\0';
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(need_ap ? WIFI_MODE_APSTA : WIFI_MODE_STA));
     apply_sta_config(cfg);
@@ -380,7 +383,6 @@ esp_err_t netmgr_start(const app_config_t *cfg)
                       "Adresse %s", ap.ap.ssid, s_status.ap_ip);
     }
 
-    static app_config_t s_cfg_copy;
     s_cfg_copy = *cfg;
     xTaskCreate(supervisor_task, "net_sup", 3072, &s_cfg_copy, 4, NULL);
 
@@ -388,11 +390,15 @@ esp_err_t netmgr_start(const app_config_t *cfg)
     return ESP_OK;
 }
 
-esp_err_t netmgr_apply(const app_config_t *cfg)
+esp_err_t netmgr_apply(const netmgr_cfg_t *cfg)
 {
+    /* Auch die Aufsicht und der taegliche Neustart arbeiten mit dieser Kopie;
+     * ohne die Zuweisung liefen sie mit dem Stand vom Start weiter. */
+    s_cfg_copy = *cfg;
+
     netmgr_set_timezone(cfg->timezone);
-    if (cfg->wifi.hostname[0]) {
-        esp_netif_set_hostname(s_netif_sta, cfg->wifi.hostname);
+    if (cfg->hostname[0]) {
+        esp_netif_set_hostname(s_netif_sta, cfg->hostname);
     }
 
     /* Erst trennen, dann beschreiben, dann verbinden - in dieser Reihenfolge
@@ -404,7 +410,7 @@ esp_err_t netmgr_apply(const app_config_t *cfg)
     if (rc != ESP_OK) {
         return rc;
     }
-    if (cfg->wifi.ssid[0] == '\0') {
+    if (cfg->ssid[0] == '\0') {
         return ESP_OK; /* nichts hinterlegt, der Zugangspunkt uebernimmt */
     }
     rc = esp_wifi_connect();

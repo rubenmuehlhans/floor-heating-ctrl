@@ -11,26 +11,29 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/*
- * Achtung: Dieser Baustein nimmt app_config_t aus config_store.h entgegen,
- * benutzt daraus aber nur einen kleinen Ausschnitt:
- *
- *     cfg->wifi.ssid, .pass, .hostname, .ap_pass
- *     cfg->timezone
- *     cfg_peek()->reboot_hour, ->reboot_minute
- *     cfg_lock(), cfg_unlock(), cfg_peek()
- *
- * Eine Anwendung mit eigenem Konfigurationsschema stellt deshalb eine eigene
- * Komponente unter dem Namen config_store bereit, die genau diesen Ausschnitt
- * anbietet; ESP-IDF laesst sie die gemeinsame Fassung verdraengen. Wird der
- * Ausschnitt hier erweitert, muessen alle Fassungen nachziehen.
- */
-#include "config_store.h"
 #include "esp_err.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Was dieser Baustein von der Konfiguration braucht -- nicht mehr.
+ *
+ * Frueher nahm er die vollstaendige app_config_t der Verteilerplatine
+ * entgegen und schleppte damit deren Ventilkanaele in jede Anwendung, die
+ * WLAN benutzt. Jede Anwendung fuellt jetzt diese Struktur aus ihrem eigenen
+ * Schema; das Schema selbst geht den Netzbaustein nichts an.
+ */
+typedef struct {
+    char ssid[33];
+    char pass[64];
+    char hostname[32];
+    char ap_pass[64];
+    char timezone[48];
+    int8_t reboot_hour;   /* < 0 = kein taeglicher Neustart */
+    int8_t reboot_minute;
+} netmgr_cfg_t;
 
 typedef struct {
     bool sta_connected;
@@ -44,13 +47,13 @@ typedef struct {
 /* Liefert true, solange ein Neustart verschoben werden soll. */
 typedef bool (*netmgr_busy_fn_t)(void);
 
-esp_err_t netmgr_start(const app_config_t *cfg);
+esp_err_t netmgr_start(const netmgr_cfg_t *cfg);
 
 /* Sperre fuer den taeglichen Neustart, etwa waehrend eine Ventilfahrt laeuft. */
 void netmgr_set_reboot_guard(netmgr_busy_fn_t fn);
 
 /* Uebernimmt geaenderte WLAN-Zugangsdaten ohne Neustart. */
-esp_err_t netmgr_apply(const app_config_t *cfg);
+esp_err_t netmgr_apply(const netmgr_cfg_t *cfg);
 
 void netmgr_status(netmgr_status_t *out);
 

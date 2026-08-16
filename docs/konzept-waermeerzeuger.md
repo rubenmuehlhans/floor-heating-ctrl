@@ -454,7 +454,7 @@ die passenden Entitäten ein.
 | 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; Tasmota-Anbindung noch nicht an einem Relais erprobt |
 | 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | umgesetzt; am Abgasfühler noch nicht erprobt |
 | 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
-| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | offen |
+| 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t` und `cfgjson` umgesetzt; Stilblatt und Verschieben offen |
 
 Zur ersten Inbetriebnahme eines Heizungsgeräts: Nach dem Einspielen öffnet es einen
 Zugangspunkt `heizung-XXXX`, danach führt der Assistent durch Bezeichnung und
