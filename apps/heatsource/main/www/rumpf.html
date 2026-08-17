@@ -23,6 +23,16 @@
 .sc-mix.hot{fill:var(--heat)}
 .sc-mix.cold{fill:var(--cold)}
 .sc-mix.open{fill:none; stroke:var(--cold); stroke-width:1.5}
+/* Kesselkreispumpe. Das Dreieck zeigt die Förderrichtung und steht deshalb
+   still — eine sich drehende Richtungsangabe zeigt keine Richtung mehr. Dass
+   sie läuft, sagt die Farbe, die wie der Punkt an den Heizkreisen pulst. */
+.sc-pump .sc-pumpwing{fill:var(--faint)}
+.sc-pump.on .sc-pumpwing{fill:var(--heat); animation:puls 2s ease-in-out infinite}
+.sc-pump.on .sc-body{stroke:var(--heat)}
+.sc-pump:hover .sc-body{stroke:var(--accent)}
+.sc-pumphand{fill:var(--surface); stroke:var(--line-strong); stroke-width:1}
+.sc-pumpmark{fill:var(--muted); font:600 8px/1 var(--data)}
+@media (prefers-reduced-motion:reduce){.sc-pump.on .sc-pumpwing{animation:none}}
 .sc-remote{opacity:.42}
 
 /* ---------------- Messwertkacheln ---------------- */
@@ -121,6 +131,14 @@ tr.warm td{background:var(--heat-soft)}
 .pump-state>div{display:flex; gap:.45rem; align-items:baseline; flex-wrap:wrap}
 .pump-state b{font-size:1rem}
 .pump-state span{color:var(--muted); font-size:.85rem}
+/* Auffälligkeiten: Titel und Begründung untereinander, damit der längere
+   Text lesbar bleibt. */
+.finding{display:flex; gap:.6rem; align-items:flex-start; padding:.5rem 0;
+  border-bottom:1px solid var(--line)}
+.finding:last-child{border-bottom:none}
+.finding>div{display:flex; flex-direction:column; gap:.2rem; min-width:0}
+.finding b{font-size:.9rem}
+.finding span{color:var(--muted); font-size:.82rem; line-height:1.4}
 .src{display:flex; gap:.5rem; align-items:center; font-size:.84rem; padding:.35rem 0;
   border-bottom:1px solid var(--line)}
 .src:last-child{border-bottom:none}
@@ -231,6 +249,15 @@ a.btn:hover{filter:none}
   </div>
 
   <section id="ov" class="on">
+    <div class="card" id="findings-card" hidden>
+      <h2>Auffälligkeiten</h2>
+      <p class="lede">Hier stehen Messwerte, die so nicht zusammenpassen können — etwa ein
+         Vorlauf, der kälter ist als sein Rücklauf, obwohl die Pumpe läuft. Das Gerät ändert
+         deswegen nichts an der Regelung, es weist nur darauf hin. Damit eine kurze Störung
+         nicht sofort eine Meldung auslöst, muss der Widerspruch eine halbe Stunde lang
+         bestehen.</p>
+      <div id="findings"></div>
+    </div>
     <div class="card">
       <h2>Anlage</h2>
       <p class="lede">Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen
@@ -259,6 +286,66 @@ a.btn:hover{filter:none}
   </section>
 
   <section id="circuits">
+    <div class="card" id="bp-card">
+      <div class="circ-head">
+        <h2>Kesselkreispumpe</h2>
+        <div class="seg" id="bp-mode">
+          <button data-m="auto">Automatik</button>
+          <button data-m="ein">Ein</button>
+          <button data-m="aus">Aus</button>
+        </div>
+      </div>
+      <p class="lede">Die Pumpe zwischen Kessel und Pufferspeicher. Sie läuft, solange der
+         Kesselvorlauf wärmer ist als der Rücklauf aus dem Speicher — nur dann gibt der Kessel
+         Wärme ab. Kehrt sich das um, fördert sie Wärme aus dem Speicher in den Kessel und von
+         dort in den Schornstein; deshalb wird sie dann abgeschaltet.</p>
+      <div class="pump-state">
+        <i class="pump-dot" id="bp-dot"></i>
+        <div id="bp-state"></div>
+      </div>
+      <div class="row" id="bp-marks" style="margin-bottom:.9rem"></div>
+
+      <label class="inline" style="margin-bottom:.8rem">
+        <input type="checkbox" id="bp-on"> Kesselkreispumpe vorhanden</label>
+
+      <h3 class="sub">Relais</h3>
+      <p class="lede">Geschaltet wird wie bei den Heizkreispumpen über ein Tasmota-Relais:
+         über MQTT, sobald ein Broker eingerichtet ist, sonst unmittelbar über die Adresse
+         des Relais.</p>
+      <div class="fields">
+        <label>Relais-Thema (MQTT)<input id="bp-topic" placeholder="pumpe_kessel"
+               style="width:11rem"></label>
+        <label>Relais-Adresse (HTTP)<input id="bp-host" placeholder="192.168.1.204"
+               style="width:11rem"></label>
+        <label>Relaisnummer<input type="number" id="bp-relay" min="1" max="8"
+               style="width:5rem"></label>
+        <label>Benutzer am Relais<input id="bp-user" style="width:8rem"></label>
+        <label>Kennwort am Relais<input id="bp-pass" type="password" style="width:8rem"></label>
+      </div>
+
+      <h3 class="sub">Schaltpunkte</h3>
+      <p class="lede">Zwischen Ein- und Ausschaltschwelle bleibt es, wie es war — sonst
+         schaltete die Pumpe im Minutentakt, sobald die Spreizung um null pendelt. Über der
+         Notgrenze läuft sie in jedem Fall, auch gegen die Schwellen: Ein klemmender Fühler
+         darf die Wärmeabfuhr nicht verhindern. Fehlen die Kesselwerte ganz, läuft sie
+         ebenfalls.</p>
+      <div class="fields">
+        <label>Ein ab Spreizung (K)<input type="number" id="bp-onk" step="0.1" min="0.1"
+               max="20" style="width:6rem"></label>
+        <label>Aus unter (K)<input type="number" id="bp-offk" step="0.1" min="0" max="20"
+               style="width:6rem"></label>
+        <label>Haltezeit (s)<input type="number" id="bp-hold" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Mindestlaufzeit (s)<input type="number" id="bp-minrun" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Mindestpause (s)<input type="number" id="bp-minpause" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Notgrenze (°C)<input type="number" id="bp-emerg" step="0.5" min="60" max="110"
+               style="width:6rem"></label>
+      </div>
+      <div class="actions"><button class="btn" id="bp-save">Speichern</button></div>
+    </div>
+
     <div id="circ-list"></div>
     <div class="card">
       <h2 id="circ-add-title">Heizkreis anlegen</h2>
@@ -321,9 +408,59 @@ a.btn:hover{filter:none}
         <button class="btn risky" id="rec-discard">Verwerfen</button>
       </div>
     </div>
+
+    <div class="card" id="trend-card">
+      <h2>Verbrauchslinie</h2>
+      <p class="lede">Brennerlaufzeit über Heizgradtagen, als Gerade durch die Tage im
+         Protokoll. Die Steigung ist der Wärmebedarf des Hauses je Gradtag, der Achsenabschnitt
+         der Grundverbrauch für Warmwasser. Ein Tag deutlich über der Linie fällt damit auf,
+         gemessen am eigenen Haus statt an einem Katalogwert.</p>
+      <div id="trend-state"></div>
+    </div>
+
+    <div class="card" id="flue-card">
+      <h2>Abgas-Vorlauf-Abstand</h2>
+      <p class="lede">Wie weit die höchste Abgastemperatur einer Ladung über dem höchsten
+         Kesselvorlauf liegt. Der Abstand sagt, wie viel Wärme durch den Schornstein geht statt
+         ins Wasser. Bei sauberem Kessel ist er klein und stabil; Ruß im Wärmetauscher hebt ihn
+         über Wochen an. Grob zwanzig Kelvin entsprechen einem Prozentpunkt Wirkungsgrad.</p>
+      <div id="flue-state"></div>
+      <div class="actions">
+        <button class="btn quiet" id="flue-clean">Kessel gereinigt — ab jetzt neu messen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Protokolle</h2>
+      <p class="lede">Anders als Verlauf und Aufzeichnung überstehen diese beiden einen
+         Neustart: je Ladung ein Satz, je Tag ein Satz, im Flash des Geräts. Sie tragen den
+         langen Verlauf — wie viel Öl bei welcher Außenlage, und ob der Kessel schlechter
+         wird.</p>
+      <div class="row" id="log-state" style="margin-bottom:.8rem"></div>
+      <div class="actions">
+        <a class="btn quiet" href="/api/log/charges" download="ladungen.csv">Ladungen als CSV</a>
+        <a class="btn quiet" href="/api/log/days" download="tage.csv">Tage als CSV</a>
+      </div>
+    </div>
   </section>
 
   <section id="sys">
+    <div class="card">
+      <h2>Einstellungen sichern</h2>
+      <p class="lede">Die Sicherung enthält alles, was Sie hier eingerichtet haben: Fühler und
+         ihre Rollen, Heizkreise, Relais, Zeiten und Grenzwerte. <b>Die Zugangsdaten stehen im
+         Klartext darin</b> — ohne sie ließe sich nichts zurückspielen, was den Namen verdient.
+         Bewahren Sie die Datei entsprechend auf.</p>
+      <p class="lede">Beim Zurückspielen wird von den Werkseinstellungen aus aufgebaut, damit
+         nicht zwei Stände durcheinandergeraten. Der Netzzugang bleibt ausgenommen: Wer über das
+         Netz einspielt, sägte sonst den Ast ab, auf dem er sitzt.</p>
+      <div class="actions">
+        <a class="btn quiet" href="/api/config/backup" download>Sicherung holen</a>
+        <input type="file" id="s-restore-file" accept="application/json,.json" hidden>
+        <button class="btn risky" id="s-restore">Sicherung einspielen</button>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Gerät</h2>
       <p class="lede">Die Bezeichnung steht in der Kopfzeile und macht das Gerät für die
@@ -463,6 +600,10 @@ const ROLES = [
    Netz und lassen sich deshalb nicht zuordnen. */
 const ROLLE_FREMD = new Set(["aussen"]);
 const MAX_CIRCUITS = 4;
+/* Muss zu TREND_MIN_DAYS in components/heatlogic/include/trend.h passen. */
+const TREND_MIN_DAYS = 14;
+/* Muss zu FLUE_MIN_CHARGES in components/heatlogic/include/flue.h passen. */
+const FLUE_MIN_CHARGES = 10;
 const ROLE_LABEL = Object.fromEntries(ROLES.map(r => [r[0], r[1]]));
 const ROLE_TONE  = Object.fromEntries(ROLES.map(r => [r[0], r[2]]));
 
@@ -556,6 +697,118 @@ function valueOf(role) {
 
 /* ---------------- Anlagenschema ---------------- */
 
+function renderTrend() {
+  const t = state?.trend;
+  const el = $("#trend-state");
+  if (!t || !el) return;
+  if (!t.valid) {
+    el.innerHTML = `<p class="lede">Noch keine Linie: ${t.days} ${
+      t.days === 1 ? "Tag liegt" : "Tage liegen"} vor${
+      t.skipped ? `, ${t.skipped} davon ohne Außenwert übergangen` : ""}. Es braucht mindestens
+      ${TREND_MIN_DAYS} Tage und eine Außenlage, die weit genug auseinanderliegt — im Sommer
+      liegen alle Tage bei null Gradtagen, und durch eine senkrechte Punktwolke führt keine
+      sinnvolle Gerade.</p>`;
+    return;
+  }
+  const ld = t.last_day, ab = ld && ld.sigma_off !== undefined ? ld.sigma_off : null;
+  el.innerHTML = `<div class="row" style="margin-bottom:.9rem">
+      <span class="chip plain">${t.days} Tage</span>
+      ${t.skipped ? `<span class="chip plain">${t.skipped} ohne Außenwert</span>` : ""}
+      <span class="chip ${t.r2 > 0.8 ? "ok" : "warn"}">${(t.r2 * 100).toFixed(0)} % erklärt</span>
+    </div>
+    <dl class="tiles">
+      <div class="tile"><dt>Wärmebedarf</dt>
+        <dd>${t.slope_h_per_gt.toFixed(2)}<small>h/Gt</small></dd>
+        <div class="foot">Brennerlauf je Heizgradtag</div></div>
+      <div class="tile"><dt>Grundverbrauch</dt>
+        <dd>${t.base_h.toFixed(2)}<small>h/Tag</small></dd>
+        <div class="foot">ohne Heizbedarf, also Warmwasser</div></div>
+      <div class="tile"><dt>Streuung</dt>
+        <dd>±${t.sigma_h.toFixed(2)}<small>h</small></dd>
+        <div class="foot">wie eng die Tage an der Linie liegen</div></div>
+      ${ld ? `<div class="tile ${ab !== null && ab > 3 ? "hot" : ""}"><dt>Letzter Tag</dt>
+        <dd>${ld.hours.toFixed(1)}<small>h</small></dd>
+        <div class="foot">bei ${ld.gradtage.toFixed(1)} Gradtagen${
+          ld.expected_h !== undefined
+            ? `, erwartet ${ld.expected_h.toFixed(1)} h — ${ab > 0 ? "+" : ""}${
+                ab.toFixed(1)} Streuungen` : ""}</div></div>` : ""}
+    </dl>`;
+}
+
+function renderFlue() {
+  const f = state?.flue;
+  const el = $("#flue-state");
+  if (!f || !el) return;
+  const datum = f.wartung_epoch
+    ? new Date(f.wartung_epoch * 1000).toLocaleDateString("de-DE",
+        {day: "2-digit", month: "long", year: "numeric"})
+    : null;
+
+  if (f.now_k === undefined) {
+    el.innerHTML = `<p class="lede">Noch kein Wert: ${f.charges} ${
+      f.charges === 1 ? "Ladung liegt" : "Ladungen liegen"} im Protokoll${
+      f.skipped ? `, ${f.skipped} ohne brauchbare Höchstwerte` : ""}. Es braucht mindestens
+      ${FLUE_MIN_CHARGES} Ladungen.${datum ? ` Zuletzt gereinigt am ${datum}.` : ""}</p>`;
+    return;
+  }
+  const d = f.delta_k;
+  el.innerHTML = `<div class="row" style="margin-bottom:.9rem">
+      <span class="chip plain">${f.charges} Ladungen</span>
+      ${f.skipped ? `<span class="chip plain">${f.skipped} ohne Höchstwerte</span>` : ""}
+      ${datum ? `<span class="chip plain">gereinigt am ${datum}</span>` : ""}
+    </div>
+    <dl class="tiles">
+      <div class="tile ${d !== undefined && d > 15 ? "hot" : ""}"><dt>Jetzt</dt>
+        <dd>${f.now_k.toFixed(0)}<small>K</small></dd>
+        <div class="foot">Median der letzten ${f.charges} Ladungen</div></div>
+      ${f.ref_k !== undefined ? `<div class="tile"><dt>Nach der Reinigung</dt>
+        <dd>${f.ref_k.toFixed(0)}<small>K</small></dd>
+        <div class="foot">Median der ersten ${f.ref_charges} Ladungen danach</div></div>` : ""}
+      ${d !== undefined ? `<div class="tile ${d > 15 ? "hot" : ""}"><dt>Veränderung</dt>
+        <dd>${d > 0 ? "+" : ""}${d.toFixed(0)}<small>K</small></dd>
+        <div class="foot">${d > 0 ? "grob " + (d / 20).toFixed(1) + " Prozentpunkte schlechter"
+                                  : "nicht schlechter geworden"}</div></div>` : ""}
+    </dl>
+    ${f.ref_k === undefined ? `<p class="lede" style="margin-top:.8rem">Ohne Bezugspunkt gibt es
+       keinen Vergleich. ${datum ? "Nach der Reinigung liegen noch zu wenige Ladungen vor."
+       : "Tragen Sie die letzte Reinigung ein, dann bilden die folgenden Ladungen den sauberen Zustand ab."}</p>` : ""}`;
+}
+
+function renderFindings() {
+  const f = state?.findings || [];
+  $("#findings-card").hidden = !f.length;
+  if (!f.length) return;
+  /* Der Klartext kommt hier aus der Oberfläche, nicht aus dem Gerät: dort
+     stehen die Zeichenketten ohne Umlaute, weil sie auch ins Protokoll gehen. */
+  const TEXT = {
+    flow_swapped: w => [
+      "Vorlauf und Rücklauf sind vermutlich vertauscht",
+      `seit ${formatUptime(w.held_s)} durchgehend kälter im Vorlauf, obwohl die Pumpe läuft
+       und der Speicher warm ist — entweder sitzen die Fühler an den falschen Rohren oder
+       ihre Rollen sind vertauscht zugeordnet`],
+    day_above_trend: w => [
+      "Der letzte Tag verbrauchte mehr, als zur Außenlage passt",
+      `${w.hours.toFixed(1)} h Brennerlauf statt der erwarteten ${w.expected_h.toFixed(1)} h,
+       das sind ${w.sigma_off.toFixed(1)} Streuungen über der Verbrauchslinie — das findet ein
+       offenes Fenster, ein klemmendes Ventil oder eine Pumpe, die durchläuft`],
+    flue_gap_rising: w => [
+      "Der Kessel überträgt schlechter als nach der letzten Reinigung",
+      `${w.now_k.toFixed(0)} K Abstand zwischen Abgas und Kesselvorlauf statt ${
+        w.ref_k.toFixed(0)} K — ${w.delta_k.toFixed(0)} K mehr, das sind grob ${
+        (w.delta_k / 20).toFixed(1)} Prozentpunkte Wirkungsgrad; meist Ruß im Wärmetauscher`],
+    probe_errors: w => [
+      "Ein Fühler verwirft auffällig viele Messungen",
+      `${w.errors} von ${w.reads + w.errors} Messungen verworfen — meist ein Wackelkontakt,
+       eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand`],
+  };
+  $("#findings").innerHTML = f.map(w => {
+    const [titel, dazu] = (TEXT[w.code] || (x => [x.text, ""]))(w);
+    return `<div class="finding">
+      <span class="chip warn">${w.where}</span>
+      <div><b>${titel}</b><span>${dazu}</span></div></div>`;
+  }).join("");
+}
+
 function renderSchema() {
   /* Im Schema stehen kurze Bezeichnungen: welcher Kessel und welcher Kreis
      gemeint ist, ergibt sich aus der Stelle. Die vollen Namen stehen in den
@@ -617,6 +870,30 @@ function renderSchema() {
    *
    * Gezeichnet ist das übliche Sinnbild: drei Kegel, die auf die Mitte zeigen.
    */
+  /*
+   * Kesselkreispumpe auf der Vorlaufleitung. Das Sinnbild ist der übliche
+   * Kreis mit Dreieck in Förderrichtung; die Füllung pulst, solange sie läuft.
+   * Ein Klick schaltet die Betriebsart weiter: Automatik, Hand ein, Hand aus.
+   */
+  const pumpe = (cx, cy) => {
+    const b = state?.boiler_pump;
+    if (!b?.enabled) return "";
+    const modus = b.mode || "auto";
+    const marke = modus === "auto" ? "" : modus === "ein" ? "I" : "0";
+    const titel = `Kesselkreispumpe: ${b.on ? "läuft" : "steht"} · ${
+      BP_GRUND[b.reason_key] || b.reason}`
+      + ` · Betriebsart ${modus === "auto" ? "Automatik" : "Hand " + modus}`
+      + ` — klicken zum Weiterschalten`;
+    return `<g class="sc-pump${b.on ? " on" : ""}" data-pump="1" style="cursor:pointer">
+      <title>${titel}</title>
+      <circle class="sc-body" cx="${cx}" cy="${cy}" r="14"/>
+      <path class="sc-pumpwing" d="M${cx - 6} ${cy - 7} L${cx + 8} ${cy} L${cx - 6} ${cy + 7} Z"/>
+      ${marke ? `<circle class="sc-pumphand" cx="${cx + 12}" cy="${cy - 11}" r="6"/>
+                 <text class="sc-pumpmark" x="${cx + 12}" y="${cy - 8}"
+                       text-anchor="middle">${marke}</text>` : ""}
+    </g>`;
+  };
+
   const mischer = (cx, cy, yr) => {
     const k = (x1, y1, x2, y2, x3, y3, cls) =>
       `<path class="sc-mix ${cls}" d="M${x1} ${y1} L${x2} ${y2} L${x3} ${y3} Z"/>`;
@@ -655,7 +932,8 @@ function renderSchema() {
 
   <!-- Kessel zum Speicher -->
   <path class="sc-pipe hot" d="M144 126 H248"/>
-  ${M("kessel_vl", 196, 110, "middle", 32)}
+  ${M("kessel_vl", 178, 110, "middle", 32)}
+  ${pumpe(228, 126)}
   <path class="sc-pipe cold" d="M144 192 H248"/>
   ${M("kessel_rl", 196, 176, "middle", 32)}
 
@@ -807,10 +1085,113 @@ const freieKennung = () => {
   return id;
 };
 
+/* Klartext der Gründe. Er steht hier und nicht im Gerät, weil die dortigen
+   Zeichenketten auch ins Protokoll gehen und deshalb ohne Umlaute bleiben. */
+const BP_GRUND = {
+  transfer: "der Kessel gibt Wärme ab",
+  no_transfer: "Rücklauf wärmer als Vorlauf — der Kessel würde den Speicher leeren",
+  emergency: "Notabfuhr, Kesselvorlauf über der Grenze",
+  no_reading: "keine Kesselwerte, sie läuft sicherheitshalber",
+  hold: "Haltezeit — die Bedingung hat eben erst gewechselt",
+  min_run: "Mindestlaufzeit",
+  min_pause: "Mindestpause",
+  manual: "Handbetrieb",
+  disabled: "keine Kesselkreispumpe eingerichtet",
+};
+
+function renderBoilerPump() {
+  const b = state?.boiler_pump;
+  const c = cfg?.boiler_pump;
+  if (!b || !c) return;
+
+  /* Geregelt wird sie nur dort, wo Kesselvor- und -rücklauf selbst gemessen
+     werden; mit Werten vom Nachbargerät würde ein Verbindungsabriss die Pumpe
+     dauerhaft laufen lassen. Die Firmware ist auf beiden Geräten dieselbe, die
+     Karte darf es nicht sein. Steht sie noch auf eingerichtet, bleibt sie
+     sichtbar — sonst ließe sie sich nicht mehr abschalten. */
+  const rollen = new Set((state?.probes || []).map(p => p.role));
+  const amKessel = rollen.has("kessel_vl") && rollen.has("kessel_rl");
+  $("#bp-card").hidden = !amKessel && !c.enabled;
+  if ($("#bp-card").hidden) return;
+
+  $("#bp-dot").className = "pump-dot" + (b.on ? " on" : "");
+  $("#bp-state").innerHTML = b.enabled
+    ? `<b>Pumpe ${b.on ? "läuft" : "steht"}</b><span>seit ${formatUptime(b.since_s)} · ${
+        BP_GRUND[b.reason_key] || b.reason}</span>`
+    : `<b>nicht eingerichtet</b><span>keine Kesselkreispumpe an diesem Gerät</span>`;
+
+  const marken = [];
+  if (b.enabled) {
+    if (b.mode !== "auto")
+      marken.push(`<span class="chip warn">Handbetrieb</span>`);
+    if (b.path === "keiner") marken.push(`<span class="chip warn">kein Weg zum Relais</span>`);
+    else marken.push(`<span class="chip plain">über ${b.path === "http" ? "HTTP" : "MQTT"}</span>`);
+    if (b.relay.known && !b.relay.mismatch)
+      marken.push(`<span class="chip ${b.relay.on ? "heat" : "plain"}">Relais ${
+        b.relay.on ? "ein" : "aus"}</span>`);
+    if (b.path === "http" && b.relay.status !== undefined && b.relay.status !== 200)
+      marken.push(`<span class="chip bad">${b.relay.status < 0
+        ? "Relais nicht erreichbar" : `Relais antwortet mit ${b.relay.status}`}</span>`);
+  }
+  $("#bp-marks").innerHTML = marken.join("");
+
+  $$("#bp-mode button").forEach(x => x.classList.toggle("on", x.dataset.m === b.mode));
+
+  /* Solange an einem Feld gearbeitet wird, nicht überschreiben. */
+  if ($("#bp-card").contains(document.activeElement)) return;
+  $("#bp-on").checked = !!c.enabled;
+  $("#bp-topic").value = c.topic || "";
+  $("#bp-host").value = c.host || "";
+  $("#bp-relay").value = c.relay ?? 1;
+  $("#bp-user").value = c.user || "";
+  $("#bp-pass").placeholder = c.pass_set ? "gespeichert" : "nicht gesetzt";
+  $("#bp-onk").value = c.on_k ?? 1;
+  $("#bp-offk").value = c.off_k ?? 0.5;
+  $("#bp-hold").value = c.hold_s ?? 120;
+  $("#bp-minrun").value = c.min_run_s ?? 180;
+  $("#bp-minpause").value = c.min_pause_s ?? 180;
+  $("#bp-emerg").value = c.emergency_c ?? 85;
+}
+
 function renderCircuitAdd() {
   const n = (cfg?.circuits || []).length;
   const voll = n >= MAX_CIRCUITS;
   const id = freieKennung();
+  /* Die Freigabe eines Heizkreises hängt an der Speichertemperatur, und die
+     misst nur das Gerät am Pufferspeicher. Ohne diesen Fühler ist hier nichts
+     anzulegen — dann sagt die Karte das, statt einen Knopf anzubieten, dessen
+     Beschreibung ihm widerspricht. */
+  const hatPuffer = (state?.probes || []).some(p => p.role === "puffer");
+
+  if (!hatPuffer && n > 0) {
+    /* Kann seit der serverseitigen Prüfung nicht mehr entstehen, aber ein
+       Gerät aus einer älteren Fassung kann so dastehen. Einzeln löschen ginge
+       nicht — der verbleibende Kreis fiele durch dieselbe Prüfung. */
+    $("#circ-add-title").textContent = "Heizkreise ohne Pufferfühler";
+    $("#circ-add-text").textContent =
+      `An diesem Gerät sind ${n} Heizkreise angelegt, aber kein Pufferfühler zugeordnet. Ihre
+       Pumpen bekommen deshalb nie eine Freigabe. Entweder Sie ordnen den Fühler zu, oder Sie
+       entfernen die Heizkreise — einzeln geht das nicht, sie hängen an derselben Bedingung.`;
+    $("#circ-add").hidden = false;
+    $("#circ-add").disabled = false;
+    $("#circ-add").textContent = "Alle Heizkreise entfernen";
+    $("#circ-add").dataset.wipe = "1";
+    return;
+  }
+  $("#circ-add").textContent = "Heizkreis anlegen";
+  delete $("#circ-add").dataset.wipe;
+
+  if (!hatPuffer) {
+    $("#circ-add-title").textContent = "Keine Heizkreise an diesem Gerät";
+    $("#circ-add-text").textContent =
+      `Dieses Gerät misst keinen Pufferspeicher. Heizkreise gehören auf das Gerät, an dem die
+       Umwälzpumpen hängen — dort sitzt auch der Speicherfühler, den die Freigabe der Pumpen
+       braucht. Am Kessel bleibt dieser Bereich deshalb leer; hier steht stattdessen die
+       Kesselkreispumpe.`;
+    $("#circ-add").hidden = true;
+    return;
+  }
+  $("#circ-add").hidden = false;
 
   $("#circ-add-title").textContent = n ? "Weiterer Heizkreis" : "Heizkreis anlegen";
   $("#circ-add-text").textContent = voll
@@ -819,15 +1200,14 @@ function renderCircuitAdd() {
     : n
     ? `${n} von ${MAX_CIRCUITS} Heizkreisen angelegt. Der nächste bekommt die Kennung ${id}
        und damit die Fühlerrollen „Vorlauf Heizkreis ${id}“ und „Rücklauf Heizkreis ${id}“.`
-    : `Heizkreise werden auf dem Gerät am Pufferspeicher angelegt — dort hängt das Relais der
-       Umwälzpumpen. Am Kessel bleibt dieser Bereich leer. Vorgesehen sind bis zu
-       ${MAX_CIRCUITS} Kreise; jeder bekommt eigene Fühler, ein eigenes Relais und eigene
-       Zeiten.`;
+    : `Jeder Heizkreis bekommt eigene Fühler, ein eigenes Relais für seine Umwälzpumpe und
+       eigene Zeiten. Vorgesehen sind bis zu ${MAX_CIRCUITS}.`;
   $("#circ-add").disabled = voll;
 }
 
 function renderCircuits() {
   const ks = state.circuits || [];
+  renderBoilerPump();
   renderCircuitAdd();
   if (editingCircuits()) return;
 
@@ -861,7 +1241,8 @@ function renderCircuits() {
     const quellzeilen = meine.length ? meine.map(q => `<div class="src">
         <span class="chip ${q.demand ? "heat" : "plain"}">${q.demand ? "Bedarf" : "kein Bedarf"}</span>
         <div class="who"><b>${q.site || q.id}</b>
-          <span>${q.host || "—"} · ${q.open_channels} ${q.open_channels === 1 ? "Kreis" : "Kreise"} offen · ${
+          <span>${q.host || "—"} · ${q.open_channels} ${q.open_channels === 1 ? "Kreis" : "Kreise"} offen${
+            q.unregulated ? ` · ${q.unregulated} ohne Regelung` : ""} · ${
             q.seen ? `vor ${q.age_s} s` : "nie erreicht"}</span></div>
       </div>`).join("")
       : `<p class="lede">Diesem Heizkreis ist kein Verteiler zugeordnet. Ohne Zuordnung
@@ -1075,7 +1456,10 @@ const hidden = new Set();
 
 async function loadHistory() {
   const minuten = parseInt($("#hist-range").value, 10);
-  const step = Math.max(1, Math.round(minuten / 288));
+  /* Der Verlauf wird nicht minütlich geschrieben; wie oft, sagt das Gerät.
+     Ohne diese Rechnung stimmte der Zeitraum nicht mehr. */
+  const takt = hist?.period_min || 2;
+  const step = Math.max(1, Math.round(minuten / 288 / takt));
   try {
     hist = await api(`/api/history?step=${step}&max=288`);
     renderLegend();
@@ -1226,6 +1610,11 @@ function renderRecord() {
           ? "den Brennerzustand" : "die Speichertemperatur"} aus</span>`;
   }
   $("#rec-state").innerHTML = text;
+
+  const lg = state.log || {};
+  $("#log-state").innerHTML =
+    `<span class="chip plain">${lg.charges || 0} Ladungen</span>`
+    + `<span class="chip plain">${lg.days || 0} abgeschlossene Tage</span>`;
 
   $("#rec-arm").disabled = r.state === "laeuft" || r.state === "scharf"
                            || r.source === "keiner";
@@ -1399,6 +1788,9 @@ async function poll() {
   try {
     state = await api("/api/state");
     renderStatus();
+    renderFindings();
+  renderTrend();
+  renderFlue();
     renderSchema();
     renderCharge();
     renderBurner();
@@ -1444,7 +1836,37 @@ async function boot() {
     wizStep++; renderWizard();
   };
 
+  $("#bp-save").onclick = () => {
+    const v = id => $(id).value;
+    saveConfig({boiler_pump: {
+      enabled: $("#bp-on").checked,
+      topic: v("#bp-topic").trim(),
+      host: v("#bp-host").trim(),
+      user: v("#bp-user").trim(),
+      relay: parseInt(v("#bp-relay"), 10) || 1,
+      /* Ein leeres Feld lässt das gespeicherte Kennwort stehen. */
+      ...(v("#bp-pass") ? {pass: v("#bp-pass")} : {}),
+      on_k: parseFloat(v("#bp-onk")),
+      off_k: parseFloat(v("#bp-offk")),
+      hold_s: parseInt(v("#bp-hold"), 10),
+      min_run_s: parseInt(v("#bp-minrun"), 10),
+      min_pause_s: parseInt(v("#bp-minpause"), 10),
+      emergency_c: parseFloat(v("#bp-emerg")),
+    }}, "Kesselkreispumpe gespeichert");
+  };
+  $("#bp-mode").onclick = async e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    try {
+      await post(`/api/boilerpump/${b.dataset.m}`);
+      cfg = await api("/api/config");
+      refresh();
+    } catch (err) { toast(err.message, true); }
+  };
+
   $("#circ-add").onclick = () => {
+    if ($("#circ-add").dataset.wipe)
+      return saveConfig({circuits: []}, "Heizkreise entfernt");
     if ((cfg.circuits || []).length >= MAX_CIRCUITS)
       return toast(`Mehr als ${MAX_CIRCUITS} Heizkreise sind nicht vorgesehen`, true);
     const id = freieKennung();
@@ -1481,10 +1903,55 @@ async function boot() {
     }
   };
 
+  /* Klick auf die Pumpe schaltet die Betriebsart weiter. */
+  $("#schema").onclick = async e => {
+    if (!e.target.closest("[data-pump]")) return;
+    const jetzt = state?.boiler_pump?.mode || "auto";
+    const naechste = {auto: "ein", ein: "aus", aus: "auto"}[jetzt];
+    try {
+      await post(`/api/boilerpump/${naechste}`);
+      toast(naechste === "auto" ? "Kesselkreispumpe wieder in Automatik"
+                                : `Kesselkreispumpe von Hand ${naechste}`);
+      refresh();
+    } catch (err) { toast(err.message, true); }
+  };
+
   $("#probe-save").onclick = () => saveConfig({probes: collectProbes()}, "Zuordnung gespeichert");
   $("#probe-rescan").onclick = async () => {
     try { await post("/api/probes/rescan"); toast("Bus wird neu abgesucht"); }
     catch (e) { toast(e.message, true); }
+  };
+
+  /* Die Datei wird im Browser gelesen und als Ganzes gesendet; das Gerät baut
+     daraus von den Werkseinstellungen aus neu auf. */
+  $("#s-restore").onclick = () => $("#s-restore-file").click();
+  $("#s-restore-file").onchange = async e => {
+    const datei = e.target.files?.[0];
+    e.target.value = "";
+    if (!datei) return;
+    let text, doc;
+    try {
+      text = await datei.text();
+      doc = JSON.parse(text);
+    } catch (err) { return toast("Die Datei ist kein lesbares JSON", true); }
+
+    const k = doc.backup;
+    const woher = k
+      ? `${k.site || k.device_id || "unbekannt"}${k.epoch
+          ? `, gesichert am ${new Date(k.epoch * 1000).toLocaleString("de-DE")}` : ""}`
+      : "ohne Kopfzeile — stammt womöglich nicht von hier";
+    if (k?.app && k.app !== "heat-source-ctrl")
+      return toast(`Diese Sicherung stammt von einem Verteiler, nicht von einem Heizungsgerät`, true);
+    if (!confirm(`Sicherung einspielen?\n\n${woher}\n\n`
+               + `Alle jetzigen Einstellungen dieses Geräts werden ersetzt. `
+               + `Der Netzzugang bleibt unverändert.`)) return;
+
+    try {
+      await post("/api/config/restore", doc);
+      toast("Einstellungen zurückgespielt");
+      cfg = await api("/api/config");
+      await refresh();
+    } catch (err) { toast(err.message, true); }
   };
 
   $("#s-dev-save").onclick = () => saveConfig({site: $("#s-site").value.trim()});
@@ -1555,6 +2022,16 @@ async function boot() {
   $("#rec-start").onclick = async () => {
     try { await post("/api/record/start"); toast("Aufzeichnung gestartet"); refresh(); }
     catch (e) { toast(e.message, true); }
+  };
+  $("#flue-clean").onclick = async () => {
+    /* Der Zeitpunkt kommt vom Browser: das Gerät kennt zwar die Uhrzeit, aber
+       den Anlass kennt nur, wer davorsteht. */
+    const jetzt = Math.floor(Date.now() / 1000);
+    const datum = new Date().toLocaleDateString("de-DE",
+      {day: "2-digit", month: "long", year: "numeric"});
+    if (!confirm(`Reinigung auf den ${datum} setzen? Der bisherige Bezugspunkt wird verworfen; `
+               + `die folgenden Ladungen bilden den sauberen Zustand neu ab.`)) return;
+    saveConfig({burner: {wartung_epoch: jetzt}}, `Reinigung auf den ${datum} gesetzt`);
   };
   $("#rec-discard").onclick = async () => {
     try { await post("/api/record/discard"); toast("Aufzeichnung verworfen"); refresh(); }

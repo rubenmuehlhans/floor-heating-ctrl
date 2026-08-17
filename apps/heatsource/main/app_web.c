@@ -2,12 +2,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "app_burner.h"
+#include "app_log.h"
 #include "app_mqtt.h"
 #include "app_pumps.h"
 #include "app_remote.h"
 #include "app_sensors.h"
+#include "app_analyse.h"
 #include "cJSON.h"
 #include "config_store.h"
 #include "esp_app_desc.h"
@@ -22,6 +25,7 @@
 #include "mqttc.h"
 #include "netmgr.h"
 #include "peers.h"
+#include "plausi.h"
 
 static const char *TAG = "web";
 
@@ -295,6 +299,9 @@ static esp_err_t state_get(httpd_req_t *req)
         } else {
             cJSON_AddNullToObject(j, "spread_k");
         }
+        if (c->flow_swapped) {
+            cJSON_AddBoolToObject(j, "flow_swapped", true);
+        }
         cJSON *rel = cJSON_AddObjectToObject(j, "relay");
         cJSON_AddBoolToObject(rel, "known", c->relay_known);
         cJSON_AddBoolToObject(rel, "on", c->relay_on);
@@ -321,6 +328,7 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddBoolToObject(j, "demand", p->demand);
         cJSON_AddNumberToObject(j, "max_target", p->max_target);
         cJSON_AddNumberToObject(j, "open_channels", p->open_channels);
+        cJSON_AddNumberToObject(j, "unregulated", p->unregulated);
         cJSON_AddNumberToObject(j, "rooms_calling", p->rooms_calling);
         cJSON_AddNumberToObject(j, "age_s", p->age_s);
         cJSON_AddNumberToObject(j, "errors", p->errors);
@@ -383,6 +391,27 @@ static esp_err_t state_get(httpd_req_t *req)
         }
     }
 
+    /*
+     * Woher die Aussentemperatur kommt. Sie haengt an einem RuuviTag an einer
+     * Verteilerplatine; ohne diese Angabe waere nicht zu sehen, an welcher --
+     * und ob sie ueberhaupt jemand liefert.
+     */
+    {
+        char quelle[CFG_NAME_LEN];
+        uint32_t alter = 0;
+        cJSON *ao = cJSON_AddObjectToObject(root, "outdoor");
+        if (remote_outdoor_source(quelle, sizeof(quelle), &alter)) {
+            cJSON_AddStringToObject(ao, "source", quelle);
+            cJSON_AddNumberToObject(ao, "age_s", alter);
+        } else {
+            cJSON_AddNullToObject(ao, "source");
+        }
+        float c = 0.0f;
+        if (remote_role_value(ROLE_AUSSEN, &c, NULL)) {
+            cJSON_AddNumberToObject(ao, "temp_c", c);
+        }
+    }
+
     /* Nachbargeraete im Heizungsbereich. */
     static remote_peer_t rp[4];
     size_t rn = remote_peers(rp, 4);
@@ -420,6 +449,144 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddNumberToObject(cr, "bytes", rec.bytes);
 
     cJSON_AddNumberToObject(root, "history_len", sensors_history_len());
+    /*
+     * Befunde der Plausibilitaetspruefung. Sie greifen nicht ein, sie melden --
+     * die Anzeige soll sie an einer Stelle zeigen, nicht ueber die Karten
+     * verstreut.
+     */
+    cJSON *warn = cJSON_AddArrayToObject(root, "findings");
+    for (size_t i = 0; i < kn; i++) {
+        if (!kreise[i].flow_swapped) {
+            continue;
+        }
+        cJSON *w = cJSON_CreateObject();
+        cJSON_AddStringToObject(w, "code", "flow_swapped");
+        cJSON_AddStringToObject(w, "text", plausi_text(PLAUSI_FLOW_SWAPPED));
+        cJSON_AddStringToObject(w, "where", kreise[i].name);
+        cJSON_AddNumberToObject(w, "held_s", kreise[i].swapped_held_s);
+        cJSON_AddItemToArray(warn, w);
+    }
+    {
+        static plausi_cfg_t pc;
+        plausi_defaults(&pc);
+        for (size_t i = 0; i < snap.count; i++) {
+            const sens_probe_t *p = &snap.probes[i];
+            if (!plausi_probe_bad(&pc, p->reads, p->errors)) {
+                continue;
+            }
+            char rom[20];
+            ot_rom_to_str(p->rom, rom, sizeof(rom));
+            cJSON *w = cJSON_CreateObject();
+            cJSON_AddStringToObject(w, "code", "probe_errors");
+            cJSON_AddStringToObject(w, "text", plausi_text(PLAUSI_PROBE_ERRORS));
+            cJSON_AddStringToObject(w, "where", p->name[0] ? p->name : rom);
+            cJSON_AddNumberToObject(w, "reads", p->reads);
+            cJSON_AddNumberToObject(w, "errors", p->errors);
+            cJSON_AddItemToArray(warn, w);
+        }
+    }
+
+    /*
+     * Ein Tag deutlich ueber der Verbrauchslinie. Was das sein kann, sagt die
+     * Zahl nicht -- ein offenes Fenster, ein klemmendes Ventil, eine Pumpe, die
+     * durchlaeuft. Sie sagt nur, dass dieser Tag nicht zum eigenen Haus passt.
+     */
+    {
+        static trend_status_t ts;
+        analyse_trend(&ts);
+        if (analyse_day_alert(&ts)) {
+            cJSON *w = cJSON_CreateObject();
+            cJSON_AddStringToObject(w, "code", "day_above_trend");
+            cJSON_AddStringToObject(w, "where", "letzter Tag");
+            cJSON_AddStringToObject(w, "text",
+                                    "Der letzte Tag verbrauchte deutlich mehr als bei dieser "
+                                    "Aussenlage ueblich");
+            cJSON_AddNumberToObject(w, "hours", ts.last_hours);
+            cJSON_AddNumberToObject(w, "expected_h", ts.last_expected);
+            cJSON_AddNumberToObject(w, "sigma_off", ts.last_sigma_off);
+            cJSON_AddItemToArray(warn, w);
+        }
+
+        cJSON *tj = cJSON_AddObjectToObject(root, "trend");
+        cJSON_AddBoolToObject(tj, "valid", ts.fit.valid);
+        cJSON_AddNumberToObject(tj, "days", ts.fit.n);
+        cJSON_AddNumberToObject(tj, "skipped", ts.skipped);
+        if (ts.fit.valid) {
+            cJSON_AddNumberToObject(tj, "slope_h_per_gt", ts.fit.slope);
+            cJSON_AddNumberToObject(tj, "base_h", ts.fit.intercept);
+            cJSON_AddNumberToObject(tj, "sigma_h", ts.fit.sigma);
+            cJSON_AddNumberToObject(tj, "r2", ts.fit.r2);
+        }
+        if (ts.last_day_valid) {
+            cJSON *ld = cJSON_AddObjectToObject(tj, "last_day");
+            cJSON_AddNumberToObject(ld, "gradtage", ts.last_gradtage);
+            cJSON_AddNumberToObject(ld, "hours", ts.last_hours);
+            if (ts.fit.valid) {
+                cJSON_AddNumberToObject(ld, "expected_h", ts.last_expected);
+                cJSON_AddNumberToObject(ld, "sigma_off", ts.last_sigma_off);
+            }
+        }
+    }
+
+    /*
+     * Abgas-Vorlauf-Abstand. Er steigt, wenn Russ im Waermetauscher die
+     * Uebertragung behindert -- die Waerme geht dann durch den Schornstein
+     * statt ins Wasser.
+     */
+    {
+        static flue_status_t fs;
+        analyse_flue(&fs);
+        if (flue_alert(&fs.res)) {
+            cJSON *w = cJSON_CreateObject();
+            cJSON_AddStringToObject(w, "code", "flue_gap_rising");
+            cJSON_AddStringToObject(w, "where", "Kessel");
+            cJSON_AddStringToObject(w, "text",
+                                    "Der Abgas-Vorlauf-Abstand liegt deutlich ueber dem Zustand "
+                                    "nach der letzten Reinigung");
+            cJSON_AddNumberToObject(w, "now_k", fs.res.now_k);
+            cJSON_AddNumberToObject(w, "ref_k", fs.res.ref_k);
+            cJSON_AddNumberToObject(w, "delta_k", fs.res.delta_k);
+            cJSON_AddItemToArray(warn, w);
+        }
+
+        cJSON *fj = cJSON_AddObjectToObject(root, "flue");
+        cJSON_AddNumberToObject(fj, "charges", fs.res.now_n);
+        cJSON_AddNumberToObject(fj, "skipped", fs.skipped);
+        cJSON_AddNumberToObject(fj, "wartung_epoch", fs.wartung_epoch);
+        if (fs.res.now_valid) {
+            cJSON_AddNumberToObject(fj, "now_k", fs.res.now_k);
+        }
+        if (fs.res.ref_valid) {
+            cJSON_AddNumberToObject(fj, "ref_k", fs.res.ref_k);
+            cJSON_AddNumberToObject(fj, "ref_charges", fs.res.ref_n);
+        }
+        if (fs.res.delta_valid) {
+            cJSON_AddNumberToObject(fj, "delta_k", fs.res.delta_k);
+        }
+    }
+
+    boiler_pump_status_t bp;
+    pumps_boiler_status(&bp);
+    cJSON *jb = cJSON_AddObjectToObject(root, "boiler_pump");
+    cJSON_AddBoolToObject(jb, "enabled", bp.enabled);
+    cJSON_AddBoolToObject(jb, "on", bp.on);
+    cJSON_AddStringToObject(jb, "mode", bp.mode == 1 ? "ein" : bp.mode == 2 ? "aus" : "auto");
+    cJSON_AddStringToObject(jb, "reason", bp.reason ? bp.reason : "");
+    cJSON_AddStringToObject(jb, "reason_key", bp.reason_key ? bp.reason_key : "");
+    cJSON_AddNumberToObject(jb, "since_s", bp.since_s);
+    cJSON_AddStringToObject(jb, "path", bp.path == PUMP_PATH_MQTT ? "mqtt"
+                                        : bp.path == PUMP_PATH_HTTP ? "http" : "keiner");
+    cJSON *jbr = cJSON_AddObjectToObject(jb, "relay");
+    cJSON_AddBoolToObject(jbr, "known", bp.relay_known);
+    cJSON_AddBoolToObject(jbr, "on", bp.relay_on);
+    cJSON_AddBoolToObject(jbr, "online", bp.relay_online);
+    if (bp.path == PUMP_PATH_HTTP) {
+        cJSON_AddNumberToObject(jbr, "status", bp.last_status);
+    }
+
+    cJSON *lg = cJSON_AddObjectToObject(root, "log");
+    cJSON_AddNumberToObject(lg, "charges", applog_charge_count());
+    cJSON_AddNumberToObject(lg, "days", applog_day_count());
     return send_json_obj(req, root);
 }
 
@@ -503,19 +670,32 @@ static esp_err_t history_get(httpd_req_t *req)
 
     char buf[192];
     snprintf(buf, sizeof(buf),
-             "{\"step_min\":%d,\"points\":%u,\"newest_epoch\":%lu,\"roles\":[", step,
-             (unsigned)punkte, (unsigned long)sensors_history_newest_epoch());
+             "{\"period_min\":%d,\"step_min\":%d,\"points\":%u,\"newest_epoch\":%lu,"
+             "\"roles\":[",
+             SENS_HIST_PERIOD_S / 60, step * (SENS_HIST_PERIOD_S / 60), (unsigned)punkte,
+             (unsigned long)sensors_history_newest_epoch());
     httpd_resp_sendstr_chunk(req, buf);
 
+    bool erste_rolle = true;
     for (int r = 1; r < ROLE_COUNT; r++) {
-        snprintf(buf, sizeof(buf), "%s\"%s\"", r > 1 ? "," : "", cfg_role_key((probe_role_t)r));
+        if (!sensors_history_has((probe_role_t)r)) {
+            continue;
+        }
+        snprintf(buf, sizeof(buf), "%s\"%s\"", erste_rolle ? "" : ",",
+                 cfg_role_key((probe_role_t)r));
+        erste_rolle = false;
         httpd_resp_sendstr_chunk(req, buf);
     }
     httpd_resp_sendstr_chunk(req, "],\"series\":{");
 
     int16_t row[ROLE_COUNT];
+    bool erste = true;
     for (int r = 1; r < ROLE_COUNT; r++) {
-        snprintf(buf, sizeof(buf), "%s\"%s\":[", r > 1 ? "," : "", cfg_role_key((probe_role_t)r));
+        if (!sensors_history_has((probe_role_t)r)) {
+            continue;   /* leere Serien haben im Verlauf nichts zu suchen */
+        }
+        snprintf(buf, sizeof(buf), "%s\"%s\":[", erste ? "" : ",", cfg_role_key((probe_role_t)r));
+        erste = false;
         httpd_resp_sendstr_chunk(req, buf);
 
         /* Von alt nach jung, damit die Kurve in Leserichtung entsteht. */
@@ -575,6 +755,143 @@ static void wifi_apply_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/*
+ * Sicherung der Einstellungen.
+ *
+ * Anders als /api/config enthaelt sie die Zugangsdaten im Klartext -- sonst
+ * liesse sich aus ihr nichts wiederherstellen, was den Namen verdient. Die
+ * Datei gehoert deshalb behandelt wie ein Kennwortzettel.
+ *
+ * Der Kopf traegt Geraet, Ort, Firmwarestand und Zeitpunkt. Er dient dem
+ * Wiedererkennen und der Warnung beim Einspielen; ausgewertet wird beim
+ * Zurueckspielen nur, was darunter steht.
+ */
+static esp_err_t config_backup_get(httpd_req_t *req)
+{
+    static app_config_t cfg;
+    cfg_copy(&cfg);
+
+    char *json = cfg_to_json(&cfg, true);
+    if (json == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    cJSON *root = cJSON_Parse(json);
+    free(json);
+    if (root == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char id[24];
+    snprintf(id, sizeof(id), "heiz_%02x%02x%02x", mac[3], mac[4], mac[5]);
+
+    cJSON *kopf = cJSON_CreateObject();
+    cJSON_AddStringToObject(kopf, "app", "heat-source-ctrl");
+    cJSON_AddStringToObject(kopf, "device_id", id);
+    cJSON_AddStringToObject(kopf, "site", cfg.site);
+    cJSON_AddStringToObject(kopf, "version", esp_app_get_description()->version);
+    cJSON_AddNumberToObject(kopf, "epoch", (double)time(NULL));
+    cJSON_AddItemToObject(root, "backup", kopf);
+
+    char *txt = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (txt == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    char dispo[96];
+    snprintf(dispo, sizeof(dispo), "attachment; filename=\"einstellungen-%s.json\"", id);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "Content-Disposition", dispo);
+    esp_err_t rc = httpd_resp_sendstr(req, txt);
+    free(txt);
+    return rc;
+}
+
+/*
+ * Zuruecksetzen aus einer Sicherung.
+ *
+ * Anders als PUT /api/config ist das kein Teilabgleich: Es wird von den
+ * Werkseinstellungen aus aufgebaut, damit ein Feld, das in der Sicherung fehlt,
+ * auf seine Vorgabe faellt statt den laufenden Wert zu behalten. Sonst waere
+ * das Ergebnis eine Mischung aus zwei Staenden.
+ *
+ * Der Netzzugang bleibt ausgenommen: Wer ueber das Netz einspielt, saegt sonst
+ * den Ast ab, auf dem er sitzt. Er wird danach von Hand gesetzt, falls noetig.
+ */
+static esp_err_t config_restore_post(httpd_req_t *req)
+{
+    char *body = read_body(req);
+    if (body == NULL) {
+        return send_error(req, "400 Bad Request", "Anfrage konnte nicht gelesen werden");
+    }
+
+    /*
+     * Die Kopfzeile wird verlangt, nicht nur geprueft.
+     *
+     * Zurueckspielen baut von den Werkseinstellungen aus auf. Ein Rumpf, der
+     * keine Sicherung ist -- ein leeres Objekt genuegt --, setzt damit alles
+     * zurueck, ohne dass es nach einem Fehler aussaehe. Genau das ist beim
+     * Ausprobieren passiert. Angenommen wird deshalb nur, was aus
+     * /api/config/backup dieses Geraetetyps stammt; von Hand geschriebene
+     * Aenderungen gehoeren nach PUT /api/config, das nur uebernimmt, was
+     * dasteht.
+     */
+    {
+        cJSON *doc = cJSON_Parse(body);
+        const cJSON *kopf = doc ? cJSON_GetObjectItemCaseSensitive(doc, "backup") : NULL;
+        const cJSON *app = kopf ? cJSON_GetObjectItemCaseSensitive(kopf, "app") : NULL;
+        bool fehlt = !cJSON_IsString(app);
+        bool falsch = !fehlt && strcmp(app->valuestring, "heat-source-ctrl") != 0;
+        cJSON_Delete(doc);
+        if (fehlt) {
+            free(body);
+            return send_error(req, "400 Bad Request",
+                              "Das ist keine Sicherung dieses Geraets");
+        }
+        if (falsch) {
+            free(body);
+            return send_error(req, "400 Bad Request",
+                              "Diese Sicherung stammt von einem anderen Geraetetyp");
+        }
+    }
+
+    static app_config_t next;
+    static cfg_wifi_t behalten;
+    cfg_copy(&next);
+    behalten = next.wifi;
+
+    cfg_defaults(&next);
+    next.wifi = behalten;
+
+    char err[128] = {0};
+    esp_err_t rc = cfg_from_json(body, &next, err, sizeof(err));
+    free(body);
+    if (rc != ESP_OK) {
+        return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung nicht lesbar");
+    }
+    /* Der Netzzugang der Sicherung wird verworfen, siehe oben. */
+    next.wifi = behalten;
+
+    rc = cfg_set(&next, err, sizeof(err));
+    if (rc != ESP_OK) {
+        return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung abgelehnt");
+    }
+
+    sensors_config_changed();
+    pumps_config_changed();
+    burner_config_changed();
+    analyse_poll();
+    hamqtt_config_changed();
+    peers_update_identity(next.wifi.hostname, next.site);
+    ESP_LOGW(TAG, "Einstellungen aus einer Sicherung zurueckgespielt");
+
+    return send_ok(req);
+}
+
 static esp_err_t config_put(httpd_req_t *req)
 {
     char *body = read_body(req);
@@ -606,6 +923,10 @@ static esp_err_t config_put(httpd_req_t *req)
     sensors_config_changed();
     pumps_config_changed();
     burner_config_changed();
+    /* Das Reinigungsdatum verschiebt den Bezugspunkt des Abgasabstands. Ohne
+     * diesen Aufruf wuerde ein Knopfdruck erst zur naechsten vollen Stunde
+     * wirken -- die Oberflaeche zeigte bis dahin den alten Stand. */
+    analyse_poll();
     hamqtt_config_changed();
     peers_update_identity(next.wifi.hostname, next.site);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Fuehler zugeordnet", next.probe_count);
@@ -671,6 +992,96 @@ static esp_err_t record_get(httpd_req_t *req)
     return ESP_OK;
 }
 
+/*
+ * Ladungs- und Tagesprotokoll als CSV. Beide sind schmal genug, um in einem
+ * Zug zu gehen; ausgegeben wird juengster Satz zuerst.
+ */
+static esp_err_t log_charges_get(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/csv; charset=utf-8");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=ladungen.csv");
+    httpd_resp_sendstr_chunk(req,
+        "# Ladungsprotokoll, juengste zuerst. Temperaturen in Grad, Oel in Litern.\n"
+        "beginn,dauer_s,brenner_s,starts,puffer_start,puffer_ende,"
+        "kessel_vl_max,abgas_max,aussen_mittel,liter\n");
+
+    char zeile[192];
+    if (!applog_open()) {
+        applog_close();
+        httpd_resp_sendstr_chunk(req, NULL);
+        return ESP_OK;
+    }
+    size_t n = applog_charge_count();
+    for (size_t i = 0; i < n; i++) {
+        charge_log_t r;
+        if (!applog_charge(i, &r)) {
+            break;
+        }
+        int p = snprintf(zeile, sizeof(zeile), "%u,%u,%u,%u", (unsigned)r.start_epoch,
+                         (unsigned)r.duration_s, (unsigned)r.burner_s, (unsigned)r.starts);
+        const int16_t werte[] = {r.puffer_start_dc, r.puffer_end_dc, r.kessel_vl_max_dc,
+                                 r.abgas_max_dc, r.aussen_mean_dc};
+        for (size_t k = 0; k < sizeof(werte) / sizeof(werte[0]); k++) {
+            p += werte[k] == LOG_NONE
+                     ? snprintf(zeile + p, sizeof(zeile) - p, ",")
+                     : snprintf(zeile + p, sizeof(zeile) - p, ",%d.%d", werte[k] / 10,
+                                abs(werte[k] % 10));
+        }
+        snprintf(zeile + p, sizeof(zeile) - p, ",%u.%03u\n", r.litres_ml / 1000,
+                 r.litres_ml % 1000);
+        httpd_resp_sendstr_chunk(req, zeile);
+    }
+    applog_close();
+    httpd_resp_sendstr_chunk(req, NULL);
+    return ESP_OK;
+}
+
+static esp_err_t log_days_get(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/csv; charset=utf-8");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=tage.csv");
+    httpd_resp_sendstr_chunk(req,
+        "# Tagesprotokoll, juengster zuerst. Der erste Satz ist der laufende Tag.\n"
+        "datum,laufzeit_s,starts,liter,heizgradtage,aussen_min,aussen_max\n");
+
+    char zeile[160];
+    if (!applog_open()) {
+        applog_close();
+        httpd_resp_sendstr_chunk(req, NULL);
+        return ESP_OK;
+    }
+    size_t n = applog_day_count() + 1; /* der laufende Tag kommt dazu */
+    for (size_t i = 0; i < n; i++) {
+        day_log_t d;
+        if (!applog_day(i, &d)) {
+            continue;
+        }
+        /* Aus Jahr und Tag des Jahres ein Datum machen. */
+        struct tm tm = {.tm_year = d.year, .tm_mday = 1, .tm_mon = 0};
+        time_t basis = mktime(&tm);
+        time_t tag = basis + (time_t)d.yday * 86400;
+        struct tm aus;
+        localtime_r(&tag, &aus);
+
+        int p = snprintf(zeile, sizeof(zeile), "%04d-%02d-%02d,%u,%u,%u.%03u",
+                         aus.tm_year + 1900, aus.tm_mon + 1, aus.tm_mday,
+                         (unsigned)d.runtime_s, (unsigned)d.starts, d.litres_ml / 1000,
+                         d.litres_ml % 1000);
+        const int16_t werte[] = {d.gradtage_dc, d.aussen_min_dc, d.aussen_max_dc};
+        for (size_t k = 0; k < sizeof(werte) / sizeof(werte[0]); k++) {
+            p += werte[k] == LOG_NONE
+                     ? snprintf(zeile + p, sizeof(zeile) - p, ",")
+                     : snprintf(zeile + p, sizeof(zeile) - p, ",%d.%d", werte[k] / 10,
+                                abs(werte[k] % 10));
+        }
+        snprintf(zeile + p, sizeof(zeile) - p, "\n");
+        httpd_resp_sendstr_chunk(req, zeile);
+    }
+    applog_close();
+    httpd_resp_sendstr_chunk(req, NULL);
+    return ESP_OK;
+}
+
 static esp_err_t record_post(httpd_req_t *req)
 {
     const char *action = last_segment(req->uri);
@@ -705,6 +1116,22 @@ static esp_err_t record_post(httpd_req_t *req)
 }
 
 /* POST /api/circuit/<id>/mode  mit {"mode":"auto|ein|aus"} */
+/* Betriebsart der Kesselkreispumpe: auto, ein, aus. */
+static esp_err_t boiler_pump_post(httpd_req_t *req)
+{
+    const char *modus = last_segment(req->uri);
+    uint8_t m = strcmp(modus, "ein") == 0 ? 1 : strcmp(modus, "aus") == 0 ? 2
+              : strcmp(modus, "auto") == 0 ? 0 : 255;
+    if (m == 255) {
+        return send_error(req, "400 Bad Request", "Betriebsart muss auto, ein oder aus sein");
+    }
+    if (pumps_set_boiler_mode(m) != ESP_OK) {
+        return send_error(req, "500 Internal Server Error",
+                          "Betriebsart liess sich nicht setzen");
+    }
+    return send_ok(req);
+}
+
 static esp_err_t circuit_post(httpd_req_t *req)
 {
     const char *action = last_segment(req->uri);
@@ -905,11 +1332,16 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/measurements", .method = HTTP_GET, .handler = measurements_get},
     {.uri = "/api/history", .method = HTTP_GET, .handler = history_get},
     {.uri = "/api/record", .method = HTTP_GET, .handler = record_get},
+    {.uri = "/api/log/charges", .method = HTTP_GET, .handler = log_charges_get},
+    {.uri = "/api/log/days", .method = HTTP_GET, .handler = log_days_get},
     {.uri = "/api/record/*", .method = HTTP_POST, .handler = record_post},
     {.uri = "/api/config", .method = HTTP_GET, .handler = config_get},
     {.uri = "/api/config", .method = HTTP_PUT, .handler = config_put},
+    {.uri = "/api/config/backup", .method = HTTP_GET, .handler = config_backup_get},
+    {.uri = "/api/config/restore", .method = HTTP_POST, .handler = config_restore_post},
     {.uri = "/api/probes/*", .method = HTTP_POST, .handler = probes_post},
     {.uri = "/api/circuit/*", .method = HTTP_POST, .handler = circuit_post},
+    {.uri = "/api/boilerpump/*", .method = HTTP_POST, .handler = boiler_pump_post},
     {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
     {.uri = "/api/wifi/scan", .method = HTTP_POST, .handler = wifi_scan_post},
