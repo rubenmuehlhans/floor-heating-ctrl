@@ -20,6 +20,9 @@ damit er über den Sommer nicht festsitzt.
 Abgasfühler erkennt es, ob der Brenner läuft — gegen eine gleitende Bezugslinie
 statt gegen einen festen Schwellwert, damit die Erkennung im Sommer wie im
 Winter trägt. Daraus führt es Laufzeit, Startzahl und eine Verbrauchsschätzung.
+Es schaltet die Kesselkreispumpe: Ist der Kesselrücklauf wärmer als der
+Vorlauf, gibt der Kessel keine Wärme mehr ab, sondern zieht sie aus dem
+Speicher — dann wird die Pumpe abgeschaltet.
 
 **Gerät am Pufferspeicher.** Es misst die Speichertemperatur und Vor- und
 Rücklauf der Heizkreise, beurteilt daraus den Ladezustand und schaltet die
@@ -28,9 +31,24 @@ wöchentlich kurz an, damit sie nicht festsitzen. Ob ein Abnehmer da ist, fragt
 es bei den Verteilerplatinen ab; den Brennerzustand holt es sich vom Gerät am
 Kessel.
 
+Welche Aufgabe ein Heizungsgerät übernimmt, ergibt sich allein aus den
+zugeordneten Fühlerrollen. Beide Aufgaben sind dabei an eigene Messwerte
+gebunden, nicht an solche aus dem Netz: Heizkreise lassen sich nur auf dem Gerät
+mit dem Pufferfühler anlegen, die Kesselkreispumpe nur auf dem mit Kesselvor-
+und -rücklauf. Mit fremden Werten zu schalten hieße, bei einem
+Verbindungsabbruch ohne Grundlage dazustehen.
+
 Kein Gerät ist auf ein anderes angewiesen. Fällt eines aus, arbeiten die
 übrigen mit dem weiter, was sie selbst messen — die Pumpen laufen dann im
 Zweifel, statt zu stehen.
+
+**Aus dem laufenden Betrieb** entstehen zwei knappe Protokolle im Flash: je
+abgeschlossener Ladung ein Satz, je Tag ein Satz. Daraus rechnet das Gerät zwei
+Kennzahlen, die man sonst schätzt — den Wärmebedarf des Hauses je Heizgradtag
+und den Grundverbrauch für Warmwasser — und meldet einen Tag, der deutlich über
+dieser Linie liegt. Der Abstand zwischen Abgas- und Kesselvorlaufhöchstwert je
+Ladung zeigt, ob der Wärmetauscher verrußt. Dazu kommen Plausibilitätsprüfungen
+der Fühler. Alle Verfahren melden, sie greifen nicht ein.
 
 ## Was daraus entsteht
 
@@ -559,8 +577,10 @@ ohne Hardware:
 make -C test/host
 ```
 
-Der Lauf umfasst 297 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
-Pumpensteuerung, Bedarfsauswertung, Brennererkennung und Ladezustand.
+Der Lauf umfasst 483 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
+Pumpensteuerung, Bedarfsauswertung, Brennererkennung, Ladezustand, Dekodierung der Funkpakete,
+Wochentermin, Plausibilität der Fühler, Kesselkreispumpe, Verbrauchslinie und
+Abgas-Vorlauf-Abstand.
 
 Dazu prüft
 
@@ -603,10 +623,10 @@ An der Hardware sind folgende Schritte vorgesehen:
 
 ## Stand der Erprobung
 
-Im Haus laufen drei Geräte: eine Verteilerplatine im Keller sowie je ein
-ESP32 an Kessel und Pufferspeicher.
+Im Haus laufen vier Geräte: Verteilerplatinen im Keller und im Erdgeschoss
+sowie je ein ESP32 an Kessel und Pufferspeicher.
 
-**Verteilerplatine.** Erprobt sind Start, BLE-Empfang von neun Thermometern,
+**Verteilerplatinen.** Erprobt sind Start, BLE-Empfang der Thermometer,
 Tastenauswertung, Weboberfläche, Captive Portal, Aktualisierung über das Netz,
 Handsteuerung, drei Messfahrten und die wöchentliche Schutzfahrt — elf Kreise
 in 168 s, sechs gleichzeitig, danach alle wieder auf ihrer vorherigen Stellung.
@@ -619,21 +639,44 @@ Er zeigt Brennerzustand und Abgaswert des Nachbargeräts an und schaltet die
 Aufzeichnung von selbst auf den Brennerzustand um, sobald der Kessel im Netz
 ist. Nach einem Neustart dauert das rund achtzig Sekunden.
 
-Die Messfahrten liegen durchweg unter den Vorgabewerten:
+**Kesselkreispumpe.** An der Anlage nachgewiesen: Bei −0,56 K Spreizung lief die
+Pumpe noch, bis die Haltezeit von zwei Minuten ablief, dann fiel das Relais.
+Danach fielen Vor- und Rücklauf gleichmäßig — der Kessel kühlte für sich aus,
+statt den Speicher leerzuziehen.
+
+**Bedarfskette.** Ein Ventil, dessen Raum kein Thermometer hat, stand auf 100 %
+offen und ließ die Pumpe im August durchlaufen. Ungeregelte Kanäle zählen jetzt
+nicht mehr als Bedarf; die Meldung fiel auf `demand: false` bei unverändert
+offenem Ventil, und der Heizkreis am Pufferspeicher ging nach der Nachlaufzeit
+aus. Ein von Hand geöffnetes Ventil zählt weiterhin.
+
+**Sicherung der Einstellungen.** Rundlauf über alle vier Geräte geprüft: Räume,
+Fühlerrollen, Fahrzeiten, Auslöseschwellen und Relaisangaben kommen vollständig
+zurück, der Netzzugang bleibt unverändert, und eine Sicherung des jeweils
+anderen Gerätetyps wird abgewiesen.
+
+Vermessen sind neun der 22 Kreise, drei im Keller und sechs im Erdgeschoss. Die Messfahrten
+liegen durchweg unter den Vorgabewerten:
 
 | Kreis | auf | zu | Auslöseschwelle |
 |---|---|---|---|
-| 1 | 36,1 s | 38,1 s | 166 mV |
-| 2 | 38,4 s | 39,5 s | 168 mV |
-| 4 | 33,7 s | 35,2 s | 182 mV |
+| Keller 1 | 36,1 s | 38,1 s | 166 mV |
+| Keller 2 | 38,4 s | 39,5 s | 168 mV |
+| Keller 4 | 33,7 s | 35,2 s | 182 mV |
+| Erdgeschoss 1 | 33,9 s | 34,9 s | 163 mV |
 | Vorgabe | 39 s | 40 s | 190 mV |
 
 Nicht erprobt sind der Dauerbetrieb der Regelung über längere Zeit, Anzeige
 (SSD1327) und DS18B20 an der Verteilerplatine, weil beide dort nicht dauerhaft
 angeschlossen sind, sowie alles, was Heizbetrieb voraussetzt: Brennerlauf,
-Ladeerkennung, Aufzeichnung einer Ladung und das Schalten der Pumpen über
-Tasmota. Ein Broker ist bislang nicht eingerichtet, die MQTT-Anbindung deshalb
-ebenfalls unerprobt.
+Ladeerkennung und die Aufzeichnung einer Ladung. Ein Broker ist bislang nicht
+eingerichtet, die MQTT-Anbindung deshalb ebenfalls unerprobt.
+
+Verbrauchslinie und Abgas-Vorlauf-Abstand rechnen, sobald die Protokolle
+tragen: die eine ab vierzehn Tagen mit ausreichend gespreizter Außenlage, die
+andere ab zehn abgeschlossenen Ladungen. Beides ist eine Frage der Heizperiode,
+nicht der Umsetzung; die Oberfläche nennt bis dahin den Grund, statt eine Linie
+zu zeigen, die keine ist.
 
 ## Offene Punkte
 
@@ -649,22 +692,22 @@ ebenfalls unerprobt.
 
 ## Geplante Erweiterungen
 
-Die Steuerung wird um den Heizungsbereich ergänzt: zwei weitere ESP32 erfassen die Temperaturen
-an Ölkessel und Pufferspeicher und sollen die beiden Heizkreispumpen abschalten, solange kein
-Ventil offen ist. Das Repository trägt dafür eine zweite Anwendung unter
-[`apps/heatsource/`](apps/heatsource/), die sich die Komponenten mit der Verteiler-Firmware
-teilt.
+Die Auswertung der Protokolle ist in Stufen angelegt; umgesetzt sind die
+Datengrundlage, die Plausibilitätsprüfungen der Fühler, die Verbrauchslinie und
+der Abgas-Vorlauf-Abstand. Offen sind:
 
-Umgesetzt sind Fühlererfassung mit Zuordnung über die Weboberfläche, Anlagenschema, Verlauf über
-24 Stunden, Bedarfsabfrage bei den Verteilern, Pumpensteuerung über ein Tasmota-Relais (über MQTT
-oder unmittelbar über HTTP), Brennererkennung mit Tagesstatistik und Verbrauchsschätzung,
-Aufzeichnung einer Ladung als CSV sowie die Beurteilung des Ladezustands. Die Zahl der
-Heizkreise ist nicht festgelegt; vorgesehen sind bis zu vier.
+- **Stillstandsverlust des Speichers.** Aus dem Abkühlen ohne Brennerlauf und
+  ohne laufende Pumpe ergibt sich die Zeitkonstante der Dämmung. Ändert sie
+  sich, deutet das auf ein Rückschlagventil, das nicht schließt.
+- **Fahrzeit der Antriebe.** Die wöchentliche Schutzfahrt fährt ohnehin jeden
+  Kreis auf Anschlag und könnte dabei die Fahrzeit messen. Wächst sie über
+  Monate, sitzt das Ventil schwerer.
+- **Auswertung auf dem Rechner.** Ein Werkzeug unter `tools/`, das die CSV-Dateien
+  aller Geräte einliest. Es setzt einen Winter Daten voraus.
 
-Erprobt ist bislang der Teil, für den keine Fühler nötig sind: Bedarfsabfrage, Pumpenlogik,
-gegenseitiges Auffinden und die Oberfläche. Alles, was Messwerte braucht, wartet auf den Anschluss
-der Fühler.
-
+- [Konzept: Auswertung der Anlage mit statistischen Verfahren](docs/konzept-auswertung.md)
+  — Datengrundlage, Verfahren auf dem Gerät, Auswertung außerhalb, und was
+  bewusst nicht vorgesehen ist
 - [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](docs/konzept-waermeerzeuger.md)
   — Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Schnittstellen
 - [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md)

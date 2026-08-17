@@ -191,15 +191,20 @@ erfundene Größe der Anlage in eine gemessene.
 
 ## Reihenfolge
 
-| Stufe | Inhalt | Voraussetzung |
-|---|---|---|
-| 0 | Ladungs- und Tagesprotokoll im NVS, vollständiger MQTT-Strom, richtige Zustandsklassen | keine |
-| 1a | Plausibilitätsprüfungen der Fühler | Stufe 0 nicht nötig |
-| 1b | Verbrauchslinie und Tagesabweichung | Tagesprotokoll |
-| 1c | Abgas-Vorlauf-Abstand je Ladung | Ladungsprotokoll |
-| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 |
-| 2 | Auswertung auf dem Rechner | ein Winter Daten |
-| 3 | zusätzliche Messstellen | Entscheidung über Hardware |
+| Stufe | Inhalt | Voraussetzung | Stand |
+|---|---|---|---|
+| 0 | Ladungs- und Tagesprotokoll im NVS, vollständiger MQTT-Strom, richtige Zustandsklassen | keine | umgesetzt |
+| 1a | Plausibilitätsprüfungen der Fühler | Stufe 0 nicht nötig | umgesetzt |
+| 1b | Verbrauchslinie und Tagesabweichung | Tagesprotokoll | umgesetzt, trägt ab dem ersten Winter |
+| 1c | Abgas-Vorlauf-Abstand je Ladung | Ladungsprotokoll | umgesetzt, trägt ab zehn Ladungen |
+| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 | offen |
+| 2 | Auswertung auf dem Rechner | ein Winter Daten | offen |
+| 3 | zusätzliche Messstellen | Entscheidung über Hardware | offen |
+
+Stufe 1b rechnet, sobald vierzehn Tage vorliegen und die Außenlage weit genug auseinanderliegt.
+Im Sommer ist beides nicht gegeben: Alle Tage stehen bei null Gradtagen, und durch eine
+senkrechte Punktwolke führt keine sinnvolle Gerade. Die Oberfläche sagt das, statt eine Linie
+zu zeigen, die keine ist.
 
 Stufe 1a lohnt sich sofort und unabhängig: Sie braucht keine Historie, nur die laufenden Werte.
 

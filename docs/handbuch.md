@@ -18,6 +18,8 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Pumpen einrichten](#pumpen-einrichten)
 - [Brenner und Pufferspeicher](#brenner-und-pufferspeicher)
 - [Außenfühler](#außenfühler)
+- [Kesselkreispumpe](#kesselkreispumpe)
+- [Auswertung](#auswertung)
 - [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
 - [Verlauf und Aufzeichnung](#verlauf-und-aufzeichnung)
 - [Home Assistant](#home-assistant)
@@ -144,9 +146,14 @@ Kreisen nennt die Zielstellung und wann die Regelung das nächste Mal prüft.
 
 ### Raum abschalten
 
-**Ausschalten** hält die Regelung dieses Raums an. Die Ventile bleiben stehen, wo sie sind — sie
-fahren weder auf noch zu. Das ist gewollt: ein abgeschalteter Raum soll nicht von selbst
-auskühlen, wenn er gerade warm ist.
+**Ausschalten** fährt die Ventile dieses Raums zu. Für den Bedienenden heißt „aus", dass kein
+warmes Wasser mehr durchgeht; ein Messwert wird dafür nicht gebraucht.
+
+Etwas anderes ist ein Raum **ohne gültigen Messwert** — kein Thermometer zugeordnet oder die
+Batterie leer. Dort setzt die Regelung aus und lässt die Ventile stehen, wo sie sind: Auf einen
+fehlenden Wert zu regeln wäre schlechter. Solche Kanäle zählen aber nicht als Wärmebedarf, auch
+wenn sie offen stehen — sonst ließe ein Ventil, das niemand zufährt, die Umwälzpumpe im Sommer
+durchlaufen. Von Hand geöffnete Ventile zählen weiterhin: Das ist eine Absicht.
 
 ### Einen einzelnen Kreis von Hand fahren
 
@@ -357,6 +364,7 @@ Fußbodenvorlauftemperatur, nicht knapp über Raumtemperatur.
 |---|---|
 | Ein zugeordneter Verteiler antwortet nicht mehr | Bedarf gilt als vorhanden, die Pumpe läuft; die Oberfläche meldet „Verteiler antwortet nicht" |
 | Ein Verteiler hat seit dem Start nie geantwortet | Er wird nicht gewertet — sonst liefe die Pumpe wegen eines abgeschalteten Geräts durchgehend |
+| Ein offenes Ventil gehört zu einem Raum ohne Messwert | Es zählt nicht als Bedarf; die Meldung des Verteilers weist es getrennt aus („ohne Regelung") |
 | Diese Steuerung fällt ganz aus | Am Relais sorgt eine Regel dafür, dass die Pumpe von selbst anläuft (siehe unten) |
 | Die Rückmeldung weicht länger als 30 s vom Sollwert ab | „Relais folgt nicht" |
 
@@ -432,8 +440,17 @@ liefert zusätzlich Luftfeuchtigkeit und Luftdruck.
 
 Warum an der Verteilerplatine und nicht am Heizungsgerät: Die Heizungsgeräte haben kein
 Bluetooth — dort sitzen die Fühler am 1-Wire-Bus. Die Verteilerplatinen hören ohnehin mit, weil
-sie die Raumthermometer empfangen. Der Wert reist von dort mit der Bedarfsabfrage weiter, die
-alle fünf Sekunden läuft.
+sie die Raumthermometer empfangen.
+
+Jedes Heizungsgerät holt sich den Wert einmal je Minute selbst, bei der ersten Verteilerplatine,
+die einen liefert. Es genügt also **eine** Platine im Haus mit Außenfühler, und sie muss keinem
+Heizkreis zugeordnet sein. Unter **Anlage** steht, von welcher der Wert kommt. Eine
+Außentemperatur ist eine Größe des Hauses, keine eines Heizkreises.
+
+Bleibt der RuuviTag länger als eine Viertelstunde stumm, gilt sein Wert als veraltet und wird
+nicht mehr weitergegeben — sonst schriebe eine leere Batterie eine eingefrorene Temperatur in
+die Heizgradtage, ohne dass es auffiele. Die Verteilerplatine zeigt dann **kein Messwert** statt
+des letzten Werts.
 
 ### Brennerzustand am Pufferspeicher
 
@@ -444,6 +461,100 @@ gerade läuft. Danach richten sich Ladezustand und Aufzeichnung.
 
 Ohne erreichbares Gerät am Kessel steht dort **kein Abgasfühler**, und die Aufzeichnung weicht
 auf die Speichertemperatur aus.
+
+### Kesselkreispumpe
+
+Die Pumpe zwischen Kessel und Pufferspeicher wird am **Gerät am Kessel** eingerichtet, unter
+**Heizkreise → Kesselkreispumpe**. Geschaltet wird sie wie die Heizkreispumpen über ein
+Tasmota-Relais, über MQTT oder unmittelbar über HTTP.
+
+Sie läuft, solange der Kesselvorlauf wärmer ist als der Rücklauf aus dem Speicher — nur dann
+gibt der Kessel Wärme ab. Kehrt sich das um, fördert dieselbe Pumpe Wärme aus dem Speicher in
+den Kessel, und von dort geht sie durch den Schornstein verloren.
+
+Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
+Speicher abkühlen. Sie springt an, sobald der Vorlauf den Rücklauf überholt — das ist zugleich
+die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung erspart.
+
+| Einstellung | Vorgabe | Bedeutung |
+|---|---|---|
+| Ein ab Spreizung | 1,0 K | darüber gilt der Kessel als abgebend |
+| Aus unter | 0,5 K | darunter als aufnehmend; kleiner als „ein", sonst pendelt es |
+| Haltezeit | 120 s | so lange muss die Bedingung anliegen |
+| Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
+| Notgrenze | 85 °C | darüber läuft sie in jedem Fall |
+
+Zwei Regeln gehen der Spreizung vor. **Ohne gültige Messwerte läuft die Pumpe** — eine laufende
+Pumpe ohne Not ist verschwenderisch, ein heißer Kessel ohne Abfuhr ist es nicht. Und
+**überschreitet der Kesselvorlauf die Notgrenze, läuft sie ebenfalls**, gleich was die Spreizung
+sagt; ein klemmender Fühler darf die Wärmeabfuhr nicht verhindern.
+
+Ein Klick auf das Pumpensymbol im Anlagenschema schaltet die Betriebsart weiter: Automatik,
+Hand ein, Hand aus.
+
+**Warum nur am Kessel.** Die Regelung braucht Kesselvor- und -rücklauf am selben Gerät. Mit
+Werten vom Nachbargerät zu schalten wäre eine Entscheidung ohne eigene Grundlage — und schlimmer:
+Fällt die Verbindung aus, gilt „keine Messwerte", und die Pumpe liefe dann dauerhaft. Die
+Oberfläche bietet den Bereich deshalb nur dort an, und ein Einschalten ohne diese beiden Fühler
+wird abgewiesen. Umgekehrt lassen sich Heizkreise nur auf dem Gerät mit dem Pufferfühler anlegen:
+Ihre Freigabe hängt an der Speichertemperatur.
+
+## Auswertung
+
+Aus den beiden Protokollen rechnet das Gerät laufend einige Kennzahlen. Sie greifen **nicht** in
+die Regelung ein — sie melden.
+
+### Verbrauchslinie
+
+Unter **Verlauf → Verbrauchslinie** wird eine Gerade durch die Tage im Protokoll gelegt:
+Brennerlaufzeit über Heizgradtagen. Ein kalter Januar braucht mehr Öl als ein milder, ohne dass
+an der Anlage etwas anders wäre; erst der Bezug auf die Außenlage macht Verbrauch vergleichbar.
+
+- Die **Steigung** ist der Wärmebedarf des Hauses je Heizgradtag.
+- Der **Achsenabschnitt** ist der Grundverbrauch ohne Heizbedarf, also Warmwasser.
+- Die **Streuung** sagt, wie eng die Tage an der Linie liegen.
+
+Ein Tag, der mehr als drei Streuungen über der Linie liegt, wird als Befund gemeldet. Das findet
+ein Fenster, das offen steht; ein Ventil, das klemmt; eine Pumpe, die durchläuft. Nach unten wird
+nie gemeldet: weniger Verbrauch ist kein Fehler.
+
+Es braucht mindestens vierzehn Tage und eine Außenlage, die weit genug auseinanderliegt. Im
+Sommer ist beides nicht gegeben — alle Tage stehen bei null Gradtagen, und durch eine senkrechte
+Punktwolke führt keine sinnvolle Gerade. Die Karte nennt dann den Grund, statt eine Linie zu
+zeigen, die keine ist. Tage ohne Außentemperatur bleiben außen vor und werden gezählt.
+
+### Abgas-Vorlauf-Abstand
+
+Wie weit die höchste Abgastemperatur einer Ladung über dem höchsten Kesselvorlauf liegt, sagt,
+wie viel Wärme durch den Schornstein geht statt ins Wasser. Bei sauberem Kessel ist der Abstand
+klein und stabil; Ruß im Wärmetauscher hebt ihn über Wochen an. Grob zwanzig Kelvin entsprechen
+einem Prozentpunkt Wirkungsgrad.
+
+Verglichen wird der Median der jüngsten fünfzig Ladungen mit dem Median der ersten fünfzig nach
+der letzten Reinigung. Der Median, nicht der Mittelwert: Eine einzelne Ladung mit hohem
+Abgaswert — etwa ein Start in den kalten Kessel — soll das Bild nicht verschieben.
+
+Nach einer Reinigung drücken Sie **Kessel gereinigt — ab jetzt neu messen**. Damit bilden die
+folgenden Ladungen den sauberen Zustand ab. Ohne dieses Datum steht der laufende Median da, aber
+kein Vergleich; Ladungen aus der Zeit davor bilden den Bezug nicht, sonst sähe der saubere Kessel
+besser aus, als er ist.
+
+Der Zeitpunkt der nächsten Reinigung wird damit eine Messung statt eines Kalendereintrags.
+
+### Befunde
+
+Auffälligkeiten stehen gesammelt auf der Anlagenseite, nicht über die Karten verstreut:
+
+| Befund | Bedeutung |
+|---|---|
+| Vorlauf und Rücklauf vertauscht | Bei laufender Pumpe und warmem Speicher ist der Vorlauf eines Kreises dauerhaft kälter als sein Rücklauf. Entweder sitzen die Fühler an den falschen Rohren oder ihre Rollen sind vertauscht zugeordnet. |
+| Fühler verwirft viele Messungen | Meist ein Wackelkontakt, eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand. |
+| Tag über der Verbrauchslinie | siehe oben |
+| Kessel überträgt schlechter | siehe oben |
+
+Jeder Befund muss eine halbe Stunde durchgehend anliegen, bevor er erscheint, und er verschwindet
+ebenso langsam wieder. Eine Meldung, die bei jedem Anlaufen der Pumpe kommt und geht, liest
+niemand mehr.
 
 ## Schutzfahrt und Schutzlauf
 
@@ -573,17 +684,38 @@ Fällen erhalten.
 
 ![System](screenshots/system.png)
 
-### Konfiguration sichern
+### Einstellungen sichern
 
-Die vollständige Konfiguration lässt sich als Datei holen und zurückspielen:
+**System → Einstellungen sichern → Sicherung holen** lädt eine Datei mit allem, was am Gerät
+eingerichtet ist. **Sicherung einspielen** liest sie wieder ein. Auf der Kommandozeile:
 
 ```bash
-curl -s http://<adresse>/api/config > sicherung.json
-curl -X PUT -H "Content-Type: application/json" --data @sicherung.json http://<adresse>/api/config
+curl -s -o sicherung.json http://<adresse>/api/config/backup
+curl -X POST -H "Content-Type: application/json" --data @sicherung.json http://<adresse>/api/config/restore
 ```
 
-Kennwörter sind in der Ausgabe nicht enthalten — sie erscheinen nur als „gesetzt" oder „nicht
-gesetzt" und bleiben beim Zurückspielen unverändert stehen.
+Die Sicherung enthält die Zugangsdaten **im Klartext**. Ohne sie ließe sich nichts
+zurückspielen, was den Namen verdient; die Datei gehört deshalb behandelt wie ein
+Kennwortzettel. Die Ausgabe von `GET /api/config` ist etwas anderes: Dort erscheinen Kennwörter
+nur als „gesetzt" oder „nicht gesetzt", und sie taugt daher nicht als Sicherung.
+
+Beim Zurückspielen wird von den Werkseinstellungen aus aufgebaut. Ein Feld, das in der Sicherung
+fehlt, fällt damit auf seine Vorgabe, statt den laufenden Wert zu behalten — sonst wäre das
+Ergebnis eine Mischung aus zwei Ständen.
+
+Angenommen wird nur eine Datei aus `GET /api/config/backup` — sie trägt dafür eine Kopfzeile mit
+Gerätetyp, Kennung und Zeitpunkt. Die Ausgabe von `GET /api/config` hat diese Kopfzeile nicht und
+wird abgewiesen; von Hand geschriebene Änderungen gehören nach `PUT /api/config`, das nur
+übernimmt, was dasteht. Der Grund ist die Aufbauweise: Zurückgespielt wird von den
+Werkseinstellungen aus, und ein Rumpf ohne Inhalt setzte damit alles zurück, ohne dass es nach
+einem Fehler aussähe.
+
+Zwei Dinge bleiben ausgenommen:
+
+- **Der Netzzugang.** Wer über das Netz einspielt, sägte sonst den Ast ab, auf dem er sitzt.
+  WLAN-Name, Kennwort und Gerätename bleiben, wie sie sind.
+- **Sicherungen des anderen Gerätetyps.** Eine Verteiler-Sicherung auf einem Heizungsgerät wird
+  abgewiesen, und umgekehrt.
 
 ### Auf Werksvorgabe zurücksetzen
 
@@ -643,6 +775,17 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | Speicher | Spreizung „geladen" | 8 K über 5 min |
 | | voll / leer | 62 °C / 35 °C |
 | | Warnung Warmwasser | 40 °C |
+| Kesselkreispumpe | Ein ab Spreizung / Aus unter | 1,0 K / 0,5 K |
+| | Haltezeit | 120 s |
+| | Mindestlaufzeit, Mindestpause | je 180 s |
+| | Notgrenze | 85 °C |
+| Auswertung | Verbrauchslinie ab | 14 Tagen, 3 K Spreizung der Gradtage |
+| | Befund ab | 3 Streuungen über der Linie |
+| | Abgasabstand ab | 10 Ladungen, Fenster 50 |
+| | Befund ab | 15 K über dem Zustand nach der Reinigung |
+| | Haltezeit der Befunde | 1800 s |
+| Außenfühler | Zeitgrenze | 900 s |
+| | Abfrage durch die Heizungsgeräte | alle 60 s |
 | Fühler | Abtastabstand | 10 s |
 | Netz | Zugangspunkt-Kennwort | `fussboden` |
 
@@ -656,6 +799,8 @@ Beide Geräte antworten auf dieselben Grundadressen; die Fachadressen unterschei
 GET     /api/state              vollstaendiger Zustand
 GET     /api/config             Konfiguration ohne Kennwoerter
 PUT     /api/config             Konfiguration aendern
+GET     /api/config/backup      Sicherung, mit Kennwoertern im Klartext
+POST    /api/config/restore     Sicherung zurueckspielen, ohne den Netzzugang
 GET     /api/peers              gefundene Geraete im Haus
 GET     /api/wifi/scan          erreichbare Netze
 POST    /api/system/seize       Schutzfahrt jetzt fahren
@@ -691,7 +836,10 @@ POST    /api/record/start       sofort aufzeichnen
 POST    /api/record/stop        beenden, im scharfen Zustand abbrechen
 POST    /api/record/discard     verwerfen und Speicher freigeben
 POST    /api/circuit/{n}/mode   auto | ein | aus
+POST    /api/boilerpump/{modus}  auto | ein | aus
 POST    /api/probes/rescan      Bus neu absuchen
+GET     /api/log/charges        Ladungsprotokoll als CSV
+GET     /api/log/days           Tagesprotokoll als CSV
 ```
 
 ### Begriffe
@@ -702,7 +850,8 @@ POST    /api/probes/rescan      Bus neu absuchen
 | **Gegenspannung** | Die Spannung über dem Messwiderstand. Sie steigt, wenn der Motor am Anschlag blockiert — daran wird die Endlage erkannt. |
 | **Messfahrt** | Einmaliges Zu- und Auffahren mit Aufzeichnung, um Fahrzeiten und Auslöseschwelle zu ermitteln. |
 | **Referenzfahrt** | Fahrt in eine Endlage, wenn die Stellung eines Kreises unbekannt ist — etwa nach einem Neustart ohne gespeicherte Stellung. |
-| **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. |
+| **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. Kanäle, deren Raum gerade nicht geregelt wird, zählen nicht mit. |
+| **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, über den Tag gemittelt. Ohne diese Größe ist Verbrauch nicht vergleichbar. |
 | **Nachlauf** | Zeit, die eine Pumpe nach dem letzten Bedarf weiterläuft, um die Restwärme abzuführen. |
 | **Schutzlauf** | Kurzer Lauf nach langer Standzeit, damit die Pumpe nicht festsitzt. |
 | **Bezugslinie** | Das Minimum des Abgasfühlers über 24 Stunden: die Temperatur des kalten Rohrs. |
@@ -710,15 +859,22 @@ POST    /api/probes/rescan      Bus neu absuchen
 
 ### Stand der Erprobung
 
+Im Haus laufen vier Geräte: Verteilerplatinen im Keller und im Erdgeschoss sowie je ein Gerät an
+Kessel und Pufferspeicher.
+
 | Bereich | Stand |
 |---|---|
-| Regelung, Ventile, Messfahrt | im Betrieb; 3 von 11 Kreisen vermessen |
+| Regelung, Ventile, Messfahrt | im Betrieb; 9 von 22 Kreisen vermessen |
 | Thermometer über Bluetooth | im Betrieb |
 | Gegenseitiges Auffinden der Geräte | im Betrieb |
-| Bedarfsabfrage und Pumpenlogik | am Aufbau geprüft |
-| Schalten des Relais | nicht erprobt, kein Relais vorhanden |
-| Fühler, Brenner, Ladezustand | nicht erprobt, keine Fühler angeschlossen |
+| Fühler an Kessel und Pufferspeicher | im Betrieb |
+| Bedarfsabfrage und Pumpenlogik | im Betrieb |
+| Kesselkreispumpe mit Relais | an der Anlage nachgewiesen |
+| Sicherung der Einstellungen | Rundlauf über alle vier Geräte geprüft |
+| Außentemperatur bis zu den Heizungsgeräten | im Betrieb |
+| Brennerlauf, Ladeerkennung, Aufzeichnung | nicht erprobt, kein Heizbetrieb |
+| Verbrauchslinie, Abgas-Vorlauf-Abstand | rechnen ab der ersten Heizperiode |
 | MQTT-Discovery | nicht erprobt, kein Broker eingerichtet |
 
-Die Rechenmodule hinter Regelung, Ventilen, Pumpen, Brenner und Ladezustand laufen ohne Hardware
-gegen 297 Prüfungen (`make -C test/host`).
+Die Rechenmodule hinter Regelung, Ventilen, Pumpen, Brenner, Ladezustand, Plausibilität,
+Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 483 Prüfungen (`make -C test/host`).
