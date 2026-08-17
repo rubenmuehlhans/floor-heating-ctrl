@@ -118,6 +118,28 @@ typedef struct {
     float frost_c;
 } cfg_circuit_t;
 
+/*
+ * Kesselkreispumpe zwischen Kessel und Pufferspeicher. Sie wird auf dem Geraet
+ * eingerichtet, das Kesselvor- und -ruecklauf misst -- ohne diese beiden
+ * Werte gibt es nichts zu entscheiden.
+ */
+typedef struct {
+    bool enabled;
+    char topic[CFG_TOPIC_LEN];   /* Tasmota-Thema */
+    char host[CFG_TOPIC_LEN];    /* Adresse fuer HTTP */
+    char user[24];
+    char pass[48];
+    uint8_t relay;               /* 1..8 */
+    uint8_t mode;                /* 0 = auto, 1 = ein, 2 = aus */
+
+    float on_k;                  /* ab dieser Spreizung gibt der Kessel ab */
+    float off_k;
+    uint16_t hold_s;
+    uint16_t min_run_s;
+    uint16_t min_pause_s;
+    float emergency_c;           /* darueber laeuft sie in jedem Fall */
+} cfg_boiler_pump_t;
+
 /* Brennererkennung am Abgasfuehler; nur wirksam, wenn die Rolle vergeben ist. */
 typedef struct {
     float delta_on_k;
@@ -125,6 +147,12 @@ typedef struct {
     uint16_t on_hold_s;
     uint16_t off_hold_s;
     float duese_l_h;      /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */
+    /*
+     * Zeitpunkt der letzten Kesselreinigung. Er legt fest, welche Ladungen den
+     * sauberen Zustand beschreiben, gegen den der Abgas-Vorlauf-Abstand
+     * gehalten wird. 0 heisst: nie eingetragen, dann gibt es keinen Bezug.
+     */
+    uint32_t wartung_epoch;
 } cfg_burner_t;
 
 /* Beurteilung des Ladezustands. */
@@ -180,6 +208,7 @@ typedef struct {
 
     cfg_burner_t burner;
     cfg_buffer_t buffer;
+    cfg_boiler_pump_t boiler_pump;
 
     int8_t reboot_hour;    /* -1 = kein taeglicher Neustart */
     int8_t reboot_minute;

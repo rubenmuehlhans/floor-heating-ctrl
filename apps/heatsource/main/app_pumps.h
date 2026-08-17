@@ -32,6 +32,10 @@ typedef struct {
     bool demand;
     float max_target;
     uint8_t open_channels;
+    /* Offene Kanaele, die nicht als Bedarf zaehlen, weil ihr Raum gerade nicht
+     * geregelt wird. Sonst bliebe unklar, warum ein sichtbar offenes Ventil
+     * keine Pumpe anwirft. */
+    uint8_t unregulated;
     uint8_t rooms_calling;
     bool room_valid;
     float min_room_c;
@@ -72,7 +76,28 @@ typedef struct {
      * das Relais gerade nicht antwortet. */
     pump_path_t path;
     int last_status;       /* HTTP-Status des letzten Versuchs, -1 = keine Verbindung */
+
+    /* Vor- und Ruecklauf vertauscht -- geprueft nur bei laufender Pumpe und
+     * warmem Speicher, siehe components/heatlogic/plausi.h. */
+    bool flow_swapped;
+    uint32_t swapped_held_s;
 } circuit_status_t;
+
+/* Zustand der Kesselkreispumpe. */
+typedef struct {
+    bool enabled;
+    bool on;
+    uint8_t mode;          /* 0 = auto, 1 = ein, 2 = aus */
+    const char *reason;
+    const char *reason_key;
+    uint32_t since_s;
+    bool relay_known, relay_on, relay_online;
+    int last_status;
+    pump_path_t path;
+} boiler_pump_status_t;
+
+void pumps_boiler_status(boiler_pump_status_t *out);
+esp_err_t pumps_set_boiler_mode(uint8_t mode);
 
 esp_err_t pumps_start(void);
 

@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "app_burner.h"
 #include "app_remote.h"
 #include "app_sensors.h"
 #include "cJSON.h"
@@ -15,6 +16,8 @@
 #include "freertos/task.h"
 #include "mqttc.h"
 #include "peers.h"
+#include "boilerpump.h"
+#include "plausi.h"
 #include "schedule.h"
 
 static const char *TAG = "pumps";
@@ -29,14 +32,13 @@ static const char *TAG = "pumps";
  * zwei Sekunden still. */
 #define HTTP_RETRY_MS 10000
 
+/*
+ * Ein Tasmota-Relais samt Buchfuehrung ueber das, was zuletzt hinausging.
+ * Eigener Verbund, weil ausser den Heizkreispumpen auch die Kesselkreispumpe
+ * eines hat -- der Weg zum Relais ist derselbe, nur der Grund zum Schalten
+ * unterscheidet sich.
+ */
 typedef struct {
-    uint8_t id;
-    pump_state_t st;
-    pump_cfg_t cfg;
-    char name[CFG_NAME_LEN];
-    bool enabled;
-    probe_role_t vl_role, rl_role;
-
     char topic[CFG_TOPIC_LEN];
     char host[CFG_TOPIC_LEN];
     char user[24];
@@ -45,14 +47,26 @@ typedef struct {
     int last_status;          /* HTTP-Status des letzten Versuchs */
 
     /* Rueckmeldung des Relais. */
-    bool relay_known, relay_on, relay_online;
-    uint32_t relay_seen_ms;
+    bool known, on, online;
+    uint32_t seen_ms;
     uint32_t want_since_ms;   /* seit wann der Sollzustand anliegt */
     uint32_t last_sent_ms;
     bool last_sent_on;
     uint32_t last_try_ms;     /* letzter Versuch, auch ein erfolgloser */
+} relay_t;
+
+typedef struct {
+    uint8_t id;
+    pump_state_t st;
+    pump_cfg_t cfg;
+    char name[CFG_NAME_LEN];
+    bool enabled;
+    probe_role_t vl_role, rl_role;
+
+    relay_t rel;
 
     bool demand, stale, any_seen;
+    plausi_finding_t swapped;
 } circuit_t;
 
 static circuit_t s_circ[CFG_MAX_CIRCUITS];
@@ -65,6 +79,12 @@ static SemaphoreHandle_t s_mtx;
 static volatile bool s_cfg_dirty;
 static uint32_t s_heartbeat_ms;
 static sched_weekly_t s_seize_sched;
+static plausi_cfg_t s_plausi;
+
+/* Kesselkreispumpe: eigener Zustand, eigenes Relais, eigene Regel. */
+static bp_state_t s_bp;
+static bp_cfg_t s_bpcfg;
+static relay_t s_bprel;
 
 static inline uint32_t now_ms(void)
 {
@@ -75,7 +95,7 @@ static inline uint32_t now_ms(void)
 /* Konfiguration uebernehmen                                           */
 /* ------------------------------------------------------------------ */
 
-static void push_relay(circuit_t *z, uint32_t t);
+static void push_relay(relay_t *r, bool soll, uint32_t t);
 
 static void apply_config(void)
 {
@@ -119,11 +139,11 @@ static void apply_config(void)
         z->enabled = c->enabled;
         z->vl_role = c->vl_role;
         z->rl_role = c->rl_role;
-        snprintf(z->topic, sizeof(z->topic), "%s", c->pump_topic);
-        snprintf(z->host, sizeof(z->host), "%s", c->pump_host);
-        snprintf(z->user, sizeof(z->user), "%s", c->pump_user);
-        snprintf(z->pass, sizeof(z->pass), "%s", c->pump_pass);
-        z->relay = c->pump_relay;
+        snprintf(z->rel.topic, sizeof(z->rel.topic), "%s", c->pump_topic);
+        snprintf(z->rel.host, sizeof(z->rel.host), "%s", c->pump_host);
+        snprintf(z->rel.user, sizeof(z->rel.user), "%s", c->pump_user);
+        snprintf(z->rel.pass, sizeof(z->rel.pass), "%s", c->pump_pass);
+        z->rel.relay = c->pump_relay;
 
         z->cfg.overrun_s = c->overrun_s;
         z->cfg.min_run_s = c->min_run_s;
@@ -141,6 +161,24 @@ static void apply_config(void)
     }
 
     memcpy(s_circ, neu, sizeof(s_circ));
+    /* Kesselkreispumpe */
+    const cfg_boiler_pump_t *kp = &cfg.boiler_pump;
+    s_bpcfg.enabled = kp->enabled;
+    s_bpcfg.on_k = kp->on_k;
+    s_bpcfg.off_k = kp->off_k;
+    s_bpcfg.hold_s = kp->hold_s;
+    s_bpcfg.min_run_s = kp->min_run_s;
+    s_bpcfg.min_pause_s = kp->min_pause_s;
+    s_bpcfg.emergency_c = kp->emergency_c;
+    if (s_bp.mode != (bp_mode_t)kp->mode) {
+        bp_set_mode(&s_bp, (bp_mode_t)kp->mode, now_ms());
+    }
+    snprintf(s_bprel.topic, sizeof(s_bprel.topic), "%s", kp->topic);
+    snprintf(s_bprel.host, sizeof(s_bprel.host), "%s", kp->host);
+    snprintf(s_bprel.user, sizeof(s_bprel.user), "%s", kp->user);
+    snprintf(s_bprel.pass, sizeof(s_bprel.pass), "%s", kp->pass);
+    s_bprel.relay = kp->relay;
+
     s_circ_count = n;
     xSemaphoreGive(s_mtx);
 
@@ -153,9 +191,9 @@ static void apply_config(void)
     for (uint8_t i = 0; i < entfallen_n; i++) {
         circuit_t *z = &entfallen[i];
         z->st.on = false;
-        z->last_sent_ms = 0;
-        z->last_try_ms = 0;
-        push_relay(z, now_ms());
+        z->rel.last_sent_ms = 0;
+        z->rel.last_try_ms = 0;
+        push_relay(&z->rel, false, now_ms());
         ESP_LOGI(TAG, "Heizkreis %u geloescht, Pumpe abgeschaltet", (unsigned)z->id);
     }
 }
@@ -211,6 +249,8 @@ static bool fetch_demand(const char *host, peer_demand_t *out)
                 out->max_target = cJSON_IsNumber(v) ? (float)v->valuedouble : 0.0f;
                 v = cJSON_GetObjectItemCaseSensitive(root, "open_channels");
                 out->open_channels = cJSON_IsNumber(v) ? (uint8_t)v->valuedouble : 0;
+                v = cJSON_GetObjectItemCaseSensitive(root, "unregulated");
+                out->unregulated = cJSON_IsNumber(v) ? (uint8_t)v->valuedouble : 0;
                 v = cJSON_GetObjectItemCaseSensitive(root, "rooms_calling");
                 out->rooms_calling = cJSON_IsNumber(v) ? (uint8_t)v->valuedouble : 0;
                 v = cJSON_GetObjectItemCaseSensitive(root, "min_room_c");
@@ -312,11 +352,11 @@ static void relay_state_cb(const char *topic, const char *payload, void *ctx)
     for (uint8_t i = 0; i < s_circ_count; i++) {
         circuit_t *z = &s_circ[i];
         char erwartet[CFG_TOPIC_LEN + 24];
-        snprintf(erwartet, sizeof(erwartet), "stat/%s/POWER%u", z->topic, (unsigned)z->relay);
+        snprintf(erwartet, sizeof(erwartet), "stat/%s/POWER%u", z->rel.topic, (unsigned)z->rel.relay);
         if (strcmp(topic, erwartet) == 0) {
-            z->relay_known = true;
-            z->relay_on = strcmp(payload, "ON") == 0;
-            z->relay_seen_ms = now_ms();
+            z->rel.known = true;
+            z->rel.on = strcmp(payload, "ON") == 0;
+            z->rel.seen_ms = now_ms();
         }
     }
     xSemaphoreGive(s_mtx);
@@ -330,12 +370,12 @@ static void relay_lwt_cb(const char *topic, const char *payload, void *ctx)
     for (uint8_t i = 0; i < s_circ_count; i++) {
         circuit_t *z = &s_circ[i];
         char erwartet[CFG_TOPIC_LEN + 24];
-        snprintf(erwartet, sizeof(erwartet), "tele/%s/LWT", z->topic);
+        snprintf(erwartet, sizeof(erwartet), "tele/%s/LWT", z->rel.topic);
         if (strcmp(topic, erwartet) == 0) {
-            z->relay_online = online;
+            z->rel.online = online;
             /* Ein neu gestartetes Relais bekommt den Sollzustand sofort. */
             if (online) {
-                z->last_sent_ms = 0;
+                z->rel.last_sent_ms = 0;
             }
         }
     }
@@ -352,13 +392,13 @@ static void subscribe_relays(void *ctx)
     xSemaphoreGive(s_mtx);
 
     for (uint8_t i = 0; i < n; i++) {
-        if (kopie[i].topic[0] == '\0') {
+        if (kopie[i].rel.topic[0] == '\0') {
             continue;
         }
         char t[CFG_TOPIC_LEN + 24];
-        snprintf(t, sizeof(t), "stat/%s/POWER%u", kopie[i].topic, (unsigned)kopie[i].relay);
+        snprintf(t, sizeof(t), "stat/%s/POWER%u", kopie[i].rel.topic, (unsigned)kopie[i].rel.relay);
         mqttc_subscribe(t, relay_state_cb, NULL);
-        snprintf(t, sizeof(t), "tele/%s/LWT", kopie[i].topic);
+        snprintf(t, sizeof(t), "tele/%s/LWT", kopie[i].rel.topic);
         mqttc_subscribe(t, relay_lwt_cb, NULL);
     }
 }
@@ -372,12 +412,12 @@ static void subscribe_relays(void *ctx)
  * allerdings unbemerkt; deshalb wird der Sollzustand zyklisch nachgesendet.
  */
 /* Rueckgabe: HTTP-Status, oder -1 wenn keine Verbindung zustande kam. */
-static int http_cmd(const circuit_t *z, const char *cmnd, bool *out_on)
+static int http_cmd(const relay_t *r, const char *cmnd, bool *out_on)
 {
     char url[224];
-    int n = snprintf(url, sizeof(url), "http://%s/cm?cmnd=%s", z->host, cmnd);
-    if (z->user[0] && n > 0 && n < (int)sizeof(url)) {
-        snprintf(url + n, sizeof(url) - n, "&user=%s&password=%s", z->user, z->pass);
+    int n = snprintf(url, sizeof(url), "http://%s/cm?cmnd=%s", r->host, cmnd);
+    if (r->user[0] && n > 0 && n < (int)sizeof(url)) {
+        snprintf(url + n, sizeof(url) - n, "&user=%s&password=%s", r->user, r->pass);
     }
 
     esp_http_client_config_t hc = {
@@ -427,57 +467,57 @@ static int http_cmd(const circuit_t *z, const char *cmnd, bool *out_on)
  * jede Aenderung von selbst, auch eine von Hand am Geraet. Ohne Broker geht
  * derselbe Befehl unmittelbar per HTTP hinaus.
  */
-static void push_relay(circuit_t *z, uint32_t t)
+static void push_relay(relay_t *r, bool soll, uint32_t t)
 {
-    bool per_mqtt = z->topic[0] != '\0' && mqttc_connected();
-    bool per_http = !per_mqtt && z->host[0] != '\0';
+    bool per_mqtt = r->topic[0] != '\0' && mqttc_connected();
+    bool per_http = !per_mqtt && r->host[0] != '\0';
     if (!per_mqtt && !per_http) {
         return;
     }
 
-    bool faellig = z->last_sent_ms == 0 || z->last_sent_on != z->st.on ||
-                   (t - z->last_sent_ms) >= RESEND_MS;
+    bool faellig = r->last_sent_ms == 0 || r->last_sent_on != soll ||
+                   (t - r->last_sent_ms) >= RESEND_MS;
     if (!faellig) {
         return;
     }
     /* Erfolglose Versuche nicht im Sekundentakt wiederholen. */
-    if (z->last_try_ms != 0 && (t - z->last_try_ms) < HTTP_RETRY_MS && per_http) {
+    if (r->last_try_ms != 0 && (t - r->last_try_ms) < HTTP_RETRY_MS && per_http) {
         return;
     }
-    z->last_try_ms = t;
+    r->last_try_ms = t;
 
     if (per_mqtt) {
         char topic[CFG_TOPIC_LEN + 24];
-        snprintf(topic, sizeof(topic), "cmnd/%s/POWER%u", z->topic, (unsigned)z->relay);
-        if (mqttc_publish(topic, z->st.on ? "ON" : "OFF", false) == ESP_OK) {
-            z->last_sent_ms = t;
-            z->last_sent_on = z->st.on;
-            z->last_status = 0; /* ueber MQTT gibt es keinen Status */
+        snprintf(topic, sizeof(topic), "cmnd/%s/POWER%u", r->topic, (unsigned)r->relay);
+        if (mqttc_publish(topic, soll ? "ON" : "OFF", false) == ESP_OK) {
+            r->last_sent_ms = t;
+            r->last_sent_on = soll;
+            r->last_status = 0; /* ueber MQTT gibt es keinen Status */
         }
         return;
     }
 
     char cmnd[32];
-    snprintf(cmnd, sizeof(cmnd), "Power%u%%20%s", (unsigned)z->relay, z->st.on ? "ON" : "OFF");
+    snprintf(cmnd, sizeof(cmnd), "Power%u%%20%s", (unsigned)r->relay, soll ? "ON" : "OFF");
     bool ist = false;
-    int status = http_cmd(z, cmnd, &ist);
-    z->last_status = status;
+    int status = http_cmd(r, cmnd, &ist);
+    r->last_status = status;
 
     if (status == 200) {
-        z->last_sent_ms = t;
-        z->last_sent_on = z->st.on;
-        z->relay_known = true;
-        z->relay_on = ist;
-        z->relay_online = true;
-        z->relay_seen_ms = t;
+        r->last_sent_ms = t;
+        r->last_sent_on = soll;
+        r->known = true;
+        r->on = ist;
+        r->online = true;
+        r->seen_ms = t;
     } else {
-        z->relay_online = false;
+        r->online = false;
         if (status < 0) {
-            ESP_LOGW(TAG, "Relais %s nicht erreichbar", z->host);
+            ESP_LOGW(TAG, "Relais %s nicht erreichbar", r->host);
         } else {
             /* Verbindung stand, aber die Antwort passt nicht: falsche Adresse,
              * fehlende Anmeldung oder gar kein Tasmota. */
-            ESP_LOGW(TAG, "Relais %s antwortet mit %d", z->host, status);
+            ESP_LOGW(TAG, "Relais %s antwortet mit %d", r->host, status);
         }
     }
 }
@@ -495,12 +535,12 @@ static void push_heartbeat(uint32_t t)
     s_heartbeat_ms = t;
     for (uint8_t i = 0; i < s_circ_count; i++) {
         circuit_t *z = &s_circ[i];
-        if (z->topic[0] != '\0' && mqttc_connected()) {
+        if (z->rel.topic[0] != '\0' && mqttc_connected()) {
             char topic[CFG_TOPIC_LEN + 24];
-            snprintf(topic, sizeof(topic), "cmnd/%s/Var1", z->topic);
+            snprintf(topic, sizeof(topic), "cmnd/%s/Var1", z->rel.topic);
             mqttc_publish(topic, "1", false);
-        } else if (z->host[0] != '\0') {
-            http_cmd(z, "Var1%201", NULL);
+        } else if (z->rel.host[0] != '\0') {
+            http_cmd(&z->rel, "Var1%201", NULL);
         }
     }
 }
@@ -591,10 +631,35 @@ static void evaluate(uint32_t t)
         z->stale = bedarf.stale;
         z->any_seen = bedarf.any_seen;
         pump_tick(&z->st, &z->cfg, &in, t);
+        /* Vertauschte Fuehler faellt nur auf, solange die Pumpe laeuft und
+         * Waerme da ist -- bei stehender Pumpe stehen beide Rohre einfach da. */
+        float rl_c = 0.0f;
+        bool rl_ok = sensors_role_value(z->rl_role, &rl_c, NULL);
+        plausi_flow_tick(&z->swapped, &s_plausi, z->st.on, in.buffer_valid, in.buffer_c,
+                         in.flow_valid, in.flow_c, rl_ok, rl_c, t);
         xSemaphoreGive(s_mtx);
 
-        push_relay(z, t);
+        push_relay(&z->rel, z->st.on, t);
     }
+    /*
+     * Kesselkreispumpe. Sie haengt nicht am Bedarf der Raeume, sondern allein
+     * daran, ob der Kessel gerade Waerme abgibt oder aufnimmt.
+     */
+    bp_input_t bin = {0};
+    float bvl = 0.0f, brl = 0.0f;
+    bin.valid = sensors_role_value(ROLE_KESSEL_VL, &bvl, NULL) &&
+                sensors_role_value(ROLE_KESSEL_RL, &brl, NULL);
+    bin.vl_c = bvl;
+    bin.rl_c = brl;
+
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    bp_tick(&s_bp, &s_bpcfg, &bin, t);
+    bool soll = s_bp.on;
+    xSemaphoreGive(s_mtx);
+    if (s_bpcfg.enabled) {
+        push_relay(&s_bprel, soll, t);
+    }
+
     push_heartbeat(t);
 }
 
@@ -640,6 +705,9 @@ static void pumps_task(void *arg)
 
 esp_err_t pumps_start(void)
 {
+    plausi_defaults(&s_plausi);
+    bp_defaults(&s_bpcfg);
+    bp_init(&s_bp, BP_MODE_AUTO);
     s_mtx = xSemaphoreCreateRecursiveMutex();
     if (s_mtx == NULL) {
         return ESP_ERR_NO_MEM;
@@ -687,7 +755,7 @@ esp_err_t pumps_set_mode(uint8_t circuit_id, pump_mode_t mode)
             pump_set_mode(&s_circ[i].st, mode, now_ms());
             /* Der neue Zustand soll sofort hinausgehen, nicht erst beim
              * naechsten zyklischen Nachsenden. */
-            s_circ[i].last_sent_ms = 0;
+            s_circ[i].rel.last_sent_ms = 0;
         }
     }
     xSemaphoreGive(s_mtx);
@@ -719,18 +787,62 @@ size_t pumps_status(circuit_status_t *out, size_t max)
         o->any_seen = z->any_seen;
         o->vl_valid = sensors_role_value(z->vl_role, &o->vl_c, NULL);
         o->rl_valid = sensors_role_value(z->rl_role, &o->rl_c, NULL);
-        o->relay_known = z->relay_known;
-        o->relay_on = z->relay_on;
-        o->relay_online = z->relay_online;
-        o->relay_age_s = z->relay_seen_ms ? (t - z->relay_seen_ms) / 1000 : 0;
-        o->relay_mismatch = z->relay_known && z->relay_on != z->st.on &&
-                            z->last_sent_ms != 0 && (t - z->last_sent_ms) > MISMATCH_MS;
-        o->path = (z->topic[0] != '\0' && mqttc_connected()) ? PUMP_PATH_MQTT
-                  : (z->host[0] != '\0' ? PUMP_PATH_HTTP : PUMP_PATH_NONE);
-        o->last_status = z->last_status;
+        o->flow_swapped = z->swapped.active;
+        o->swapped_held_s = z->swapped.held_s;
+        o->relay_known = z->rel.known;
+        o->relay_on = z->rel.on;
+        o->relay_online = z->rel.online;
+        o->relay_age_s = z->rel.seen_ms ? (t - z->rel.seen_ms) / 1000 : 0;
+        o->relay_mismatch = z->rel.known && z->rel.on != z->st.on &&
+                            z->rel.last_sent_ms != 0 && (t - z->rel.last_sent_ms) > MISMATCH_MS;
+        o->path = (z->rel.topic[0] != '\0' && mqttc_connected()) ? PUMP_PATH_MQTT
+                  : (z->rel.host[0] != '\0' ? PUMP_PATH_HTTP : PUMP_PATH_NONE);
+        o->last_status = z->rel.last_status;
     }
     xSemaphoreGive(s_mtx);
     return n;
+}
+
+void pumps_boiler_status(boiler_pump_status_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    if (s_mtx == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    out->enabled = s_bpcfg.enabled;
+    out->on = s_bp.on;
+    out->mode = (uint8_t)s_bp.mode;
+    out->reason = bp_reason_text(s_bp.reason);
+    out->reason_key = bp_reason_key(s_bp.reason);
+    out->since_s = s_bp.started ? (now_ms() - s_bp.since_ms) / 1000 : 0;
+    out->relay_known = s_bprel.known;
+    out->relay_on = s_bprel.on;
+    out->relay_online = s_bprel.online;
+    out->last_status = s_bprel.last_status;
+    out->path = s_bprel.topic[0] && mqttc_connected() ? PUMP_PATH_MQTT
+                : s_bprel.host[0] ? PUMP_PATH_HTTP : PUMP_PATH_NONE;
+    xSemaphoreGive(s_mtx);
+}
+
+esp_err_t pumps_set_boiler_mode(uint8_t mode)
+{
+    if (mode > 2) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    static app_config_t cfg;
+    cfg_copy(&cfg);
+    cfg.boiler_pump.mode = mode;
+    char err[128];
+    esp_err_t rc = cfg_set(&cfg, err, sizeof(err));
+    if (rc != ESP_OK) {
+        return rc;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    bp_set_mode(&s_bp, (bp_mode_t)mode, now_ms());
+    s_bprel.last_sent_ms = 0;   /* sofort hinausgeben */
+    xSemaphoreGive(s_mtx);
+    return ESP_OK;
 }
 
 size_t pumps_peers(peer_demand_t *out, size_t max)

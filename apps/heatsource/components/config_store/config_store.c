@@ -113,6 +113,7 @@ void cfg_defaults(app_config_t *out)
     out->burner.on_hold_s = 60;
     out->burner.off_hold_s = 300;
     out->burner.duese_l_h = 2.2f;
+    out->burner.wartung_epoch = 0;
 
     out->buffer.spread_full_k = 8.0f;
     out->buffer.spread_hold_s = 300;
@@ -120,6 +121,16 @@ void cfg_defaults(app_config_t *out)
     out->buffer.leer_c = 35.0f;
     out->buffer.warn_c = 40.0f;
     out->buffer.kessel_hot_c = 60.0f;
+
+    /* Dieselben Vorgaben wie in components/heatlogic. */
+    out->boiler_pump.enabled = false;
+    out->boiler_pump.relay = 1;
+    out->boiler_pump.on_k = 1.0f;
+    out->boiler_pump.off_k = 0.5f;
+    out->boiler_pump.hold_s = 120;
+    out->boiler_pump.min_run_s = 180;
+    out->boiler_pump.min_pause_s = 180;
+    out->boiler_pump.emergency_c = 85.0f;
 
     out->reboot_hour = -1; /* Heizungsgeraete laufen durch */
     out->reboot_minute = 0;
@@ -216,6 +227,15 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
     if (cfg->circuit_count > CFG_MAX_CIRCUITS) {
         FEHLER("Hoechstens %d Heizkreise moeglich", CFG_MAX_CIRCUITS);
     }
+    /*
+     * Die Freigabe eines Heizkreises haengt an der Speichertemperatur, und die
+     * wird nur vom eigenen Pufferfuehler gelesen. Ohne ihn bekaeme die Logik
+     * nie einen gueltigen Wert -- der Kreis waere angelegt und wirkungslos.
+     * Dieselbe Trennung wie bei der Kesselkreispumpe, nur andersherum.
+     */
+    if (cfg->circuit_count > 0 && cfg_probe_of_role(cfg, ROLE_PUFFER) == NULL) {
+        FEHLER("Heizkreise brauchen den Pufferfuehler an diesem Geraet");
+    }
     for (uint8_t i = 0; i < cfg->circuit_count; i++) {
         const cfg_circuit_t *c = &cfg->circuits[i];
         if (c->id == 0 || c->id > CFG_MAX_CIRCUITS) {
@@ -243,6 +263,38 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
             if (cfg->circuits[j].id == c->id) {
                 FEHLER("Heizkreis %u ist doppelt angelegt", (unsigned)c->id);
             }
+        }
+    }
+    const cfg_boiler_pump_t *bp = &cfg->boiler_pump;
+    if (bp->enabled) {
+        /*
+         * Nur auf dem Geraet, das Kesselvor- und -ruecklauf selbst misst. Mit
+         * Werten vom Nachbargeraet zu schalten waere eine Entscheidung ohne
+         * eigene Grundlage -- und schlimmer: Faellt die Verbindung aus, gilt
+         * "keine Messwerte", und die Pumpe liefe dann dauerhaft.
+         */
+        if (cfg_probe_of_role(cfg, ROLE_KESSEL_VL) == NULL ||
+            cfg_probe_of_role(cfg, ROLE_KESSEL_RL) == NULL) {
+            FEHLER("Die Kesselkreispumpe braucht Kesselvor- und -ruecklauf an diesem Geraet");
+        }
+        if (bp->relay < 1 || bp->relay > 8) {
+            FEHLER("Relaisnummer der Kesselkreispumpe muss zwischen 1 und 8 liegen");
+        }
+        if (bp->mode > 2) {
+            FEHLER("Unbekannte Betriebsart der Kesselkreispumpe");
+        }
+        if (bp->off_k >= bp->on_k) {
+            FEHLER("Die Ausschaltschwelle der Kesselkreispumpe muss unter der "
+                   "Einschaltschwelle liegen");
+        }
+        if (bp->on_k <= 0.0f || bp->on_k > 20.0f) {
+            FEHLER("Einschaltschwelle der Kesselkreispumpe muss zwischen 0 und 20 K liegen");
+        }
+        if (bp->emergency_c < 60.0f || bp->emergency_c > 110.0f) {
+            FEHLER("Notgrenze der Kesselkreispumpe muss zwischen 60 und 110 Grad liegen");
+        }
+        if (bp->hold_s > 3600 || bp->min_run_s > 3600 || bp->min_pause_s > 3600) {
+            FEHLER("Zeiten der Kesselkreispumpe duerfen hoechstens eine Stunde betragen");
         }
     }
     if (cfg->burner.delta_on_k <= cfg->burner.delta_off_k) {
@@ -437,6 +489,7 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(b, "on_hold_s", cfg->burner.on_hold_s);
     cJSON_AddNumberToObject(b, "off_hold_s", cfg->burner.off_hold_s);
     cJSON_AddNumberToObject(b, "duese_l_h", cfg->burner.duese_l_h);
+    cJSON_AddNumberToObject(b, "wartung_epoch", cfg->burner.wartung_epoch);
 
     cJSON *sp = cJSON_AddObjectToObject(root, "buffer");
     cJSON_AddNumberToObject(sp, "spread_full_k", cfg->buffer.spread_full_k);
@@ -445,6 +498,27 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(sp, "leer_c", cfg->buffer.leer_c);
     cJSON_AddNumberToObject(sp, "warn_c", cfg->buffer.warn_c);
     cJSON_AddNumberToObject(sp, "kessel_hot_c", cfg->buffer.kessel_hot_c);
+
+    const cfg_boiler_pump_t *kp = &cfg->boiler_pump;
+    cJSON *jk = cJSON_AddObjectToObject(root, "boiler_pump");
+    cJSON_AddBoolToObject(jk, "enabled", kp->enabled);
+    cJSON_AddStringToObject(jk, "topic", kp->topic);
+    cJSON_AddStringToObject(jk, "host", kp->host);
+    cJSON_AddStringToObject(jk, "user", kp->user);
+    if (include_secrets) {
+        cJSON_AddStringToObject(jk, "pass", kp->pass);
+    } else {
+        cJSON_AddBoolToObject(jk, "pass_set", kp->pass[0] != '\0');
+    }
+    cJSON_AddNumberToObject(jk, "relay", kp->relay);
+    cJSON_AddStringToObject(jk, "mode",
+                            kp->mode == 1 ? "ein" : kp->mode == 2 ? "aus" : "auto");
+    cJSON_AddNumberToObject(jk, "on_k", kp->on_k);
+    cJSON_AddNumberToObject(jk, "off_k", kp->off_k);
+    cJSON_AddNumberToObject(jk, "hold_s", kp->hold_s);
+    cJSON_AddNumberToObject(jk, "min_run_s", kp->min_run_s);
+    cJSON_AddNumberToObject(jk, "min_pause_s", kp->min_pause_s);
+    cJSON_AddNumberToObject(jk, "emergency_c", kp->emergency_c);
 
     cJSON_AddNumberToObject(root, "reboot_hour", cfg->reboot_hour);
     cJSON_AddNumberToObject(root, "seize_weekday", cfg->seize_weekday);
@@ -628,6 +702,32 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
     out->demand_poll_s = (uint16_t)cfgjson_num(root, "demand_poll_s", out->demand_poll_s);
     out->demand_timeout_s = (uint16_t)cfgjson_num(root, "demand_timeout_s", out->demand_timeout_s);
 
+    const cJSON *jk = cJSON_GetObjectItemCaseSensitive(root, "boiler_pump");
+    if (cJSON_IsObject(jk)) {
+        cfg_boiler_pump_t *kp = &out->boiler_pump;
+        kp->enabled = cfgjson_bool(jk, "enabled", kp->enabled);
+        cfgjson_str(jk, "topic", kp->topic, sizeof(kp->topic));
+        cfgjson_str(jk, "host", kp->host, sizeof(kp->host));
+        cfgjson_str(jk, "user", kp->user, sizeof(kp->user));
+        cfgjson_str(jk, "pass", kp->pass, sizeof(kp->pass));
+        kp->relay = (uint8_t)cfgjson_num(jk, "relay", kp->relay);
+        char modus[12] = {0};
+        cfgjson_str(jk, "mode", modus, sizeof(modus));
+        if (strcmp(modus, "ein") == 0) {
+            kp->mode = 1;
+        } else if (strcmp(modus, "aus") == 0) {
+            kp->mode = 2;
+        } else if (modus[0]) {
+            kp->mode = 0;
+        }
+        kp->on_k = (float)cfgjson_num(jk, "on_k", kp->on_k);
+        kp->off_k = (float)cfgjson_num(jk, "off_k", kp->off_k);
+        kp->hold_s = (uint16_t)cfgjson_num(jk, "hold_s", kp->hold_s);
+        kp->min_run_s = (uint16_t)cfgjson_num(jk, "min_run_s", kp->min_run_s);
+        kp->min_pause_s = (uint16_t)cfgjson_num(jk, "min_pause_s", kp->min_pause_s);
+        kp->emergency_c = (float)cfgjson_num(jk, "emergency_c", kp->emergency_c);
+    }
+
     const cJSON *b = cJSON_GetObjectItemCaseSensitive(root, "burner");
     if (cJSON_IsObject(b)) {
         out->burner.delta_on_k = (float)cfgjson_num(b, "delta_on_k", out->burner.delta_on_k);
@@ -635,6 +735,8 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         out->burner.on_hold_s = (uint16_t)cfgjson_num(b, "on_hold_s", out->burner.on_hold_s);
         out->burner.off_hold_s = (uint16_t)cfgjson_num(b, "off_hold_s", out->burner.off_hold_s);
         out->burner.duese_l_h = (float)cfgjson_num(b, "duese_l_h", out->burner.duese_l_h);
+        out->burner.wartung_epoch =
+            (uint32_t)cfgjson_num(b, "wartung_epoch", out->burner.wartung_epoch);
     }
 
     const cJSON *sp = cJSON_GetObjectItemCaseSensitive(root, "buffer");

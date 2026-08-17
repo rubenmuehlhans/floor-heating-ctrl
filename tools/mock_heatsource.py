@@ -66,6 +66,7 @@ KREISE = [
 ]
 
 MAX_CIRCUITS = 4
+STATE_BP = {"mode": "auto"}
 
 
 def kreis_default(kid: int) -> dict:
@@ -96,6 +97,9 @@ CFG = {
     "seize_hour": 11,
     "reboot_minute": 0,
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
+    "boiler_pump": {"enabled": True, "topic": "", "host": "192.168.1.204", "user": "",
+                    "pass_set": False, "relay": 1, "mode": "auto", "on_k": 1.0, "off_k": 0.5,
+                    "hold_s": 120, "min_run_s": 180, "min_pause_s": 180, "emergency_c": 85.0},
     "wifi": {"ssid": "Heimnetz", "hostname": "heizung", "pass_set": True, "ap_pass_set": True},
     "mqtt": {"enabled": False, "uri": "", "user": "", "prefix": "heiz", "pass_set": False},
 }
@@ -280,6 +284,26 @@ def state() -> dict:
             "spread_k": None if kvl is None or krl is None else round(kvl - krl, 2),
         },
         "record": REC,
+        "log": {"charges": 37, "days": 112},
+        "boiler_pump": {
+            "enabled": True, "mode": STATE_BP["mode"],
+            "on": brenner_laeuft if STATE_BP["mode"] == "auto" else STATE_BP["mode"] == "ein",
+            "reason": "Kessel gibt Waerme ab" if brenner_laeuft
+                      else "Ruecklauf waermer als Vorlauf",
+            "reason_key": "transfer" if brenner_laeuft else "no_transfer",
+            "since_s": 940, "path": "http",
+            "relay": {"known": True, "on": brenner_laeuft, "online": True, "status": 200,
+                      "mismatch": False},
+        },
+        # Ein Befund, damit sich die Karte ansehen laesst: Heizkreis 1 misst
+        # verkehrt herum.
+        "findings": [
+            {"code": "flow_swapped", "where": "Keller und Erdgeschoss",
+             "text": "Vorlauf und Ruecklauf sind vermutlich vertauscht", "held_s": 5400},
+            {"code": "probe_errors", "where": "Heizkreis 2 Ruecklauf",
+             "text": "Ein Fuehler verwirft auffaellig viele Messungen",
+             "reads": 820, "errors": 96},
+        ],
         "heat_peers": [{
             "id": "heiz_9a1b2c" if not args_kessel() else "heiz_3f21ac",
             "site": "Kessel" if not args_kessel() else "Pufferspeicher",
@@ -404,6 +428,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         pfad = urlparse(self.path).path
+        if pfad.startswith("/api/boilerpump/"):
+            STATE_BP["mode"] = pfad.rsplit("/", 1)[-1]
+            return self._send({"ok": True})
         if pfad.startswith("/api/record/"):
             aktion = pfad.rsplit("/", 1)[-1]
             laeuft = math.sin(2 * math.pi * time.time() / 900) > 0.2
