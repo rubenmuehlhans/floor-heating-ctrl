@@ -5,6 +5,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "app_log.h"
+#include "app_analyse.h"
 #include "app_remote.h"
 #include "app_sensors.h"
 #include "esp_log.h"
@@ -55,6 +57,22 @@ static uint32_t s_rec_last_ms;
  * dort ohne Hardware geprueft. */
 static rec_trigger_t s_trig;
 static rec_trig_cfg_t s_tcfg;
+
+/*
+ * Zweiter Ausloeser, dauerhaft scharf: Er trennt die Ladungen fuers Protokoll.
+ * Dieselbe Regel wie bei der Aufzeichnung -- Beginn beim Brennerstart, Ende
+ * nach dem Nachlauf, taktender Betrieb zerteilt eine Ladung nicht -- nur ohne
+ * Speicherbedarf. Zwei getrennte Zustaende, damit das Protokoll nicht davon
+ * abhaengt, ob jemand die Aufzeichnung scharf geschaltet hat.
+ */
+static rec_trigger_t s_logtrig;
+static charge_log_t s_lauf;      /* die gerade laufende Ladung */
+static uint32_t s_lauf_beginn_ms;
+static uint32_t s_lauf_brenner_ms;
+static uint32_t s_lauf_aussen_summe_dc;
+static uint32_t s_lauf_aussen_n;
+static uint32_t s_lauf_start_runtime_s;
+static uint32_t s_lauf_start_starts;
 static rec_input_t s_tin;       /* letzte Zeichen: Brenner und Speicher */
 
 /* Brennerzustand, wie er tatsaechlich gilt: eigener Abgasfuehler, sonst das
@@ -245,6 +263,85 @@ void rec_stop(void)
 }
 
 /*
+ * Ladungsprotokoll. Derselbe Ausloeser wie bei der Aufzeichnung, nur dauerhaft
+ * scharf: Beginn beim Brennerstart, Ende nach dem Nachlauf. Was dazwischen
+ * liegt, gilt als eine Ladung -- auch wenn der Kessel taktet.
+ */
+static void log_tick(const rec_input_t *in, uint32_t t)
+{
+    rec_trig_phase_t vorher = s_logtrig.phase;
+    bool begonnen = rec_trigger_tick(&s_logtrig, in, &s_tcfg, t);
+
+    if (begonnen) {
+        memset(&s_lauf, 0, sizeof(s_lauf));
+        time_t jetzt = time(NULL);
+        s_lauf.start_epoch = jetzt > 1700000000 ? (uint32_t)jetzt : 0;
+        s_lauf.puffer_start_dc = in->buffer_valid ? (int16_t)(in->buffer_c * 10.0f) : LOG_NONE;
+        s_lauf.puffer_end_dc = s_lauf.puffer_start_dc;
+        s_lauf.kessel_vl_max_dc = LOG_NONE;
+        s_lauf.abgas_max_dc = LOG_NONE;
+        s_lauf.aussen_mean_dc = LOG_NONE;
+        s_lauf_beginn_ms = t;
+        s_lauf_brenner_ms = 0;
+        s_lauf_aussen_summe_dc = 0;
+        s_lauf_aussen_n = 0;
+        s_lauf_start_runtime_s = s_st.runtime_today_s;
+        s_lauf_start_starts = s_st.starts_today;
+        return;
+    }
+
+    if (s_logtrig.phase == REC_TRIG_RUN) {
+        /* Hoechstwerte und Mittel waehrend der Ladung mitfuehren. */
+        if (in->burner_known && in->burner_running) {
+            s_lauf_brenner_ms += TICK_MS;
+        }
+        if (in->buffer_valid) {
+            s_lauf.puffer_end_dc = (int16_t)(in->buffer_c * 10.0f);
+        }
+        float wert = 0.0f;
+        if (any_role_value(ROLE_KESSEL_VL, &wert, NULL)) {
+            int16_t dc = (int16_t)(wert * 10.0f);
+            if (s_lauf.kessel_vl_max_dc == LOG_NONE || dc > s_lauf.kessel_vl_max_dc) {
+                s_lauf.kessel_vl_max_dc = dc;
+            }
+        }
+        if (any_role_value(ROLE_ABGAS, &wert, NULL)) {
+            int16_t dc = (int16_t)(wert * 10.0f);
+            if (s_lauf.abgas_max_dc == LOG_NONE || dc > s_lauf.abgas_max_dc) {
+                s_lauf.abgas_max_dc = dc;
+            }
+        }
+        if (any_role_value(ROLE_AUSSEN, &wert, NULL)) {
+            s_lauf_aussen_summe_dc += (uint32_t)((wert + 50.0f) * 10.0f); /* Versatz gegen Minus */
+            s_lauf_aussen_n++;
+        }
+        return;
+    }
+
+    if (vorher == REC_TRIG_RUN && s_logtrig.phase == REC_TRIG_DONE) {
+        uint32_t dauer = (t - s_lauf_beginn_ms) / 1000;
+        s_lauf.duration_s = dauer > UINT16_MAX ? UINT16_MAX : (uint16_t)dauer;
+        uint32_t brenner = s_lauf_brenner_ms / 1000;
+        s_lauf.burner_s = brenner > UINT16_MAX ? UINT16_MAX : (uint16_t)brenner;
+
+        uint32_t starts = s_st.starts_today >= s_lauf_start_starts
+                              ? s_st.starts_today - s_lauf_start_starts : 0;
+        s_lauf.starts = starts > UINT8_MAX ? UINT8_MAX : (uint8_t)starts;
+
+        if (s_lauf_aussen_n) {
+            s_lauf.aussen_mean_dc =
+                (int16_t)(s_lauf_aussen_summe_dc / s_lauf_aussen_n) - 500;
+        }
+        /* Oel aus der Brennerlaufzeit dieser Ladung, in Millilitern. */
+        s_lauf.litres_ml = (uint16_t)(s_lauf.burner_s * s_cfg.duese_l_h / 3.6f);
+
+        applog_add_charge(&s_lauf);
+        /* Sofort wieder scharf, damit die naechste Ladung nicht durchrutscht. */
+        rec_trigger_arm(&s_logtrig, in, t);
+    }
+}
+
+/*
  * Uebergaenge der selbsttaetigen Aufzeichnung, einmal je Sekunde.
  *
  * Der Brennerzustand kommt vom eigenen Abgasfuehler oder, wenn dieses Geraet
@@ -370,6 +467,7 @@ static void burner_task(void *arg)
     static sens_snapshot_t snap;
     bool brenner_lief = false;
     int letzter_tag = s_stats.tag;
+    int letzte_stunde = -1;
 
     for (;;) {
         if (s_cfg_dirty) {
@@ -425,9 +523,31 @@ static void burner_task(void *arg)
             .buffer_c = cin.puffer_c,
         };
         rec_tick(&tin, t);
+        log_tick(&tin, t);
 
         /* Tageswechsel. Ohne gestellte Uhr wird nicht umgeschaltet -- sonst
          * fiele der Wechsel mit jedem Neustart zusammen. */
+        /* Tages- und Stundenprotokoll. Die Aussentemperatur kommt vom
+         * Verteiler; ohne sie werden keine Heizgradtage gebildet. */
+        float aussen = 0.0f;
+        bool aussen_ok = any_role_value(ROLE_AUSSEN, &aussen, NULL);
+        time_t jetzt_t = time(NULL);
+        if (jetzt_t > 1700000000) {
+            struct tm tm_jetzt;
+            localtime_r(&jetzt_t, &tm_jetzt);
+            applog_tick_day(tm_jetzt.tm_year, tm_jetzt.tm_yday, s_st.runtime_today_s,
+                            s_st.starts_today,
+                            (uint16_t)(burner_litres_today(&s_st, &s_cfg) * 1000.0f),
+                            aussen_ok, aussen);
+            if (letzte_stunde != tm_jetzt.tm_hour) {
+                letzte_stunde = tm_jetzt.tm_hour;
+                applog_tick_hour(aussen_ok, aussen);
+                /* Stuendlich nachsehen genuegt: Die Auswertung aendert sich
+                 * erst, wenn ein Tag oder eine Ladung im Protokoll steht. */
+                analyse_poll();
+            }
+        }
+
         int tag = heute();
         if (tag >= 0 && letzter_tag >= 0 && tag != letzter_tag) {
             xSemaphoreTake(s_mtx, portMAX_DELAY);
@@ -492,6 +612,14 @@ esp_err_t burner_start(void)
     charge_defaults(&s_ccfg);
     rec_trigger_defaults(&s_tcfg);
     rec_trigger_init(&s_trig);
+    applog_init();
+    rec_trigger_init(&s_logtrig);
+    {
+        /* Dauerhaft scharf: Das Protokoll soll nicht davon abhaengen, ob
+         * jemand die Aufzeichnung eingeschaltet hat. */
+        rec_input_t leer = {0};
+        rec_trigger_arm(&s_logtrig, &leer, now_ms());
+    }
     charge_init(&s_cst);
     s_stats.tag = -1;
 

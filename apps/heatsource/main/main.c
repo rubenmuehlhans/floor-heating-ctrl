@@ -17,6 +17,7 @@
 #include "app_pumps.h"
 #include "app_remote.h"
 #include "app_sensors.h"
+#include "app_analyse.h"
 #include "app_web.h"
 #include "config_store.h"
 #include "esp_app_desc.h"
@@ -94,6 +95,8 @@ void app_main(void)
     if (pumps_start() != ESP_OK) {
         ESP_LOGW(TAG, "Pumpensteuerung nicht verfuegbar");
     }
+    /* Nach der Brennererkennung, denn sie fuehrt das Tagesprotokoll. */
+    analyse_start();
     if (cfg.mqtt.enabled && cfg.mqtt.uri[0] && hamqtt_start() != ESP_OK) {
         ESP_LOGW(TAG, "Anmeldung bei Home Assistant nicht verfuegbar");
     }
