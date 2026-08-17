@@ -12,6 +12,8 @@
 #include "freertos/task.h"
 #include "peers.h"
 
+static const char *TAG = "remote";
+
 #define POLL_MS 5000
 #define HTTP_TIMEOUT_MS 2000
 /* Danach gilt ein Wert als veraltet und wird nicht mehr herausgegeben. */
@@ -131,13 +133,137 @@ static bool fetch(const char *host, remote_peer_t *p)
     return ok;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Aussentemperatur                                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Sie haengt an einem RuuviTag, und den empfaengt nur eine Verteilerplatine --
+ * die Heizungsgeraete haben kein Bluetooth. Sie reist zwar mit der
+ * Bedarfsantwort mit, aber dieser Weg traegt nicht weit genug: Bedarf wird nur
+ * bei Verteilern abgefragt, die einem Heizkreis zugeordnet sind. Der Kessel hat
+ * gar keine Heizkreise und kaeme damit nie an den Wert -- ausgerechnet das
+ * Geraet, das ihn fuer Heizgradtage und Ladungsprotokoll braucht.
+ *
+ * Eine Aussentemperatur ist eine Groesse des Hauses, keine eines Heizkreises.
+ * Deshalb wird sie hier unabhaengig geholt: von jeder gefundenen
+ * Verteilerplatine, bis eine einen gueltigen Wert liefert.
+ */
+#define AUSSEN_POLL_MS 60000
+
+/*
+ * Aelter als das wird nicht uebernommen. Der Verteiler laesst seinen Wert zwar
+ * selbst verfallen, aber diese Pruefung steht hier noch einmal: Sie greift auch
+ * bei einer Platine mit aelterer Firmware, und sie kostet nichts.
+ */
+#define AUSSEN_STALE_S 900
+
+static char s_aussen_quelle[CFG_NAME_LEN];
+static uint32_t s_aussen_alter_s;
+
+static bool fetch_outdoor(const char *host, float *out_c, uint32_t *out_age_s)
+{
+    char url[64];
+    snprintf(url, sizeof(url), "http://%s/api/demand", host);
+
+    esp_http_client_config_t hc = {
+        .url = url,
+        .timeout_ms = HTTP_TIMEOUT_MS,
+    };
+    esp_http_client_handle_t cl = esp_http_client_init(&hc);
+    if (cl == NULL) {
+        return false;
+    }
+
+    bool ok = false;
+    static char body[512];
+    if (esp_http_client_open(cl, 0) == ESP_OK) {
+        esp_http_client_fetch_headers(cl);
+        int n = esp_http_client_read(cl, body, sizeof(body) - 1);
+        if (n > 0 && esp_http_client_get_status_code(cl) == 200) {
+            body[n] = '\0';
+            cJSON *root = cJSON_Parse(body);
+            if (root != NULL) {
+                const cJSON *v = cJSON_GetObjectItemCaseSensitive(root, "outdoor_c");
+                if (cJSON_IsNumber(v)) {
+                    *out_c = (float)v->valuedouble;
+                    const cJSON *a = cJSON_GetObjectItemCaseSensitive(root, "outdoor_age_s");
+                    *out_age_s = cJSON_IsNumber(a) ? (uint32_t)a->valuedouble : 0;
+                    ok = true;
+                }
+                cJSON_Delete(root);
+            }
+        }
+        esp_http_client_close(cl);
+    }
+    esp_http_client_cleanup(cl);
+    return ok;
+}
+
+/* Rueckgabe: true, sobald ein Verteiler geliefert hat. */
+static bool aussen_holen(const peer_t *gefunden, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        if (strcmp(gefunden[i].role, PEERS_ROLE_MANIFOLD) != 0) {
+            continue;
+        }
+        float c = 0.0f;
+        uint32_t alter = 0;
+        if (!fetch_outdoor(gefunden[i].host, &c, &alter)) {
+            continue;
+        }
+        if (alter > AUSSEN_STALE_S) {
+            ESP_LOGW(TAG, "Aussentemperatur von %s ist %u s alt, uebergangen",
+                     gefunden[i].site[0] ? gefunden[i].site : gefunden[i].id, (unsigned)alter);
+            continue;
+        }
+        remote_set_value(ROLE_AUSSEN, c);
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        snprintf(s_aussen_quelle, sizeof(s_aussen_quelle), "%.*s",
+                 (int)sizeof(s_aussen_quelle) - 1,
+                 gefunden[i].site[0] ? gefunden[i].site : gefunden[i].id);
+        s_aussen_alter_s = alter;
+        xSemaphoreGive(s_mtx);
+        return true;
+    }
+    return false;
+}
+
+bool remote_outdoor_source(char *out, size_t len, uint32_t *age_s)
+{
+    if (s_mtx == NULL) {
+        return false;
+    }
+    bool ok;
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    ok = s_aussen_quelle[0] != '\0';
+    if (ok) {
+        snprintf(out, len, "%.*s", (int)len - 1, s_aussen_quelle);
+        if (age_s != NULL) {
+            *age_s = s_aussen_alter_s;
+        }
+    }
+    xSemaphoreGive(s_mtx);
+    return ok;
+}
+
 static void remote_task(void *arg)
 {
     (void)arg;
     static peer_t gefunden[PEERS_MAX];
+    uint32_t aussen_letzte_ms = 0;
 
     for (;;) {
         size_t n = peers_get(gefunden, PEERS_MAX);
+
+        /* Die Aussentemperatur aendert sich langsam; einmal je Minute genuegt,
+         * und sie geht ohnehin nur stuendlich in die Heizgradtage ein. */
+        uint32_t t = now_ms();
+        if (aussen_letzte_ms == 0 || (t - aussen_letzte_ms) >= AUSSEN_POLL_MS) {
+            aussen_letzte_ms = t;
+            aussen_holen(gefunden, n);
+        }
 
         for (size_t i = 0; i < n; i++) {
             if (strcmp(gefunden[i].role, PEERS_ROLE_HEAT) != 0) {

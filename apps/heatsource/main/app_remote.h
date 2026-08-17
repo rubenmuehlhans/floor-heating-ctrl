@@ -49,6 +49,12 @@ bool remote_role_value(probe_role_t role, float *out_c, uint32_t *age_s);
  */
 void remote_set_value(probe_role_t role, float value_c);
 
+/*
+ * Von welcher Verteilerplatine die Aussentemperatur zuletzt kam, und wie alt
+ * der Messwert dort war. false, solange keine geliefert hat.
+ */
+bool remote_outdoor_source(char *out, size_t len, uint32_t *age_s);
+
 /* Brennerzustand des Nachbargeraets. */
 bool remote_burner(bool *running);
 
