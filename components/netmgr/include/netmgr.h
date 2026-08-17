@@ -52,6 +52,19 @@ esp_err_t netmgr_start(const netmgr_cfg_t *cfg);
 /* Sperre fuer den taeglichen Neustart, etwa waehrend eine Ventilfahrt laeuft. */
 void netmgr_set_reboot_guard(netmgr_busy_fn_t fn);
 
+/*
+ * Meldet, ob das Geraet gerade allein ueber seinen Einrichtungs-Zugangspunkt
+ * erreichbar ist -- Zugangspunkt an und kein WLAN hinterlegt.
+ *
+ * Gedacht fuer Geraete, die sich den Funkteil mit Bluetooth teilen: Solange
+ * dieser Zustand anliegt, ist jede Bluetooth-Suche verlorene Funkzeit, denn es
+ * ist noch nichts eingerichtet, dem ein Messwert zugeordnet werden koennte --
+ * und es ist genau die Zeit, die zur Anmeldung am Zugangspunkt fehlt. Wer den
+ * Haken nicht setzt, merkt nichts davon.
+ */
+typedef void (*netmgr_setup_fn_t)(bool nur_zugangspunkt);
+void netmgr_set_setup_hook(netmgr_setup_fn_t fn);
+
 /* Uebernimmt geaenderte WLAN-Zugangsdaten ohne Neustart. */
 esp_err_t netmgr_apply(const netmgr_cfg_t *cfg);
 

@@ -72,6 +72,9 @@ void app_main(void)
     cfg_netmgr(&cfg, &netz);
     ESP_ERROR_CHECK(netmgr_start(&netz));
     netmgr_set_reboot_guard(control_busy);
+    /* Bluetooth und WLAN teilen sich einen Funkteil. Solange nur der
+     * Einrichtungs-Zugangspunkt da ist, gehoert er dem WLAN. */
+    netmgr_set_setup_hook(atc_ble_pause);
     ESP_ERROR_CHECK(atc_ble_start(on_ble_measurement, NULL));
 
     /* Geschwistergeraete im Haus: je Etage eine Platine. Sie melden sich

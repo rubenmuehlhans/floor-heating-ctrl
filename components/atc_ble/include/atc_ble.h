@@ -38,6 +38,17 @@ esp_err_t atc_ble_start(atc_cb_t cb, void *ctx);
 /* Kopiert die bekannten Geraete, neueste zuerst. */
 size_t atc_ble_devices(atc_device_t *out, size_t max);
 
+/*
+ * Suche anhalten und wieder aufnehmen.
+ *
+ * Bluetooth und WLAN teilen sich einen Funkteil. Solange der
+ * Einrichtungs-Zugangspunkt die einzige Zugangsmoeglichkeit ist, bringt die
+ * Suche nichts -- es ist noch kein Raum eingerichtet, dem ein Messwert
+ * zugeordnet werden koennte -- und sie kostet genau die Funkzeit, die fuer die
+ * Anmeldung am Zugangspunkt gebraucht wird.
+ */
+void atc_ble_pause(bool pausieren);
+
 #ifdef __cplusplus
 }
 #endif

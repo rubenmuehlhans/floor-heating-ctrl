@@ -37,6 +37,9 @@ static netmgr_cfg_t s_cfg_copy;
 
 static void start_ap_fallback(const netmgr_cfg_t *cfg);
 
+static netmgr_setup_fn_t s_setup_hook;
+static bool s_setup_gemeldet;
+
 /* Kopiert eine Zeichenkette in ein Feld fester Groesse und schneidet dabei
  * sauber ab. snprintf wuerde hier nur Abschneidewarnungen erzeugen. */
 static size_t copy_str(void *dst, size_t dst_size, const char *src)
@@ -306,6 +309,18 @@ static void supervisor_task(void *arg)
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(2000));
 
+        /* Nur ueber den Zugangspunkt erreichbar: kein WLAN hinterlegt und der
+         * Zugangspunkt laeuft. Gemeldet wird nur bei Wechseln. */
+        if (s_setup_hook != NULL) {
+            bool nur_ap = s_status.ap_active && cfg->ssid[0] == '\0';
+            static bool letzter;
+            if (!s_setup_gemeldet || nur_ap != letzter) {
+                s_setup_gemeldet = true;
+                letzter = nur_ap;
+                s_setup_hook(nur_ap);
+            }
+        }
+
         if (s_status.sta_connected) {
             retry_countdown = STA_RETRY_DELAY_MS;
             stop_ap_when_unused();
@@ -452,6 +467,12 @@ esp_err_t netmgr_apply(const netmgr_cfg_t *cfg)
 void netmgr_status(netmgr_status_t *out)
 {
     *out = s_status;
+}
+
+void netmgr_set_setup_hook(netmgr_setup_fn_t fn)
+{
+    s_setup_hook = fn;
+    s_setup_gemeldet = false; /* beim naechsten Umlauf wird der Stand gemeldet */
 }
 
 void netmgr_set_reboot_guard(netmgr_busy_fn_t fn)

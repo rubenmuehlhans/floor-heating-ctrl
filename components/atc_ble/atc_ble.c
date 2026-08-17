@@ -225,11 +225,24 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     return 0;
 }
 
+static bool s_pausiert;
+
 static void start_scan(void)
 {
+    if (s_pausiert) {
+        return;
+    }
+    /*
+     * Der ESP32 hat einen Funkteil, den sich Bluetooth und WLAN teilen. Ein
+     * Suchlauf mit window == itvl hoert durchgehend und gibt den Kanal nie
+     * frei; der Zugangspunkt sendet dann seine Baken unregelmaessig, und eine
+     * Anmeldung daran scheitert immer wieder. Dreissig von hundert
+     * Millisekunden genuegen: Die Thermometer melden sich alle paar Sekunden,
+     * ein verpasster Rundruf kostet nur Wartezeit, keine Messung.
+     */
     struct ble_gap_disc_params params = {
-        .itvl = 160,   /* 100 ms */
-        .window = 160, /* durchgehend hoeren */
+        .itvl = 160,  /* 100 ms Abstand */
+        .window = 48, /* davon 30 ms hoeren */
         .filter_policy = BLE_HCI_SCAN_FILT_NO_WL,
         .limited = 0,
         /* Aktiv: die Thermometer senden ihren Namen erst auf Nachfrage. Er
@@ -248,6 +261,21 @@ static void on_sync(void)
 {
     ESP_LOGI(TAG, "Bluetooth bereit, Suche laeuft");
     start_scan();
+}
+
+void atc_ble_pause(bool pausieren)
+{
+    if (s_pausiert == pausieren) {
+        return;
+    }
+    s_pausiert = pausieren;
+    if (pausieren) {
+        ble_gap_disc_cancel();
+        ESP_LOGW(TAG, "Suche angehalten, der Funkteil gehoert dem WLAN");
+    } else {
+        ESP_LOGI(TAG, "Suche laeuft wieder");
+        start_scan();
+    }
 }
 
 static void on_reset(int reason)
