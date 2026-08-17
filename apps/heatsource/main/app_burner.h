@@ -82,6 +82,7 @@ typedef struct {
     float spread_k;
     uint32_t since_s;
     bool kessel_remote;  /* die Kesselwerte kommen vom Nachbargeraet */
+    bool puffer_remote;  /* der Speicherwert kommt vom Nachbargeraet */
 } charge_status_t;
 
 esp_err_t burner_start(void);

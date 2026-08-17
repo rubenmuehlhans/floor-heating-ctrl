@@ -40,6 +40,7 @@ static burner_state_t s_st;
 static charge_cfg_t s_ccfg;
 static charge_state_t s_cst;
 static bool s_kessel_remote;
+static bool s_puffer_remote;
 static stats_t s_stats;
 static SemaphoreHandle_t s_mtx;
 static volatile bool s_cfg_dirty;
@@ -493,7 +494,16 @@ static void burner_task(void *arg)
         bool vl = any_role_value(ROLE_KESSEL_VL, &cin.kessel_vl_c, &eigen_vl);
         bool rl = any_role_value(ROLE_KESSEL_RL, &cin.kessel_rl_c, &eigen_rl);
         cin.kessel_valid = vl && rl;
-        cin.puffer_valid = sensors_role_value(ROLE_PUFFER, &cin.puffer_c, NULL);
+        /*
+         * Der Speicherfuehler sitzt am Nachbargeraet. Fuer den Fuellstand und
+         * die Ladeerkennung -- beides Anzeige, keine Schaltentscheidung -- ist
+         * sein Wert ueber das Netz genauso brauchbar wie ein eigener; sonst
+         * bliebe der Fuellstand am Kessel leer, obwohl der Wert vorliegt. Die
+         * Freigabe der Heizkreispumpen liest ihn weiterhin nur aus eigenen
+         * Fuehlern, siehe app_pumps.
+         */
+        bool eigen_puffer = false;
+        cin.puffer_valid = any_role_value(ROLE_PUFFER, &cin.puffer_c, &eigen_puffer);
 
         if (gueltig) {
             cin.burner_known = s_st.known;
@@ -511,6 +521,7 @@ static void burner_task(void *arg)
 
         xSemaphoreTake(s_mtx, portMAX_DELAY);
         s_kessel_remote = cin.kessel_valid && !(eigen_vl && eigen_rl);
+        s_puffer_remote = cin.puffer_valid && !eigen_puffer;
         charge_tick(&s_cst, &s_ccfg, &cin, t);
         xSemaphoreGive(s_mtx);
 
@@ -680,5 +691,6 @@ void charge_get(charge_status_t *out)
     out->spread_k = s_cst.spread_k;
     out->since_s = s_cst.started ? (now_ms() - s_cst.since_ms) / 1000 : 0;
     out->kessel_remote = s_kessel_remote;
+    out->puffer_remote = s_puffer_remote;
     xSemaphoreGive(s_mtx);
 }

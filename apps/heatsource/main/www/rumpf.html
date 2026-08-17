@@ -960,6 +960,7 @@ function renderCharge() {
   const marken = [];
   if (c.limited) marken.push(`<span class="chip warn">nur Schätzung, Kesselwerte fehlen</span>`);
   if (c.kessel_remote) marken.push(`<span class="chip plain">Kesselwerte vom Nachbargerät</span>`);
+  if (c.puffer_remote) marken.push(`<span class="chip plain">Speicherwert vom Nachbargerät</span>`);
   if (c.warn_dhw) marken.push(`<span class="chip bad">Warmwasserreserve knapp</span>`);
 
   const prozent = c.level === null ? null : Math.round(c.level * 100);
@@ -973,7 +974,8 @@ function renderCharge() {
     <dl class="tiles">
       <div class="tile ${prozent === null ? "off" : "hot"}"><dt>Füllstand</dt>
         <dd>${prozent === null ? "—" : prozent}<small>%</small></dd>
-        <div class="foot">geschätzt aus dem Pufferfühler</div></div>
+        <div class="foot">geschätzt aus dem Pufferfühler${
+          c.puffer_remote ? " des Nachbargeräts" : ""}</div></div>
       <div class="tile ${c.spread_k === null ? "off" : ""}"><dt>Spreizung Kessel</dt>
         <dd>${num(c.spread_k, 1)}<small>K</small></dd>
         <div class="foot">Vorlauf minus Rücklauf</div></div>

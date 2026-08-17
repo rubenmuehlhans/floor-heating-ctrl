@@ -365,6 +365,7 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddBoolToObject(cc, "limited", ch.limited);
     cJSON_AddBoolToObject(cc, "warn_dhw", ch.warn_dhw);
     cJSON_AddBoolToObject(cc, "kessel_remote", ch.kessel_remote);
+    cJSON_AddBoolToObject(cc, "puffer_remote", ch.puffer_remote);
     cJSON_AddNumberToObject(cc, "since_s", ch.since_s);
     if (ch.level_valid) {
         cJSON_AddNumberToObject(cc, "level", ch.level);
