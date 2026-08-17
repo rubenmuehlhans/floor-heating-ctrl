@@ -210,7 +210,14 @@ Durchgesetzt wird das von der Gruppensperre in
 
 ## Übersetzen und Einspielen
 
-Vorausgesetzt wird ESP-IDF v6.0.2. Das Repositorium enthält mehrere
+Fertige Abbilder liegen bei den [Veröffentlichungen](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
+Wer nicht selbst übersetzen will, spielt sie über USB unmittelbar aus dem
+Browser auf: **[Web-Flasher](https://rubenmuehlhans.github.io/floor-heating-ctrl/)**
+(Chrome oder Edge; die Web-Serial-Schnittstelle gibt es in Firefox und Safari
+nicht). Die Seite liegt im Zweig `gh-pages` und lädt nichts von fremden
+Rechnern nach.
+
+Zum Selbstübersetzen: Vorausgesetzt wird ESP-IDF v6.0.2. Das Repositorium enthält mehrere
 Anwendungen, die sich `components/` teilen; gebaut wird deshalb mit `-C` aus
 dem Verzeichnis der jeweiligen Anwendung. Die Verteiler-Firmware liegt unter
 `apps/manifold`.
