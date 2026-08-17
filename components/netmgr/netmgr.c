@@ -378,6 +378,23 @@ esp_err_t netmgr_start(const netmgr_cfg_t *cfg)
 
     ESP_ERROR_CHECK(esp_wifi_start());
 
+    /*
+     * Kein Stromsparbetrieb des Funkteils.
+     *
+     * Die Vorgabe WIFI_PS_MIN_MODEM laesst die Station zwischen den Baken des
+     * Zugangspunkts schlafen. Was hereinkommt, haelt der Zugangspunkt so lange
+     * zurueck -- und was hinausgeht, wartet auf das naechste Aufwachen. Kurze
+     * Antworten ueberstehen das, mehrteilige nicht immer: Der Kopf geht raus,
+     * der Rumpf bleibt liegen und die Verbindung laeuft in die Zeitgrenze.
+     *
+     * Diese Geraete haengen am Netzteil, nicht an einer Batterie. Der
+     * gesparte Strom ist hier nichts wert, die verlorene Antwort schon.
+     */
+    esp_err_t ps = esp_wifi_set_ps(WIFI_PS_NONE);
+    if (ps != ESP_OK) {
+        ESP_LOGW(TAG, "Stromsparbetrieb liess sich nicht abschalten: %s", esp_err_to_name(ps));
+    }
+
     /* Erst nach dem Start wirksam: BLE und WLAN teilen sich die Funkstufe. */
     esp_wifi_set_max_tx_power(68);
 

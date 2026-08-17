@@ -55,3 +55,12 @@ CONFIG_HTTPD_ERR_RESP_NO_DELAY=y
 
 # Aufraeumen beim Neustart nach OTA
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Kurzlebige HTTP-Verbindungen: Jede geschlossene Verbindung belegt danach noch
+# TCP_MSL lang einen Verwaltungsblock. Bei 16 Bloecken und einer Minute Haltezeit
+# sind sie unter Last aufgebraucht, und neue Verbindungen werden zwar auf
+# TCP-Ebene angenommen, aber nie bedient -- der Aufrufer wartet ins Leere.
+# Mehr Bloecke und eine kurze Haltezeit; ein Heimnetz braucht die volle
+# Wartezeit nicht, sie schuetzt vor verspaeteten Paketen aus dem Internet.
+CONFIG_LWIP_MAX_ACTIVE_TCP=32
+CONFIG_LWIP_TCP_MSL=5000
