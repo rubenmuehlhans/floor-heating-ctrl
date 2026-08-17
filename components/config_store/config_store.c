@@ -297,10 +297,12 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON *wifi = cJSON_AddObjectToObject(root, "wifi");
     cJSON_AddStringToObject(wifi, "ssid", cfg->wifi.ssid);
     cJSON_AddStringToObject(wifi, "hostname", cfg->wifi.hostname);
-    cJSON_AddBoolToObject(wifi, "pass_set", cfg->wifi.pass[0] != '\0');
     if (include_secrets) {
         cJSON_AddStringToObject(wifi, "pass", cfg->wifi.pass);
         cJSON_AddStringToObject(wifi, "ap_pass", cfg->wifi.ap_pass);
+    } else {
+        cJSON_AddBoolToObject(wifi, "pass_set", cfg->wifi.pass[0] != '\0');
+        cJSON_AddBoolToObject(wifi, "ap_pass_set", cfg->wifi.ap_pass[0] != '\0');
     }
 
     cJSON *mqtt = cJSON_AddObjectToObject(root, "mqtt");
@@ -308,9 +310,10 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddStringToObject(mqtt, "uri", cfg->mqtt.uri);
     cJSON_AddStringToObject(mqtt, "user", cfg->mqtt.user);
     cJSON_AddStringToObject(mqtt, "prefix", cfg->mqtt.prefix);
-    cJSON_AddBoolToObject(mqtt, "pass_set", cfg->mqtt.pass[0] != '\0');
     if (include_secrets) {
         cJSON_AddStringToObject(mqtt, "pass", cfg->mqtt.pass);
+    } else {
+        cJSON_AddBoolToObject(mqtt, "pass_set", cfg->mqtt.pass[0] != '\0');
     }
 
     char *out = cJSON_PrintUnformatted(root);
