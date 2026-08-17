@@ -1,0 +1,13 @@
+{
+  "name": "Verteilerplatine",
+  "version": "0.3.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "firmware/floor-heating-ctrl-v0.3.0-merged.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

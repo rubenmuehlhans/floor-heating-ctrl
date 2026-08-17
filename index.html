@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firmware aufspielen — Heizungssteuerung</title>
+<meta name="description" content="Firmware der Heizungssteuerung über USB aufspielen, direkt aus dem Browser.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔥</text></svg>">
+<style>
+:root{
+  --ground:#eef0ee; --surface:#fff; --sunken:#f6f8f6;
+  --ink:#141817; --muted:#697370; --faint:#98a19d;
+  --line:#dde1de; --line-strong:#c6ccc8;
+  --accent:#10646f; --accent-soft:#e3eef0; --accent-ink:#fff;
+  --heat:#d2542a; --heat-soft:#fbeae3;
+  --warn:#96690f; --bad:#b3261e;
+  --shadow:0 1px 2px rgba(20,24,23,.05), 0 8px 24px -12px rgba(20,24,23,.18);
+  --r:10px; --r-sm:7px;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  --data:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+    --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+    --line:#2b312f; --line-strong:#3b423f;
+    --accent:#57b6c2; --accent-soft:#173338; --accent-ink:#0d1717;
+    --heat:#e8794b; --heat-soft:#33201a;
+    --warn:#c9993c; --bad:#e4695e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.7);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--ui);
+     line-height:1.55; font-size:16px}
+.wrap{max-width:46rem; margin:0 auto; padding:2.4rem 1.2rem 4rem}
+header{border-bottom:1px solid var(--line); padding-bottom:1.4rem; margin-bottom:2rem}
+h1{font-size:1.6rem; line-height:1.25; margin:0 0 .5rem; letter-spacing:-.01em; text-wrap:balance}
+.stand{display:inline-flex; align-items:center; gap:.4rem; font-size:.78rem; font-weight:500;
+       color:var(--accent); background:var(--accent-soft); border-radius:99px;
+       padding:.18rem .6rem; font-family:var(--data)}
+p{margin:0 0 1rem; color:var(--muted); max-width:38rem}
+p.lead{color:var(--ink)}
+h2{font-size:1.08rem; margin:2.2rem 0 .7rem; letter-spacing:-.005em}
+h3{font-size:.95rem; margin:1.4rem 0 .5rem}
+a{color:var(--accent)}
+code{font-family:var(--data); font-size:.86em; background:var(--sunken);
+     border:1px solid var(--line); border-radius:4px; padding:.08em .34em}
+pre{font-family:var(--data); font-size:.82rem; background:var(--sunken); color:var(--ink);
+    border:1px solid var(--line); border-radius:var(--r-sm); padding:.8rem .9rem;
+    overflow-x:auto; margin:0 0 1rem}
+pre code{background:none; border:0; padding:0}
+.cards{display:grid; gap:1rem; grid-template-columns:repeat(auto-fit,minmax(17rem,1fr)); margin:1.4rem 0 0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+      padding:1.1rem 1.1rem 1.2rem; box-shadow:var(--shadow); display:flex; flex-direction:column}
+.card h3{margin:0 0 .3rem; font-size:1.02rem; color:var(--ink)}
+.card p{font-size:.88rem; margin:0 0 1rem; flex:1}
+.rolle{font-family:var(--data); font-size:.74rem; color:var(--faint); margin-bottom:.6rem}
+.note{border-left:3px solid var(--warn); background:var(--sunken); border-radius:0 var(--r-sm) var(--r-sm) 0;
+      padding:.75rem .9rem; margin:0 0 1.2rem}
+.note p{margin:0; font-size:.9rem; color:var(--ink)}
+.note b{color:var(--warn)}
+table{border-collapse:collapse; width:100%; font-size:.9rem; margin:0 0 1rem}
+th,td{text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--line); vertical-align:top}
+th{font-weight:600; color:var(--ink); font-size:.82rem}
+td:first-child{font-family:var(--data); font-size:.84rem; white-space:nowrap}
+.tabelle{overflow-x:auto}
+footer{margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line);
+       font-size:.85rem; color:var(--faint)}
+footer a{color:var(--muted)}
+esp-web-install-button{--esp-tools-button-color:var(--accent-ink);
+  --esp-tools-button-text-color:var(--accent-ink)}
+esp-web-install-button[install-unsupported]{display:block}
+.unsupported{display:none; font-size:.88rem; color:var(--bad); margin:0}
+esp-web-install-button[install-unsupported] .unsupported{display:block}
+esp-web-install-button button{font:inherit; font-size:.92rem; font-weight:500; cursor:pointer;
+  background:var(--accent); color:var(--accent-ink); border:1px solid var(--accent);
+  border-radius:var(--r-sm); padding:.5rem 1rem}
+esp-web-install-button button:hover{filter:brightness(1.08)}
+esp-web-install-button button:focus-visible{outline:2px solid var(--heat); outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Firmware aufspielen</h1>
+  <p class="lead">Heizungssteuerung für Fußbodenheizung, Ölkessel und Pufferspeicher.
+     Die Firmware geht über USB direkt aus dem Browser auf den ESP32 — ohne Übersetzen,
+     ohne esptool.</p>
+  <span class="stand">v0.3.0</span>
+</header>
+
+<div class="note">
+  <p><b>Nur Chrome oder Edge.</b> Der Vorgang braucht die Web-Serial-Schnittstelle; Firefox
+     und Safari haben sie nicht. Am Mac ist meist ein Treiber für den USB-Seriell-Wandler
+     nötig (CP210x oder CH340, je nach Platine).</p>
+</div>
+
+<p>Verbinden Sie das Board über USB und wählen Sie, welche Rolle es übernehmen soll. Beim
+   ersten Aufspielen wird gefragt, ob der Speicher gelöscht werden soll — antworten Sie mit
+   ja. Bei einem Gerät, das schon eingerichtet ist, <em>nicht</em>: Löschen verwirft
+   Fühlerzuordnungen, Räume, Messfahrten und den Netzzugang.</p>
+
+<div class="cards">
+  <div class="card">
+    <div class="rolle">apps/manifold</div>
+    <h3>Verteilerplatine</h3>
+    <p>Fährt elf motorische Stellantriebe am Heizkreisverteiler und regelt die
+       Raumtemperaturen. Empfängt Raumthermometer und einen RuuviTag über Bluetooth.
+       Je Etage eine.</p>
+    <esp-web-install-button manifest="manifest-verteiler.json">
+      <button slot="activate">Verteilerplatine aufspielen</button>
+      <p slot="unsupported" class="unsupported">Dieser Browser kann keine serielle
+         Verbindung öffnen — bitte Chrome oder Edge verwenden.</p>
+      <p slot="not-allowed" class="unsupported">Die Seite muss über HTTPS geladen werden.</p>
+    </esp-web-install-button>
+  </div>
+
+  <div class="card">
+    <div class="rolle">apps/heatsource</div>
+    <h3>Heizungsgerät</h3>
+    <p>Misst am 1-Wire-Bus. Welche Aufgabe es übernimmt — Kessel oder Pufferspeicher —,
+       ergibt sich allein aus den zugeordneten Fühlerrollen; einen Schalter dafür gibt es
+       nicht.</p>
+    <esp-web-install-button manifest="manifest-heizungsgeraet.json">
+      <button slot="activate">Heizungsgerät aufspielen</button>
+      <p slot="unsupported" class="unsupported">Dieser Browser kann keine serielle
+         Verbindung öffnen — bitte Chrome oder Edge verwenden.</p>
+      <p slot="not-allowed" class="unsupported">Die Seite muss über HTTPS geladen werden.</p>
+    </esp-web-install-button>
+  </div>
+</div>
+
+<h2>Danach</h2>
+
+<p>Das Gerät öffnet einen eigenen Zugangspunkt, weil noch kein WLAN hinterlegt ist:</p>
+
+<div class="tabelle">
+<table>
+  <tr><th>Netz</th><td><code>floor-heating-XXXX</code>, die vier Zeichen sind die letzten
+      Stellen der MAC-Adresse</td></tr>
+  <tr><th>Kennwort</th><td><code>fussboden</code></td></tr>
+  <tr><th>Adresse</th><td><a href="http://192.168.4.1">192.168.4.1</a></td></tr>
+</table>
+</div>
+
+<p>Dort tragen Sie das WLAN ein und durchlaufen die Einrichtung. Alles Weitere — Räume,
+   Fühlerzuordnung, Relais, Zeiten — steht im
+   <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl/blob/main/docs/handbuch.md">Handbuch</a>.</p>
+
+<h2>Spätere Aktualisierungen</h2>
+
+<p>Ist das Gerät einmal im Netz, braucht es kein Kabel mehr. Über die Oberfläche unter
+   <strong>System → Firmware</strong>, oder auf der Kommandozeile:</p>
+
+<pre><code>curl -X POST --data-binary @floor-heating-ctrl-v0.3.0.bin http://&lt;adresse&gt;/api/ota</code></pre>
+
+<p>Dafür ist die Datei <em>ohne</em> <code>-merged</code> zuständig; die hier aufgespielte
+   enthält zusätzlich Bootlader und Partitionstabelle und gehört nur an den Anfang des
+   Speichers. Beide liegen bei der
+   <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl/releases/tag/v0.3.0">Veröffentlichung</a>.</p>
+
+<p>Schlägt die neue Fassung fehl, kehrt der Bootlader zur vorherigen zurück. Die
+   Einstellungen bleiben in beiden Fällen erhalten.</p>
+
+<h2>Ohne Browser</h2>
+
+<pre><code>esptool.py --chip esp32 write_flash 0x0 floor-heating-ctrl-v0.3.0-merged.bin</code></pre>
+
+<footer>
+  <p>Privates Bastelprojekt, GPL-3.0. Quelltext und Fehlermeldungen auf
+     <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl">GitHub</a>.
+     Der Aufspielvorgang läuft vollständig im Browser; es werden keine Daten übertragen.</p>
+</footer>
+
+</div>
+<script type="module" src="https://unpkg.com/esp-web-tools@10.0.3/dist/web/install-button.js"></script>
+</body>
+</html>
