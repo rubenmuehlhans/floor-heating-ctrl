@@ -15,15 +15,26 @@
 static const char *TAG = "sens";
 
 #define TICK_MS 1000
-#define HIST_PERIOD_S 60
+#define HIST_PERIOD_S SENS_HIST_PERIOD_S
 #define DELTA_WINDOW_S 30
 
 static sens_snapshot_t s_snap;
 static SemaphoreHandle_t s_mtx;
 static volatile bool s_cfg_dirty;
 
-/* Verlauf als Ringpuffer. s_head zeigt auf den juengsten Eintrag. */
-static int16_t *s_hist;      /* SENS_HIST_SLOTS * ROLE_COUNT */
+/*
+ * Verlauf als Ringpuffer, s_head zeigt auf den juengsten Eintrag.
+ *
+ * Eine Spalte je Rolle waere bequem, aber teuer: Bei fuenfzehn Rollen sind das
+ * 43 kB fuer 24 Stunden -- und auf jedem Geraet bleiben die meisten Spalten
+ * leer, weil dort nur drei bis sechs Messstellen haengen. Belegt werden
+ * deshalb nur die Rollen, die tatsaechlich einen Wert liefern, dicht gepackt
+ * wie bei der Ladungsaufzeichnung. s_hist_col bildet Rolle auf Spalte ab,
+ * -1 heisst "nicht im Verlauf".
+ */
+static int16_t *s_hist;
+static int8_t s_hist_col[ROLE_COUNT];
+static uint8_t s_hist_cols;
 static size_t s_hist_len;
 static size_t s_head;
 static uint32_t s_hist_epoch; /* Unixzeit des juengsten Eintrags */
@@ -74,26 +85,80 @@ static void apply_config(sens_snapshot_t *snap)
 /* Verlauf                                                             */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Legt den Verlauf an oder passt seine Spalten an. Kommt eine Rolle hinzu --
+ * etwa weil ein Fuehler zugeordnet wurde --, wird neu belegt; der bisherige
+ * Verlauf geht dabei verloren. Das ist der Preis dafuer, keine leeren Spalten
+ * mitzuschleppen, und faellt nur beim Einrichten an.
+ */
+static void hist_setup(void)
+{
+    int8_t neu[ROLE_COUNT];
+    uint8_t n = 0;
+    neu[ROLE_NONE] = -1;
+    for (int r = 1; r < ROLE_COUNT; r++) {
+        float wert = 0.0f;
+        neu[r] = remote_role_value((probe_role_t)r, &wert, NULL) ||
+                         sensors_role_value((probe_role_t)r, &wert, NULL)
+                     ? (int8_t)n++
+                     : (int8_t)-1;
+    }
+    if (n == 0 || memcmp(neu, s_hist_col, sizeof(neu)) == 0) {
+        return;
+    }
+
+    /*
+     * Erst freigeben, dann belegen. Andersherum laegen kurzzeitig zwei
+     * Verlaeufe im Speicher -- und der Verlauf ist beim Spaltenwechsel ohnehin
+     * verloren, es gibt also nichts zu retten.
+     */
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    free(s_hist);
+    s_hist = NULL;
+    s_hist_len = 0;
+    s_head = 0;
+    xSemaphoreGive(s_mtx);
+
+    int16_t *puffer = calloc((size_t)SENS_HIST_SLOTS * n, sizeof(int16_t));
+    if (puffer == NULL) {
+        ESP_LOGW(TAG, "Kein Speicher fuer den Verlauf, er entfaellt");
+        memset(s_hist_col, -1, sizeof(s_hist_col));
+        return;
+    }
+    for (size_t i = 0; i < (size_t)SENS_HIST_SLOTS * n; i++) {
+        puffer[i] = SENS_HIST_NONE;
+    }
+
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    s_hist = puffer;
+    memcpy(s_hist_col, neu, sizeof(neu));
+    s_hist_cols = n;
+    xSemaphoreGive(s_mtx);
+
+    ESP_LOGI(TAG, "Verlauf angelegt: %u Messstellen, %u Byte", (unsigned)n,
+             (unsigned)((size_t)SENS_HIST_SLOTS * n * sizeof(int16_t)));
+}
+
 static void hist_append(const sens_snapshot_t *snap)
 {
     if (s_hist == NULL) {
         return;
     }
     s_head = (s_head + 1) % SENS_HIST_SLOTS;
-    int16_t *row = &s_hist[s_head * ROLE_COUNT];
-    for (int r = 0; r < ROLE_COUNT; r++) {
-        row[r] = SENS_HIST_NONE;
+    int16_t *row = &s_hist[s_head * s_hist_cols];
+    for (int c = 0; c < s_hist_cols; c++) {
+        row[c] = SENS_HIST_NONE;
     }
     for (size_t i = 0; i < snap->count; i++) {
         const sens_probe_t *p = &snap->probes[i];
-        if (p->role == ROLE_NONE || !p->valid) {
+        if (p->role == ROLE_NONE || !p->valid || s_hist_col[p->role] < 0) {
             continue;
         }
         float v = p->temp_c * 10.0f;
         if (v > 32000.0f || v < -32000.0f) {
             continue;
         }
-        row[p->role] = (int16_t)lroundf(v);
+        row[s_hist_col[p->role]] = (int16_t)lroundf(v);
     }
     /*
      * Was dieses Geraet nicht selbst misst, kommt vom Nachbargeraet -- die
@@ -102,7 +167,7 @@ static void hist_append(const sens_snapshot_t *snap)
      * dauerhaft leer, obwohl der Wert vorliegt.
      */
     for (int r = 1; r < ROLE_COUNT; r++) {
-        if (row[r] != SENS_HIST_NONE) {
+        if (s_hist_col[r] < 0 || row[s_hist_col[r]] != SENS_HIST_NONE) {
             continue;
         }
         float wert = 0.0f;
@@ -111,7 +176,7 @@ static void hist_append(const sens_snapshot_t *snap)
         }
         float v = wert * 10.0f;
         if (v <= 32000.0f && v >= -32000.0f) {
-            row[r] = (int16_t)lroundf(v);
+            row[s_hist_col[r]] = (int16_t)lroundf(v);
         }
     }
 
@@ -133,9 +198,26 @@ bool sensors_history_row(size_t index, int16_t *out, size_t out_len)
     if (s_hist == NULL || index >= s_hist_len || out_len < ROLE_COUNT) {
         return false;
     }
+    /* Nach aussen bleibt es eine Zeile je Rolle -- die Aufrufer sollen von der
+     * Packung nichts wissen muessen. */
+    for (int r = 0; r < ROLE_COUNT; r++) {
+        out[r] = SENS_HIST_NONE;
+    }
     size_t slot = (s_head + SENS_HIST_SLOTS - index) % SENS_HIST_SLOTS;
-    memcpy(out, &s_hist[slot * ROLE_COUNT], ROLE_COUNT * sizeof(int16_t));
+    const int16_t *row = &s_hist[slot * s_hist_cols];
+    for (int r = 1; r < ROLE_COUNT; r++) {
+        if (s_hist_col[r] >= 0) {
+            out[r] = row[s_hist_col[r]];
+        }
+    }
     return true;
+}
+
+/* Welche Rollen der Verlauf fuehrt. Ohne das gaebe /api/history Serien aus,
+ * die durchgehend leer sind. */
+bool sensors_history_has(probe_role_t role)
+{
+    return role > ROLE_NONE && role < ROLE_COUNT && s_hist_col[role] >= 0;
 }
 
 uint32_t sensors_history_newest_epoch(void)
@@ -209,6 +291,7 @@ static void sensors_task(void *arg)
 
         if (last_hist == 0 || t - last_hist >= HIST_PERIOD_S * 1000) {
             last_hist = t;
+            hist_setup();
             hist_append(&snap);
         }
 
@@ -253,16 +336,10 @@ esp_err_t sensors_start(void)
         return rc;
     }
 
-    /* 24 Stunden Verlauf sind rund 29 kB. Klappt die Belegung nicht, laeuft
-     * alles Uebrige weiter -- der Verlauf ist Beiwerk, die Messung nicht. */
-    s_hist = calloc(SENS_HIST_SLOTS * ROLE_COUNT, sizeof(int16_t));
-    if (s_hist == NULL) {
-        ESP_LOGW(TAG, "Kein Speicher fuer den Verlauf, er entfaellt");
-    } else {
-        for (size_t i = 0; i < SENS_HIST_SLOTS * ROLE_COUNT; i++) {
-            s_hist[i] = SENS_HIST_NONE;
-        }
-    }
+    /* Der Verlauf wird erst angelegt, wenn feststeht, welche Messstellen es
+     * gibt -- also im ersten Durchlauf der Aufgabe. Klappt die Belegung nicht,
+     * laeuft alles Uebrige weiter: der Verlauf ist Beiwerk, die Messung nicht. */
+    memset(s_hist_col, -1, sizeof(s_hist_col));
 
     if (xTaskCreate(sensors_task, "sensors", 4096, NULL, 4, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;

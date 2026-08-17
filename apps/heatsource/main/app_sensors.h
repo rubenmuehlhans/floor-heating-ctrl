@@ -25,7 +25,16 @@ extern "C" {
 #endif
 
 /* 24 Stunden im Minutentakt. */
-#define SENS_HIST_SLOTS 1440
+/*
+ * 720 Zeilen im Zweiminutentakt: dieselben vierundzwanzig Stunden wie zuvor
+ * bei halbem Speicher. Die Oberflaeche zeichnet ohnehin 288 Punkte, also im
+ * Fuenfminutenraster -- feiner aufzuzeichnen als anzuzeigen kostet nur Platz,
+ * und der ist auf dem Geraet am Pufferspeicher knapp geworden: Bei wenig
+ * freiem Speicher belegt der WLAN-Treiber keine Sendepuffer mehr, und dann
+ * bricht die Antwort mitten im Rumpf ab.
+ */
+#define SENS_HIST_SLOTS 720
+#define SENS_HIST_PERIOD_S 120
 
 typedef struct {
     uint64_t rom;
@@ -75,6 +84,9 @@ void sensors_rescan(void);
 
 size_t sensors_history_len(void);
 bool sensors_history_row(size_t index, int16_t *out, size_t out_len);
+
+/* Fuehrt der Verlauf diese Rolle? */
+bool sensors_history_has(probe_role_t role);
 
 /* Unixzeit des juengsten Eintrags, 0 solange die Uhr nicht gestellt ist. */
 uint32_t sensors_history_newest_epoch(void);
