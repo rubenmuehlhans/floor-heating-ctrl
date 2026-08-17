@@ -57,8 +57,31 @@ static void add_availability(cJSON *parent)
  * Eine Entitaet anmelden. Alle lesen aus demselben Zustandsthema; das haelt
  * die Zahl der Veroeffentlichungen klein und die Werte zueinander konsistent.
  */
+/*
+ * Zustandsklasse. Sie entscheidet, was Home Assistant dauerhaft aufhebt:
+ * Ohne sie bleibt nur die Kurzzeithistorie des Recorders, mit "measurement"
+ * kommen Mittel-, Kleinst- und Groesstwerte in die Langzeitstatistik, mit
+ * "total_increasing" eine Summe.
+ *
+ * Fuer Tageswerte, die um Mitternacht auf null zurueckspringen, ist
+ * "total_increasing" die richtige Wahl -- Home Assistant erkennt den
+ * Ruecksprung und zaehlt die Summe richtig weiter. Als "measurement" ergaebe
+ * dieselbe Groesse eine Saegezahnkurve ohne Summe.
+ */
+static void announce_cla(const char *component, const char *slug, const char *name,
+                         const char *tpl, const char *unit, const char *dev_cla,
+                         const char *ent_cat, const char *stat_cla);
+
 static void announce(const char *component, const char *slug, const char *name, const char *tpl,
                      const char *unit, const char *dev_cla, const char *ent_cat)
+{
+    announce_cla(component, slug, name, tpl, unit, dev_cla, ent_cat,
+                 unit ? "measurement" : NULL);
+}
+
+static void announce_cla(const char *component, const char *slug, const char *name,
+                         const char *tpl, const char *unit, const char *dev_cla,
+                         const char *ent_cat, const char *stat_cla)
 {
     cJSON *root = cJSON_CreateObject();
     char buf[128];
@@ -72,7 +95,9 @@ static void announce(const char *component, const char *slug, const char *name, 
     cJSON_AddStringToObject(root, "val_tpl", tpl);
     if (unit) {
         cJSON_AddStringToObject(root, "unit_of_meas", unit);
-        cJSON_AddStringToObject(root, "stat_cla", "measurement");
+    }
+    if (stat_cla) {
+        cJSON_AddStringToObject(root, "stat_cla", stat_cla);
     }
     if (dev_cla) {
         cJSON_AddStringToObject(root, "dev_cla", dev_cla);
@@ -163,12 +188,19 @@ static void announce_all(void)
     if (hat_abgas) {
         announce("binary_sensor", "burner", "Brenner",
                  "{{ 'ON' if value_json.burner.running else 'OFF' }}", NULL, "running", NULL);
-        announce("sensor", "burner_runtime", "Brennerlaufzeit heute",
-                 "{{ value_json.burner.runtime_today_s }}", "s", "duration", NULL);
-        announce("sensor", "burner_starts", "Brennerstarts heute",
-                 "{{ value_json.burner.starts_today }}", NULL, NULL, NULL);
-        announce("sensor", "oil_today", "Oelverbrauch heute",
-                 "{{ value_json.burner.litres_today | round(2) }}", "L", NULL, NULL);
+        announce_cla("sensor", "burner_runtime", "Brennerlaufzeit heute",
+                     "{{ value_json.burner.runtime_today_s }}", "s", "duration", NULL,
+                     "total_increasing");
+        announce_cla("sensor", "burner_starts", "Brennerstarts heute",
+                     "{{ value_json.burner.starts_today }}", NULL, NULL, NULL,
+                     "total_increasing");
+        announce_cla("sensor", "oil_today", "Oelverbrauch heute",
+                     "{{ value_json.burner.litres_today | round(3) }}", "L", NULL, NULL,
+                     "total_increasing");
+        announce("sensor", "abgas", "Abgastemperatur",
+                 "{{ value_json.burner.abgas_c }}", "°C", "temperature", "diagnostic");
+        announce("sensor", "abgas_baseline", "Abgas kaltes Rohr",
+                 "{{ value_json.burner.baseline_c }}", "°C", "temperature", "diagnostic");
         announce("binary_sensor", "short_cycling", "Taktbetrieb",
                  "{{ 'ON' if value_json.burner.short_cycling else 'OFF' }}", NULL, "problem",
                  "diagnostic");
@@ -177,6 +209,8 @@ static void announce_all(void)
         retract("sensor", "burner_runtime");
         retract("sensor", "burner_starts");
         retract("sensor", "oil_today");
+        retract("sensor", "abgas");
+        retract("sensor", "abgas_baseline");
         retract("binary_sensor", "short_cycling");
     }
 
@@ -256,6 +290,10 @@ static void publish_state(void)
     cJSON_AddNumberToObject(b, "starts_today", br.starts_today);
     cJSON_AddNumberToObject(b, "litres_today", br.litres_today);
     cJSON_AddBoolToObject(b, "short_cycling", br.short_cycling);
+    if (br.known && !br.remote) {
+        cJSON_AddNumberToObject(b, "abgas_c", br.abgas_c);
+        cJSON_AddNumberToObject(b, "baseline_c", br.baseline_c);
+    }
 
     charge_status_t ch;
     charge_get(&ch);
