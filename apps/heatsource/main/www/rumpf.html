@@ -842,14 +842,29 @@ function renderSchema() {
   const anteil = state?.charge?.level ?? 0;
 
   /*
-   * Die Zahl der Heizkreise steht nicht fest. Gezeichnet werden die
-   * angelegten; ist keiner angelegt — etwa am Kessel —, bleibt die rechte
-   * Seite frei. Die Höhe des Speichers wächst mit.
+   * Die Zahl der Heizkreise steht nicht fest. Gezeichnet werden die angelegten
+   * und zusätzlich die, deren Werte über das Netz hereinkommen.
+   *
+   * Letzteres betrifft den Kessel: Dort ist kein Kreis angelegt — sie gehören
+   * an das Gerät mit dem Pufferfühler —, aber seine Nachbarin meldet ihre
+   * Vor- und Rücklauftemperaturen. Sie wegzulassen wäre die einzige Stelle im
+   * Schema, an der ein bekannter Messwert nicht steht, während Abgas und
+   * Kesselwerte auf der Gegenseite sehr wohl blass erscheinen. Der Name liegt
+   * beim Nachbargerät; hier steht deshalb die Kennung.
    */
-  const kreise = (state?.circuits || []).map(k => ({
+  const fremdeWerte = state?.remote_probes || {};
+  const eigene = (state?.circuits || []).map(k => ({
     id: k.id, name: k.name,
     vl: `hk${k.id}_vl`, rl: `hk${k.id}_rl`,
   }));
+  const nurFremd = [];
+  for (let n = 1; n <= MAX_CIRCUITS; n++) {
+    if (eigene.some(k => k.id === n)) continue;
+    if (fremdeWerte[`hk${n}_vl`] === undefined &&
+        fremdeWerte[`hk${n}_rl`] === undefined) continue;
+    nurFremd.push({id: n, name: `Heizkreis ${n}`, vl: `hk${n}_vl`, rl: `hk${n}_rl`});
+  }
+  const kreise = [...eigene, ...nurFremd].sort((a, b) => a.id - b.id);
 
   const ABSTAND = 116;               // senkrechter Abstand zweier Kreise
   const OBEN = 96;                   // Vorlauf des ersten Kreises
