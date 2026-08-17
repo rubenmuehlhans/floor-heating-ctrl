@@ -314,12 +314,24 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/demand":
             # Wird vom Heizungsgeraet abgefragt: liegt hier Waermebedarf an?
             kanaele = state()["channels"]
-            offen = [c for c in kanaele if c["position"] > 0.05]
+            # Kanaele ungeregelter Raeume zaehlen nicht als Bedarf: ein Ventil,
+            # das nur offen steht, weil niemand es zufaehrt, ist kein Abnehmer.
+            ungeregelt = set()
+            for r in CFG["rooms"]:
+                if r["mode"] != "heat" or not r.get("sensor_mac"):
+                    ungeregelt.update(r["channels"])
+            offen, uebergangen = [], []
+            for c in kanaele:
+                if c["position"] <= 0.05:
+                    continue
+                (uebergangen if c["id"] in ungeregelt and not c.get("manual")
+                 else offen).append(c)
             self._send({
                 "id": "fbh_a1b2c3", "site": CFG["site"],
                 "demand": bool(offen),
-                "max_target": max((c["position"] for c in kanaele), default=0.0),
+                "max_target": max((c["position"] for c in offen), default=0.0),
                 "open_channels": len(offen),
+                "unregulated": len(uebergangen),
                 "rooms_calling": sum(1 for r in CFG["rooms"] if r["mode"] == "heat"),
                 "min_room_c": 20.1, "sensor_ok": True})
         elif u.path == "/api/wifi/scan":

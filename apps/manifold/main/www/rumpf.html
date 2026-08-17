@@ -460,6 +460,22 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     </div>
 
     <div class="card">
+      <h2>Einstellungen sichern</h2>
+      <p class="lede">Die Sicherung enthält alles, was Sie hier eingerichtet haben: Räume und
+         ihre Kreise, Thermometer, Fahrzeiten und Auslöseschwellen, Zeiten und Grenzwerte.
+         <b>Die Zugangsdaten stehen im Klartext darin</b> — ohne sie ließe sich nichts
+         zurückspielen, was den Namen verdient. Bewahren Sie die Datei entsprechend auf.</p>
+      <p class="lede">Beim Zurückspielen wird von den Werkseinstellungen aus aufgebaut, damit
+         nicht zwei Stände durcheinandergeraten. Der Netzzugang bleibt ausgenommen: Wer über das
+         Netz einspielt, sägte sonst den Ast ab, auf dem er sitzt.</p>
+      <div class="row">
+        <a class="btn quiet" href="/api/config/backup" download>Sicherung holen</a>
+        <input type="file" id="sysRestoreFile" accept="application/json,.json" hidden>
+        <button class="btn risky" id="sysRestore">Sicherung einspielen</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Schutzfahrt</h2>
       <p class="lede">Im Sommer stehen die Ventile über Monate geschlossen. Damit sie nicht
         festsitzen, fährt jeder Kreis einmal in der Woche auf Anschlag auf, wieder zu und
@@ -1472,6 +1488,36 @@ $("#sysFactory").onclick = async () => {
   if (!confirm("Alle Räume und Kreisparameter auf die Werksvorgabe zurücksetzen?")) return;
   try { await post("/api/system/factory"); await loadConfig(); toast("Zurückgesetzt"); }
   catch (e) { toast(e.message, true); }
+};
+
+/* Die Datei wird im Browser gelesen und als Ganzes gesendet; das Gerät baut
+   daraus von den Werkseinstellungen aus neu auf. */
+$("#sysRestore").onclick = () => $("#sysRestoreFile").click();
+$("#sysRestoreFile").onchange = async e => {
+  const datei = e.target.files?.[0];
+  e.target.value = "";
+  if (!datei) return;
+  let doc;
+  try { doc = JSON.parse(await datei.text()); }
+  catch (err) { return toast("Die Datei ist kein lesbares JSON", true); }
+
+  const k = doc.backup;
+  if (k?.app && k.app !== "floor-heating-ctrl")
+    return toast("Diese Sicherung stammt von einem Heizungsgerät, nicht von einem Verteiler", true);
+  const woher = k
+    ? `${k.site || k.device_id || "unbekannt"}${k.epoch
+        ? `, gesichert am ${new Date(k.epoch * 1000).toLocaleString("de-DE")}` : ""}`
+    : "ohne Kopfzeile — stammt womöglich nicht von hier";
+  if (!confirm(`Sicherung einspielen?\n\n${woher}\n\n`
+             + `Alle jetzigen Einstellungen dieses Geräts werden ersetzt. `
+             + `Der Netzzugang bleibt unverändert.`)) return;
+
+  try {
+    await post("/api/config/restore", doc);
+    toast("Einstellungen zurückgespielt");
+    await loadConfig();
+    await refresh();
+  } catch (err) { toast(err.message, true); }
 };
 
 $("#otaGo").onclick = async () => {

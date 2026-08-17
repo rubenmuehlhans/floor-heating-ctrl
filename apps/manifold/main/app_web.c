@@ -1,6 +1,7 @@
 #include "app_web.h"
 
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 
 #include "app_calib.h"
@@ -449,6 +450,140 @@ static void wifi_apply_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/*
+ * Sicherung der Einstellungen.
+ *
+ * Anders als /api/config enthaelt sie die Zugangsdaten im Klartext -- sonst
+ * liesse sich aus ihr nichts wiederherstellen, was den Namen verdient. Die
+ * Datei gehoert deshalb behandelt wie ein Kennwortzettel.
+ *
+ * Der Kopf traegt Geraet, Ort, Firmwarestand und Zeitpunkt. Er dient dem
+ * Wiedererkennen und der Warnung beim Einspielen; ausgewertet wird beim
+ * Zurueckspielen nur, was darunter steht.
+ */
+static esp_err_t config_backup_get(httpd_req_t *req)
+{
+    static app_config_t cfg;
+    cfg_copy(&cfg);
+
+    char *json = cfg_to_json(&cfg, true);
+    if (json == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    cJSON *root = cJSON_Parse(json);
+    free(json);
+    if (root == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    uint8_t mac[6] = {0};
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    char id[24];
+    snprintf(id, sizeof(id), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
+
+    cJSON *kopf = cJSON_CreateObject();
+    cJSON_AddStringToObject(kopf, "app", "floor-heating-ctrl");
+    cJSON_AddStringToObject(kopf, "device_id", id);
+    cJSON_AddStringToObject(kopf, "site", cfg.site);
+    cJSON_AddStringToObject(kopf, "version", esp_app_get_description()->version);
+    cJSON_AddNumberToObject(kopf, "epoch", (double)time(NULL));
+    cJSON_AddItemToObject(root, "backup", kopf);
+
+    char *txt = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    if (txt == NULL) {
+        return send_error(req, "500 Internal Server Error", "Kein Speicher");
+    }
+
+    char dispo[96];
+    snprintf(dispo, sizeof(dispo), "attachment; filename=\"einstellungen-%s.json\"", id);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_set_hdr(req, "Content-Disposition", dispo);
+    esp_err_t rc = httpd_resp_sendstr(req, txt);
+    free(txt);
+    return rc;
+}
+
+/*
+ * Zuruecksetzen aus einer Sicherung.
+ *
+ * Anders als PUT /api/config ist das kein Teilabgleich: Es wird von den
+ * Werkseinstellungen aus aufgebaut, damit ein Feld, das in der Sicherung fehlt,
+ * auf seine Vorgabe faellt statt den laufenden Wert zu behalten. Sonst waere
+ * das Ergebnis eine Mischung aus zwei Staenden.
+ *
+ * Der Netzzugang bleibt ausgenommen: Wer ueber das Netz einspielt, saegt sonst
+ * den Ast ab, auf dem er sitzt. Er wird danach von Hand gesetzt, falls noetig.
+ */
+static esp_err_t config_restore_post(httpd_req_t *req)
+{
+    char *body = read_body(req);
+    if (body == NULL) {
+        return send_error(req, "400 Bad Request", "Anfrage konnte nicht gelesen werden");
+    }
+
+    /*
+     * Die Kopfzeile wird verlangt, nicht nur geprueft.
+     *
+     * Zurueckspielen baut von den Werkseinstellungen aus auf. Ein Rumpf, der
+     * keine Sicherung ist -- ein leeres Objekt genuegt --, setzt damit alles
+     * zurueck, ohne dass es nach einem Fehler aussaehe. Genau das ist beim
+     * Ausprobieren passiert. Angenommen wird deshalb nur, was aus
+     * /api/config/backup dieses Geraetetyps stammt; von Hand geschriebene
+     * Aenderungen gehoeren nach PUT /api/config, das nur uebernimmt, was
+     * dasteht.
+     */
+    {
+        cJSON *doc = cJSON_Parse(body);
+        const cJSON *kopf = doc ? cJSON_GetObjectItemCaseSensitive(doc, "backup") : NULL;
+        const cJSON *app = kopf ? cJSON_GetObjectItemCaseSensitive(kopf, "app") : NULL;
+        bool fehlt = !cJSON_IsString(app);
+        bool falsch = !fehlt && strcmp(app->valuestring, "floor-heating-ctrl") != 0;
+        cJSON_Delete(doc);
+        if (fehlt) {
+            free(body);
+            return send_error(req, "400 Bad Request",
+                              "Das ist keine Sicherung dieses Geraets");
+        }
+        if (falsch) {
+            free(body);
+            return send_error(req, "400 Bad Request",
+                              "Diese Sicherung stammt von einem anderen Geraetetyp");
+        }
+    }
+
+    static app_config_t next;
+    static cfg_wifi_t behalten;
+    cfg_copy(&next);
+    behalten = next.wifi;
+
+    cfg_defaults(&next);
+    next.wifi = behalten;
+
+    char err[128] = {0};
+    esp_err_t rc = cfg_from_json(body, &next, err, sizeof(err));
+    free(body);
+    if (rc != ESP_OK) {
+        return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung nicht lesbar");
+    }
+    /* Der Netzzugang der Sicherung wird verworfen, siehe oben. */
+    next.wifi = behalten;
+
+    rc = cfg_set(&next, err, sizeof(err));
+    if (rc != ESP_OK) {
+        return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung abgelehnt");
+    }
+
+    control_config_changed();
+    mqtt_config_changed();
+    ui_config_changed();
+    ESP_LOGW(TAG, "Einstellungen aus einer Sicherung zurueckgespielt");
+
+    return send_ok(req);
+}
+
 static esp_err_t config_put(httpd_req_t *req)
 {
     char *body = read_body(req);
@@ -726,11 +861,40 @@ static esp_err_t demand_get(httpd_req_t *req)
     control_snapshot(&snap);
     cfg_copy(&cfg);
 
+    /*
+     * Kanaele, deren Raum gerade nicht geregelt wird, zaehlen nicht als Bedarf.
+     *
+     * Ein Raum ohne Thermometer oder mit veraltetem Messwert laesst seine
+     * Ventile absichtlich stehen -- auf einen fehlenden Wert zu regeln waere
+     * schlechter. Ein Ventil, das nur deshalb offen steht, weil es niemand
+     * zufaehrt, ist aber kein Waermebedarf: Der Pufferspeicher liess darauf im
+     * August die Pumpe durchlaufen, ohne Abnehmer.
+     *
+     * Ausgenommen bleibt, was von Hand gehalten wird. Ein von Hand geoeffnetes
+     * Ventil ist eine Absicht und damit Bedarf. Kanaele ohne Raum zaehlen wie
+     * bisher mit.
+     */
+    uint16_t ungeregelt_mask = 0;
+    for (uint8_t r = 0; r < snap.room_count; r++) {
+        const ctl_room_t *room = &snap.rooms[r];
+        if (!room->mode_heat || !room->temp_valid) {
+            ungeregelt_mask |= room->channel_mask;
+        }
+    }
+
     float max_target = 0.0f;
     int open_channels = 0;
+    int unregulated = 0;
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         float soll = snap.ch[i].request_open ? snap.ch[i].request_target : snap.ch[i].position;
         float wert = soll > snap.ch[i].position ? soll : snap.ch[i].position;
+        bool uebergehen = (ungeregelt_mask & (1U << i)) && !snap.ch[i].manual_hold;
+        if (uebergehen) {
+            if (wert > DEMAND_THRESHOLD) {
+                unregulated++;
+            }
+            continue;
+        }
         if (wert > max_target) {
             max_target = wert;
         }
@@ -768,6 +932,9 @@ static esp_err_t demand_get(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "demand", max_target > DEMAND_THRESHOLD);
     cJSON_AddNumberToObject(root, "max_target", max_target);
     cJSON_AddNumberToObject(root, "open_channels", open_channels);
+    /* Ohne diese Angabe verschwaende der Grund, warum ein sichtbar offenes
+     * Ventil keine Pumpe anwirft. */
+    cJSON_AddNumberToObject(root, "unregulated", unregulated);
     cJSON_AddNumberToObject(root, "rooms_calling", rooms_calling);
     if (min_gesetzt) {
         cJSON_AddNumberToObject(root, "min_room_c", min_room);
@@ -943,6 +1110,8 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/state", .method = HTTP_GET, .handler = state_get},
     {.uri = "/api/config", .method = HTTP_GET, .handler = config_get},
     {.uri = "/api/config", .method = HTTP_PUT, .handler = config_put},
+    {.uri = "/api/config/backup", .method = HTTP_GET, .handler = config_backup_get},
+    {.uri = "/api/config/restore", .method = HTTP_POST, .handler = config_restore_post},
     {.uri = "/api/room/*", .method = HTTP_POST, .handler = room_post},
     {.uri = "/api/channel/*", .method = HTTP_POST, .handler = channel_post},
     {.uri = "/api/calib", .method = HTTP_GET, .handler = calib_get},

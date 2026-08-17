@@ -46,6 +46,15 @@ typedef struct {
     uint32_t ts_ms;
 } sensor_rt_t;
 
+/*
+ * So lange nach dem letzten Empfang gilt der Aussenwert noch. Ein RuuviTag
+ * sendet im Sekundentakt; bleibt er eine Viertelstunde stumm, ist die Batterie
+ * leer oder er ausser Reichweite. Ohne diese Grenze bliebe der zuletzt
+ * empfangene Wert fuer immer gueltig -- und das Heizungsgeraet schriebe eine
+ * eingefrorene Temperatur in die Heizgradtage, ohne dass es auffiele.
+ */
+#define OUTDOOR_STALE_S 900
+
 /* Aussenfuehler: derselbe Aufbau, dazu Luftdruck und Spannung. */
 typedef struct {
     bool valid;
@@ -230,23 +239,28 @@ static void room_run_check(int ri, uint32_t t)
 
     rt->last_check_ms = t;
 
+    /*
+     * Ausgeschaltet heisst zu. Bisher stieg die Pruefung hier aus und liess die
+     * Ventile stehen, wo sie waren -- fuer den Benutzer heisst "aus" aber, dass
+     * kein Wasser mehr durchgeht. Ein Messwert wird dafuer nicht gebraucht.
+     */
+    float target;
     if (!r->mode_heat) {
-        rt->pending_mask = 0;
-        return;
+        target = 0.0f;
+    } else {
+        if (!rt->sensor.valid) {
+            ESP_LOGW(TAG, "%s: kein Messwert, Regelung ausgesetzt", r->name);
+            rt->pending_mask = 0;
+            return;
+        }
+        uint32_t age_s = (t - rt->sensor.ts_ms) / 1000;
+        if (age_s > s_cfg.sensor_timeout_s) {
+            ESP_LOGW(TAG, "%s: Messwert ist %u s alt, Regelung ausgesetzt", r->name, age_s);
+            rt->pending_mask = 0;
+            return;
+        }
+        target = roomctrl_target_position(r->target_c, rt->sensor.temp_c, r->p_band_k, r->step);
     }
-    if (!rt->sensor.valid) {
-        ESP_LOGW(TAG, "%s: kein Messwert, Regelung ausgesetzt", r->name);
-        rt->pending_mask = 0;
-        return;
-    }
-    uint32_t age_s = (t - rt->sensor.ts_ms) / 1000;
-    if (age_s > s_cfg.sensor_timeout_s) {
-        ESP_LOGW(TAG, "%s: Messwert ist %u s alt, Regelung ausgesetzt", r->name, age_s);
-        rt->pending_mask = 0;
-        return;
-    }
-
-    float target = roomctrl_target_position(r->target_c, rt->sensor.temp_c, r->p_band_k, r->step);
     rt->target_position = target;
 
     uint16_t pending = 0;
@@ -265,8 +279,14 @@ static void room_run_check(int ri, uint32_t t)
     }
     rt->pending_mask = pending;
 
-    ESP_LOGI(TAG, "%s: ist %.2f, soll %.2f, Zielstellung %.0f%%%s", r->name, rt->sensor.temp_c,
-             r->target_c, target * 100.0f, pending ? "" : " (keine Fahrt noetig)");
+    if (!r->mode_heat) {
+        ESP_LOGI(TAG, "%s: ausgeschaltet, Zielstellung 0%%%s", r->name,
+                 pending ? "" : " (keine Fahrt noetig)");
+    } else {
+        ESP_LOGI(TAG, "%s: ist %.2f, soll %.2f, Zielstellung %.0f%%%s", r->name,
+                 rt->sensor.temp_c, r->target_c, target * 100.0f,
+                 pending ? "" : " (keine Fahrt noetig)");
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -880,7 +900,8 @@ void control_snapshot(ctl_snapshot_t *out)
     }
     out->outdoor.set = s_cfg.outdoor_set;
     if (s_cfg.outdoor_set && s_outdoor.valid) {
-        out->outdoor.valid = true;
+        uint32_t alter_s = (t - s_outdoor.ts_ms) / 1000;
+        out->outdoor.valid = alter_s <= OUTDOOR_STALE_S;
         out->outdoor.temp_c = s_outdoor.temp_c;
         out->outdoor.humidity = s_outdoor.humidity;
         out->outdoor.pressure_hpa = s_outdoor.pressure_hpa;
