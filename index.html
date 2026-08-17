@@ -172,10 +172,13 @@ esp-web-install-button button:focus-visible{outline:2px solid var(--heat); outli
 <footer>
   <p>Privates Bastelprojekt, GPL-3.0. Quelltext und Fehlermeldungen auf
      <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl">GitHub</a>.
-     Der Aufspielvorgang läuft vollständig im Browser; es werden keine Daten übertragen.</p>
+     Der Aufspielvorgang läuft vollständig im Browser; es werden keine Daten übertragen, und
+     die Seite lädt nichts von fremden Rechnern nach. Sie benutzt
+     <a href="https://github.com/esphome/esp-web-tools">esp-web-tools</a> 10.4.0
+     (Apache-2.0, <a href="vendor/esp-web-tools/LICENSE">Lizenztext</a>).</p>
 </footer>
 
 </div>
-<script type="module" src="https://unpkg.com/esp-web-tools@10.0.3/dist/web/install-button.js"></script>
+<script type="module" src="vendor/esp-web-tools/install-button.js"></script>
 </body>
 </html>

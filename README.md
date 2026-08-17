@@ -3,10 +3,16 @@
 Inhalt der GitHub-Pages-Seite unter
 <https://rubenmuehlhans.github.io/floor-heating-ctrl/>.
 
-Dieser Zweig traegt nur, was der Browser laedt: die Seite, die beiden Manifeste
-und die zusammengefuehrten Abbilder. Die Abbilder liegen hier und nicht bei der
+Dieser Zweig traegt nur, was der Browser laedt: die Seite, die beiden Manifeste,
+die zusammengefuehrten Abbilder und esp-web-tools. Die Abbilder liegen hier und nicht bei der
 Veroeffentlichung, weil deren Dateien ohne CORS-Kopfzeile ausgeliefert werden --
 der Browser duerfte sie von dieser Seite aus nicht lesen.
+
+`vendor/esp-web-tools/` ist der Inhalt von `dist/web/` aus dem npm-Paket
+`esp-web-tools` 10.4.0, Apache-2.0, samt Lizenztext. Mitgeliefert statt ueber ein
+CDN eingebunden: Eine Seite, die Firmware auf Hardware schreibt, sollte nicht
+davon abhaengen, dass ein fremder Rechner erreichbar bleibt und dieselben Bytes
+ausliefert.
 
 Erzeugt aus dem Stand von `main`:
 
