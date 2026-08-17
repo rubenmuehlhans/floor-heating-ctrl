@@ -12,6 +12,10 @@
 #include <string.h>
 
 #include "heatlogic.h"
+#include "boilerpump.h"
+#include "trend.h"
+#include "flue.h"
+#include "plausi.h"
 #include "hw_map.h"
 #include "roomctrl.h"
 #include "atc_decode.h"
@@ -1294,6 +1298,551 @@ static void test_decode_xiaomi(void)
     CHECK(dev.format == ATC_FMT_PVVX, "Format ist pvvx");
 }
 
+/* ------------------------------------------------------------------ */
+/* Plausibilitaet der Messstellen                                      */
+/* ------------------------------------------------------------------ */
+
+static void test_plausi_flow(void)
+{
+    printf("Plausibilitaet: vertauschter Vor- und Ruecklauf\n");
+
+    plausi_cfg_t cfg;
+    plausi_defaults(&cfg);
+    plausi_finding_t f;
+    plausi_init(&f);
+
+    uint32_t t = 1000;
+
+    /*
+     * Sommer: Pumpe steht. Der Ruecklauf aus dem Estrich ist waermer als der
+     * Vorlauf am Mischer -- das sagt ueber die Verrohrung nichts aus, weil
+     * nichts fliesst. Es darf nicht gemeldet werden.
+     */
+    for (int i = 0; i < 7200; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, false, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(!f.active, "bei stehender Pumpe wird nicht geurteilt");
+    CHECK(f.held_s == 0, "und die Uhr laeuft nicht");
+
+    /* Pumpe an, Speicher warm, Vorlauf kaelter: jetzt zaehlt es. */
+    for (int i = 0; i < 600; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(!f.active, "nach zehn Minuten noch keine Meldung");
+    CHECK(f.held_s >= 590, "aber die Uhr laeuft, %u s", (unsigned)f.held_s);
+
+    /* Pumpe geht aus und wieder an: der Zaehler laeuft weiter, statt von vorn
+     * zu beginnen. Sonst kaeme bei kurzen Laufzeiten nie eine Meldung. */
+    for (int i = 0; i < 1200; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, false, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    for (int i = 0; i < 1300; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(f.active, "nach einer halben Stunde Pumpenlauf wird gemeldet");
+
+    /* Ein richtig herum messender Kreis meldet nichts, und eine Meldung
+     * verschwindet, sobald es stimmt. */
+    t += 1000;
+    plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 36.0f, true, 30.0f, t);
+    CHECK(!f.active, "richtige Reihenfolge nimmt die Meldung zurueck");
+
+    /* Kalter Speicher: nicht beurteilbar. */
+    plausi_init(&f);
+    for (int i = 0; i < 3600; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 20.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(!f.active, "bei kaltem Speicher wird nicht geurteilt");
+
+    /* Ein Unterschied im Rauschen loest nicht aus. */
+    plausi_init(&f);
+    for (int i = 0; i < 3600; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 35.5f, true, 36.0f, t);
+    }
+    CHECK(!f.active, "ein halbes Kelvin ist Rauschen, keine Vertauschung");
+}
+
+static void test_plausi_buffer(void)
+{
+    printf("Plausibilitaet: Speicher ueber Kesselvorlauf\n");
+
+    plausi_cfg_t cfg;
+    plausi_defaults(&cfg);
+    plausi_finding_t f;
+    plausi_init(&f);
+    uint32_t t = 1000;
+
+    /* Ausserhalb einer Ladung sagt der Vergleich nichts. */
+    for (int i = 0; i < 3600; i++) {
+        t += 1000;
+        plausi_buffer_tick(&f, &cfg, false, true, 70.0f, true, 60.0f, t);
+    }
+    CHECK(!f.active, "ohne Ladung wird nicht geurteilt");
+
+    /* Waehrend der Ladung ist es unmoeglich. */
+    for (int i = 0; i < 1900; i++) {
+        t += 1000;
+        plausi_buffer_tick(&f, &cfg, true, true, 70.0f, true, 60.0f, t);
+    }
+    CHECK(f.active, "waehrend der Ladung wird gemeldet");
+
+    /* Der uebliche Fall -- Vorlauf ueber Speicher -- meldet nichts. */
+    plausi_init(&f);
+    for (int i = 0; i < 3600; i++) {
+        t += 1000;
+        plausi_buffer_tick(&f, &cfg, true, true, 55.0f, true, 70.0f, t);
+    }
+    CHECK(!f.active, "Vorlauf ueber Speicher ist der Normalfall");
+}
+
+static void test_plausi_probe(void)
+{
+    printf("Plausibilitaet: Fuehler mit Aussetzern\n");
+
+    plausi_cfg_t cfg;
+    plausi_defaults(&cfg);
+
+    CHECK(!plausi_probe_bad(&cfg, 20, 10), "unter hundert Messungen wird nicht geurteilt");
+    CHECK(!plausi_probe_bad(&cfg, 1000, 20), "zwei Prozent sind unauffaellig");
+    CHECK(plausi_probe_bad(&cfg, 1000, 200), "zwanzig Prozent sind auffaellig");
+    CHECK(!plausi_probe_bad(&cfg, 1000, 0), "ein fehlerfreier Fuehler faellt nicht auf");
+}
+
+/* ------------------------------------------------------------------ */
+/* Kesselkreispumpe                                                    */
+/* ------------------------------------------------------------------ */
+
+static bp_input_t kessel(float vl, float rl)
+{
+    bp_input_t in = {0};
+    in.valid = true;
+    in.vl_c = vl;
+    in.rl_c = rl;
+    return in;
+}
+
+static uint32_t bp_laufen(bp_state_t *st, const bp_cfg_t *cfg, bp_input_t in, uint32_t t,
+                          uint32_t sekunden)
+{
+    for (uint32_t i = 0; i < sekunden; i++) {
+        t += 1000;
+        bp_tick(st, cfg, &in, t);
+    }
+    return t;
+}
+
+static void test_boilerpump(void)
+{
+    printf("Kesselkreispumpe: Spreizung entscheidet\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /*
+     * Kalter Kessel, warmer Speicher: Die Pumpe muss stehen. Liefe sie, zoege
+     * sie Waerme aus dem Speicher in den Kessel und von dort in den Kamin --
+     * genau der Verlust, um den es geht.
+     */
+    t = bp_laufen(&st, &cfg, kessel(40.0f, 58.0f), t, 400);
+    CHECK(!st.on, "bei waermerem Ruecklauf steht sie");
+    CHECK(st.reason == BP_REASON_NO_TRANSFER, "und der Grund wird genannt, nicht %s",
+          bp_reason_text(st.reason));
+
+    /* Der Brenner laeuft an, der Kessel holt auf. Solange er kaelter ist,
+     * bleibt die Pumpe stehen -- das ist zugleich die Ruecklaufanhebung. */
+    t = bp_laufen(&st, &cfg, kessel(54.0f, 58.0f), t, 300);
+    CHECK(!st.on, "waehrend des Aufheizens steht sie weiter");
+
+    /* Vorlauf ueberholt den Ruecklauf: nach der Haltezeit laeuft sie an. */
+    t = bp_laufen(&st, &cfg, kessel(62.0f, 58.0f), t, 60);
+    CHECK(!st.on, "eine Minute reicht fuer die Haltezeit nicht");
+    t = bp_laufen(&st, &cfg, kessel(62.0f, 58.0f), t, 90);
+    CHECK(st.on, "nach zwei Minuten laeuft sie");
+    CHECK(st.reason == BP_REASON_TRANSFER, "Grund: der Kessel gibt ab");
+
+    /* Der Brenner geht aus, der Kessel gibt seine Restwaerme noch ab. */
+    t = bp_laufen(&st, &cfg, kessel(60.0f, 56.0f), t, 600);
+    CHECK(st.on, "die Restwaerme wird noch abgefuehrt");
+
+    /*
+     * Jetzt kuehlt er unter den Ruecklauf. Bis die Haltezeit um ist, laeuft sie
+     * weiter -- aber der Grund dafuer ist die Haltezeit. An der Anlage stand
+     * hier "Kessel gibt Waerme ab" bei -0,56 K Spreizung; die Anzeige log.
+     */
+    t = bp_laufen(&st, &cfg, kessel(55.0f, 57.0f), t, 60);
+    CHECK(st.on, "waehrend der Haltezeit laeuft sie weiter");
+    CHECK(st.reason == BP_REASON_HOLD, "und nennt die Haltezeit, nicht \"%s\"",
+          bp_reason_text(st.reason));
+
+    t = bp_laufen(&st, &cfg, kessel(55.0f, 57.0f), t, 340);
+    CHECK(!st.on, "unter dem Ruecklauf geht sie aus");
+    CHECK(st.reason == BP_REASON_NO_TRANSFER, "und jetzt zaehlt wieder die Spreizung");
+}
+
+static void test_boilerpump_sicherheit(void)
+{
+    printf("Kesselkreispumpe: Sicherheit vor Sparsamkeit\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /* Ohne Messwerte laeuft sie. Nicht zu foerdern waere das groessere
+     * Risiko. */
+    bp_input_t blind = {0};
+    t = bp_laufen(&st, &cfg, blind, t, 300);
+    CHECK(st.on, "ohne Kesselwerte laeuft sie");
+    CHECK(st.reason == BP_REASON_NO_READING, "und sagt warum");
+
+    /*
+     * Notgrenze: Ein Kessel ueber 85 Grad muss seine Waerme loswerden, auch
+     * wenn die Spreizung dagegen spricht -- ein klemmender Fuehler darf die
+     * Abfuhr nicht verhindern.
+     */
+    bp_init(&st, BP_MODE_AUTO);
+    t = bp_laufen(&st, &cfg, kessel(30.0f, 60.0f), t, 400);
+    CHECK(!st.on, "erst steht sie");
+    t += 1000;
+    bp_input_t heiss = kessel(88.0f, 90.0f);
+    bp_tick(&st, &cfg, &heiss, t);
+    CHECK(st.on, "ueber der Notgrenze laeuft sie sofort");
+    CHECK(st.reason == BP_REASON_EMERGENCY, "Grund ist die Notabfuhr");
+
+    /* Ohne eingerichtete Pumpe wird nichts geschaltet. */
+    bp_cfg_t aus;
+    bp_defaults(&aus);
+    bp_init(&st, BP_MODE_AUTO);
+    bp_laufen(&st, &aus, kessel(80.0f, 40.0f), t, 600);
+    CHECK(!st.on, "ohne eingerichtete Pumpe bleibt alles aus");
+    CHECK(st.reason == BP_REASON_DISABLED, "und der Grund sagt es");
+
+    /* Handbetrieb schlaegt die Regel. */
+    bp_init(&st, BP_MODE_ON);
+    bp_laufen(&st, &cfg, kessel(40.0f, 60.0f), t, 300);
+    CHECK(st.on && st.reason == BP_REASON_MANUAL, "Hand ein laesst sie laufen");
+    bp_init(&st, BP_MODE_OFF);
+    bp_laufen(&st, &cfg, kessel(80.0f, 40.0f), t, 300);
+    CHECK(!st.on && st.reason == BP_REASON_MANUAL, "Hand aus laesst sie stehen");
+}
+
+/* ------------------------------------------------------------------ */
+/* Verbrauchslinie                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Ein Jahresgang: kalte Tage viele Gradtage, im Sommer keine. */
+static float gradtage_tag(int i)
+{
+    /* -cos ueber 365 Tage, Hochpunkt im Januar, im Sommer bei null gekappt. */
+    float w = 12.0f - 12.0f * cosf(2.0f * 3.14159265f * (float)i / 365.0f);
+    float g = 24.0f - w;
+    return g > 0.0f ? g : 0.0f;
+}
+
+static void test_trend_gerade(void)
+{
+    printf("Verbrauchslinie: bekannte Gerade wird wiedergefunden\n");
+
+    /* 0,18 Stunden je Gradtag plus 1,2 Stunden Warmwasser, ohne Rauschen. */
+    trend_t t;
+    trend_init(&t);
+    for (int i = 0; i < 200; i++) {
+        float g = gradtage_tag(i);
+        trend_add(&t, g, 0.18f * g + 1.2f);
+    }
+    trend_fit_t f;
+    CHECK(trend_fit(&t, &f), "die Anpassung gelingt");
+    CHECK(fabsf(f.slope - 0.18f) < 0.001f, "Steigung %.4f statt 0,18", f.slope);
+    CHECK(fabsf(f.intercept - 1.2f) < 0.01f, "Achsenabschnitt %.3f statt 1,2", f.intercept);
+    CHECK(f.sigma < 0.01f, "ohne Rauschen ist die Streuung null, nicht %.4f", f.sigma);
+    CHECK(f.r2 > 0.999f, "und die Gerade erklaert alles, r2 = %.4f", f.r2);
+
+    /* Die Kennzahlen sind das, was man sonst schaetzt. */
+    float erwartet = 0.0f;
+    CHECK(trend_expected(&f, 20.0f, &erwartet), "Erwartungswert laesst sich bilden");
+    CHECK(fabsf(erwartet - (0.18f * 20.0f + 1.2f)) < 0.02f,
+          "bei 20 Gradtagen %.2f Stunden", erwartet);
+}
+
+static void test_trend_ausreisser(void)
+{
+    printf("Verbrauchslinie: der auffaellige Tag wird erkannt\n");
+
+    /* Dieselbe Gerade, aber mit einem gleichmaessigen Zickzack als Rauschen. */
+    trend_t t;
+    trend_init(&t);
+    for (int i = 0; i < 200; i++) {
+        float g = gradtage_tag(i);
+        float rausch = (i % 4 == 0) ? 0.25f : (i % 4 == 1) ? -0.25f
+                     : (i % 4 == 2) ? 0.1f : -0.1f;
+        trend_add(&t, g, 0.18f * g + 1.2f + rausch);
+    }
+    trend_fit_t f;
+    CHECK(trend_fit(&t, &f), "die Anpassung gelingt auch mit Rauschen");
+    CHECK(f.sigma > 0.1f && f.sigma < 0.3f, "Streuung %.3f liegt in der Groessenordnung",
+          f.sigma);
+
+    /* Ein Tag mit offenem Fenster: doppelte Laufzeit bei zehn Gradtagen. */
+    float sig = 0.0f;
+    CHECK(trend_sigma_off(&f, 10.0f, 2.0f * (0.18f * 10.0f + 1.2f), &sig),
+          "die Abweichung laesst sich angeben");
+    CHECK(sig > TREND_SIGMA_ALERT, "%.1f Streuungen ueber der Linie, das wird gemeldet", sig);
+
+    /* Ein gewoehnlicher Tag nicht. */
+    CHECK(trend_sigma_off(&f, 10.0f, 0.18f * 10.0f + 1.2f + 0.2f, &sig),
+          "auch fuer einen normalen Tag");
+    CHECK(sig < TREND_SIGMA_ALERT, "%.1f Streuungen, kein Befund", sig);
+
+    /* Nach unten wird nicht gemeldet: weniger Verbrauch ist kein Fehler. */
+    CHECK(trend_sigma_off(&f, 10.0f, 0.2f, &sig), "und fuer einen sehr sparsamen Tag");
+    CHECK(sig < 0.0f, "der liegt unter der Linie (%.1f)", sig);
+}
+
+static void test_trend_grenzen(void)
+{
+    printf("Verbrauchslinie: keine Linie ist besser als eine falsche\n");
+
+    trend_t t;
+    trend_init(&t);
+    trend_fit_t f;
+
+    /* Zu wenige Tage. */
+    for (int i = 0; i < TREND_MIN_DAYS - 1; i++) {
+        trend_add(&t, (float)i, 0.18f * (float)i + 1.2f);
+    }
+    CHECK(!trend_fit(&t, &f), "unter %d Tagen gibt es keine Linie", TREND_MIN_DAYS);
+    CHECK(!f.valid && f.slope == 0.0f, "und keine Koeffizienten aus dem Nichts");
+    CHECK(f.n == TREND_MIN_DAYS - 1, "die Tagezahl wird trotzdem gemeldet");
+
+    /*
+     * Sommer: hundert Tage, alle bei null Gradtagen. Eine Gerade durch eine
+     * senkrechte Punktwolke haette eine beliebige Steigung.
+     */
+    trend_init(&t);
+    for (int i = 0; i < 100; i++) {
+        trend_add(&t, 0.0f, 1.2f + (i % 3) * 0.1f);
+    }
+    CHECK(!trend_fit(&t, &f), "ohne Spreizung der Gradtage gibt es keine Linie");
+
+    /* Knapp unter der Mindestspreizung ebenfalls nicht. */
+    trend_init(&t);
+    for (int i = 0; i < 100; i++) {
+        trend_add(&t, (i % 2) ? 0.0f : 0.4f, 1.2f);
+    }
+    CHECK(!trend_fit(&t, &f), "und bei zu enger Spreizung auch nicht");
+
+    /* Ohne Linie gibt es auch keine Abweichung. */
+    float sig = 0.0f;
+    CHECK(!trend_sigma_off(&f, 10.0f, 5.0f, &sig), "und damit keine Abweichungsangabe");
+    float e = 0.0f;
+    CHECK(!trend_expected(&f, 10.0f, &e), "und keinen Erwartungswert");
+}
+
+static void test_trend_negativ(void)
+{
+    printf("Verbrauchslinie: der Erwartungswert bleibt bei null stehen\n");
+
+    /*
+     * Eine Anlage mit sehr kleinem Grundverbrauch kann eine Gerade ergeben, die
+     * links der Null unter null geht. Eine negative Laufzeit gibt es nicht.
+     */
+    trend_t t;
+    trend_init(&t);
+    for (int i = 0; i < 60; i++) {
+        float g = 5.0f + (float)i * 0.5f;
+        trend_add(&t, g, 0.2f * g - 1.5f);
+    }
+    trend_fit_t f;
+    CHECK(trend_fit(&t, &f), "die Anpassung gelingt");
+    CHECK(f.intercept < 0.0f, "der Achsenabschnitt ist negativ (%.2f)", f.intercept);
+    float e = -1.0f;
+    CHECK(trend_expected(&f, 0.0f, &e), "der Erwartungswert laesst sich bilden");
+    CHECK(e == 0.0f, "und wird bei null gekappt, nicht %.2f", e);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Abgas-Vorlauf-Abstand                                               */
+/* ------------------------------------------------------------------ */
+
+static void test_flue_sauber(void)
+{
+    printf("Abgasabstand: ein sauberer Kessel bleibt, wo er ist\n");
+
+    flue_acc_t a;
+    flue_init(&a);
+    /* Hundert Ladungen um 60 K, mit gleichmaessigem Zickzack. */
+    for (int i = 0; i < 100; i++) {
+        flue_add(&a, true, 60.0f + ((i % 5) - 2) * 2.0f);
+    }
+    flue_result_t r;
+    flue_eval(&a, &r);
+    CHECK(r.ref_valid && r.now_valid, "beide Fenster tragen einen Median");
+    CHECK(r.ref_n == FLUE_WINDOW, "das Bezugsfenster fasst %d Ladungen, nicht %u",
+          FLUE_WINDOW, (unsigned)r.ref_n);
+    CHECK(r.now_n == FLUE_WINDOW, "das laufende Fenster ebenso");
+    CHECK(fabsf(r.delta_k) < 1.0f, "unveraendert, Abweichung %.1f K", r.delta_k);
+    CHECK(!flue_alert(&r), "und kein Befund");
+}
+
+static void test_flue_verrusst(void)
+{
+    printf("Abgasabstand: Russablagerungen heben ihn an\n");
+
+    flue_acc_t a;
+    flue_init(&a);
+    /* Erst fuenfzig saubere Ladungen, dann steigt der Abstand langsam an. */
+    for (int i = 0; i < 50; i++) {
+        flue_add(&a, true, 60.0f + ((i % 3) - 1));
+    }
+    for (int i = 0; i < 60; i++) {
+        flue_add(&a, true, 60.0f + (float)i * 0.6f + ((i % 3) - 1));
+    }
+    flue_result_t r;
+    flue_eval(&a, &r);
+    CHECK(fabsf(r.ref_k - 60.0f) < 1.5f, "das Bezugsfenster haelt den sauberen Zustand (%.1f K)",
+          r.ref_k);
+    CHECK(r.now_k > r.ref_k + FLUE_ALERT_K, "die juengsten Ladungen liegen bei %.1f K", r.now_k);
+    CHECK(flue_alert(&r), "das wird gemeldet (%.1f K schlechter)", r.delta_k);
+
+    /* Nach der Reinigung wird neu bezogen: das Bezugsfenster faengt von vorn an. */
+    flue_init(&a);
+    for (int i = 0; i < 60; i++) {
+        flue_add(&a, true, 61.0f + ((i % 3) - 1));
+    }
+    flue_eval(&a, &r);
+    CHECK(!flue_alert(&r), "danach ist der Befund weg");
+}
+
+static void test_flue_wartung(void)
+{
+    printf("Abgasabstand: nur Ladungen nach der Reinigung sind Bezug\n");
+
+    flue_acc_t a;
+    flue_init(&a);
+    /* Zwanzig alte, verrusste Ladungen vor der Reinigung -- sie duerfen den
+     * Bezug nicht bilden, sonst sieht der saubere Kessel besser aus als er ist
+     * und die naechste Verschlechterung faellt nicht auf. */
+    for (int i = 0; i < 20; i++) {
+        flue_add(&a, false, 95.0f);
+    }
+    for (int i = 0; i < 40; i++) {
+        flue_add(&a, true, 60.0f);
+    }
+    flue_result_t r;
+    flue_eval(&a, &r);
+    CHECK(r.ref_n == 40, "nur die %u Ladungen nach der Reinigung", (unsigned)r.ref_n);
+    CHECK(fabsf(r.ref_k - 60.0f) < 0.01f, "Bezug %.1f K, nicht der verrusste Zustand", r.ref_k);
+    CHECK(r.now_n == FLUE_WINDOW, "das laufende Fenster zaehlt dagegen alle mit");
+}
+
+static void test_flue_grenzen(void)
+{
+    printf("Abgasabstand: zu wenige Ladungen ergeben keinen Median\n");
+
+    flue_acc_t a;
+    flue_init(&a);
+    flue_result_t r;
+
+    flue_eval(&a, &r);
+    CHECK(!r.ref_valid && !r.now_valid && !r.delta_valid, "ohne Ladungen gibt es nichts");
+    CHECK(!flue_alert(&r), "und keinen Befund");
+
+    for (int i = 0; i < FLUE_MIN_CHARGES - 1; i++) {
+        flue_add(&a, true, 60.0f);
+    }
+    flue_eval(&a, &r);
+    CHECK(!r.now_valid, "unter %d Ladungen weiterhin nicht", FLUE_MIN_CHARGES);
+    flue_add(&a, true, 60.0f);
+    flue_eval(&a, &r);
+    CHECK(r.now_valid && r.ref_valid, "ab %d schon", FLUE_MIN_CHARGES);
+
+    /* Ohne Reinigungsdatum gibt es kein Bezugsfenster, aber den laufenden Wert. */
+    flue_init(&a);
+    for (int i = 0; i < 30; i++) {
+        flue_add(&a, false, 70.0f);
+    }
+    flue_eval(&a, &r);
+    CHECK(!r.ref_valid, "ohne Ladung nach einer Reinigung kein Bezug");
+    CHECK(r.now_valid, "der laufende Median steht trotzdem");
+    CHECK(!r.delta_valid, "aber kein Vergleich");
+}
+
+static void test_flue_median(void)
+{
+    printf("Abgasabstand: der Median laesst sich von Ausreissern nicht ziehen\n");
+
+    flue_acc_t a, b;
+    flue_init(&a);
+    flue_init(&b);
+    for (int i = 0; i < 20; i++) {
+        flue_add(&a, true, 60.0f);
+        flue_add(&b, true, 60.0f);
+    }
+    /* In b kommen fuenf Ausreisser dazu, wie sie ein Start in den kalten
+     * Kessel erzeugt. Der Median darf sich davon kaum bewegen. */
+    for (int i = 0; i < 5; i++) {
+        flue_add(&b, true, 200.0f);
+    }
+    flue_result_t ra, rb;
+    flue_eval(&a, &ra);
+    flue_eval(&b, &rb);
+    CHECK(fabsf(rb.now_k - ra.now_k) < 0.01f,
+          "%.1f K gegen %.1f K -- die Ausreisser bleiben aussen vor", rb.now_k, ra.now_k);
+
+    /* Gerade Anzahl: Mittel der beiden mittleren Werte. */
+    flue_init(&a);
+    for (int i = 0; i < 10; i++) {
+        flue_add(&a, true, (float)i * 10.0f); /* 0,10,...,90 -> Median 45 */
+    }
+    flue_eval(&a, &ra);
+    CHECK(fabsf(ra.now_k - 45.0f) < 0.01f, "bei gerader Anzahl %.1f statt 45", ra.now_k);
+}
+
+static void test_boilerpump_takten(void)
+{
+    printf("Kesselkreispumpe: kein Takten um den Nullpunkt\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /* Erst sauber anlaufen lassen. */
+    t = bp_laufen(&st, &cfg, kessel(64.0f, 58.0f), t, 300);
+    CHECK(st.on, "sie laeuft");
+
+    /*
+     * Jetzt pendelt die Spreizung um null. Zwischen off_k und on_k bleibt es,
+     * wie es war -- sonst schaltete die Pumpe im Minutentakt.
+     */
+    int wechsel = 0;
+    bool vorher = st.on;
+    for (int i = 0; i < 40; i++) {
+        float rl = 58.0f + (i % 2 ? 0.3f : -0.3f);
+        t = bp_laufen(&st, &cfg, kessel(58.4f, rl), t, 30);
+        if (st.on != vorher) {
+            wechsel++;
+            vorher = st.on;
+        }
+    }
+    CHECK(wechsel <= 1, "hoechstens ein Wechsel bei pendelnder Spreizung, nicht %d", wechsel);
+}
+
 int main(void)
 {
     test_control_law();
@@ -1329,6 +1878,21 @@ int main(void)
     test_sched_days_left();
     test_decode_ruuvi();
     test_decode_xiaomi();
+    test_plausi_flow();
+    test_plausi_buffer();
+    test_plausi_probe();
+    test_boilerpump();
+    test_boilerpump_sicherheit();
+    test_boilerpump_takten();
+    test_trend_gerade();
+    test_trend_ausreisser();
+    test_trend_grenzen();
+    test_trend_negativ();
+    test_flue_sauber();
+    test_flue_verrusst();
+    test_flue_wartung();
+    test_flue_grenzen();
+    test_flue_median();
 
     printf("\n%d Pruefungen, %d Fehler\n", s_checks, s_failed);
     return s_failed == 0 ? 0 : 1;

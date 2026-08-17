@@ -19,6 +19,10 @@ SRC := test_logic.c \
        $(ROOT)/components/valve/valve.c \
        $(ROOT)/components/roomctrl/roomctrl.c \
        $(ROOT)/components/heatlogic/heatlogic.c \
+       $(ROOT)/components/heatlogic/plausi.c \
+       $(ROOT)/components/heatlogic/boilerpump.c \
+       $(ROOT)/components/heatlogic/trend.c \
+       $(ROOT)/components/heatlogic/flue.c \
        $(ROOT)/components/schedule/schedule.c \
        $(ROOT)/components/atc_ble/atc_decode.c
 
