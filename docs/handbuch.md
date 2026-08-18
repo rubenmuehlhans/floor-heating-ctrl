@@ -634,8 +634,12 @@ in dem Augenblick, in dem Sie scharf schalten, wird der übernächste Start abge
 Kurve taugt zur Auswertung nicht. **Abbrechen** hebt die Schaltung auf.
 
 Der Arbeitsspeicher wird schon beim Scharfschalten belegt, damit ein Fehlschlag sofort auffällt
-und nicht erst dann, wenn der Kessel nachts anspringt. Nach einem Neustart des Geräts ist die
-Schaltung aufgehoben.
+und nicht erst dann, wenn der Kessel nachts anspringt.
+
+Die Schaltung übersteht einen Neustart: Sie wartet womöglich stundenlang auf die nächste Ladung,
+und ein Neustart dazwischen darf das nicht verwerfen. Der Inhalt einer bereits **laufenden**
+Aufzeichnung liegt dagegen im Arbeitsspeicher und ist danach weg — das Gerät ist dann wieder
+scharf und wartet auf die nächste Ladung.
 
 **Sofort aufzeichnen** beginnt ohne Umweg — für den Fall, dass der Kessel gerade läuft und Sie
 den Rest der Kurve haben wollen. Eine so begonnene Aufzeichnung endet nicht von selbst, sondern

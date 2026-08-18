@@ -33,6 +33,15 @@ typedef struct {
     uint32_t runtime_yesterday_s;
     uint32_t starts_yesterday;
     int16_t tag; /* Tag des Jahres, zu dem die Werte gehoeren */
+    /*
+     * Scharf geschaltete Aufzeichnung. Sie wartet auf die naechste Ladung, und
+     * die kommt womoeglich erst in Stunden -- ein Neustart dazwischen darf das
+     * nicht verwerfen. Genau daran ist die erste Ladung dieser Anlage
+     * vorbeigelaufen. Der Inhalt einer laufenden Aufzeichnung steht im
+     * Arbeitsspeicher und ist nach einem Neustart weg; gemerkt wird deshalb
+     * nur das Scharfsein, und es wird beim Start neu aufgesetzt.
+     */
+    bool rec_armed;
 } stats_t;
 
 static burner_cfg_t s_cfg;
@@ -144,7 +153,9 @@ void rec_discard(void)
     s_rec_len = 0;
     s_rec_cols = 0;
     rec_trigger_init(&s_trig);
+    s_stats.rec_armed = false;
     xSemaphoreGive(s_mtx);
+    stats_store();
 }
 
 /*
@@ -222,10 +233,13 @@ esp_err_t rec_arm(void)
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     rec_trigger_arm(&s_trig, &s_tin, now_ms());
     s_rec_started_epoch = 0;
+    s_stats.rec_armed = true;
     bool warten = s_trig.wait_off;
     rec_source_t quelle = s_trig.source;
     uint8_t n = s_rec_cols;
     xSemaphoreGive(s_mtx);
+
+    stats_store();
 
     ESP_LOGI(TAG, "Aufzeichnung scharf, %u Messstellen, Zeichen: %s%s", (unsigned)n,
              quelle == REC_SRC_BURNER ? "Brennerzustand" : "Anstieg der Speichertemperatur",
@@ -251,6 +265,7 @@ void rec_stop(void)
     bool war_scharf = s_trig.phase == REC_TRIG_ARMED;
     bool lief = s_trig.phase == REC_TRIG_RUN;
     rec_trigger_stop(&s_trig);
+    s_stats.rec_armed = false;
     if (war_scharf) {
         /* Aufgezeichnet wurde noch nichts, der Speicher wird gleich frei. */
         free(s_rec);
@@ -261,6 +276,7 @@ void rec_stop(void)
         ESP_LOGI(TAG, "Aufzeichnung beendet, %u Zeilen", (unsigned)s_rec_len);
     }
     xSemaphoreGive(s_mtx);
+    stats_store();
 }
 
 /*
@@ -355,6 +371,7 @@ static void rec_tick(const rec_input_t *in, uint32_t t)
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_tin = *in;
     rec_trig_phase_t vorher = s_trig.phase;
+    bool fertig = false;
 
     if (rec_trigger_tick(&s_trig, in, &s_tcfg, t)) {
         rec_begin_locked();
@@ -363,8 +380,15 @@ static void rec_tick(const rec_input_t *in, uint32_t t)
                                                  : "Speichertemperatur steigt");
     } else if (vorher == REC_TRIG_RUN && s_trig.phase == REC_TRIG_DONE) {
         ESP_LOGI(TAG, "Ladung durch, Aufzeichnung beendet, %u Zeilen", (unsigned)s_rec_len);
+        fertig = true;
     }
     xSemaphoreGive(s_mtx);
+    if (fertig) {
+        /* Das Scharfsein ist verbraucht: Die Ladung steht im Speicher und
+         * will abgeholt werden, nicht ueberschrieben. */
+        s_stats.rec_armed = false;
+        stats_store();
+    }
 }
 
 void rec_get_status(rec_status_t *out)
@@ -442,6 +466,7 @@ static void apply_config(void)
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_cfg.delta_on_k = cfg.burner.delta_on_k;
     s_cfg.delta_off_k = cfg.burner.delta_off_k;
+    s_cfg.swing_k = cfg.burner.swing_k;
     s_cfg.on_hold_s = cfg.burner.on_hold_s;
     s_cfg.off_hold_s = cfg.burner.off_hold_s;
     s_cfg.duese_l_h = cfg.burner.duese_l_h;
@@ -464,6 +489,21 @@ static void burner_task(void *arg)
     s_st.runtime_today_s = s_stats.runtime_today_s;
     s_st.starts_today = s_stats.starts_today;
     xSemaphoreGive(s_mtx);
+
+    /*
+     * War die Aufzeichnung vor dem Neustart scharf, wird sie es wieder. Der
+     * Aufruf steht hier und nicht in burner_start: Er belegt den Puffer nach
+     * den vorhandenen Messstellen, und die stehen erst, wenn die
+     * Fuehlererfassung einmal durchgelaufen ist.
+     */
+    if (s_stats.rec_armed) {
+        vTaskDelay(pdMS_TO_TICKS(3000));
+        if (rec_arm() == ESP_OK) {
+            ESP_LOGW(TAG, "Aufzeichnung war scharf und ist es wieder");
+        } else {
+            ESP_LOGW(TAG, "Aufzeichnung liess sich nach dem Neustart nicht scharf schalten");
+        }
+    }
 
     static sens_snapshot_t snap;
     bool brenner_lief = false;
