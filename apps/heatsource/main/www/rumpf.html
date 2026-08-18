@@ -30,6 +30,9 @@
 .sc-pump.on .sc-pumpwing{fill:var(--heat); animation:puls 2s ease-in-out infinite}
 .sc-pump.on .sc-body{stroke:var(--heat)}
 .sc-pump:hover .sc-body{stroke:var(--accent)}
+.sc-pumpstate{font-size:11px; font-weight:600; fill:var(--muted);
+  font-family:var(--data); letter-spacing:.02em}
+.sc-pumpstate.on{fill:var(--heat)}
 .sc-pumphand{fill:var(--surface); stroke:var(--line-strong); stroke-width:1}
 .sc-pumpmark{fill:var(--muted); font:600 8px/1 var(--data)}
 @media (prefers-reduced-motion:reduce){.sc-pump.on .sc-pumpwing{animation:none}}
@@ -899,6 +902,13 @@ function renderSchema() {
       BP_GRUND[b.reason_key] || b.reason}`
       + ` · Betriebsart ${modus === "auto" ? "Automatik" : "Hand " + modus}`
       + ` — klicken zum Weiterschalten`;
+    /* Beschriftet wie alles andere im Schema. Farbe und Pulsen allein
+       verlangen, dass jemand den Unterschied kennt; „Pumpe läuft“ verlangt
+       das nicht. Eine Zeile, mittig in die einundzwanzig Pixel zwischen
+       Vorlaufwert und Rücklaufbeschriftung gesetzt und rechtsbündig vor dem
+       Speicher: Der Tank wird nach der Pumpe gezeichnet und schnitte sie sonst
+       ab. Den Handbetrieb zeigt die Marke am Symbol. */
+    const zustand = b.on ? "Pumpe läuft" : "Pumpe steht";
     return `<g class="sc-pump${b.on ? " on" : ""}" data-pump="1" style="cursor:pointer">
       <title>${titel}</title>
       <circle class="sc-body" cx="${cx}" cy="${cy}" r="14"/>
@@ -906,6 +916,8 @@ function renderSchema() {
       ${marke ? `<circle class="sc-pumphand" cx="${cx + 12}" cy="${cy - 11}" r="6"/>
                  <text class="sc-pumpmark" x="${cx + 12}" y="${cy - 8}"
                        text-anchor="middle">${marke}</text>` : ""}
+      <text class="sc-pumpstate ${b.on ? "on" : ""}" x="${cx + 16}" y="${cy + 33}"
+            text-anchor="end">${zustand}</text>
     </g>`;
   };
 
