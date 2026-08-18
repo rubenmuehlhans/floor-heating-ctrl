@@ -476,12 +476,13 @@ static void burner_task(void *arg)
             apply_config();
         }
 
-        float abgas = 0.0f;
-        bool gueltig = sensors_role_value(ROLE_ABGAS, &abgas, NULL);
+        burner_input_t bin = {0};
+        bin.abgas_valid = sensors_role_value(ROLE_ABGAS, &bin.abgas_c, NULL);
+        bool gueltig = bin.abgas_valid;
         uint32_t t = now_ms();
 
         xSemaphoreTake(s_mtx, portMAX_DELAY);
-        burner_tick(&s_st, &s_cfg, gueltig, abgas, t);
+        burner_tick(&s_st, &s_cfg, &bin, t);
         xSemaphoreGive(s_mtx);
 
         /*
@@ -611,6 +612,17 @@ static void burner_task(void *arg)
 }
 
 /* ------------------------------------------------------------------ */
+
+void burner_reset_today(void)
+{
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    burner_new_day(&s_st);
+    s_stats.runtime_today_s = 0;
+    s_stats.starts_today = 0;
+    xSemaphoreGive(s_mtx);
+    stats_store();
+    ESP_LOGW(TAG, "Laufzeit und Starts des Tages verworfen");
+}
 
 esp_err_t burner_start(void)
 {

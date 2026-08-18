@@ -84,11 +84,17 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
 
     /*
      * Zweipunktverhalten mit Haltezeit: Der Kessel gilt als abgebend, wenn der
-     * Vorlauf den Ruecklauf um on_k uebersteigt, und als aufnehmend, wenn er
+     * Vorlauf den Bezug um on_k uebersteigt, und als aufnehmend, wenn er
      * darunter faellt. Dazwischen bleibt es, wie es war -- sonst schaltete die
      * Pumpe im Minutentakt, wenn die Spreizung um null pendelt.
+     *
+     * Bezug ist die Speichertemperatur, ersatzweise der Ruecklauf. Bei
+     * stehender Pumpe fliesst nichts: Vor- und Ruecklauf gleichen sich der
+     * Kesseltemperatur an, ihre Differenz geht gegen null, und ein Kessel mit
+     * Restwaerme bliebe stehen, obwohl der Speicher kaelter ist.
      */
-    float spreizung = in->vl_c - in->rl_c;
+    float bezug = in->buffer_valid ? in->buffer_c : in->rl_c;
+    float spreizung = in->vl_c - bezug;
     bool transfer = st->on ? spreizung > cfg->off_k : spreizung >= cfg->on_k;
 
     if (transfer != st->cond_transfer || !st->started) {

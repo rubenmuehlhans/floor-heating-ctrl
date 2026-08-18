@@ -586,12 +586,78 @@ static void test_demand(void)
 static uint32_t brenner_laufen(burner_state_t *st, const burner_cfg_t *cfg, float abgas,
                                uint32_t von_ms, uint32_t dauer_s)
 {
+    burner_input_t in = {.abgas_valid = true, .abgas_c = abgas};
     uint32_t t = von_ms;
     for (uint32_t i = 0; i < dauer_s; i++) {
         t += 1000;
-        burner_tick(st, cfg, true, abgas, t);
+        burner_tick(st, cfg, &in, t);
     }
     return t;
+}
+
+
+static void test_burner_abfall(void)
+{
+    printf("Brenner: Ende am Abfall, mit den Zahlen der Anlage\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+    burner_init(&st);
+
+    /*
+     * Erste Fahrt der Anlage, kalter Start. Bezugslinie stellt sich auf das
+     * kalte Rohr ein.
+     */
+    uint32_t t = brenner_laufen(&st, &cfg, 30.5f, 1000, 3600);
+    CHECK(!st.running, "im kalten Stillstand laeuft nichts");
+
+    t = brenner_laufen(&st, &cfg, 65.1f, t, 120);
+    CHECK(st.running, "der Anlauf wird an der Bezugslinie erkannt");
+    t = brenner_laufen(&st, &cfg, 88.3f, t, 2400);
+    CHECK(st.running, "und haelt bis zum Hoechstwert");
+
+    /*
+     * Der Brenner geht aus. Das Abgas faellt, der Kessel bleibt mit 76 Grad
+     * heiss -- die Bezugslinie allein wuerde das nicht bemerken.
+     */
+    t = brenner_laufen(&st, &cfg, 69.0f, t, 200);
+    CHECK(st.running, "vor Ablauf der Haltezeit gilt er noch als laufend");
+    t = brenner_laufen(&st, &cfg, 52.1f, t, 200);
+    CHECK(!st.running, "nach fuenf Minuten ist er aus");
+
+    /* Und bleibt es, obwohl das Rohr bei warmem Kessel acht Kelvin ueber der
+     * Bezugslinie stehen bleibt. Genau hier lief die Zaehlung vier Stunden
+     * weiter, bevor der Abfall als Kriterium dazukam. */
+    t = brenner_laufen(&st, &cfg, 38.1f, t, 7200);
+    CHECK(!st.running, "auch zwei Stunden spaeter bei warmem Kessel");
+    uint32_t lauf = st.runtime_today_s;
+    CHECK(lauf > 2600 && lauf < 3200, "die Laufzeit betraegt %u s, nicht Stunden",
+          (unsigned)lauf);
+
+    /* Der zweite, kurze Start desselben Vormittags: Hoechstwert 47,7, danach
+     * 41,2 -- der Abfall beendet ihn, die Bezugslinie taete es nicht. */
+    t = brenner_laufen(&st, &cfg, 47.7f, t, 120);
+    CHECK(st.running, "ein kurzer Start wird erkannt");
+    CHECK(st.starts_today == 2, "und als zweiter gezaehlt, nicht als %u",
+          (unsigned)st.starts_today);
+    t = brenner_laufen(&st, &cfg, 41.2f, t, 400);
+    CHECK(!st.running, "und am Abfall wieder beendet");
+
+    /*
+     * Zweite Fahrt, warmer Start: Die Pumpe lief, der Kessel stand schon auf
+     * Speichertemperatur, das Rohr faengt bei 48 Grad an zu steigen. Ein
+     * Vergleich mit dem Kesselvorlauf haette hier nichts erkannt -- das Abgas
+     * lag waehrend des Brennens 17 bis 25 K darunter.
+     */
+    burner_init(&st);
+    t = brenner_laufen(&st, &cfg, 30.5f, 1000, 3600);
+    for (float a = 48.4f; a <= 78.0f; a += 1.5f) {
+        t = brenner_laufen(&st, &cfg, a, t, 20);
+    }
+    CHECK(st.running, "auch der warme Start wird erkannt");
+    t = brenner_laufen(&st, &cfg, 60.0f, t, 400);
+    CHECK(!st.running, "und sein Ende am Abfall ebenso");
 }
 
 static void test_burner_detect(void)
@@ -715,8 +781,9 @@ static void test_burner_no_probe(void)
     burner_state_t st;
     burner_init(&st);
 
+    burner_input_t leer = {0};
     for (uint32_t i = 0; i < 100; i++) {
-        burner_tick(&st, &cfg, false, 0.0f, 1000 + i * 1000);
+        burner_tick(&st, &cfg, &leer, 1000 + i * 1000);
     }
     CHECK(!st.known, "ohne Fuehler ist der Zustand unbekannt");
     CHECK(!st.running, "und es wird kein Lauf gemeldet");
@@ -1418,6 +1485,7 @@ static void test_plausi_probe(void)
 /* Kesselkreispumpe                                                    */
 /* ------------------------------------------------------------------ */
 
+/* Ohne Speicherwert -- dann gilt der Ruecklauf als Bezug. */
 static bp_input_t kessel(float vl, float rl)
 {
     bp_input_t in = {0};
@@ -1811,6 +1879,50 @@ static void test_flue_median(void)
     CHECK(fabsf(ra.now_k - 45.0f) < 0.01f, "bei gerader Anzahl %.1f statt 45", ra.now_k);
 }
 
+static void test_boilerpump_speicher(void)
+{
+    printf("Kesselkreispumpe: der Speicher ist der bessere Bezug\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /*
+     * Der Fall von der Anlage: Die Pumpe steht, der Kessel hat sich bei 75
+     * Grad ausgeglichen -- Vor- und Ruecklauf liegen aufeinander, die
+     * Spreizung sagt nichts. Der Speicher ist mit 71 Grad kaelter, es ist also
+     * noch Waerme abzuholen.
+     */
+    bp_input_t in = {.valid = true, .vl_c = 75.2f, .rl_c = 75.6f,
+                     .buffer_valid = true, .buffer_c = 71.3f};
+    for (uint32_t i = 0; i < 400; i++) {
+        t += 1000;
+        bp_tick(&st, &cfg, &in, t);
+    }
+    CHECK(st.on, "vier Kelvin ueber dem Speicher: die Pumpe laeuft an");
+
+    /* Ist der Speicher eingeholt, geht sie aus. */
+    in.buffer_c = 75.0f;
+    for (uint32_t i = 0; i < 600; i++) {
+        t += 1000;
+        bp_tick(&st, &cfg, &in, t);
+    }
+    CHECK(!st.on, "auf gleicher Hoehe steht sie wieder");
+
+    /* Ohne Speicherwert -- etwa weil das Nachbargeraet schweigt -- entscheidet
+     * wieder der Ruecklauf, und der sagt hier: nichts zu holen. */
+    bp_init(&st, BP_MODE_AUTO);
+    bp_input_t ohne = {.valid = true, .vl_c = 75.2f, .rl_c = 75.6f};
+    for (uint32_t i = 0; i < 400; i++) {
+        t += 1000;
+        bp_tick(&st, &cfg, &ohne, t);
+    }
+    CHECK(!st.on, "ohne Speicherwert bleibt es beim Ruecklauf");
+}
+
 static void test_boilerpump_takten(void)
 {
     printf("Kesselkreispumpe: kein Takten um den Nullpunkt\n");
@@ -1860,6 +1972,7 @@ int main(void)
     test_pump_seize();
     test_demand();
     test_burner_detect();
+    test_burner_abfall();
     test_burner_hysteresis();
     test_burner_baseline();
     test_burner_consumption();
@@ -1884,6 +1997,7 @@ int main(void)
     test_boilerpump();
     test_boilerpump_sicherheit();
     test_boilerpump_takten();
+    test_boilerpump_speicher();
     test_trend_gerade();
     test_trend_ausreisser();
     test_trend_grenzen();

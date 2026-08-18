@@ -1272,6 +1272,18 @@ static esp_err_t system_post(httpd_req_t *req)
         sensors_config_changed();
         return send_ok(req);
     }
+    /*
+     * Verwirft beide Protokolle und die Tageswerte des Brenners. Gebraucht,
+     * wenn die aufgezeichneten Zahlen aus einer Zeit mit falscher Erkennung
+     * stammen -- sie waeren sonst der Anfang der Verbrauchslinie.
+     */
+    if (strcmp(action, "clear-logs") == 0) {
+        applog_clear();
+        burner_reset_today();
+        analyse_poll();
+        ESP_LOGW(TAG, "Protokolle und Tageswerte verworfen");
+        return send_ok(req);
+    }
     return send_error(req, "404 Not Found", "Unbekannte Aktion");
 }
 

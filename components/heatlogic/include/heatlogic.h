@@ -141,27 +141,53 @@ void demand_evaluate(const demand_source_t *src, uint32_t count, uint32_t timeou
  * Der Fuehler sitzt aussen am Rohr und liefert ein gedaempftes, verzoegertes
  * Signal. Ein fester Schwellwert waere von der Raumtemperatur des
  * Heizungsraums abhaengig -- im Sommer stuende er zu tief, im Winter zu hoch.
- * Gemessen wird deshalb gegen eine gleitende Bezugslinie: das Minimum des
- * Abgasfuehlers ueber die letzten 24 Stunden. Das ist die Temperatur des
- * kalten Rohrs und wandert mit der Jahreszeit mit.
+ *
+ * Das Anlaufen wird an einer gleitenden Bezugslinie erkannt: dem Minimum des
+ * Abgasfuehlers ueber die letzten 24 Stunden, also der Temperatur des kalten
+ * Rohrs. Sie wandert mit der Jahreszeit mit und traegt fuer diese Richtung
+ * zuverlaessig.
+ *
+ * Fuer das Abschalten taugt sie nicht. Ein warmer Kessel haelt das Rohr
+ * dauerhaft sieben bis acht Kelvin ueber dem Nachtminimum -- der Brenner galt
+ * damit stundenlang als laufend, obwohl er es nicht war. Gemessen wird deshalb
+ * am Abfall: Das Abgas steigt, solange die Flamme brennt, und faellt sofort,
+ * wenn sie aus ist. Faellt es um swing_k unter den Hoechstwert dieser Fahrt,
+ * ist der Brenner aus; steigt es danach um swing_k ueber den Tiefstwert, laeuft
+ * er wieder.
+ *
+ * Ein Vergleich mit dem Kesselvorlauf waere naheliegend -- das Abgas ist nur
+ * waermer als das Wasser, solange es brennt -- und trug beim kalten Start auch.
+ * Bei laufender Pumpe steht der Kessel aber schon auf Speichertemperatur,
+ * waehrend das Rohr erst anfaengt, warm zu werden; dann liegt das Abgas
+ * waehrend des Brennens weit unter dem Vorlauf. Der Vergleich beschreibt also
+ * nur den kalten Start und wurde wieder verworfen.
  *
  * Die Haltezeiten unterscheiden einen Brennerlauf von einer Stoerung im
  * Messwert. Sie sind unsymmetrisch: das Anlaufen soll rasch erkannt werden,
  * das Abschalten erst, wenn das Rohr wirklich abkuehlt.
  */
 typedef struct {
-    float delta_on_k;    /* ueber der Bezugslinie gilt der Brenner als laufend */
-    float delta_off_k;   /* darunter als aus */
+    float delta_on_k;    /* so weit ueber der Bezugslinie gilt er als laufend */
+    float delta_off_k;   /* so weit darueber gilt er wieder als aus */
+    /* So weit unter dem Hoechstwert der Fahrt gilt er als aus -- und so weit
+     * ueber dem Tiefstwert danach wieder als angelaufen. */
+    float swing_k;
     uint32_t on_hold_s;  /* so lange muss die Bedingung anhalten */
     uint32_t off_hold_s;
     float duese_l_h;     /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */
 } burner_cfg_t;
 
 typedef struct {
+    bool abgas_valid;
+    float abgas_c;
+} burner_input_t;
+
+typedef struct {
     bool known;          /* ein Abgaswert liegt vor */
     bool running;
     float baseline_c;    /* gleitende Bezugslinie */
     float abgas_c;
+    float extreme_c;     /* Hoechst- bzw. Tiefstwert seit dem letzten Wechsel */
     uint32_t since_ms;   /* letzter Zustandswechsel */
 
     /* Tageswerte. Sie werden von der Anwendung zum Tageswechsel gesichert und
@@ -179,17 +205,17 @@ typedef struct {
     uint32_t runtime_rest_ms; /* angebrochene Sekunde der Laufzeit */
 } burner_state_t;
 
-/* Vorgabe: 12 K ein, 6 K aus, 60 s und 300 s Haltezeit, 2,2 l/h. */
+/* Vorgabe: 12 K ueber der Bezugslinie ein, 6 K aus, 6 K Ausschlag gegen den
+ * Extremwert, 60 s und 300 s Haltezeit, 2,2 l/h. */
 void burner_defaults(burner_cfg_t *cfg);
 
 void burner_init(burner_state_t *st);
 
 /*
- * Ein Rechenschritt. abgas_valid ist false, wenn kein Abgasfuehler zugeordnet
- * ist oder sein Wert fehlt -- dann bleibt der Zustand stehen und known ist
- * falsch.
+ * Ein Rechenschritt. Ohne gueltigen Abgaswert bleibt der Zustand stehen und
+ * known ist falsch.
  */
-void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, float abgas_c,
+void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, const burner_input_t *in,
                  uint32_t now_ms);
 
 /* Verbrauchsschaetzung des Tages in Litern. */

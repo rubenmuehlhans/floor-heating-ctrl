@@ -110,6 +110,7 @@ void cfg_defaults(app_config_t *out)
     /* Dieselben Vorgaben wie in components/heatlogic. */
     out->burner.delta_on_k = 12.0f;
     out->burner.delta_off_k = 6.0f;
+    out->burner.swing_k = 6.0f;
     out->burner.on_hold_s = 60;
     out->burner.off_hold_s = 300;
     out->burner.duese_l_h = 2.2f;
@@ -296,6 +297,9 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         if (bp->hold_s > 3600 || bp->min_run_s > 3600 || bp->min_pause_s > 3600) {
             FEHLER("Zeiten der Kesselkreispumpe duerfen hoechstens eine Stunde betragen");
         }
+    }
+    if (cfg->burner.swing_k < 1.0f || cfg->burner.swing_k > 60.0f) {
+        FEHLER("Ausschlag der Brennererkennung muss zwischen 1 und 60 Kelvin liegen");
     }
     if (cfg->burner.delta_on_k <= cfg->burner.delta_off_k) {
         FEHLER("Die Einschaltschwelle des Brenners muss ueber der Ausschaltschwelle liegen");
@@ -486,6 +490,7 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON *b = cJSON_AddObjectToObject(root, "burner");
     cJSON_AddNumberToObject(b, "delta_on_k", cfg->burner.delta_on_k);
     cJSON_AddNumberToObject(b, "delta_off_k", cfg->burner.delta_off_k);
+    cJSON_AddNumberToObject(b, "swing_k", cfg->burner.swing_k);
     cJSON_AddNumberToObject(b, "on_hold_s", cfg->burner.on_hold_s);
     cJSON_AddNumberToObject(b, "off_hold_s", cfg->burner.off_hold_s);
     cJSON_AddNumberToObject(b, "duese_l_h", cfg->burner.duese_l_h);
@@ -732,6 +737,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
     if (cJSON_IsObject(b)) {
         out->burner.delta_on_k = (float)cfgjson_num(b, "delta_on_k", out->burner.delta_on_k);
         out->burner.delta_off_k = (float)cfgjson_num(b, "delta_off_k", out->burner.delta_off_k);
+        out->burner.swing_k = (float)cfgjson_num(b, "swing_k", out->burner.swing_k);
         out->burner.on_hold_s = (uint16_t)cfgjson_num(b, "on_hold_s", out->burner.on_hold_s);
         out->burner.off_hold_s = (uint16_t)cfgjson_num(b, "off_hold_s", out->burner.off_hold_s);
         out->burner.duese_l_h = (float)cfgjson_num(b, "duese_l_h", out->burner.duese_l_h);

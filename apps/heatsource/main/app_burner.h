@@ -88,6 +88,14 @@ typedef struct {
 esp_err_t burner_start(void);
 void burner_config_changed(void);
 void burner_get(burner_status_t *out);
+
+/*
+ * Verwirft Laufzeit und Startzahl des laufenden Tages, im Arbeitsspeicher wie
+ * im Flash. Gedacht fuer den Fall, dass die Zahlen aus einer Zeit mit falscher
+ * Erkennung stammen: Sie wandern sonst zum Tageswechsel ins Tagesprotokoll und
+ * von dort in die Verbrauchslinie.
+ */
+void burner_reset_today(void);
 void charge_get(charge_status_t *out);
 
 /* Aufzeichnung einer Ladung. */

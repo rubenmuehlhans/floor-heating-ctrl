@@ -144,6 +144,9 @@ typedef struct {
 typedef struct {
     float delta_on_k;
     float delta_off_k;
+    /* Ausschlag gegen den Extremwert: so weit unter dem Hoechstwert gilt der
+     * Brenner als aus, so weit ueber dem Tiefstwert wieder als angelaufen. */
+    float swing_k;
     uint16_t on_hold_s;
     uint16_t off_hold_s;
     float duese_l_h;      /* Duesendurchsatz, 0 = keine Verbrauchsschaetzung */

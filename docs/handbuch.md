@@ -468,9 +468,14 @@ Die Pumpe zwischen Kessel und Pufferspeicher wird am **Gerät am Kessel** einger
 **Heizkreise → Kesselkreispumpe**. Geschaltet wird sie wie die Heizkreispumpen über ein
 Tasmota-Relais, über MQTT oder unmittelbar über HTTP.
 
-Sie läuft, solange der Kesselvorlauf wärmer ist als der Rücklauf aus dem Speicher — nur dann
-gibt der Kessel Wärme ab. Kehrt sich das um, fördert dieselbe Pumpe Wärme aus dem Speicher in
-den Kessel, und von dort geht sie durch den Schornstein verloren.
+Sie läuft, solange der Kesselvorlauf wärmer ist als der Pufferspeicher — nur dann gibt der
+Kessel Wärme ab. Kehrt sich das um, fördert dieselbe Pumpe Wärme aus dem Speicher in den
+Kessel, und von dort geht sie durch den Schornstein verloren.
+
+Verglichen wird mit der Speichertemperatur, ersatzweise mit dem eigenen Rücklauf. Bei laufender
+Pumpe sind beide fast dasselbe, weil der Rücklauf aus dem Speicher kommt. Steht sie, fließt
+nichts: Vor- und Rücklauf nehmen dann beide die Temperatur des Kesselkörpers an, ihre Differenz
+geht gegen null, und ein Kessel mit Restwärme bliebe stehen, obwohl der Speicher kälter ist.
 
 Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
 Speicher abkühlen. Sie springt an, sobald der Vorlauf den Rücklauf überholt — das ist zugleich
@@ -770,12 +775,13 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | | Zeitgrenze | 180 s |
 | | Schwelle | 5 % Ventilstellung |
 | Brenner | Ein / Aus | 12 K / 6 K über dem kalten Rohr |
+| | Ausschlag gegen den Extremwert | 6 K |
 | | Haltezeit ein / aus | 60 s / 300 s |
 | | Düsendurchsatz | 2,2 l/h |
 | Speicher | Spreizung „geladen" | 8 K über 5 min |
 | | voll / leer | 62 °C / 35 °C |
 | | Warnung Warmwasser | 40 °C |
-| Kesselkreispumpe | Ein ab Spreizung / Aus unter | 1,0 K / 0,5 K |
+| Kesselkreispumpe | Ein / Aus über dem Speicher | 1,0 K / 0,5 K |
 | | Haltezeit | 120 s |
 | | Mindestlaufzeit, Mindestpause | je 180 s |
 | | Notgrenze | 85 °C |
@@ -808,6 +814,7 @@ POST    /api/system/seize-all   dasselbe, auch die zwischenzeitlich gefahrenen
 POST    /api/system/seize-abort offene Kreise streichen
 POST    /api/system/restart     Neustart
 POST    /api/system/factory     auf Werksvorgabe zuruecksetzen
+POST    /api/system/clear-logs  Protokolle und Tageswerte verwerfen
 POST    /api/ota                Firmware einspielen
 ```
 
@@ -854,7 +861,8 @@ GET     /api/log/days           Tagesprotokoll als CSV
 | **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, über den Tag gemittelt. Ohne diese Größe ist Verbrauch nicht vergleichbar. |
 | **Nachlauf** | Zeit, die eine Pumpe nach dem letzten Bedarf weiterläuft, um die Restwärme abzuführen. |
 | **Schutzlauf** | Kurzer Lauf nach langer Standzeit, damit die Pumpe nicht festsitzt. |
-| **Bezugslinie** | Das Minimum des Abgasfühlers über 24 Stunden: die Temperatur des kalten Rohrs. |
+| **Bezugslinie** | Das Minimum des Abgasfühlers über 24 Stunden: die Temperatur des kalten Rohrs. Sie erkennt das Anlaufen des Brenners. |
+| **Ausschlag** | Wie weit das Abgas gegen den Höchst- beziehungsweise Tiefstwert seit dem letzten Wechsel ausschlägt. Daran wird das Ende eines Brennerlaufs erkannt — die Bezugslinie kann das nicht, weil ein warmer Kessel das Rohr dauerhaft über ihr hält. |
 | **Spreizung** | Vorlauf minus Rücklauf. Am Kessel zeigt sie den Ladefortschritt, am Heizkreis die Wärmeabgabe. |
 
 ### Stand der Erprobung

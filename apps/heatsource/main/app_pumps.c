@@ -649,6 +649,13 @@ static void evaluate(uint32_t t)
     float bvl = 0.0f, brl = 0.0f;
     bin.valid = sensors_role_value(ROLE_KESSEL_VL, &bvl, NULL) &&
                 sensors_role_value(ROLE_KESSEL_RL, &brl, NULL);
+    /*
+     * Die Speichertemperatur darf hier vom Nachbargeraet kommen: Sie ist der
+     * Bezug, gegen den entschieden wird, und faellt sie aus, greift der
+     * Ruecklauf. Anders als die beiden Kesselfuehler ist sie damit keine
+     * Vorbedingung -- die Regelung steht auch ohne sie.
+     */
+    bin.buffer_valid = any_role_value(ROLE_PUFFER, &bin.buffer_c, NULL);
     bin.vl_c = bvl;
     bin.rl_c = brl;
 

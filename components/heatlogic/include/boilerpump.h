@@ -18,6 +18,11 @@
  *     ganz gleich was die Spreizung sagt. Ein Fuehler, der klemmt, darf die
  *     Waermeabfuhr nicht verhindern.
  *
+ * Verglichen wird der Kesselvorlauf mit der Speichertemperatur, ersatzweise
+ * mit dem eigenen Ruecklauf. Waehrend die Pumpe laeuft, sind beide fast
+ * dasselbe -- der Ruecklauf kommt aus dem Speicher. Steht sie, gehen sie
+ * auseinander, und nur der Speicher taugt dann noch als Bezug.
+ *
  * Beim Anlaufen des Brenners steht die Pumpe zunaechst: Der kalte Kessel
  * wuerde sonst den warmen Speicher abkuehlen. Sie springt an, sobald der
  * Vorlauf den Ruecklauf ueberholt -- das ist zugleich die Ruecklaufanhebung,
@@ -72,6 +77,16 @@ typedef struct {
 typedef struct {
     bool valid;            /* beide Kesselfuehler liefern */
     float vl_c, rl_c;
+    /*
+     * Speichertemperatur, wenn sie vorliegt. Sie ist der bessere Bezug: Bei
+     * stehender Pumpe fliesst nichts, Vor- und Ruecklauf nehmen beide die
+     * Temperatur des Kesselkoerpers an, und die Spreizung sagt dann nichts
+     * mehr. Ein Kessel, der noch Waerme haelt, bliebe so unbemerkt stehen.
+     * Faellt der Wert aus -- er kommt vom Nachbargeraet --, gilt wieder der
+     * Ruecklauf.
+     */
+    bool buffer_valid;
+    float buffer_c;
 } bp_input_t;
 
 typedef struct {

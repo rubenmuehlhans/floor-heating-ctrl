@@ -217,6 +217,14 @@ void demand_evaluate(const demand_source_t *src, uint32_t count, uint32_t timeou
 
 void burner_defaults(burner_cfg_t *cfg)
 {
+    /*
+     * Sechs Kelvin Ausschlag in beide Richtungen. An der Anlage gemessen:
+     * waehrend des Brennens steigt das Abgas durchgehend, nach dem Aus faellt
+     * es binnen zehn Minuten um zwanzig Kelvin. Ein kurzer Start mit
+     * Hoechstwert 47,7 fiel im naechsten Zehnminutenwert auf 41,2 und stieg
+     * zuvor von 38,1 an -- beide Wechsel liegen ueber sechs Kelvin.
+     */
+    cfg->swing_k = 6.0f;
     cfg->delta_on_k = 12.0f;
     cfg->delta_off_k = 6.0f;
     cfg->on_hold_s = 60;
@@ -243,9 +251,12 @@ float burner_litres_today(const burner_state_t *st, const burner_cfg_t *cfg)
     return (float)st->runtime_today_s / 3600.0f * cfg->duese_l_h;
 }
 
-void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, float abgas_c,
+void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, const burner_input_t *in,
                  uint32_t now_ms)
 {
+    bool abgas_valid = in->abgas_valid;
+    float abgas_c = in->abgas_c;
+
     if (!abgas_valid) {
         st->known = false;
         st->last_ms = now_ms;
@@ -256,6 +267,7 @@ void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, 
         st->started = true;
         st->min_seen_c = abgas_c;
         st->baseline_c = abgas_c;
+        st->extreme_c = abgas_c;
         st->window_ms = now_ms;
         st->since_ms = now_ms;
         st->cond_since_ms = now_ms;
@@ -289,8 +301,32 @@ void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, 
         st->baseline_c = st->min_seen_c;
     }
 
-    bool bedingung = st->running ? (abgas_c < st->baseline_c + cfg->delta_off_k)
-                                 : (abgas_c > st->baseline_c + cfg->delta_on_k);
+    /*
+     * Extremwert seit dem letzten Wechsel: waehrend des Brennens der hoechste
+     * Abgaswert, danach der tiefste. Er ist der Bezug fuer beide Richtungen.
+     */
+    if (st->running ? abgas_c > st->extreme_c : abgas_c < st->extreme_c) {
+        st->extreme_c = abgas_c;
+    }
+
+    /*
+     * Gemessen wird an der Bewegung, nicht an der Hoehe.
+     *
+     * Aus, wenn das Abgas um swing_k unter den Hoechstwert der Fahrt faellt --
+     * die Flamme ist dann aus, gleich wie warm der Kessel noch ist. Die
+     * Bezugslinie steht daneben fuer den Fall, dass der Hoechstwert von einer
+     * Stoerung stammt und der Abfall deshalb ausbleibt.
+     *
+     * Ein, wenn es um swing_k ueber den Tiefstwert steigt und dabei ueber der
+     * Bezugslinie liegt. Der Anstieg ist noetig, weil das Rohr nach dem
+     * Abschalten noch lange ueber der Einschaltschwelle steht: Ohne ihn
+     * meldete die Erkennung im selben Atemzug den naechsten Start.
+     */
+    bool bedingung = st->running
+        ? (abgas_c < st->baseline_c + cfg->delta_off_k ||
+           abgas_c < st->extreme_c - cfg->swing_k)
+        : (abgas_c > st->baseline_c + cfg->delta_on_k &&
+           abgas_c > st->extreme_c + cfg->swing_k);
 
     if (bedingung != st->cond) {
         st->cond = bedingung;
@@ -308,6 +344,7 @@ void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, bool abgas_valid, 
     uint32_t haltezeit = st->running ? cfg->off_hold_s : cfg->on_hold_s;
     if (bedingung && (now_ms - st->cond_since_ms) >= haltezeit * 1000UL) {
         st->running = !st->running;
+        st->extreme_c = abgas_c; /* der Bezug beginnt mit dem Wechsel neu */
         st->since_ms = now_ms;
         st->cond = false;
         st->cond_since_ms = now_ms;
