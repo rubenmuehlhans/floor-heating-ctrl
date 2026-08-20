@@ -660,6 +660,71 @@ static void test_burner_abfall(void)
     CHECK(!st.running, "und sein Ende am Abfall ebenso");
 }
 
+static void test_charge_leer_lernen(void)
+{
+    printf("Ladezustand: Nullpunkt am Brennerstart messen\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);
+    charge_state_t st;
+    charge_init(&st);
+    uint32_t t = 1000;
+
+    charge_input_t in = {0};
+    in.burner_known = true;
+    in.kessel_valid = true;
+    in.kessel_vl_c = 40.0f;
+    in.kessel_rl_c = 30.0f;
+    in.puffer_valid = true;
+
+    /* Der Speicher ist voll und wird abgezapft. */
+    for (float p = 68.0f; p >= 52.0f; p -= 1.0f) {
+        in.puffer_c = p;
+        t += 1000;
+        charge_tick(&st, &cfg, &in, t);
+    }
+    CHECK(!st.learn_valid, "ohne Brennerstart gibt es keinen Messpunkt");
+
+    /* Der Kessel laeuft von selbst an: hier ist der Speicher leer. */
+    in.burner_running = true;
+    t += 1000;
+    charge_tick(&st, &cfg, &in, t);
+    CHECK(st.learn_valid, "der Start liefert einen Messpunkt");
+    CHECK(fabsf(st.learn_c - 52.0f) < 0.01f, "und zwar %.1f statt 52,0", st.learn_c);
+    uint32_t erste = st.learn_seq;
+
+    /* Ladung, danach ein Start ohne nennenswerten Verbrauch: taktender
+     * Betrieb darf den Nullpunkt nicht nach oben ziehen. */
+    for (float p = 52.0f; p <= 66.0f; p += 1.0f) {
+        in.puffer_c = p;
+        t += 1000;
+        charge_tick(&st, &cfg, &in, t);
+    }
+    in.burner_running = false;
+    t += 1000;
+    charge_tick(&st, &cfg, &in, t);
+    in.puffer_c = 65.0f;          /* nur ein Kelvin gefallen */
+    in.burner_running = true;
+    t += 1000;
+    charge_tick(&st, &cfg, &in, t);
+    CHECK(st.learn_seq == erste, "ein Start nach einem Kelvin Abfall zaehlt nicht");
+
+    /* Nach echtem Verbrauch dagegen schon. */
+    in.burner_running = false;
+    t += 1000;
+    charge_tick(&st, &cfg, &in, t);
+    for (float p = 65.0f; p >= 48.0f; p -= 1.0f) {
+        in.puffer_c = p;
+        t += 1000;
+        charge_tick(&st, &cfg, &in, t);
+    }
+    in.burner_running = true;
+    t += 1000;
+    charge_tick(&st, &cfg, &in, t);
+    CHECK(st.learn_seq == erste + 1, "nach siebzehn Kelvin Abfall aber schon");
+    CHECK(fabsf(st.learn_c - 48.0f) < 0.01f, "Messpunkt %.1f statt 48,0", st.learn_c);
+}
+
 static void test_burner_detect(void)
 {
     printf("Brenner: Erkennung\n");
@@ -1973,6 +2038,7 @@ int main(void)
     test_demand();
     test_burner_detect();
     test_burner_abfall();
+    test_charge_leer_lernen();
     test_burner_hysteresis();
     test_burner_baseline();
     test_burner_consumption();

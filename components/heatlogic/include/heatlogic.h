@@ -248,6 +248,20 @@ typedef struct {
     float leer_c;           /* Pufferwert, der 0 Prozent entspricht */
     float warn_c;           /* darunter wird das Warmwasser knapp */
     float kessel_hot_c;     /* darueber gilt der Kesselvorlauf als heiss */
+    /*
+     * Kalibrierung des leeren Speichers.
+     *
+     * Wann der Speicher leer genug ist, entscheidet die Regelung des Kessels:
+     * Sie laesst den Brenner anlaufen. Der Pufferwert in genau diesem
+     * Augenblick ist damit der brauchbarste Nullpunkt, den die Anlage
+     * hergibt -- besser als ein geschaetzter Festwert.
+     *
+     * Gezaehlt wird nur ein Start nach echtem Verbrauch: Der Speicher muss
+     * seit seinem letzten Hoechstwert um lern_drop_k gefallen sein. Ohne diese
+     * Bedingung zoege ein Start kurz nach einer Ladung -- taktender Betrieb,
+     * Warmwasserzapfung -- den Nullpunkt nach oben.
+     */
+    float lern_drop_k;
 } charge_cfg_t;
 
 typedef enum {
@@ -283,10 +297,17 @@ typedef struct {
     uint32_t cond_since_ms;
     bool last_burner_running;
     bool had_burner;
+
+    /* Kalibrierung. */
+    float puffer_peak_c;   /* Hoechstwert seit dem letzten Messpunkt */
+    bool peak_have;
+    bool learn_valid;      /* ein Messpunkt liegt vor */
+    float learn_c;         /* Pufferwert beim letzten gewerteten Brennerstart */
+    uint32_t learn_seq;    /* zaehlt die Messpunkte, damit die Anwendung neue erkennt */
 } charge_state_t;
 
 /* Vorgabe: 8 K Spreizung, 5 min Haltezeit, 62/35 Grad, Warnung unter 40,
- * Kesselvorlauf ab 60 Grad als heiss. */
+ * Kesselvorlauf ab 60 Grad als heiss, 3 K Abfall fuer einen Messpunkt. */
 void charge_defaults(charge_cfg_t *cfg);
 void charge_init(charge_state_t *st);
 void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input_t *in,

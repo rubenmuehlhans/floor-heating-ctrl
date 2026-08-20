@@ -476,7 +476,51 @@ static void apply_config(void)
     s_ccfg.leer_c = cfg.buffer.leer_c;
     s_ccfg.warn_c = cfg.buffer.warn_c;
     s_ccfg.kessel_hot_c = cfg.buffer.kessel_hot_c;
+    s_ccfg.lern_drop_k = cfg.buffer.lern_drop_k;
     xSemaphoreGive(s_mtx);
+}
+
+/* Anteil, mit dem ein Messpunkt den Nullpunkt verschiebt. Nicht eins: Ein
+ * einzelner Start nach ungewoehnlichem Verbrauch soll den Bezug nicht
+ * verreissen, mehrere gleichartige Starts sollen ihn aber zuegig erreichen. */
+#define LEER_ANTEIL 0.4f
+
+static uint32_t s_learn_seq;
+
+/*
+ * Zieht den Nullpunkt des Fuellstands an einen Messpunkt heran und sichert ihn.
+ * Der Messpunkt ist der Pufferwert in dem Augenblick, in dem der Kessel von
+ * selbst angelaufen ist -- dort ist der Speicher aus Sicht der Anlage leer.
+ */
+static void leer_nachziehen(float messpunkt)
+{
+    static app_config_t cfg;
+    cfg_copy(&cfg);
+    if (!cfg.buffer.leer_lernen) {
+        return;
+    }
+    /* Jenseits dessen stimmt etwas anderes nicht; ein solcher Punkt taugt
+     * nicht als Bezug. */
+    if (messpunkt < 15.0f || messpunkt > cfg.buffer.voll_c - 5.0f) {
+        ESP_LOGW(TAG, "Messpunkt %.1f Grad liegt ausserhalb, nicht uebernommen", messpunkt);
+        return;
+    }
+
+    float alt = cfg.buffer.leer_c;
+    float neu = alt + LEER_ANTEIL * (messpunkt - alt);
+    if (neu < 15.0f) {
+        neu = 15.0f;
+    }
+    cfg.buffer.leer_c = neu;
+    cfg.buffer.leer_epoch = (uint32_t)time(NULL);
+
+    char err[96] = {0};
+    if (cfg_set(&cfg, err, sizeof(err)) != ESP_OK) {
+        ESP_LOGW(TAG, "Kalibrierung nicht gespeichert: %s", err);
+        return;
+    }
+    ESP_LOGW(TAG, "Speicher leer bei %.1f Grad gemessen, Nullpunkt %.1f -> %.1f",
+             messpunkt, alt, neu);
 }
 
 static void burner_task(void *arg)
@@ -564,7 +608,14 @@ static void burner_task(void *arg)
         s_kessel_remote = cin.kessel_valid && !(eigen_vl && eigen_rl);
         s_puffer_remote = cin.puffer_valid && !eigen_puffer;
         charge_tick(&s_cst, &s_ccfg, &cin, t);
+        bool neuer_punkt = s_cst.learn_valid && s_cst.learn_seq != s_learn_seq;
+        float messpunkt = s_cst.learn_c;
+        s_learn_seq = s_cst.learn_seq;
         xSemaphoreGive(s_mtx);
+
+        if (neuer_punkt) {
+            leer_nachziehen(messpunkt);
+        }
 
         /* Scharf geschaltet beginnt die Aufzeichnung von selbst und endet
          * auch von selbst. */

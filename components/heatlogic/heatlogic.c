@@ -366,6 +366,7 @@ void charge_defaults(charge_cfg_t *cfg)
     cfg->leer_c = 35.0f;
     cfg->warn_c = 40.0f;
     cfg->kessel_hot_c = 60.0f;
+    cfg->lern_drop_k = 3.0f;
 }
 
 void charge_init(charge_state_t *st)
@@ -437,6 +438,26 @@ void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input
     }
 
     st->had_burner = true;
+
+    /*
+     * Messpunkt fuer den leeren Speicher: der Pufferwert im Augenblick, in dem
+     * der Brenner anlaeuft. Gewertet nur, wenn der Speicher seit seinem
+     * Hoechstwert um lern_drop_k gefallen ist -- sonst stammt der Start nicht
+     * aus Verbrauch, sondern aus Takten.
+     */
+    if (in->puffer_valid) {
+        if (!st->peak_have || in->puffer_c > st->puffer_peak_c) {
+            st->puffer_peak_c = in->puffer_c;
+            st->peak_have = true;
+        }
+        if (in->burner_running && !st->last_burner_running &&
+            st->puffer_peak_c - in->puffer_c >= cfg->lern_drop_k) {
+            st->learn_c = in->puffer_c;
+            st->learn_valid = true;
+            st->learn_seq++;
+            st->puffer_peak_c = in->puffer_c; /* der naechste Punkt zaehlt ab hier */
+        }
+    }
 
     if (in->burner_running) {
         /*

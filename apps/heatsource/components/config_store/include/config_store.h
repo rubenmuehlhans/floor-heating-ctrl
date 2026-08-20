@@ -166,6 +166,16 @@ typedef struct {
     float leer_c;          /* Pufferwert fuer 0 Prozent */
     float warn_c;          /* darunter wird das Warmwasser knapp */
     float kessel_hot_c;    /* darueber gilt der Kesselvorlauf als heiss */
+    /*
+     * Kalibrierung des leeren Speichers. Wann er leer genug ist, entscheidet
+     * die Regelung des Kessels, indem sie den Brenner anlaufen laesst -- der
+     * Pufferwert in diesem Augenblick ist der brauchbarste Nullpunkt, den die
+     * Anlage hergibt. leer_c wird dann nachgezogen; die letzte Kalibrierung
+     * steht in leer_epoch.
+     */
+    bool leer_lernen;
+    float lern_drop_k;     /* so weit muss der Speicher vorher gefallen sein */
+    uint32_t leer_epoch;   /* Zeitpunkt der letzten Kalibrierung, 0 = nie */
 } cfg_buffer_t;
 
 typedef struct {
