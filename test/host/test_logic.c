@@ -725,6 +725,61 @@ static void test_charge_leer_lernen(void)
     CHECK(fabsf(st.learn_c - 48.0f) < 0.01f, "Messpunkt %.1f statt 48,0", st.learn_c);
 }
 
+static void test_charge_kaltstart(void)
+{
+    printf("Ladezustand: der kalte Anlauf ist keine fertige Ladung\n");
+
+    charge_cfg_t cfg;
+    charge_defaults(&cfg);
+    charge_state_t st;
+    charge_init(&st);
+    uint32_t t = 1000;
+
+    charge_input_t in = {0};
+    in.burner_known = true;
+    in.burner_running = true;
+    in.kessel_valid = true;
+    in.puffer_valid = true;
+    in.puffer_c = 51.3f;
+
+    /*
+     * Die ersten vierhundert Sekunden der Ladung vom 20. August, aus dem
+     * Mitschnitt: kalter Kessel, Vor- und Ruecklauf dicht beieinander, weil
+     * beide kalt sind. Die Haltezeit fuer "geladen" betraegt dreihundert
+     * Sekunden -- ohne die Bedingung an den Vorlauf sprang die Phase hier um.
+     */
+    const float vl[] = {28.0f, 28.1f, 28.2f, 28.4f, 28.5f, 39.5f, 52.5f};
+    const float rl[] = {29.3f, 29.3f, 29.3f, 29.3f, 29.4f, 37.8f, 46.1f};
+    for (size_t k = 0; k < sizeof(vl) / sizeof(vl[0]); k++) {
+        in.kessel_vl_c = vl[k];
+        in.kessel_rl_c = rl[k];
+        for (int i = 0; i < 60; i++) {
+            t += 1000;
+            charge_tick(&st, &cfg, &in, t);
+        }
+    }
+    CHECK(st.phase == CHARGE_LOADING, "nach sieben Minuten wird geladen, nicht \"%s\"",
+          charge_phase_text(st.phase));
+
+    /* Der Kessel kommt auf Temperatur, der Speicher nimmt auf. */
+    in.kessel_vl_c = 82.3f;
+    in.kessel_rl_c = 50.5f;
+    for (int i = 0; i < 600; i++) {
+        t += 1000;
+        charge_tick(&st, &cfg, &in, t);
+    }
+    CHECK(st.phase == CHARGE_LOADING, "auch bei grosser Spreizung wird geladen");
+
+    /* Erst wenn der Ruecklauf bei heissem Vorlauf aufholt, ist er voll. */
+    in.kessel_rl_c = 76.0f;
+    for (int i = 0; i < 400; i++) {
+        t += 1000;
+        charge_tick(&st, &cfg, &in, t);
+    }
+    CHECK(st.phase == CHARGE_FULL, "dann ist er geladen, nicht \"%s\"",
+          charge_phase_text(st.phase));
+}
+
 static void test_burner_detect(void)
 {
     printf("Brenner: Erkennung\n");
@@ -2039,6 +2094,7 @@ int main(void)
     test_burner_detect();
     test_burner_abfall();
     test_charge_leer_lernen();
+    test_charge_kaltstart();
     test_burner_hysteresis();
     test_burner_baseline();
     test_burner_consumption();

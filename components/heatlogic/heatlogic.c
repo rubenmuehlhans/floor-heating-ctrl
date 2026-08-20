@@ -462,10 +462,19 @@ void charge_tick(charge_state_t *st, const charge_cfg_t *cfg, const charge_input
     if (in->burner_running) {
         /*
          * Der Ruecklauf naehert sich dem Vorlauf: der Speicher nimmt keine
-         * Waerme mehr auf. Die Haltezeit trennt das vom kurzen Angleichen
-         * beim Anfahren, wenn der ganze Kessel noch kalt ist.
+         * Waerme mehr auf.
+         *
+         * Verlangt wird dazu ein heisser Vorlauf. Beim Anfahren aus dem kalten
+         * Kessel liegen Vor- und Ruecklauf naemlich ebenfalls dicht beieinander
+         * -- beide sind schlicht kalt --, und die Haltezeit allein trennt das
+         * nicht: An dieser Anlage gemessen blieb die Spreizung nach dem Start
+         * vierhundert Sekunden unter acht Kelvin, waehrend die Haltezeit
+         * dreihundert betraegt. Die Phase sprang damit auf "geladen", bevor der
+         * Speicher ueberhaupt etwas bekommen hatte. In denselben vierhundert
+         * Sekunden ueberschritt der Vorlauf nie sechzig Grad.
          */
-        bool eng = st->spread_k < cfg->spread_full_k;
+        bool eng = st->spread_k < cfg->spread_full_k &&
+                   in->kessel_vl_c > cfg->kessel_hot_c;
         if (eng != st->cond) {
             st->cond = eng;
             st->cond_since_ms = now_ms;
