@@ -151,9 +151,18 @@ warmes Wasser mehr durchgeht; ein Messwert wird dafür nicht gebraucht.
 
 Etwas anderes ist ein Raum **ohne gültigen Messwert** — kein Thermometer zugeordnet oder die
 Batterie leer. Dort setzt die Regelung aus und lässt die Ventile stehen, wo sie sind: Auf einen
-fehlenden Wert zu regeln wäre schlechter. Solche Kanäle zählen aber nicht als Wärmebedarf, auch
-wenn sie offen stehen — sonst ließe ein Ventil, das niemand zufährt, die Umwälzpumpe im Sommer
-durchlaufen. Von Hand geöffnete Ventile zählen weiterhin: Das ist eine Absicht.
+fehlenden Wert zu regeln wäre schlechter.
+
+**Kein Bedarf ohne Regelung.** Wärmebedarf meldet ein Verteiler nur für Kreise, die auch geregelt
+werden — Raum eingeschaltet und Messwert vorhanden. Ein Ventil, das offen steht, weil es niemand
+zufährt, ist kein Abnehmer; sonst ließe es die Umwälzpumpe im Sommer durchlaufen. Von Hand
+geöffnete Ventile zählen weiterhin, das ist eine Absicht.
+
+**Kreise ohne Raum fahren zu.** Ein Kreis, der keinem Raum zugeordnet ist, hat niemanden, der ihn
+anfährt — nach dem ersten Start steht er sogar auf Anschlag offen, weil unbekannte Stellungen
+einmal angefahren werden. Einmal in der Minute wird deshalb geprüft, ob ein solcher Kreis offen
+steht, und er wird zugefahren. Wer einen Kreis absichtlich offen halten will, hält ihn über die
+Handsteuerung; Handbetrieb, Messfahrt und Schutzfahrt bleiben unangetastet.
 
 ### Einen einzelnen Kreis von Hand fahren
 
@@ -365,6 +374,7 @@ Fußbodenvorlauftemperatur, nicht knapp über Raumtemperatur.
 | Ein zugeordneter Verteiler antwortet nicht mehr | Bedarf gilt als vorhanden, die Pumpe läuft; die Oberfläche meldet „Verteiler antwortet nicht" |
 | Ein Verteiler hat seit dem Start nie geantwortet | Er wird nicht gewertet — sonst liefe die Pumpe wegen eines abgeschalteten Geräts durchgehend |
 | Ein offenes Ventil gehört zu einem Raum ohne Messwert | Es zählt nicht als Bedarf; die Meldung des Verteilers weist es getrennt aus („ohne Regelung") |
+| Ein Ventil gehört zu keinem Raum | Es zählt nicht als Bedarf und wird zugefahren |
 | Diese Steuerung fällt ganz aus | Am Relais sorgt eine Regel dafür, dass die Pumpe von selbst anläuft (siehe unten) |
 | Die Rückmeldung weicht länger als 30 s vom Sollwert ab | „Relais folgt nicht" |
 
@@ -861,7 +871,7 @@ GET     /api/log/days           Tagesprotokoll als CSV
 | **Gegenspannung** | Die Spannung über dem Messwiderstand. Sie steigt, wenn der Motor am Anschlag blockiert — daran wird die Endlage erkannt. |
 | **Messfahrt** | Einmaliges Zu- und Auffahren mit Aufzeichnung, um Fahrzeiten und Auslöseschwelle zu ermitteln. |
 | **Referenzfahrt** | Fahrt in eine Endlage, wenn die Stellung eines Kreises unbekannt ist — etwa nach einem Neustart ohne gespeicherte Stellung. |
-| **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. Kanäle, deren Raum gerade nicht geregelt wird, zählen nicht mit. |
+| **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. Gezählt wird nur, was geregelt wird: Kreise ausgeschalteter Räume, Räume ohne Messwert und Kreise ohne Raum bleiben außen vor. |
 | **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, über den Tag gemittelt. Ohne diese Größe ist Verbrauch nicht vergleichbar. |
 | **Nachlauf** | Zeit, die eine Pumpe nach dem letzten Bedarf weiterläuft, um die Restwärme abzuführen. |
 | **Schutzlauf** | Kurzer Lauf nach langer Standzeit, damit die Pumpe nicht festsitzt. |

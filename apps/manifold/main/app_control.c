@@ -232,6 +232,53 @@ static void on_endstop(uint8_t group, uint16_t mv, void *ctx)
 /* Regelung                                                            */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Kanaele, die zu keinem Raum gehoeren, fahren zu.
+ *
+ * Sie haben keinen Besitzer, der sie je anfaehrt: Die Regelung laeuft je Raum,
+ * und wo keiner ist, bleibt das Ventil stehen, wo es zuletzt hingefahren ist.
+ * Nach dem ersten Start ist das der Anschlag auf, weil unbekannte Stellungen
+ * einmal angefahren werden -- an dieser Anlage sieben von elf Kanaelen im
+ * Keller, vier im Obergeschoss, einer im Erdgeschoss. Warmes Wasser lief
+ * seither ungenutzt hindurch.
+ *
+ * Uebergangen wird wie ueberall, was von Hand gehalten wird, was gerade
+ * kalibriert oder von der Schutzfahrt belegt ist. Wer einen Kreis absichtlich
+ * offen halten will, haelt ihn von Hand.
+ */
+#define WAISE_MIN_DELTA 0.05f
+#define WAISE_CHECK_MS  60000
+
+static uint16_t s_waise_pending;
+static uint32_t s_waise_last_ms;
+
+static void waise_check(uint32_t t)
+{
+    s_waise_last_ms = t;
+
+    uint16_t hat_raum = 0;
+    for (int ri = 0; ri < s_cfg.room_count; ri++) {
+        hat_raum |= s_cfg.rooms[ri].channel_mask;
+    }
+
+    uint16_t offen = 0;
+    for (int n = 1; n <= HW_CHANNEL_COUNT; n++) {
+        uint16_t bit = (uint16_t)(1U << (n - 1));
+        if (hat_raum & bit) {
+            continue;
+        }
+        channel_rt_t *ch = &s_ch[n - 1];
+        if (ch->reserved || ch->manual_hold || ch->seize_step != 0) {
+            continue;
+        }
+        if (!ch->valve.position_known ||
+            roomctrl_needs_move(ch->valve.position, 0.0f, WAISE_MIN_DELTA)) {
+            offen |= bit;
+        }
+    }
+    s_waise_pending = offen;
+}
+
 static void room_run_check(int ri, uint32_t t)
 {
     const cfg_room_t *r = &s_cfg.rooms[ri];
@@ -430,6 +477,29 @@ static void serve_requests(uint32_t t)
         }
     }
 
+    /* Kanaele ohne Raum: sie gehoeren zu. */
+    for (int n = 1; n <= HW_CHANNEL_COUNT; n++) {
+        uint16_t bit = (uint16_t)(1U << (n - 1));
+        if (!(s_waise_pending & bit)) {
+            continue;
+        }
+        channel_rt_t *ch = &s_ch[n - 1];
+        if (ch->reserved || ch->req_valid) {
+            s_waise_pending &= (uint16_t)~bit;
+            continue;
+        }
+        if (valve_is_moving(&ch->valve) || group_busy(n)) {
+            continue; /* naechster Durchlauf */
+        }
+        if (valve_goto(&ch->valve, 0.0f, WAISE_MIN_DELTA, t)) {
+            ESP_LOGI(TAG, "CH%d gehoert zu keinem Raum, faehrt zu", n);
+            ch->moved_since_seize = true;
+            apply_channel(n - 1);
+            s_revision++;
+        }
+        s_waise_pending &= (uint16_t)~bit;
+    }
+
     /* Handbedienung. */
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         channel_rt_t *ch = &s_ch[i];
@@ -490,6 +560,11 @@ static void control_task(void *arg)
             } else if (t - rt->last_check_ms >= interval_ms) {
                 room_run_check(ri, t);
             }
+        }
+
+        if (t - s_boot_ms >= FIRST_CHECK_DELAY_MS &&
+            (s_waise_last_ms == 0 || t - s_waise_last_ms >= WAISE_CHECK_MS)) {
+            waise_check(t);
         }
 
         seize_check_due();

@@ -651,11 +651,13 @@ Pumpe noch, bis die Haltezeit von zwei Minuten ablief, dann fiel das Relais.
 Danach fielen Vor- und Rücklauf gleichmäßig — der Kessel kühlte für sich aus,
 statt den Speicher leerzuziehen.
 
-**Bedarfskette.** Ein Ventil, dessen Raum kein Thermometer hat, stand auf 100 %
-offen und ließ die Pumpe im August durchlaufen. Ungeregelte Kanäle zählen jetzt
-nicht mehr als Bedarf; die Meldung fiel auf `demand: false` bei unverändert
-offenem Ventil, und der Heizkreis am Pufferspeicher ging nach der Nachlaufzeit
-aus. Ein von Hand geöffnetes Ventil zählt weiterhin.
+**Bedarfskette.** Alle drei Verteiler meldeten dauerhaft Wärmebedarf, ohne dass
+ein Raum etwas abgerufen hätte: zwölf Kreise standen auf Anschlag offen, weil
+sie keinem Raum zugeordnet sind und unbekannte Stellungen beim ersten Start
+einmal angefahren werden. Bedarf meldet jetzt nur, was geregelt wird; solche
+Kreise werden zudem zugefahren. Nachgewiesen: `demand: false` auf allen drei
+Verteilern, alle zwölf Kreise in zwei Minuten auf 0 — paarweise, weil in einer
+Messgruppe immer nur ein Kanal fahren darf.
 
 **Sicherung der Einstellungen.** Rundlauf über alle vier Geräte geprüft: Räume,
 Fühlerrollen, Fahrzeiten, Auslöseschwellen und Relaisangaben kommen vollständig
