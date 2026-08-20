@@ -273,6 +273,18 @@ a.btn:hover{filter:none}
          läuft und wann sie fertig ist, ergibt sich aus Brennerzustand und Kesselspreizung —
          nähert sich der Rücklauf dem Vorlauf, nimmt der Speicher keine Wärme mehr auf.</p>
       <div id="charge-body"></div>
+
+      <h3 class="sub">Was leer und voll bedeutet</h3>
+      <p class="lede" id="leer-lede"></p>
+      <div class="fields">
+        <label>Leer bei (°C)<input type="number" id="s-leer" step="0.5" min="15" max="90"
+               style="width:6rem"></label>
+        <label>Voll bei (°C)<input type="number" id="s-voll" step="0.5" min="20" max="95"
+               style="width:6rem"></label>
+      </div>
+      <label class="inline" style="margin:.6rem 0">
+        <input type="checkbox" id="s-leer-lernen"> Leerpunkt selbst nachmessen</label>
+      <div class="actions"><button class="btn" id="s-leer-save">Speichern</button></div>
     </div>
     <div class="card" id="burner-card" hidden>
       <h2>Brenner</h2>
@@ -699,6 +711,33 @@ function valueOf(role) {
 }
 
 /* ---------------- Anlagenschema ---------------- */
+
+/* Nullpunkt und Vollpunkt des Fuellstands. Beides sind Angaben ueber die
+   Anlage, keine Messwerte -- deshalb gehoeren sie in die Oberflaeche und nicht
+   nur in die Schnittstelle. */
+function renderLeerVoll() {
+  const b = cfg?.buffer;
+  const el = $("#leer-lede");
+  if (!b || !el) return;
+
+  const datum = b.leer_epoch
+    ? new Date(b.leer_epoch * 1000).toLocaleDateString("de-DE",
+        {day: "2-digit", month: "long", year: "numeric"})
+    : null;
+  el.textContent = datum
+    ? `Der Leerpunkt wurde zuletzt am ${datum} selbst gemessen: beim Anlaufen des Brenners, denn
+       dort hat die Regelung des Kessels entschieden, dass nachgeheizt werden muss. Ein Start
+       zählt nur, wenn der Speicher vorher um mindestens ${b.lern_drop_k ?? 3} K gefallen ist.`
+    : `Noch nicht selbst gemessen — bis dahin gilt der eingetragene Wert. Gemeint ist die
+       Temperatur, bei welcher der Kessel von sich aus anläuft und nachheizt; das ist der
+       Nullpunkt der Anzeige. Sobald ein Brennerstart nach echtem Verbrauch beobachtet wurde,
+       zieht das Gerät den Wert selbst nach.`;
+
+  if ($("#s-leer").matches(":focus") || $("#s-voll").matches(":focus")) return;
+  $("#s-leer").value = b.leer_c ?? 35;
+  $("#s-voll").value = b.voll_c ?? 62;
+  $("#s-leer-lernen").checked = b.leer_lernen !== false;
+}
 
 function renderTrend() {
   const t = state?.trend;
@@ -1820,6 +1859,7 @@ async function poll() {
     renderFindings();
   renderTrend();
   renderFlue();
+  renderLeerVoll();
     renderSchema();
     renderCharge();
     renderBurner();
@@ -2052,6 +2092,12 @@ async function boot() {
     try { await post("/api/record/start"); toast("Aufzeichnung gestartet"); refresh(); }
     catch (e) { toast(e.message, true); }
   };
+  $("#s-leer-save").onclick = () => saveConfig({buffer: {
+    leer_c: parseFloat($("#s-leer").value),
+    voll_c: parseFloat($("#s-voll").value),
+    leer_lernen: $("#s-leer-lernen").checked,
+  }}, "Gespeichert");
+
   $("#flue-clean").onclick = async () => {
     /* Der Zeitpunkt kommt vom Browser: das Gerät kennt zwar die Uhrzeit, aber
        den Anlass kennt nur, wer davorsteht. */

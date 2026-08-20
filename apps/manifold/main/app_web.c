@@ -862,25 +862,33 @@ static esp_err_t demand_get(httpd_req_t *req)
     cfg_copy(&cfg);
 
     /*
-     * Kanaele, deren Raum gerade nicht geregelt wird, zaehlen nicht als Bedarf.
+     * Bedarf meldet nur, was auch geregelt wird.
      *
-     * Ein Raum ohne Thermometer oder mit veraltetem Messwert laesst seine
-     * Ventile absichtlich stehen -- auf einen fehlenden Wert zu regeln waere
-     * schlechter. Ein Ventil, das nur deshalb offen steht, weil es niemand
-     * zufaehrt, ist aber kein Waermebedarf: Der Pufferspeicher liess darauf im
-     * August die Pumpe durchlaufen, ohne Abnehmer.
+     * Ungeregelt ist ein Kanal in drei Faellen, und alle drei enden mit einem
+     * Ventil, das dort steht, wo es zuletzt hingefahren ist:
      *
-     * Ausgenommen bleibt, was von Hand gehalten wird. Ein von Hand geoeffnetes
-     * Ventil ist eine Absicht und damit Bedarf. Kanaele ohne Raum zaehlen wie
-     * bisher mit.
+     *   - Sein Raum ist ausgeschaltet.
+     *   - Sein Raum hat kein Thermometer oder einen veralteten Messwert. Dann
+     *     setzt die Regelung bewusst aus -- auf einen fehlenden Wert zu regeln
+     *     waere schlechter.
+     *   - Er gehoert zu gar keinem Raum. Nach dem ersten Start steht er sogar
+     *     auf Anschlag offen, weil unbekannte Stellungen einmal angefahren
+     *     werden; im Keller sind das sieben von elf Kanaelen.
+     *
+     * Ein Ventil, das offen steht, weil es niemand zufaehrt, ist kein
+     * Waermebedarf. Der Pufferspeicher liess darauf im August die Pumpe
+     * durchlaufen, ohne Abnehmer.
+     *
+     * Ausgenommen bleibt, was von Hand gehalten wird: Das ist eine Absicht.
      */
-    uint16_t ungeregelt_mask = 0;
+    uint16_t geregelt_mask = 0;
     for (uint8_t r = 0; r < snap.room_count; r++) {
         const ctl_room_t *room = &snap.rooms[r];
-        if (!room->mode_heat || !room->temp_valid) {
-            ungeregelt_mask |= room->channel_mask;
+        if (room->mode_heat && room->temp_valid) {
+            geregelt_mask |= room->channel_mask;
         }
     }
+    uint16_t ungeregelt_mask = (uint16_t)~geregelt_mask;
 
     float max_target = 0.0f;
     int open_channels = 0;
