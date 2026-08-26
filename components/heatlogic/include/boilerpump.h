@@ -101,8 +101,8 @@ typedef struct {
     bool cond_transfer;     /* welche Bedingung das ist */
 } bp_state_t;
 
-/* Vorgabe: ein Kelvin ein, ein halbes aus, zwei Minuten Haltezeit, je drei
- * Minuten Mindestlaufzeit und -pause, Notgrenze 85 Grad. */
+/* Vorgabe: drei Kelvin ein, zwei aus, zwei Minuten Haltezeit, je drei Minuten
+ * Mindestlaufzeit und -pause, Notgrenze 85 Grad. */
 void bp_defaults(bp_cfg_t *cfg);
 void bp_init(bp_state_t *st, bp_mode_t mode);
 void bp_set_mode(bp_state_t *st, bp_mode_t mode, uint32_t now_ms);

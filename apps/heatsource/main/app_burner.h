@@ -83,6 +83,17 @@ typedef struct {
     uint32_t since_s;
     bool kessel_remote;  /* die Kesselwerte kommen vom Nachbargeraet */
     bool puffer_remote;  /* der Speicherwert kommt vom Nachbargeraet */
+
+    /*
+     * Kalibrierung des Leerpunkts. Ohne diese Angaben laesst sich von aussen
+     * nicht sehen, warum ein Brennerstart als Messpunkt gewertet wurde -- oder
+     * eben nicht.
+     */
+    bool peak_have;
+    float puffer_peak_c;  /* Hoechstwert seit dem letzten Messpunkt */
+    uint32_t learn_seq;   /* Zahl der bisherigen Messpunkte */
+    bool learn_valid;
+    float learn_c;        /* Pufferwert beim letzten Messpunkt */
 } charge_status_t;
 
 esp_err_t burner_start(void);

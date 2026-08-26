@@ -26,7 +26,8 @@ NVS-Partition fasst 61 440 Byte, von denen die Konfiguration schon einen Teil be
 **Eine Ladung hinterlässt keine Spur**, solange niemand vorher die Aufzeichnung scharf schaltet.
 Die eine Aufzeichnung, die das Gerät hält, wird von der nächsten überschrieben.
 
-**Der Ölverbrauch ist keine Messung.** `litres_today` ist Düsendurchsatz mal Laufzeit — ein
+**Der Ölverbrauch ist keine Messung.** Der Vorgabewert von 2,2 l/h stammt nicht von der Anlage.
+ `litres_today` ist Düsendurchsatz mal Laufzeit — ein
 Nennwert aus der Konfiguration, kein Zählerstand. Eine Wirkungsgradaussage, die darauf aufbaut,
 misst die eigene Annahme.
 

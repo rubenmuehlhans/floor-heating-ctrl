@@ -284,6 +284,25 @@ a.btn:hover{filter:none}
       </div>
       <label class="inline" style="margin:.6rem 0">
         <input type="checkbox" id="s-leer-lernen"> Leerpunkt selbst nachmessen</label>
+      <div class="fields">
+        <label>Nachmessen ab Abfall (K)<input type="number" id="s-lerndrop" step="0.5"
+               min="0.5" max="30" style="width:6rem"></label>
+      </div>
+
+      <h3 class="sub">Wann eine Ladung fertig ist</h3>
+      <p class="lede">Nähert sich der Kesselrücklauf dem Vorlauf, nimmt der Speicher keine Wärme
+         mehr auf. Verlangt wird dazu ein heißer Vorlauf — beim Anfahren aus dem kalten Kessel
+         liegen beide ebenfalls dicht beieinander, weil beide kalt sind.</p>
+      <div class="fields">
+        <label>Spreizung „voll" (K)<input type="number" id="s-spreadfull" step="0.5" min="1"
+               max="40" style="width:6rem"></label>
+        <label>Haltezeit (s)<input type="number" id="s-spreadhold" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Vorlauf gilt als heiß ab (°C)<input type="number" id="s-kesselhot" step="0.5"
+               min="20" max="95" style="width:7rem"></label>
+        <label>Warnung Warmwasser (°C)<input type="number" id="s-warn" step="0.5" min="20"
+               max="80" style="width:7rem"></label>
+      </div>
       <div class="actions"><button class="btn" id="s-leer-save">Speichern</button></div>
     </div>
     <div class="card" id="burner-card" hidden>
@@ -292,6 +311,27 @@ a.btn:hover{filter:none}
          Rohrs, läuft der Brenner. Die Bezugslinie ist das Minimum der letzten 24 Stunden und
          wandert mit der Jahreszeit mit.</p>
       <div id="burner-body"></div>
+
+      <h3 class="sub">Erkennung</h3>
+      <p class="lede">Angelaufen ist er, wenn das Abgas die Bezugslinie um den Einschaltwert
+         übersteigt und dabei um den Ausschlag über seinen Tiefstwert gestiegen ist. Aus ist er,
+         wenn es um denselben Ausschlag unter den Höchstwert der Fahrt fällt — daran erkennt man
+         das Ende auch bei warmem Kessel, wo die Bezugslinie versagt.</p>
+      <div class="fields">
+        <label>Ein ab (K über der Linie)<input type="number" id="s-bon" step="0.5" min="1"
+               max="100" style="width:7rem"></label>
+        <label>Aus unter (K)<input type="number" id="s-boff" step="0.5" min="0" max="100"
+               style="width:6rem"></label>
+        <label>Ausschlag (K)<input type="number" id="s-bswing" step="0.5" min="1" max="60"
+               style="width:6rem"></label>
+        <label>Haltezeit ein (s)<input type="number" id="s-bonhold" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Haltezeit aus (s)<input type="number" id="s-boffhold" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Düsendurchsatz (l/h)<input type="number" id="s-duese" step="0.1" min="0" max="20"
+               style="width:6rem"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-burner-save">Speichern</button></div>
     </div>
     <div class="card">
       <h2>Messwerte</h2>
@@ -509,6 +549,31 @@ a.btn:hover{filter:none}
                style="width:5rem"></label>
       </div>
       <div class="actions"><button class="btn" id="s-seize-save">Speichern</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Zeit und Neustart</h2>
+      <p class="lede">Die Zeitzone bestimmt, wann ein Tag im Protokoll endet und wann Termine
+         fallen. Ein täglicher Neustart ist zulässig, aber nicht nötig; er wird verschoben,
+         solange eine Pumpe in einer Mindestlaufzeit steht. −1 schaltet ihn ab.</p>
+      <div class="fields">
+        <label>Zeitzone<input id="s-tz" style="width:17rem"></label>
+        <label>Neustart Stunde<input type="number" id="s-rebooth" min="-1" max="23"
+               style="width:6rem"></label>
+        <label>Minute<input type="number" id="s-rebootm" min="0" max="59"
+               style="width:6rem"></label>
+      </div>
+
+      <h3 class="sub">Bedarfsabfrage bei den Verteilern</h3>
+      <p class="lede">Wie oft die Verteiler nach Wärmebedarf gefragt werden und ab wann ein
+         Verteiler, der einmal geantwortet hat und dann verstummt, als bedarfsmeldend gilt.</p>
+      <div class="fields">
+        <label>Abfrage alle (s)<input type="number" id="s-dpoll" min="1" max="600"
+               style="width:6rem"></label>
+        <label>Zeitgrenze (s)<input type="number" id="s-dtimeout" min="10" max="3600"
+               style="width:6rem"></label>
+      </div>
+      <div class="actions"><button class="btn" id="s-sys-save">Speichern</button></div>
     </div>
 
     <div class="card">
@@ -733,10 +798,40 @@ function renderLeerVoll() {
        Nullpunkt der Anzeige. Sobald ein Brennerstart nach echtem Verbrauch beobachtet wurde,
        zieht das Gerät den Wert selbst nach.`;
 
-  if ($("#s-leer").matches(":focus") || $("#s-voll").matches(":focus")) return;
-  $("#s-leer").value = b.leer_c ?? 35;
-  $("#s-voll").value = b.voll_c ?? 62;
+  /* Die Werte kommen als einfach genaue Fliesskommazahlen vom Geraet; 2,2
+     wird dabei zu 2.200000047683716. Ungerundet in ein Eingabefeld gestellt
+     sieht das nach einer Einstellung aus, die niemand so gemacht hat. */
+  const rund = x => x === undefined || x === null ? x : Math.round(x * 100) / 100;
+
+  const felder = ["s-leer", "s-voll", "s-lerndrop", "s-spreadfull", "s-spreadhold",
+                  "s-kesselhot", "s-warn", "s-bon", "s-boff", "s-bswing", "s-bonhold",
+                  "s-boffhold", "s-duese"];
+  if (felder.some(id => $("#" + id)?.matches(":focus"))) return;
+
+  $("#s-leer").value = rund(b.leer_c) ?? 35;
+  $("#s-voll").value = rund(b.voll_c) ?? 62;
   $("#s-leer-lernen").checked = b.leer_lernen !== false;
+  $("#s-lerndrop").value = rund(b.lern_drop_k) ?? 3;
+  $("#s-spreadfull").value = rund(b.spread_full_k) ?? 8;
+  $("#s-spreadhold").value = b.spread_hold_s ?? 300;
+  $("#s-kesselhot").value = rund(b.kessel_hot_c) ?? 60;
+  $("#s-warn").value = rund(b.warn_c) ?? 40;
+
+  for (const [id, wert] of [["s-tz", cfg.timezone], ["s-rebooth", cfg.reboot_hour],
+                            ["s-rebootm", cfg.reboot_minute], ["s-dpoll", cfg.demand_poll_s],
+                            ["s-dtimeout", cfg.demand_timeout_s]]) {
+    const e = $("#" + id);
+    if (e && !e.matches(":focus") && wert !== undefined) e.value = wert;
+  }
+
+  const br = cfg?.burner;
+  if (!br) return;
+  $("#s-bon").value = rund(br.delta_on_k) ?? 12;
+  $("#s-boff").value = rund(br.delta_off_k) ?? 6;
+  $("#s-bswing").value = rund(br.swing_k) ?? 6;
+  $("#s-bonhold").value = br.on_hold_s ?? 60;
+  $("#s-boffhold").value = br.off_hold_s ?? 300;
+  $("#s-duese").value = rund(br.duese_l_h) ?? 2.2;
 }
 
 function renderTrend() {
@@ -2096,6 +2191,28 @@ async function boot() {
     leer_c: parseFloat($("#s-leer").value),
     voll_c: parseFloat($("#s-voll").value),
     leer_lernen: $("#s-leer-lernen").checked,
+    lern_drop_k: parseFloat($("#s-lerndrop").value),
+    spread_full_k: parseFloat($("#s-spreadfull").value),
+    spread_hold_s: parseInt($("#s-spreadhold").value, 10),
+    kessel_hot_c: parseFloat($("#s-kesselhot").value),
+    warn_c: parseFloat($("#s-warn").value),
+  }}, "Gespeichert");
+
+  $("#s-sys-save").onclick = () => saveConfig({
+    timezone: $("#s-tz").value.trim(),
+    reboot_hour: parseInt($("#s-rebooth").value, 10),
+    reboot_minute: parseInt($("#s-rebootm").value, 10),
+    demand_poll_s: parseInt($("#s-dpoll").value, 10),
+    demand_timeout_s: parseInt($("#s-dtimeout").value, 10),
+  }, "Gespeichert");
+
+  $("#s-burner-save").onclick = () => saveConfig({burner: {
+    delta_on_k: parseFloat($("#s-bon").value),
+    delta_off_k: parseFloat($("#s-boff").value),
+    swing_k: parseFloat($("#s-bswing").value),
+    on_hold_s: parseInt($("#s-bonhold").value, 10),
+    off_hold_s: parseInt($("#s-boffhold").value, 10),
+    duese_l_h: parseFloat($("#s-duese").value),
   }}, "Gespeichert");
 
   $("#flue-clean").onclick = async () => {

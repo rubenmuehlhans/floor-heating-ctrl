@@ -2043,6 +2043,55 @@ static void test_boilerpump_speicher(void)
     CHECK(!st.on, "ohne Speicherwert bleibt es beim Ruecklauf");
 }
 
+static void test_boilerpump_nachlauf(void)
+{
+    printf("Kesselkreispumpe: kein Nachlauf ohne Uebertragung\n");
+
+    /*
+     * Der Verlauf der Nacht auf den 26. August, gegen die Speichertemperatur
+     * gerechnet. Mit der alten Ausschaltschwelle von einem halben Kelvin lief
+     * die Pumpe nach dem Brennerende noch fuenf Stunden -- der Abstand naeherte
+     * sich der Schwelle asymptotisch und unterschritt sie nie.
+     */
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    bp_input_t in = {0};
+    in.valid = true;
+    in.buffer_valid = true;
+
+    /* Waehrend der Ladung: Kessel weit ueber dem Speicher. */
+    in.vl_c = 69.0f; in.rl_c = 60.9f; in.buffer_c = 56.0f;
+    for (int i = 0; i < 400; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(st.on, "waehrend der Ladung laeuft sie");
+
+    /* Restwaerme wird noch abgefuehrt, Abstand 7,2 K. */
+    in.vl_c = 76.2f; in.buffer_c = 69.0f;
+    for (int i = 0; i < 600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(st.on, "bei sieben Kelvin Abstand foerdert sie weiter");
+
+    /* Der Speicher hat seinen Hoechststand erreicht: Abstand 2,0 K. */
+    in.vl_c = 74.3f; in.buffer_c = 72.35f;
+    for (int i = 0; i < 600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(!st.on, "am Hoechststand des Speichers geht sie aus, nicht \"%s\"",
+          bp_reason_text(st.reason));
+
+    /* Und bleibt aus, waehrend beide zusammen auskuehlen. */
+    in.vl_c = 70.8f; in.buffer_c = 70.1f;
+    for (int i = 0; i < 3600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(!st.on, "und bleibt aus, statt den Kessel warmzuhalten");
+
+    /* Neue Waerme im Kessel startet sie wieder. */
+    in.vl_c = 74.0f; in.buffer_c = 70.1f;
+    for (int i = 0; i < 400; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(st.on, "vier Kelvin Abstand starten sie wieder");
+    (void)t;
+}
+
 static void test_boilerpump_takten(void)
 {
     printf("Kesselkreispumpe: kein Takten um den Nullpunkt\n");
@@ -2119,6 +2168,7 @@ int main(void)
     test_boilerpump();
     test_boilerpump_sicherheit();
     test_boilerpump_takten();
+    test_boilerpump_nachlauf();
     test_boilerpump_speicher();
     test_trend_gerade();
     test_trend_ausreisser();

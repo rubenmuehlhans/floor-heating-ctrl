@@ -366,6 +366,16 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddBoolToObject(cc, "warn_dhw", ch.warn_dhw);
     cJSON_AddBoolToObject(cc, "kessel_remote", ch.kessel_remote);
     cJSON_AddBoolToObject(cc, "puffer_remote", ch.puffer_remote);
+    {
+        cJSON *lk = cJSON_AddObjectToObject(cc, "kalibrierung");
+        cJSON_AddNumberToObject(lk, "punkte", ch.learn_seq);
+        if (ch.peak_have) {
+            cJSON_AddNumberToObject(lk, "peak_c", ch.puffer_peak_c);
+        }
+        if (ch.learn_valid) {
+            cJSON_AddNumberToObject(lk, "letzter_c", ch.learn_c);
+        }
+    }
     cJSON_AddNumberToObject(cc, "since_s", ch.since_s);
     if (ch.level_valid) {
         cJSON_AddNumberToObject(cc, "level", ch.level);

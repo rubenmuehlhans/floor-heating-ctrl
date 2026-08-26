@@ -483,6 +483,9 @@ static void apply_config(void)
 /* Anteil, mit dem ein Messpunkt den Nullpunkt verschiebt. Nicht eins: Ein
  * einzelner Start nach ungewoehnlichem Verbrauch soll den Bezug nicht
  * verreissen, mehrere gleichartige Starts sollen ihn aber zuegig erreichen. */
+/* Sicherungsabstand der Tageswerte waehrend eines Brennerlaufs. */
+#define STATS_SAVE_MS 300000
+
 #define LEER_ANTEIL 0.4f
 
 static uint32_t s_learn_seq;
@@ -551,6 +554,7 @@ static void burner_task(void *arg)
 
     static sens_snapshot_t snap;
     bool brenner_lief = false;
+    uint32_t letzte_sicherung_ms = 0;
     int letzter_tag = s_stats.tag;
     int letzte_stunde = -1;
 
@@ -675,12 +679,27 @@ static void burner_task(void *arg)
          * Ein Fuenfminutentakt waeren 288 Schreibvorgaenge am Tag; der
          * NVS-Bereich fasst nur einige Dutzend Fassungen, bevor er
          * aufgeraeumt werden muss, und laeuft er voll, wird er geleert und
-         * die gesamte Einrichtung ist weg. Zwischen zwei Schaltvorgaengen
-         * steht der Wert im Arbeitsspeicher; ein Neustart mitten im Brennerlauf
-         * kostet hoechstens dessen bisherige Laufzeit.
+         * die gesamte Einrichtung ist weg.
+         *
+         * Beim Zustandswechsel allein genuegt es aber nicht: Ein Neustart
+         * waehrend eines Brennerlaufs laed den zuletzt gesicherten Wert, und
+         * das ist die Null vom Einschalten. Am 25. August ging so eine Ladung
+         * von sechsundvierzig Minuten verloren -- im Tagesprotokoll stand
+         * danach null, waehrend die Ladung selbst mit 1,672 Litern
+         * protokolliert war. Das Tagesprotokoll speist die Verbrauchslinie;
+         * solche Nullen verfaelschen sie.
+         *
+         * Waehrend der Brenner laeuft, wird deshalb zusaetzlich alle fuenf
+         * Minuten gesichert. Bei knapp einer Stunde Laufzeit am Tag sind das
+         * zwoelf Schreibvorgaenge -- dieselbe Groessenordnung wie das
+         * Tagesprotokoll selbst.
          */
-        if (s_st.running != brenner_lief) {
+        bool faellig = s_st.running &&
+                       (letzte_sicherung_ms == 0 ||
+                        now_ms() - letzte_sicherung_ms >= STATS_SAVE_MS);
+        if (s_st.running != brenner_lief || faellig) {
             brenner_lief = s_st.running;
+            letzte_sicherung_ms = now_ms();
             xSemaphoreTake(s_mtx, portMAX_DELAY);
             s_stats.runtime_today_s = s_st.runtime_today_s;
             s_stats.starts_today = s_st.starts_today;
@@ -795,5 +814,10 @@ void charge_get(charge_status_t *out)
     out->since_s = s_cst.started ? (now_ms() - s_cst.since_ms) / 1000 : 0;
     out->kessel_remote = s_kessel_remote;
     out->puffer_remote = s_puffer_remote;
+    out->peak_have = s_cst.peak_have;
+    out->puffer_peak_c = s_cst.puffer_peak_c;
+    out->learn_seq = s_cst.learn_seq;
+    out->learn_valid = s_cst.learn_valid;
+    out->learn_c = s_cst.learn_c;
     xSemaphoreGive(s_mtx);
 }

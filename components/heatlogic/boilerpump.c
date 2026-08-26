@@ -4,8 +4,17 @@
 
 void bp_defaults(bp_cfg_t *cfg)
 {
-    cfg->on_k = 1.0f;
-    cfg->off_k = 0.5f;
+    /*
+     * Drei Kelvin ein, zwei aus. An der Anlage gemessen: Nach einer Ladung
+     * erreichte der Speicher seinen Hoechststand genau in dem Augenblick, in
+     * dem der Abstand zwischen Kesselvorlauf und Speicher auf zwei Kelvin
+     * gefallen war -- ab da kam nichts mehr an, und die Pumpe hielt nur noch
+     * den Kesselkoerper auf Speichertemperatur. Mit einem halben Kelvin
+     * Ausschaltschwelle lief sie danach weitere drei Stunden, waehrend der
+     * Speicher mit 0,7 K je Stunde fiel.
+     */
+    cfg->on_k = 3.0f;
+    cfg->off_k = 2.0f;
     cfg->hold_s = 120;
     cfg->min_run_s = 180;
     cfg->min_pause_s = 180;

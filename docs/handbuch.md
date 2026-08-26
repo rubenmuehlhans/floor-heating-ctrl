@@ -18,6 +18,7 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Pumpen einrichten](#pumpen-einrichten)
 - [Brenner und Pufferspeicher](#brenner-und-pufferspeicher)
 - [Außenfühler](#außenfühler)
+- [Einstellungen im Einzelnen](#einstellungen-im-einzelnen)
 - [Kesselkreispumpe](#kesselkreispumpe)
 - [Auswertung](#auswertung)
 - [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
@@ -410,13 +411,32 @@ gleitende Bezugslinie: das Minimum der letzten 24 Stunden, also die Temperatur d
 | Ausschaltschwelle | 6 K | darunter als aus |
 | Haltezeit ein | 60 s | so lange muss die Bedingung anhalten |
 | Haltezeit aus | 300 s | länger, damit kurzes Abkühlen den Lauf nicht beendet |
-| Düsendurchsatz | 2,2 l/h | Grundlage der Verbrauchsschätzung |
+| Düsendurchsatz | 2,2 l/h | Grundlage der Verbrauchsschätzung — **siehe unten** |
 
 Laufzeit und Starts des Tages überdauern einen Neustart. Häufige kurze Starts bei geringer
 Gesamtlaufzeit werden als **Taktbetrieb** ausgewiesen — der Kessel geht dann öfter an, als er
 Wärme abgibt.
 
-Der Ölverbrauch ist eine **Schätzung** aus Laufzeit und Düsendurchsatz, keine Messung.
+**Der Ölverbrauch ist eine Schätzung**, keine Messung: Laufzeit mal Düsendurchsatz. Die Laufzeit
+ist gemessen, der Durchsatz nicht — der Vorgabewert von 2,2 l/h ist ein plausibler Wert für eine
+kleine Öldüse (rund 0,60 gph), er stammt nicht von Ihrer Anlage. Alle Literangaben in Tages- und
+Ladungsprotokoll sowie in der Verbrauchslinie sind ihm unmittelbar proportional:
+
+| Düse | Verbrauch an einem Tag mit 45 min Laufzeit |
+|---|---|
+| 1,60 l/h | 1,20 l |
+| 1,89 l/h (0,50 gph) | 1,42 l |
+| 2,20 l/h (Vorgabe) | 1,65 l |
+| 2,65 l/h (0,70 gph) | 1,99 l |
+| 3,00 l/h | 2,25 l |
+
+Zwei Wege zum richtigen Wert. **Ablesen:** Die Größe steht auf der Düse selbst und meist in den
+Unterlagen des Brenners, in gph — 0,50 gph sind 1,89 l/h, 0,60 gph sind 2,27 l/h. Das ist der
+Nenndurchsatz bei Prüfdruck; weicht der eingestellte Pumpendruck davon ab, verschiebt sich der
+Wert. **Messen:** Lesen Sie den Tankfüllstand zweimal im Abstand einiger Monate ab und teilen Sie
+die verbrauchte Menge durch die summierte Brennerlaufzeit aus dem Tagesprotokoll. Das ergibt den
+tatsächlichen Durchsatz einschließlich Pumpendruck und Düsenverschleiß — und macht aus der
+Schätzung rückwirkend eine Messung.
 
 ### Ladezustand
 
@@ -472,6 +492,44 @@ gerade läuft. Danach richten sich Ladezustand und Aufzeichnung.
 Ohne erreichbares Gerät am Kessel steht dort **kein Abgasfühler**, und die Aufzeichnung weicht
 auf die Speichertemperatur aus.
 
+### Einstellungen im Einzelnen
+
+Alle Werte stehen in der Oberfläche des jeweiligen Heizungsgeräts. Was hier nicht steht, ist
+entweder eine Messung oder eine Angabe zur Verdrahtung.
+
+**Brenner** (Karte *Brenner*, Bereich Übersicht)
+
+| Feld | Vorgabe | Bedeutung |
+|---|---|---|
+| Ein ab (K über der Linie) | 12 K | So weit muss das Abgas über der Bezugslinie liegen, damit ein Anlauf erkannt wird. Zu klein: Ein warmer Aufstellraum löst aus. Zu groß: Ein kurzer Start bleibt unbemerkt. |
+| Aus unter (K) | 6 K | Fällt das Abgas so weit an die Bezugslinie heran, gilt der Brenner als aus. Greift nur bei kaltem Kessel; bei warmem entscheidet der Ausschlag. |
+| Ausschlag (K) | 6 K | Fällt das Abgas so weit unter den Höchstwert der laufenden Fahrt, ist der Brenner aus; steigt es danach so weit über den Tiefstwert, läuft er wieder. Dies ist das eigentliche Kriterium — die Bezugslinie beschreibt das kalte Rohr und versagt, solange der Kessel warm ist. Zu klein: Ein Messrauschen beendet die Fahrt. Zu groß: Kurze Takte verschmelzen zu einer Fahrt. |
+| Haltezeit ein | 60 s | So lange muss die Einschaltbedingung anliegen. |
+| Haltezeit aus | 300 s | Länger, damit kurzes Abkühlen den Lauf nicht beendet. |
+| Düsendurchsatz | 2,2 l/h | Siehe oben — der einzige Wert, den Sie an Ihrer Anlage nachschlagen sollten. |
+
+**Pufferspeicher** (Karte *Pufferspeicher*)
+
+| Feld | Vorgabe | Bedeutung |
+|---|---|---|
+| Leer bei | 35 °C | Nullpunkt des Füllstands: die Temperatur, bei welcher der Kessel von sich aus anläuft. Wird selbst nachgemessen, sofern eingeschaltet. |
+| Voll bei | 62 °C | Hundert Prozent. Sinnvoll ist der Wert, den der Speicher am Ende einer Ladung tatsächlich erreicht — er steht nach jeder Ladung im Ladungsprotokoll. **Auf beiden Heizungsgeräten gleich eintragen**, sonst zeigen sie verschiedene Füllstände für denselben Speicher. |
+| Leerpunkt selbst nachmessen | ein | Beim Anlaufen des Brenners wird der Nullpunkt zu 40 Prozent an den gemessenen Wert herangeführt. |
+| Nachmessen ab Abfall | 3 K | So weit muss der Speicher seit seinem Höchststand gefallen sein, damit ein Brennerstart als Messpunkt zählt. Verhindert, dass taktender Betrieb den Nullpunkt nach oben zieht. |
+| Spreizung „voll" | 8 K | Nähert sich der Kesselrücklauf dem Vorlauf so weit an, nimmt der Speicher keine Wärme mehr auf. |
+| Haltezeit | 300 s | So lange muss das anliegen. |
+| Vorlauf gilt als heiß ab | 60 °C | Zusatzbedingung für „voll" und für die Frage, ob ein Abschalten des Brenners eine fertige Ladung war. Ohne sie gälte der kalte Anlauf als fertige Ladung — dort liegen Vor- und Rücklauf ebenfalls dicht beieinander, weil beide kalt sind. |
+| Warnung Warmwasser | 40 °C | Darunter wird die Warmwasserreserve als knapp gemeldet. |
+
+**Zeit und Neustart** (Bereich System)
+
+| Feld | Vorgabe | Bedeutung |
+|---|---|---|
+| Zeitzone | `CET-1CEST,M3.5.0,M10.5.0/3` | Bestimmt, wann ein Tag im Protokoll endet und wann Termine fallen. |
+| Neustart Stunde / Minute | −1 | Täglicher Neustart; −1 schaltet ihn ab. Er wird verschoben, solange eine Pumpe in einer Mindestlaufzeit steht. |
+| Abfrage alle | 5 s | Wie oft die Verteiler nach Wärmebedarf gefragt werden. |
+| Zeitgrenze | 180 s | Ab wann ein Verteiler, der einmal geantwortet hat und dann verstummt, als bedarfsmeldend gilt. |
+
 ### Kesselkreispumpe
 
 Die Pumpe zwischen Kessel und Pufferspeicher wird am **Gerät am Kessel** eingerichtet, unter
@@ -493,8 +551,8 @@ die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung erspart.
 
 | Einstellung | Vorgabe | Bedeutung |
 |---|---|---|
-| Ein ab Spreizung | 1,0 K | darüber gilt der Kessel als abgebend |
-| Aus unter | 0,5 K | darunter als aufnehmend; kleiner als „ein", sonst pendelt es |
+| Ein ab Abstand | 3,0 K | So weit muss der Kesselvorlauf über der Speichertemperatur liegen, damit sich das Fördern lohnt. |
+| Aus unter | 2,0 K | Darunter kommt nichts mehr an. An der Anlage gemessen: Der Speicher erreichte seinen Höchststand genau in dem Augenblick, in dem der Abstand auf zwei Kelvin gefallen war. Muss kleiner sein als „ein", sonst taktet die Pumpe. |
 | Haltezeit | 120 s | so lange muss die Bedingung anliegen |
 | Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
 | Notgrenze | 85 °C | darüber läuft sie in jedem Fall |
