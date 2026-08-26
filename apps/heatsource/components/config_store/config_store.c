@@ -125,6 +125,9 @@ void cfg_defaults(app_config_t *out)
     out->buffer.leer_lernen = true;
     out->buffer.lern_drop_k = 3.0f;
     out->buffer.leer_epoch = 0;
+    out->buffer.volumen_l = 0.0f;
+    out->buffer.zapf_drop_k = 2.0f;
+    out->buffer.zapf_win_s = 900;
 
     /* Dieselben Vorgaben wie in components/heatlogic. */
     out->boiler_pump.enabled = false;
@@ -300,6 +303,12 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         if (bp->hold_s > 3600 || bp->min_run_s > 3600 || bp->min_pause_s > 3600) {
             FEHLER("Zeiten der Kesselkreispumpe duerfen hoechstens eine Stunde betragen");
         }
+    }
+    if (cfg->buffer.volumen_l < 0.0f || cfg->buffer.volumen_l > 20000.0f) {
+        FEHLER("Speicherinhalt muss zwischen 0 und 20000 Litern liegen");
+    }
+    if (cfg->buffer.zapf_drop_k < 0.2f || cfg->buffer.zapf_drop_k > 40.0f) {
+        FEHLER("Einbruch fuer eine Zapfung muss zwischen 0,2 und 40 Kelvin liegen");
     }
     if (cfg->buffer.lern_drop_k < 0.5f || cfg->buffer.lern_drop_k > 30.0f) {
         FEHLER("Mindestabfall fuer die Kalibrierung muss zwischen 0,5 und 30 Kelvin liegen");
@@ -512,6 +521,9 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddBoolToObject(sp, "leer_lernen", cfg->buffer.leer_lernen);
     cJSON_AddNumberToObject(sp, "lern_drop_k", cfg->buffer.lern_drop_k);
     cJSON_AddNumberToObject(sp, "leer_epoch", cfg->buffer.leer_epoch);
+    cJSON_AddNumberToObject(sp, "volumen_l", cfg->buffer.volumen_l);
+    cJSON_AddNumberToObject(sp, "zapf_drop_k", cfg->buffer.zapf_drop_k);
+    cJSON_AddNumberToObject(sp, "zapf_win_s", cfg->buffer.zapf_win_s);
 
     const cfg_boiler_pump_t *kp = &cfg->boiler_pump;
     cJSON *jk = cJSON_AddObjectToObject(root, "boiler_pump");
@@ -768,6 +780,9 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         out->buffer.leer_lernen = cfgjson_bool(sp, "leer_lernen", out->buffer.leer_lernen);
         out->buffer.lern_drop_k = (float)cfgjson_num(sp, "lern_drop_k", out->buffer.lern_drop_k);
         out->buffer.leer_epoch = (uint32_t)cfgjson_num(sp, "leer_epoch", out->buffer.leer_epoch);
+        out->buffer.volumen_l = (float)cfgjson_num(sp, "volumen_l", out->buffer.volumen_l);
+        out->buffer.zapf_drop_k = (float)cfgjson_num(sp, "zapf_drop_k", out->buffer.zapf_drop_k);
+        out->buffer.zapf_win_s = (uint32_t)cfgjson_num(sp, "zapf_win_s", out->buffer.zapf_win_s);
     }
 
     out->reboot_hour = (int8_t)cfgjson_num(root, "reboot_hour", out->reboot_hour);

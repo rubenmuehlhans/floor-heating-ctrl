@@ -289,6 +289,22 @@ a.btn:hover{filter:none}
                min="0.5" max="30" style="width:6rem"></label>
       </div>
 
+      <h3 class="sub">Warmwasser</h3>
+      <p class="lede">Eine Zapfung lässt den Speicher steil einbrechen, der Stillstandsverlust
+         lässt ihn langsam absinken. An dieser Anlage gemessen: 0,8 K je Stunde im Stillstand,
+         6,5 K in einer halben Stunde für ein Vollbad. Getrennt werden beide an der Schwelle
+         unten. Der Speicherinhalt dient nur der Umrechnung in Kilowattstunden — ohne ihn steht
+         dort Kelvin.</p>
+      <div id="zapf-body"></div>
+      <div class="fields">
+        <label>Speicherinhalt (l)<input type="number" id="s-volumen" step="10" min="0"
+               max="20000" style="width:7rem"></label>
+        <label>Zapfung ab Einbruch (K)<input type="number" id="s-zapfdrop" step="0.1" min="0.2"
+               max="40" style="width:7rem"></label>
+        <label>im Fenster (s)<input type="number" id="s-zapfwin" min="60" max="7200"
+               style="width:6rem"></label>
+      </div>
+
       <h3 class="sub">Wann eine Ladung fertig ist</h3>
       <p class="lede">Nähert sich der Kesselrücklauf dem Vorlauf, nimmt der Speicher keine Wärme
          mehr auf. Verlangt wird dazu ein heißer Vorlauf — beim Anfahren aus dem kalten Kessel
@@ -805,13 +821,31 @@ function renderLeerVoll() {
 
   const felder = ["s-leer", "s-voll", "s-lerndrop", "s-spreadfull", "s-spreadhold",
                   "s-kesselhot", "s-warn", "s-bon", "s-boff", "s-bswing", "s-bonhold",
-                  "s-boffhold", "s-duese"];
+                  "s-boffhold", "s-duese", "s-volumen", "s-zapfdrop", "s-zapfwin"];
   if (felder.some(id => $("#" + id)?.matches(":focus"))) return;
 
   $("#s-leer").value = rund(b.leer_c) ?? 35;
   $("#s-voll").value = rund(b.voll_c) ?? 62;
   $("#s-leer-lernen").checked = b.leer_lernen !== false;
   $("#s-lerndrop").value = rund(b.lern_drop_k) ?? 3;
+  $("#s-volumen").value = rund(b.volumen_l) ?? 0;
+  $("#s-zapfdrop").value = rund(b.zapf_drop_k) ?? 2;
+  $("#s-zapfwin").value = b.zapf_win_s ?? 900;
+
+  const z = state?.zapfung, ze = $("#zapf-body");
+  if (z && ze) {
+    const menge = z.sum_kwh !== undefined
+      ? `${z.sum_kwh.toFixed(1)} kWh` : `${z.sum_k.toFixed(1)} K`;
+    ze.innerHTML = z.count
+      ? `<div class="row" style="margin-bottom:.8rem">
+           <span class="chip ${z.active ? "heat" : "plain"}">${
+             z.active ? "wird gerade gezapft" : "keine Zapfung"}</span>
+           <span class="chip plain">${z.count}× heute</span>
+           <span class="chip plain">${menge} entnommen</span>
+           ${z.last_k ? `<span class="chip plain">zuletzt ${z.last_k.toFixed(1)} K</span>` : ""}
+         </div>`
+      : `<p class="lede">Heute noch keine Zapfung erkannt.</p>`;
+  }
   $("#s-spreadfull").value = rund(b.spread_full_k) ?? 8;
   $("#s-spreadhold").value = b.spread_hold_s ?? 300;
   $("#s-kesselhot").value = rund(b.kessel_hot_c) ?? 60;
@@ -933,6 +967,12 @@ function renderFindings() {
       `${w.now_k.toFixed(0)} K Abstand zwischen Abgas und Kesselvorlauf statt ${
         w.ref_k.toFixed(0)} K — ${w.delta_k.toFixed(0)} K mehr, das sind grob ${
         (w.delta_k / 20).toFixed(1)} Prozentpunkte Wirkungsgrad; meist Ruß im Wärmetauscher`],
+    backflow: w => [
+      "Warmes Wasser strömt in den Kesselrücklauf, obwohl nichts läuft",
+      `${w.events}× beobachtet, zuletzt ${w.rise_k.toFixed(1)} K Anstieg bei ausgeschaltetem
+       Brenner und stehender Pumpe. Das ist ohne Strömung nicht möglich — meist eine fehlende
+       oder undichte Schwerkraftbremse im Kesselrücklauf. Jede Warmwasserzapfung schiebt so
+       Wärme in den kalten Kessel, wo sie durch den Schornstein verlorengeht.`],
     probe_errors: w => [
       "Ein Fühler verwirft auffällig viele Messungen",
       `${w.errors} von ${w.reads + w.errors} Messungen verworfen — meist ein Wackelkontakt,
@@ -2188,6 +2228,9 @@ async function boot() {
     catch (e) { toast(e.message, true); }
   };
   $("#s-leer-save").onclick = () => saveConfig({buffer: {
+    volumen_l: parseFloat($("#s-volumen").value),
+    zapf_drop_k: parseFloat($("#s-zapfdrop").value),
+    zapf_win_s: parseInt($("#s-zapfwin").value, 10),
     leer_c: parseFloat($("#s-leer").value),
     voll_c: parseFloat($("#s-voll").value),
     leer_lernen: $("#s-leer-lernen").checked,

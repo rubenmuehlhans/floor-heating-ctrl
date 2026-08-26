@@ -109,6 +109,19 @@ void burner_get(burner_status_t *out);
 void burner_reset_today(void);
 void charge_get(charge_status_t *out);
 
+/* Warmwasserzapfungen des Tages und Rueckstroemung im Kesselkreis. */
+typedef struct {
+    bool zapf_active;
+    uint32_t zapf_count;
+    float zapf_sum_k;
+    float zapf_last_k;
+    uint32_t back_events;
+    float back_last_k;
+    bool back_active;
+} extra_status_t;
+
+void extra_get(extra_status_t *out);
+
 /* Aufzeichnung einer Ladung. */
 esp_err_t rec_start(void);
 

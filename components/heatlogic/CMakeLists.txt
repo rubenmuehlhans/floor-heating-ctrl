@@ -1,2 +1,2 @@
-idf_component_register(SRCS "heatlogic.c" "plausi.c" "boilerpump.c" "trend.c" "flue.c"
+idf_component_register(SRCS "heatlogic.c" "plausi.c" "boilerpump.c" "trend.c" "flue.c" "zapfung.c"
                        INCLUDE_DIRS "include")

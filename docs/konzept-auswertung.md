@@ -198,7 +198,7 @@ erfundene Größe der Anlage in eine gemessene.
 | 1a | Plausibilitätsprüfungen der Fühler | Stufe 0 nicht nötig | umgesetzt |
 | 1b | Verbrauchslinie und Tagesabweichung | Tagesprotokoll | umgesetzt, trägt ab dem ersten Winter |
 | 1c | Abgas-Vorlauf-Abstand je Ladung | Ladungsprotokoll | umgesetzt, trägt ab zehn Ladungen |
-| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 | offen |
+| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 | teilweise: Rueckstroemung und Warmwasserzapfung erkannt |
 | 2 | Auswertung auf dem Rechner | ein Winter Daten | offen |
 | 3 | zusätzliche Messstellen | Entscheidung über Hardware | offen |
 

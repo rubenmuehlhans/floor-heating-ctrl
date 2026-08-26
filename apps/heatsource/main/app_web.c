@@ -26,6 +26,7 @@
 #include "netmgr.h"
 #include "peers.h"
 #include "plausi.h"
+#include "zapfung.h"
 
 static const char *TAG = "web";
 
@@ -574,6 +575,38 @@ static esp_err_t state_get(httpd_req_t *req)
         if (fs.res.delta_valid) {
             cJSON_AddNumberToObject(fj, "delta_k", fs.res.delta_k);
         }
+    }
+
+    /*
+     * Rueckstroemung im Kesselkreis. Bei stehender Pumpe und ausgeschaltetem
+     * Brenner kann der Kesselruecklauf nicht von selbst waermer werden.
+     */
+    {
+        static extra_status_t ex;
+        extra_get(&ex);
+        if (ex.back_events > 0) {
+            cJSON *w = cJSON_CreateObject();
+            cJSON_AddStringToObject(w, "code", "backflow");
+            cJSON_AddStringToObject(w, "where", "Kesselkreis");
+            cJSON_AddStringToObject(w, "text", plausi_text(PLAUSI_BACKFLOW));
+            cJSON_AddNumberToObject(w, "events", ex.back_events);
+            cJSON_AddNumberToObject(w, "rise_k", ex.back_last_k);
+            cJSON_AddItemToArray(warn, w);
+        }
+
+        cJSON *zj = cJSON_AddObjectToObject(root, "zapfung");
+        cJSON_AddBoolToObject(zj, "active", ex.zapf_active);
+        cJSON_AddNumberToObject(zj, "count", ex.zapf_count);
+        cJSON_AddNumberToObject(zj, "sum_k", ex.zapf_sum_k);
+        cJSON_AddNumberToObject(zj, "last_k", ex.zapf_last_k);
+        float kwh = 0.0f;
+        if (zapf_kwh(ex.zapf_sum_k, cfg.buffer.volumen_l, &kwh)) {
+            cJSON_AddNumberToObject(zj, "sum_kwh", kwh);
+        }
+        cJSON *bj2 = cJSON_AddObjectToObject(root, "rueckstroemung");
+        cJSON_AddNumberToObject(bj2, "events", ex.back_events);
+        cJSON_AddNumberToObject(bj2, "last_k", ex.back_last_k);
+        cJSON_AddBoolToObject(bj2, "active", ex.back_active);
     }
 
     boiler_pump_status_t bp;

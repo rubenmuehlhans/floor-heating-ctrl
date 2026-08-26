@@ -15,6 +15,7 @@
 #include "boilerpump.h"
 #include "trend.h"
 #include "flue.h"
+#include "zapfung.h"
 #include "plausi.h"
 #include "hw_map.h"
 #include "roomctrl.h"
@@ -778,6 +779,107 @@ static void test_charge_kaltstart(void)
     }
     CHECK(st.phase == CHARGE_FULL, "dann ist er geladen, nicht \"%s\"",
           charge_phase_text(st.phase));
+}
+
+/* ------------------------------------------------------------------ */
+/* Rueckstroemung und Zapfung                                          */
+/* ------------------------------------------------------------------ */
+
+static void test_plausi_backflow(void)
+{
+    printf("Plausibilitaet: Ruecklauf steigt ohne Brenner und Pumpe\n");
+
+    plausi_cfg_t cfg;
+    plausi_defaults(&cfg);
+    plausi_backflow_t b;
+    plausi_backflow_init(&b);
+    uint32_t t = 1000;
+
+    /* Ruhe: der Ruecklauf kuehlt langsam aus. Das ist normal. */
+    for (float rl = 37.6f; rl >= 36.9f; rl -= 0.1f) {
+        for (int i = 0; i < 60; i++) { t += 1000; plausi_backflow_tick(&b, &cfg, true, true, rl, t); }
+    }
+    CHECK(b.events == 0, "langsames Auskuehlen ist kein Befund");
+
+    /*
+     * Der gemessene Sprung vom 26. August: 36,9 auf 46,3 Grad in zehn Minuten,
+     * waehrend der Vorlauf bei 32 Grad stand und der Brenner aus war.
+     */
+    for (float rl = 38.0f; rl <= 46.3f; rl += 1.0f) {
+        for (int i = 0; i < 60; i++) { t += 1000; plausi_backflow_tick(&b, &cfg, true, true, rl, t); }
+    }
+    CHECK(b.events == 1, "der Sprung wird als ein Ereignis gezaehlt, nicht als %u",
+          (unsigned)b.events);
+    CHECK(b.last_rise_k > 9.0f, "und mit %.1f K Hoehe vermerkt", b.last_rise_k);
+
+    /* Er kuehlt wieder ab; danach zaehlt der naechste Sprung neu. */
+    for (float rl = 46.3f; rl >= 37.0f; rl -= 1.0f) {
+        for (int i = 0; i < 60; i++) { t += 1000; plausi_backflow_tick(&b, &cfg, true, true, rl, t); }
+    }
+    for (float rl = 38.0f; rl <= 45.0f; rl += 1.0f) {
+        for (int i = 0; i < 60; i++) { t += 1000; plausi_backflow_tick(&b, &cfg, true, true, rl, t); }
+    }
+    CHECK(b.events == 2, "eine zweite Zapfung ist ein zweites Ereignis");
+
+    /* Laeuft die Pumpe, darf der Ruecklauf steigen. */
+    plausi_backflow_init(&b);
+    for (float rl = 37.0f; rl <= 60.0f; rl += 1.0f) {
+        for (int i = 0; i < 60; i++) { t += 1000; plausi_backflow_tick(&b, &cfg, false, true, rl, t); }
+    }
+    CHECK(b.events == 0, "bei laufender Pumpe ist ein Anstieg kein Befund");
+}
+
+static void test_zapfung(void)
+{
+    printf("Zapfung: Einbruch des Speichers vom Stillstandsverlust trennen\n");
+
+    zapf_cfg_t cfg;
+    zapf_defaults(&cfg);
+    zapf_state_t st;
+    zapf_init(&st);
+    uint32_t t = 1000;
+
+    /* Stillstandsverlust: 0,8 Kelvin je Stunde ueber sechs Stunden. */
+    float pu = 72.0f;
+    for (int minute = 0; minute < 360; minute++) {
+        pu -= 0.8f / 60.0f;
+        for (int i = 0; i < 60; i++) { t += 1000; zapf_tick(&st, &cfg, false, true, pu, t); }
+    }
+    CHECK(st.count == 0, "das Auskuehlen ist keine Zapfung, gezaehlt wurden %u",
+          (unsigned)st.count);
+
+    /*
+     * Das Vollbad: 61,5 auf 55,0 Grad in dreissig Minuten. Gemessen am
+     * 26. August.
+     */
+    pu = 61.5f;
+    for (int minute = 0; minute < 30; minute++) {
+        pu -= 6.5f / 30.0f;
+        for (int i = 0; i < 60; i++) { t += 1000; zapf_tick(&st, &cfg, false, true, pu, t); }
+    }
+    /* Danach beruhigt es sich wieder. */
+    for (int minute = 0; minute < 30; minute++) {
+        pu -= 0.8f / 60.0f;
+        for (int i = 0; i < 60; i++) { t += 1000; zapf_tick(&st, &cfg, false, true, pu, t); }
+    }
+    CHECK(st.count == 1, "das Bad wird als eine Zapfung gezaehlt, nicht als %u",
+          (unsigned)st.count);
+    CHECK(st.sum_k > 5.5f && st.sum_k < 7.5f, "mit %.1f K Entnahme", st.sum_k);
+
+    /* Mit bekanntem Inhalt wird daraus eine Waermemenge. */
+    float kwh = 0.0f;
+    CHECK(zapf_kwh(st.sum_k, 850.0f, &kwh), "bei bekanntem Inhalt gibt es Kilowattstunden");
+    CHECK(kwh > 5.0f && kwh < 8.0f, "%.1f kWh fuer ein Vollbad", kwh);
+    CHECK(!zapf_kwh(st.sum_k, 0.0f, &kwh), "ohne Inhaltsangabe nicht");
+
+    /* Waehrend einer Ladung wird nicht gezaehlt. */
+    zapf_init(&st);
+    pu = 60.0f;
+    for (int minute = 0; minute < 30; minute++) {
+        pu -= 0.2f;
+        for (int i = 0; i < 60; i++) { t += 1000; zapf_tick(&st, &cfg, true, true, pu, t); }
+    }
+    CHECK(st.count == 0, "waehrend des Brennerlaufs wird nicht gezaehlt");
 }
 
 static void test_burner_detect(void)
@@ -2142,6 +2244,8 @@ int main(void)
     test_demand();
     test_burner_detect();
     test_burner_abfall();
+    test_plausi_backflow();
+    test_zapfung();
     test_charge_leer_lernen();
     test_charge_kaltstart();
     test_burner_hysteresis();

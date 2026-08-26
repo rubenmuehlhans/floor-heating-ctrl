@@ -512,6 +512,9 @@ entweder eine Messung oder eine Angabe zur Verdrahtung.
 
 | Feld | Vorgabe | Bedeutung |
 |---|---|---|
+| Speicherinhalt | 0 l | Nur zum Umrechnen entnommener Kelvin in Kilowattstunden. 0 lässt die Angabe in Kelvin stehen. Grob abzuschätzen aus einer Ladung: gelieferte Wärme geteilt durch den Temperaturhub des Speichers, beides steht im Ladungsprotokoll. |
+| Zapfung ab Einbruch | 2,0 K | So steil muss der Speicher fallen, damit es als Warmwasserzapfung gilt. Der Stillstandsverlust schafft im Vorgabefenster rund 0,2 K, ein Vollbad 6,5 K. |
+| im Fenster | 900 s | Zeitfenster, über das der Einbruch gemessen wird. |
 | Leer bei | 35 °C | Nullpunkt des Füllstands: die Temperatur, bei welcher der Kessel von sich aus anläuft. Wird selbst nachgemessen, sofern eingeschaltet. |
 | Voll bei | 62 °C | Hundert Prozent. Sinnvoll ist der Wert, den der Speicher am Ende einer Ladung tatsächlich erreicht — er steht nach jeder Ladung im Ladungsprotokoll. **Auf beiden Heizungsgeräten gleich eintragen**, sonst zeigen sie verschiedene Füllstände für denselben Speicher. |
 | Leerpunkt selbst nachmessen | ein | Beim Anlaufen des Brenners wird der Nullpunkt zu 40 Prozent an den gemessenen Wert herangeführt. |
@@ -614,6 +617,19 @@ besser aus, als er ist.
 
 Der Zeitpunkt der nächsten Reinigung wird damit eine Messung statt eines Kalendereintrags.
 
+### Warmwasser
+
+Im Sommer verbraucht die Anlage täglich Öl, ohne dass ein Raum Wärme abruft. Darin stecken zwei
+Dinge: das Warmwasser und der Stillstandsverlust des Speichers. Sie sehen im Verlauf verschieden
+aus — der Verlust ist ein langsames, stetiges Absinken, eine Zapfung ein steiler Einbruch. An
+dieser Anlage gemessen: **0,8 K je Stunde** im Stillstand gegen **6,5 K in einer halben Stunde**
+für ein Vollbad.
+
+Die Karte **Pufferspeicher** weist deshalb aus, wie oft am Tag gezapft wurde und wie viel dabei
+entnommen wurde. Gezählt wird in Kelvin; ist der Speicherinhalt eingetragen, steht die Angabe
+zusätzlich in Kilowattstunden. Während einer Ladung wird nicht gezählt — dort steigt der Speicher,
+und was gleichzeitig gezapft wird, lässt sich am Fühler nicht abtrennen.
+
 ### Befunde
 
 Auffälligkeiten stehen gesammelt auf der Anlagenseite, nicht über die Karten verstreut:
@@ -622,6 +638,7 @@ Auffälligkeiten stehen gesammelt auf der Anlagenseite, nicht über die Karten v
 |---|---|
 | Vorlauf und Rücklauf vertauscht | Bei laufender Pumpe und warmem Speicher ist der Vorlauf eines Kreises dauerhaft kälter als sein Rücklauf. Entweder sitzen die Fühler an den falschen Rohren oder ihre Rollen sind vertauscht zugeordnet. |
 | Fühler verwirft viele Messungen | Meist ein Wackelkontakt, eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand. |
+| Warmes Wasser strömt in den Kesselrücklauf | Bei stehender Pumpe und ausgeschaltetem Brenner kann der Kesselrücklauf nicht von selbst wärmer werden. An dieser Anlage sprang er bei einer Warmwasserzapfung von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb — heißes Wasser wird in die Rücklaufleitung gedrückt und kühlt dort ab. Meist eine fehlende oder undichte Schwerkraftbremse. Jede Zapfung schiebt so Wärme in den kalten Kessel. |
 | Tag über der Verbrauchslinie | siehe oben |
 | Kessel überträgt schlechter | siehe oben |
 

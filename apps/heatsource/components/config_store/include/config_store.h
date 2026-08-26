@@ -176,6 +176,14 @@ typedef struct {
     bool leer_lernen;
     float lern_drop_k;     /* so weit muss der Speicher vorher gefallen sein */
     uint32_t leer_epoch;   /* Zeitpunkt der letzten Kalibrierung, 0 = nie */
+    /*
+     * Inhalt in Litern, 0 = unbekannt. Nur zum Umrechnen von Kelvin in
+     * Kilowattstunden -- eine Angabe ueber die Anlage, keine Messung.
+     */
+    float volumen_l;
+    /* Ab diesem Einbruch im Zeitfenster gilt es als Warmwasserzapfung. */
+    float zapf_drop_k;
+    uint32_t zapf_win_s;
 } cfg_buffer_t;
 
 typedef struct {

@@ -6,6 +6,9 @@
 #include <time.h>
 
 #include "app_log.h"
+#include "app_pumps.h"
+#include "plausi.h"
+#include "zapfung.h"
 #include "app_analyse.h"
 #include "app_remote.h"
 #include "app_sensors.h"
@@ -48,6 +51,10 @@ static burner_cfg_t s_cfg;
 static burner_state_t s_st;
 static charge_cfg_t s_ccfg;
 static charge_state_t s_cst;
+static zapf_cfg_t s_zcfg;
+static zapf_state_t s_zst;
+static plausi_cfg_t s_pcfg;
+static plausi_backflow_t s_back;
 static bool s_kessel_remote;
 static bool s_puffer_remote;
 static stats_t s_stats;
@@ -477,6 +484,8 @@ static void apply_config(void)
     s_ccfg.warn_c = cfg.buffer.warn_c;
     s_ccfg.kessel_hot_c = cfg.buffer.kessel_hot_c;
     s_ccfg.lern_drop_k = cfg.buffer.lern_drop_k;
+    s_zcfg.drop_k = cfg.buffer.zapf_drop_k;
+    s_zcfg.win_s = cfg.buffer.zapf_win_s;
     xSemaphoreGive(s_mtx);
 }
 
@@ -621,6 +630,26 @@ static void burner_task(void *arg)
             leer_nachziehen(messpunkt);
         }
 
+        /*
+         * Warmwasserzapfung und Rueckstroemung. Beide entstehen am selben
+         * Ereignis -- eine Zapfung drueckt heisses Wasser in den kalten
+         * Kesselruecklauf --, werden aber getrennt gefuehrt: die eine ist eine
+         * Messung, die andere ein Fehler der Verrohrung.
+         */
+        bool pumpe_laeuft = false;
+        boiler_pump_status_t bps;
+        pumps_boiler_status(&bps);
+        pumpe_laeuft = bps.on;
+
+        float krl = 0.0f;
+        bool krl_eigen = sensors_role_value(ROLE_KESSEL_RL, &krl, NULL);
+        bool ruhe = !cin.burner_running && !pumpe_laeuft;
+
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        zapf_tick(&s_zst, &s_zcfg, cin.burner_running, cin.puffer_valid, cin.puffer_c, t);
+        plausi_backflow_tick(&s_back, &s_pcfg, ruhe, krl_eigen, krl, t);
+        xSemaphoreGive(s_mtx);
+
         /* Scharf geschaltet beginnt die Aufzeichnung von selbst und endet
          * auch von selbst. */
         rec_input_t tin = {
@@ -661,6 +690,7 @@ static void burner_task(void *arg)
             s_stats.runtime_yesterday_s = s_st.runtime_today_s;
             s_stats.starts_yesterday = s_st.starts_today;
             burner_new_day(&s_st);
+            zapf_new_day(&s_zst);
             s_stats.runtime_today_s = 0;
             s_stats.starts_today = 0;
             s_stats.tag = (int16_t)tag;
@@ -743,6 +773,10 @@ esp_err_t burner_start(void)
     burner_defaults(&s_cfg);
     burner_init(&s_st);
     charge_defaults(&s_ccfg);
+    zapf_defaults(&s_zcfg);
+    zapf_init(&s_zst);
+    plausi_defaults(&s_pcfg);
+    plausi_backflow_init(&s_back);
     rec_trigger_defaults(&s_tcfg);
     rec_trigger_init(&s_trig);
     applog_init();
@@ -794,6 +828,23 @@ void burner_get(burner_status_t *out)
     out->short_cycling = s_st.starts_today >= TAKT_STARTS &&
                          s_st.runtime_today_s / (s_st.starts_today ? s_st.starts_today : 1) <
                              TAKT_LAUF_S;
+    xSemaphoreGive(s_mtx);
+}
+
+void extra_get(extra_status_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    if (s_mtx == NULL) {
+        return;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    out->zapf_active = s_zst.active;
+    out->zapf_count = s_zst.count;
+    out->zapf_sum_k = s_zst.sum_k;
+    out->zapf_last_k = s_zst.last_k;
+    out->back_events = s_back.events;
+    out->back_last_k = s_back.last_rise_k;
+    out->back_active = s_back.active;
     xSemaphoreGive(s_mtx);
 }
 

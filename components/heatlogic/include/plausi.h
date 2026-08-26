@@ -34,6 +34,8 @@ typedef enum {
     PLAUSI_BUFFER_ABOVE_BOILER,
     /* Ein Fuehler verwirft mehr Messungen, als er annimmt. */
     PLAUSI_PROBE_ERRORS,
+    /* Der Kesselruecklauf steigt, obwohl weder Brenner noch Pumpe laufen. */
+    PLAUSI_BACKFLOW,
 } plausi_code_t;
 
 typedef struct {
@@ -46,6 +48,12 @@ typedef struct {
     float min_buffer_c;
     /* Anteil verworfener Messungen, ab dem ein Fuehler auffaellt. */
     float max_error_ratio;
+    /*
+     * So weit muss der Kesselruecklauf in der Ruhe steigen, damit es als
+     * Rueckstroemung gilt. An der Anlage gemessen waren es 9,4 Kelvin
+     * innerhalb von zehn Minuten, ausgeloest durch eine Warmwasserzapfung.
+     */
+    float backflow_k;
 } plausi_cfg_t;
 
 /* Ein Befund. Er haelt an, solange die Bedingung anliegt. */
@@ -80,6 +88,38 @@ void plausi_flow_tick(plausi_finding_t *f, const plausi_cfg_t *cfg, bool pump_on
 void plausi_buffer_tick(plausi_finding_t *f, const plausi_cfg_t *cfg, bool loading,
                         bool buffer_valid, float buffer_c, bool vl_valid, float vl_c,
                         uint32_t now_ms);
+
+/*
+ * Rueckstroemung im Kesselkreis.
+ *
+ * Steht die Pumpe und ist der Brenner aus, kann der Kesselruecklauf nicht von
+ * selbst waermer werden -- es sei denn, es stroemt Wasser, das nicht stroemen
+ * sollte. An der Anlage geschah das bei jeder Warmwasserzapfung: Der Speicher
+ * fiel um 6,5 Kelvin, und im selben Zehnminutenabschnitt sprang der
+ * Kesselruecklauf von 36,9 auf 46,3 Grad, waehrend der Vorlauf bei 32 Grad
+ * stehen blieb. Heisses Wasser wird also in die Ruecklaufleitung gedrueckt
+ * und kuehlt dort ab -- eine fehlende oder undichte Schwerkraftbremse.
+ *
+ * Gezaehlt werden Ereignisse, nicht Dauer: Der Vorgang ist kurz, und was zaehlt
+ * ist, wie oft und wie stark er auftritt.
+ */
+typedef struct {
+    bool have;           /* ein Bezugswert liegt vor */
+    float min_c;         /* Tiefstwert des Ruecklaufs seit Beginn der Ruhe */
+    bool active;         /* gerade laeuft eine Rueckstroemung */
+    uint32_t events;     /* wie oft bisher */
+    float last_rise_k;   /* wie hoch die letzte war */
+} plausi_backflow_t;
+
+void plausi_backflow_init(plausi_backflow_t *b);
+
+/*
+ * Ein Zeitschritt. `ruhe` ist true, solange weder Brenner noch Kesselkreispumpe
+ * laufen -- nur dann ist ein steigender Ruecklauf unmoeglich. Sobald eines von
+ * beidem laeuft, faellt der Bezug weg und wird neu aufgebaut.
+ */
+void plausi_backflow_tick(plausi_backflow_t *b, const plausi_cfg_t *cfg, bool ruhe,
+                          bool rl_valid, float rl_c, uint32_t now_ms);
 
 /* Anteil verworfener Messungen eines Fuehlers. */
 bool plausi_probe_bad(const plausi_cfg_t *cfg, uint32_t reads, uint32_t errors);
