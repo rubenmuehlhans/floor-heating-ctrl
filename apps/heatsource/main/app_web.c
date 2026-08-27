@@ -705,6 +705,15 @@ static esp_err_t history_get(httpd_req_t *req)
 
     size_t len = sensors_history_len();
     size_t punkte = len / (size_t)step;
+    /*
+     * Liegt weniger als ein voller Schritt vor, wird feiner aufgeloest statt
+     * gar nichts zu liefern. Sonst bliebe der Verlauf nach jedem Neustart die
+     * ersten Minuten leer, und man sucht den Fehler dort, wo keiner ist.
+     */
+    if (punkte == 0 && len > 0) {
+        step = 1;
+        punkte = len;
+    }
     if (punkte > (size_t)limit) {
         punkte = (size_t)limit;
     }

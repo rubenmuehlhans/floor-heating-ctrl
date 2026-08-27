@@ -689,7 +689,9 @@ später am selben Tag angeht, holt ihn nach.
 ![Verlauf](screenshots/heizung/verlauf.png)
 
 **Verlauf.** Die letzten 24 Stunden im Minutentakt. Die Messreihen lassen sich einzeln
-zuschalten. Der Verlauf liegt im Arbeitsspeicher und beginnt nach einem Neustart von vorn.
+zuschalten. Der Verlauf liegt im Arbeitsspeicher und beginnt nach einem Neustart von vorn. Er führt alle
+Messstellen, die das Gerät je gesehen hat — auch die vom Nachbargerät. Fällt eine davon
+vorübergehend aus, bleibt ihre Spalte bestehen und der Verlauf läuft weiter.
 
 **Ladung aufzeichnen.** Zeichnet alle belegten Messstellen im Fünfsekundenraster auf, gut zwei
 Stunden lang.

@@ -91,19 +91,41 @@ static void apply_config(sens_snapshot_t *snap)
  * Verlauf geht dabei verloren. Das ist der Preis dafuer, keine leeren Spalten
  * mitzuschleppen, und faellt nur beim Einrichten an.
  */
+/*
+ * Welche Rollen der Verlauf je gefuehrt hat.
+ *
+ * Die Spaltenbelegung darf nicht davon abhaengen, ob eine Rolle gerade einen
+ * Wert liefert. Fremde Werte verfallen nach zwei Minuten; faellt eine Abfrage
+ * beim Nachbargeraet aus, verschwindet die Rolle kurz aus der Menge -- und der
+ * Verlauf wurde dann vollstaendig weggeworfen und begann von vorn. Nach acht
+ * Stunden Laufzeit standen so vier Messpunkte statt zweihundertfuenfzig.
+ *
+ * Die Menge waechst deshalb nur, sie schrumpft nicht. Eine Rolle, die einmal
+ * da war, behaelt ihre Spalte; kommt eine neue hinzu, wird einmal neu angelegt.
+ * Zurueckgesetzt wird sie nur bei einer Aenderung der Zuordnung -- dann ist der
+ * Verlauf ohnehin nicht mehr derselbe.
+ */
+static bool s_hist_seen[ROLE_COUNT];
+
 static void hist_setup(void)
 {
+    bool gewachsen = false;
+    for (int r = 1; r < ROLE_COUNT; r++) {
+        float wert = 0.0f;
+        if (!s_hist_seen[r] && (remote_role_value((probe_role_t)r, &wert, NULL) ||
+                                sensors_role_value((probe_role_t)r, &wert, NULL))) {
+            s_hist_seen[r] = true;
+            gewachsen = true;
+        }
+    }
+
     int8_t neu[ROLE_COUNT];
     uint8_t n = 0;
     neu[ROLE_NONE] = -1;
     for (int r = 1; r < ROLE_COUNT; r++) {
-        float wert = 0.0f;
-        neu[r] = remote_role_value((probe_role_t)r, &wert, NULL) ||
-                         sensors_role_value((probe_role_t)r, &wert, NULL)
-                     ? (int8_t)n++
-                     : (int8_t)-1;
+        neu[r] = s_hist_seen[r] ? (int8_t)n++ : (int8_t)-1;
     }
-    if (n == 0 || memcmp(neu, s_hist_col, sizeof(neu)) == 0) {
+    if (n == 0 || (!gewachsen && memcmp(neu, s_hist_col, sizeof(neu)) == 0)) {
         return;
     }
 
@@ -297,6 +319,9 @@ static void sensors_task(void *arg)
 
         if (s_cfg_dirty) {
             s_cfg_dirty = false;
+            /* Geaenderte Zuordnung: Der Verlauf beginnt neu, denn die Rollen
+             * bedeuten jetzt etwas anderes. */
+            memset(s_hist_seen, 0, sizeof(s_hist_seen));
 
             /* Eine geaenderte Busbelegung wird sofort uebernommen; ohne das
              * muesste man beim Suchen des richtigen Anschlusses jedes Mal neu
