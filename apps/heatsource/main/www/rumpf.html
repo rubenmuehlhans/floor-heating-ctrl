@@ -584,7 +584,7 @@ a.btn:hover{filter:none}
       <p class="lede">Wie oft die Verteiler nach Wärmebedarf gefragt werden und ab wann ein
          Verteiler, der einmal geantwortet hat und dann verstummt, als bedarfsmeldend gilt.</p>
       <div class="fields">
-        <label>Abfrage alle (s)<input type="number" id="s-dpoll" min="1" max="600"
+        <label>Abfrage alle (s)<input type="number" id="s-dpoll" min="1" max="300"
                style="width:6rem"></label>
         <label>Zeitgrenze (s)<input type="number" id="s-dtimeout" min="10" max="3600"
                style="width:6rem"></label>
@@ -618,7 +618,7 @@ a.btn:hover{filter:none}
         <label>WLAN-Name<input id="s-ssid" maxlength="32" style="width:15rem"></label>
         <label>WLAN-Kennwort<input id="s-pass" type="password" style="width:15rem"></label>
         <label>Gerätename im Netz<input id="s-host" maxlength="31" style="width:15rem"></label>
-        <label>Kennwort Zugangspunkt<input id="s-appass" type="password" style="width:15rem"></label>
+        <label>Kennwort Zugangspunkt<input id="s-appass" type="password" minlength="8" title="Mindestens acht Zeichen" style="width:15rem"></label>
       </div>
       <p class="lede" style="margin:.4rem 0 0">Kennwortfelder leer lassen, um das
          gespeicherte Kennwort beizubehalten.</p>

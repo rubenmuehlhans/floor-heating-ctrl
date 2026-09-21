@@ -185,6 +185,18 @@ static esp_err_t cfg_validate(const app_config_t *c, char *err, size_t err_len)
     if (c->display_brightness > 100) {
         FAIL("Helligkeit der Anzeige ausserhalb 0..100 Prozent");
     }
+    /*
+     * Beide wie beim Heizungsgeraet. Das Kennwort ist die wichtigere: WPA2
+     * verlangt acht Zeichen, und netmgr oeffnet den Zugangspunkt bei einem
+     * kuerzeren ganz ohne Schutz -- wer "heizung" eintrug, bekam einen
+     * offenen Einrichtungszugang, ohne es zu merken.
+     */
+    if (c->wifi.ap_pass[0] && strlen(c->wifi.ap_pass) < 8) {
+        FAIL("Das Kennwort des Zugangspunkts braucht mindestens acht Zeichen");
+    }
+    if (c->mqtt.enabled && c->mqtt.uri[0] == '\0') {
+        FAIL("Ohne Adresse des Brokers laesst sich MQTT nicht einschalten");
+    }
 
     return ESP_OK;
 }

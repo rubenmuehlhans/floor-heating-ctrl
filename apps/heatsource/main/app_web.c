@@ -984,8 +984,11 @@ static esp_err_t config_put(httpd_req_t *req)
     peers_update_identity(next.wifi.hostname, next.site);
     ESP_LOGI(TAG, "Konfiguration geaendert: %u Fuehler zugeordnet", next.probe_count);
 
+    /* Die Fuehlererfassung stellt selbst um, siehe app_sensors. Hier stand
+     * frueher, dass es dafuer einen Neustart brauche -- das stimmt seit
+     * ot_reconfigure nicht mehr. */
     if (memcmp(bus_before, next.onewire_pin, sizeof(bus_before)) != 0) {
-        ESP_LOGW(TAG, "Geaenderte Busbelegung wirkt erst nach einem Neustart");
+        ESP_LOGI(TAG, "Busbelegung geaendert, die Fuehlererfassung stellt sofort um");
     }
 
     bool wifi_changed = strcmp(before.ssid, next.wifi.ssid) != 0 ||

@@ -132,8 +132,12 @@ void cfg_defaults(app_config_t *out)
     /* Dieselben Vorgaben wie in components/heatlogic. */
     out->boiler_pump.enabled = false;
     out->boiler_pump.relay = 1;
-    out->boiler_pump.on_k = 1.0f;
-    out->boiler_pump.off_k = 0.5f;
+    /* Muss zu bp_defaults() in components/heatlogic passen. Die beiden sind
+     * schon einmal auseinandergelaufen: Das Rechenmodul hatte 3,0/2,0, hier
+     * standen noch 1,0/0,5 -- und die gewinnen, weil ein neues Geraet seine
+     * Einstellungen von hier bezieht. */
+    out->boiler_pump.on_k = 3.0f;
+    out->boiler_pump.off_k = 2.0f;
     out->boiler_pump.hold_s = 120;
     out->boiler_pump.min_run_s = 180;
     out->boiler_pump.min_pause_s = 180;
@@ -193,6 +197,11 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
 
     if (cfg->seize_weekday > 6 || cfg->seize_hour < 0 || cfg->seize_hour > 23) {
         FEHLER("Termin der Schutzfahrt liegt ausserhalb des Moeglichen");
+    }
+    /* Wie beim Verteiler. Ohne diese Pruefung nahm das Geraet etwa Stunde 30
+     * an -- der Neustart fand dann nie statt, ohne dass es jemand erfuhr. */
+    if (cfg->reboot_hour > 23 || cfg->reboot_minute < 0 || cfg->reboot_minute > 59) {
+        FEHLER("Zeitpunkt des taeglichen Neustarts ist ungueltig");
     }
     if (cfg->probe_count > CFG_MAX_PROBES) {
         FEHLER("Hoechstens %d Fuehler moeglich", CFG_MAX_PROBES);
@@ -307,6 +316,9 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
     if (cfg->buffer.volumen_l < 0.0f || cfg->buffer.volumen_l > 20000.0f) {
         FEHLER("Speicherinhalt muss zwischen 0 und 20000 Litern liegen");
     }
+    if (cfg->buffer.zapf_win_s < 60 || cfg->buffer.zapf_win_s > 7200) {
+        FEHLER("Fenster fuer eine Zapfung muss zwischen 60 und 7200 Sekunden liegen");
+    }
     if (cfg->buffer.zapf_drop_k < 0.2f || cfg->buffer.zapf_drop_k > 40.0f) {
         FEHLER("Einbruch fuer eine Zapfung muss zwischen 0,2 und 40 Kelvin liegen");
     }
@@ -325,8 +337,38 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
     if (cfg->burner.duese_l_h < 0.0f || cfg->burner.duese_l_h > 20.0f) {
         FEHLER("Duesendurchsatz muss zwischen 0 und 20 Litern je Stunde liegen");
     }
+    /*
+     * Die folgenden Grenzen stehen seit jeher in der Oberflaeche, das Geraet
+     * selbst nahm aber alles an. Ueber die Schnittstelle oder eine
+     * Sicherungsdatei liess sich so etwa eine negative Ausschaltschwelle
+     * setzen, mit der der Brenner nur noch ueber den Ausschlag ausging.
+     * Die Kalibrierung haelt den Leerpunkt ohnehin zwischen 15 Grad und
+     * "voll" minus 5 K, kollidiert also nicht mit diesen Grenzen.
+     */
+    if (cfg->burner.delta_off_k < 0.0f) {
+        FEHLER("Die Ausschaltschwelle des Brenners darf nicht negativ sein");
+    }
+    if (cfg->burner.on_hold_s > 3600 || cfg->burner.off_hold_s > 3600) {
+        FEHLER("Haltezeiten der Brennererkennung duerfen hoechstens eine Stunde betragen");
+    }
+    if (cfg->buffer.leer_c < 15.0f || cfg->buffer.leer_c > 90.0f) {
+        FEHLER("Der Wert fuer \"leer\" muss zwischen 15 und 90 Grad liegen");
+    }
+    if (cfg->buffer.voll_c < 20.0f || cfg->buffer.voll_c > 95.0f) {
+        FEHLER("Der Wert fuer \"voll\" muss zwischen 20 und 95 Grad liegen");
+    }
     if (cfg->buffer.voll_c <= cfg->buffer.leer_c) {
         FEHLER("Der Wert fuer \"voll\" muss ueber dem fuer \"leer\" liegen");
+    }
+    if (cfg->buffer.warn_c < 20.0f || cfg->buffer.warn_c > 80.0f) {
+        FEHLER("Die Warngrenze des Speichers muss zwischen 20 und 80 Grad liegen");
+    }
+    if (cfg->buffer.kessel_hot_c < 20.0f || cfg->buffer.kessel_hot_c > 95.0f) {
+        FEHLER("Die Grenze fuer einen heissen Kesselvorlauf muss zwischen 20 und 95 Grad "
+               "liegen");
+    }
+    if (cfg->buffer.spread_hold_s > 3600) {
+        FEHLER("Haltezeit fuer \"geladen\" darf hoechstens eine Stunde betragen");
     }
     if (cfg->buffer.spread_full_k < 1.0f || cfg->buffer.spread_full_k > 40.0f) {
         FEHLER("Die Spreizung fuer \"geladen\" muss zwischen 1 und 40 K liegen");
@@ -632,11 +674,16 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
                     break;
                 }
             }
-            char role[24] = {0};
-            cfgjson_str(j, "role", role, sizeof(role));
-            p->role = cfg_role_from_key(role);
+            /* Fehlt ein Feld, gilt der bisherige Stand. Frueher fiel der
+             * Korrekturwert dann auf 0 und die Rolle auf "keine" -- genau das,
+             * was das Zusammenfuehren oben verhindern soll. Eine leere Rolle
+             * gibt den Fuehler weiterhin frei. */
+            const cJSON *rj = cJSON_GetObjectItemCaseSensitive(j, "role");
+            if (cJSON_IsString(rj) && rj->valuestring) {
+                p->role = cfg_role_from_key(rj->valuestring);
+            }
             cfgjson_str(j, "name", p->name, sizeof(p->name));
-            p->offset_k = (float)cfgjson_num(j, "offset_k", 0.0);
+            p->offset_k = (float)cfgjson_num(j, "offset_k", p->offset_k);
             if (p->name[0] == '\0') {
                 copy_str(p->name, sizeof(p->name),
                          p->role != ROLE_NONE ? cfg_role_label(p->role) : rom);
