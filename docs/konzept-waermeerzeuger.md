@@ -115,8 +115,18 @@ eine gleitende Bezugslinie: das Minimum des Abgasfühlers über die letzten 24 S
 
 | Übergang | Bedingung | Vorgabe |
 |---|---|---|
-| aus → läuft | `abgas > bezug + delta_on` über `on_hold_s` | 12 K, 60 s |
-| läuft → aus | `abgas < bezug + delta_off` über `off_hold_s` | 6 K, 300 s |
+| aus → läuft | `abgas > bezug + delta_on_k` und `abgas > tiefstwert + swing_k`, über `on_hold_s` | 12 K, 6 K, 60 s |
+| läuft → aus | `abgas < bezug + delta_off_k` oder `abgas < höchstwert − swing_k`, über `off_hold_s` | 6 K, 6 K, 300 s |
+
+Höchst- und Tiefstwert beziehen sich auf die laufende Phase und beginnen mit jedem Wechsel neu.
+
+Die erste Fassung kannte nur die Bezugslinie. An der Anlage hielt sie den Brenner bei warmem
+Kessel vier Stunden lang für an: Nach dem Abschalten kühlt das Abgasrohr nur bis auf die
+Kesseltemperatur ab und bleibt damit mehr als 6 K über der Bezugslinie. Der Abfall gegen den
+Höchstwert der Fahrt erkennt das Ende unabhängig davon. Der Anstieg gegen den Tiefstwert
+verhindert, dass derselbe warme Zustand unmittelbar nach dem Abschalten wieder als Anlauf gilt.
+Der Kesselvorlauf als Bezug wurde ebenfalls erprobt und verworfen: Bei einem Warmstart mit
+laufender Pumpe lag das Abgas während des Brennerlaufs 17 bis 25 K unter dem Vorlauf.
 
 Die Bezugslinie wird nicht aus einer vollständigen Messreihe gebildet, sondern als kleinstes
 Vorkommen in einem wandernden 24-Stunden-Fenster mitgeführt. Das ist träger als ein echtes
@@ -124,7 +134,7 @@ gleitendes Minimum und spart den Speicher für einen Tag Messwerte; die Temperat
 Rohrs ändert sich ohnehin über Wochen, nicht über Stunden.
 
 Erfasst werden Laufzeit und Anzahl der Starts je Tag. Sie liegen im NVS und überdauern einen
-Neustart, geschrieben wird alle fünf Minuten und zum Tageswechsel — häufiger wäre für das Flash
+Neustart, geschrieben wird bei laufendem Brenner alle fünf Minuten und zum Tageswechsel — häufiger wäre für das Flash
 nicht zuträglich, und ein verlorener Wert von wenigen Minuten fällt in einer Tagesbilanz nicht
 ins Gewicht. Aus der
 Laufzeit und dem eingetragenen Düsendurchsatz in Litern je Stunde ergibt sich eine Schätzung des
@@ -156,16 +166,25 @@ Das entspricht dem Vorgehen bei der BEMF-Kalibrierung des Verteilers, bei der di
 Werte deutlich von den vorher angenommenen abwichen — die tatsächlichen Fahrzeiten lagen rund
 15 % unter den fest eingestellten.
 
-### Vorgesehene Auswertung
+### Auswertung
 
-Die Werte sind nach der ersten Aufzeichnung anzupassen.
+Die Kriterien sind nach den ersten Aufzeichnungen angepasst.
 
-- **Geladen**, wenn bei laufendem Brenner `kessel_vl − kessel_rl` unter `spread_voll` (Vorgabe
-  8 K) fällt und dort 5 Minuten bleibt: der Rücklauf ist warm, der Speicher nimmt keine Wärme
-  mehr auf. Ebenso, wenn der Brenner von sich aus abschaltet, während der Kesselvorlauf hoch ist.
-- **Füllstand** als lineare Schätzung zwischen `leer_c` und `voll_c` aus dem Pufferfühler. Der
-  Wert wird in der Oberfläche ausdrücklich als Schätzung gekennzeichnet.
-- **Warnung Warmwasser**, wenn der Pufferwert unter `warnung_c` fällt. Da das Trinkwasser im
+- **Geladen**, wenn bei laufendem Brenner `kessel_vl − kessel_rl` unter `spread_full_k`
+  (Vorgabe 8 K) fällt, dort `spread_hold_s` (300 s) bleibt und der Kesselvorlauf über
+  `kessel_hot_c` (60 °C) liegt: Der Rücklauf ist warm, der Speicher nimmt keine Wärme mehr auf.
+  Ebenso, wenn der Brenner von sich aus abschaltet, während der Kesselvorlauf über `kessel_hot_c`
+  liegt. Die Bedingung an den Vorlauf kam nach der ersten Aufzeichnung hinzu: Beim Anfahren aus
+  dem kalten Kessel liegen Vor- und Rücklauf ebenfalls dicht beieinander, weil beide kalt sind,
+  und die Ladung galt nach wenigen Minuten als fertig. Fällt der Füllstand danach unter
+  85 Prozent, gilt der Speicher wieder als nicht geladen.
+- **Füllstand** als lineare Schätzung zwischen `leer_c` und `voll_c` aus dem Pufferfühler, in
+  der Oberfläche als Schätzung gekennzeichnet. Den Nullpunkt misst das Gerät selbst nach: Läuft
+  der Brenner an, nachdem der Speicher seit seinem Höchststand um mindestens `lern_drop_k`
+  (3 K) gefallen ist, gilt der Speicherwert in diesem Augenblick als leer, und `leer_c` wird um
+  40 Prozent des Abstands an ihn herangeführt. Messpunkte unter 15 °C oder weniger als 5 K unter
+  `voll_c` werden verworfen.
+- **Warnung Warmwasser**, wenn der Pufferwert unter `warn_c` fällt. Da das Trinkwasser im
   Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfall.
 
 Sind die Kesselwerte nicht erreichbar, entfällt das erste Kriterium; die Oberfläche zeigt dann
@@ -232,24 +251,49 @@ Automatikbetrieb gilt:
 
 | Bedingung | Wirkung |
 |---|---|
-| Bedarf und `puffer ≥ min_puffer_c` | Pumpe ein |
-| kein Bedarf mehr | Nachlauf `nachlauf_s` (300 s), dann aus |
-| Mindestlaufzeit `min_lauf_s`, Mindestpause `min_pause_s` (je 180 s) | verhindert kurzes Takten |
-| `min_room_c < frost_c` (6 °C) oder Vorlauf unter 8 °C | Pumpe ein, unabhängig vom Bedarf |
-| Pumpe länger als `schutzlauf_tage` (7) aus | Schutzlauf 3 Minuten |
+| Bedarf und `puffer ≥ min_buffer_c` | Pumpe ein |
+| kein Bedarf mehr | Nachlauf `overrun_s` (300 s), dann aus |
+| Mindestlaufzeit `min_run_s`, Mindestpause `min_pause_s` (je 180 s) | verhindert kurzes Takten |
+| `min_room_c < frost_c` (6 °C) oder Vorlauf unter 8 °C | Pumpe ein, unabhängig von Bedarf und Betriebsart |
+| wöchentlicher Termin `seize_weekday`, `seize_hour` | Schutzlauf 3 Minuten, sofern die Pumpe in den letzten 24 Stunden nicht lief |
 
-`min_puffer_c` ist wegen des Mischers **oberhalb** der höchsten benötigten
+Der Termin richtet sich nach der Uhr, nicht nach der Standzeit seit dem Einschalten; die erste
+Fassung mit `schutzlauf_tage` hätte auf Geräten mit täglichem Neustart nie ausgelöst.
+
+`min_buffer_c` ist wegen des Mischers **oberhalb** der höchsten benötigten
 Fußbodenvorlauftemperatur anzusetzen, nicht knapp über Raumtemperatur: Der Mischer kann nur
 herunterregeln. Fällt der Speicher unter die benötigte Vorlauftemperatur, öffnet er vollständig
 und der Kreis bekommt trotzdem zu wenig. Vorgabe daher 40 °C, im Betrieb aus den aufgezeichneten
 Kurven nachzuziehen.
+
+### Kesselkreispumpe
+
+Die Pumpe zwischen Kessel und Speicher war ursprünglich nicht Teil dieses Konzepts; sie wurde
+von einem Node-RED-Ablauf geschaltet und ist inzwischen in die Firmware übernommen. Geführt wird
+sie nur auf dem Gerät, das Kesselvor- und -rücklauf selbst misst. Mit Werten vom Nachbargerät
+zu schalten hieße, bei einem Verbindungsabbruch ohne Messwerte zu entscheiden.
+
+| Bedingung | Wirkung |
+|---|---|
+| `kessel_vl − puffer ≥ on_k` (3 K) über `hold_s` (120 s) | Pumpe ein |
+| `kessel_vl − puffer ≤ off_k` (2 K) über `hold_s` | Pumpe aus |
+| Mindestlaufzeit `min_run_s`, Mindestpause `min_pause_s` (je 180 s) | verhindert kurzes Takten |
+| keine gültigen Messwerte | Pumpe ein |
+| `kessel_vl > emergency_c` (85 °C) | Pumpe ein, unabhängig vom Abstand |
+
+Bezug ist die Speichertemperatur, ersatzweise der Kesselrücklauf. Der Rücklauf allein genügt
+nicht: Bei stehender Pumpe nehmen Vor- und Rücklauf die Temperatur des Kesselkörpers an, ihr
+Abstand geht gegen null, und ein Kessel mit Restwärme bliebe stehen, obwohl der Speicher kälter
+ist. Die Ausschaltschwelle von 2 K stammt aus einer Aufzeichnung: Der Speicher erreichte seinen
+Höchststand in dem Augenblick, in dem der Abstand auf 2 K gefallen war. Mit der vorherigen
+Schwelle von 0,5 K lief die Pumpe nach dem Brennerende rund fünf Stunden weiter.
 
 ## Anbindung des Sonoff-Relais
 
 Geschaltet wird auf einem von zwei Wegen. Ist ein Broker eingerichtet und die Verbindung steht,
 geht der Befehl über MQTT; das Relais meldet dann jede Änderung von selbst, auch eine von Hand
 am Gerät. Sonst genügt die Adresse des Relais: der Befehl geht unmittelbar an dessen
-Schnittstelle `/cm`, und die Antwort trägt den tatsächlichen Zustand. Zwischen zwei Aufrufen
+Schnittstelle `/cm`, und die Antwort enthält den tatsächlichen Zustand. Zwischen zwei Aufrufen
 bleibt eine Änderung am Relais dabei unbemerkt, deshalb wird der Sollzustand zyklisch
 nachgesendet.
 
@@ -299,7 +343,9 @@ anschließender Überlagerung. Ein neu hinzugefügtes Feld ist damit von selbst 
 ```jsonc
 {
   "cfg_version": 1,
-  "site": "Heizungsraum",              // Bezeichnung des Geraets, leer = Einrichtung offen
+  "site": "Pufferspeicher",            // Bezeichnung des Geraets, leer = Einrichtung offen
+  "onewire_pin": [13, -1],             // zwei Busse, -1 = unbenutzt
+  "poll_s": 10,
 
   "probes": [
     { "rom": "28FF641E8016034A", "role": "puffer",  "name": "Pufferspeicher", "offset_k": 3.0 },
@@ -308,57 +354,76 @@ anschließender Überlagerung. Ein neu hinzugefügtes Feld ist damit von selbst 
   ],
 
   "burner": {                          // nur wirksam, wenn eine Rolle "abgas" zugeordnet ist
-    "delta_on_k": 12.0, "delta_off_k": 6.0,
+    "delta_on_k": 12.0, "delta_off_k": 6.0, "swing_k": 6.0,
     "on_hold_s": 60, "off_hold_s": 300,
-    "duese_l_h": 2.2                   // Duesendurchsatz fuer die Verbrauchsschaetzung
+    "duese_l_h": 2.2,                  // Duesendurchsatz fuer die Verbrauchsschaetzung
+    "wartung_epoch": 0                 // letzte Kesselreinigung, Bezug fuer den Abgasabstand
   },
 
   "buffer": {
-    "voll_c": 62.0, "leer_c": 35.0,
-    "spread_voll_k": 8.0,
-    "warnung_c": 40.0
+    "voll_c": 62.0, "leer_c": 35.0, "leer_lernen": true, "lern_drop_k": 3.0,
+    "spread_full_k": 8.0, "spread_hold_s": 300, "kessel_hot_c": 60.0,
+    "warn_c": 40.0, "volumen_l": 0, "zapf_drop_k": 2.0, "zapf_win_s": 900
+  },
+
+  "boiler_pump": {                     // nur auf dem Geraet mit Kesselvor- und -ruecklauf
+    "enabled": false, "host": "", "relay": 1, "mode": "auto",
+    "on_k": 3.0, "off_k": 2.0, "hold_s": 120,
+    "min_run_s": 180, "min_pause_s": 180, "emergency_c": 85.0
   },
 
   "circuits": [
-    { "id": 1, "name": "Keller und Erdgeschoss",
+    { "id": 1, "name": "Keller und Erdgeschoss", "enabled": true,
       "vl_role": "hk1_vl", "rl_role": "hk1_rl",
-      "peers": ["fbh_c2e55c", "fbh_a1b2c3"],
-      "pump": { "topic": "pumpe_hk1", "relay": 1 },
+      "peers": ["fbh_c2e55c", "fbh_cb6078"],
+      "pump": { "host": "192.168.1.203", "relay": 1 },
       "mode": "auto",
-      "nachlauf_s": 300, "min_lauf_s": 180, "min_pause_s": 180,
-      "min_puffer_c": 40.0, "frost_c": 6.0, "schutzlauf_tage": 7 }
+      "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
+      "min_buffer_c": 40.0, "frost_c": 6.0 }
   ],
 
-  "demand": { "poll_s": 5, "timeout_s": 180, "schwelle": 0.05 },
+  "demand_poll_s": 5, "demand_timeout_s": 180,
+  "seize_weekday": 6, "seize_hour": 11,
 
-  "peer": { "kessel_id": "" },         // Geraet, von dem die Kesselwerte geholt werden
-
-  "wifi": { "ssid": "", "hostname": "heizung", "ap_pass": "" },
+  "wifi": { "ssid": "", "hostname": "heizung", "ap_pass": "fussboden" },
   "mqtt": { "enabled": false, "uri": "", "user": "", "prefix": "heiz" },
   "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
-  "reboot_hour": -1
+  "reboot_hour": -1, "reboot_minute": 0
 }
 ```
 
 Passwörter werden bei `GET /api/config` durch `pass_set: true/false` ersetzt, wie beim Verteiler.
+Das Nachbargerät wird über mDNS gefunden; eine Einstellung dafür gibt es nicht. Die Schwelle,
+ab der ein Verteiler Bedarf meldet (5 Prozent Ventilstellung), liegt beim Verteiler. Vorgaben,
+zulässige Bereiche und die Regeln beim Zusammenführen stehen für jeden Schlüssel im Handbuch
+unter „Konfiguration im Einzelnen".
 
 ## Schnittstelle
 
 ### Heizungsgeräte
 
 ```
-GET     /api/state              Messwerte, Brenner, Ladung, Kreise, Pumpen
+GET     /api/state              Messwerte samt Fuehlerliste, Brenner, Ladung, Kreise, Pumpen,
+                                Auswertung und Befunde
 GET     /api/measurements       eigene Fuehler mit Rolle, Wert und Alter
-GET     /api/probes             gefundene Fuehler mit Live-Wert, fuer die Zuordnung
 GET     /api/history            Verlauf, Ein-Minuten-Raster
-GET     /api/record             Aufzeichnung einer Ladung, JSON oder CSV
-POST    /api/record/start · /api/record/stop
+GET     /api/record             Aufzeichnung einer Ladung als CSV
+POST    /api/record/{aktion}    arm | start | stop | discard
+GET     /api/log/charges        Ladungsprotokoll als CSV
+GET     /api/log/days           Tagesprotokoll als CSV
 GET/PUT /api/config
+GET     /api/config/backup      Sicherung mit Zugangsdaten
+POST    /api/config/restore     Sicherung einspielen
 POST    /api/circuit/{n}/mode   auto | ein | aus
+POST    /api/boilerpump/{modus} auto | ein | aus
+POST    /api/probes/rescan      Bus neu absuchen
 GET     /api/peers
-POST    /api/system/restart
+GET/POST /api/wifi/scan         Netze suchen
+POST    /api/system/{aktion}    restart | factory | clear-logs
 POST    /api/ota
 ```
+
+Die Bedeutung jedes Aufrufs steht im Handbuch unter „Schnittstelle".
 
 `/api/measurements` ist bewusst schlank gehalten, weil es alle 5 Sekunden vom Nachbargerät
 abgefragt wird:
@@ -414,7 +479,7 @@ Regelung, Kalibrierung, Anzeige und MQTT bleiben unberührt.
 ## Oberfläche
 
 Eigene Seite unter `apps/heatsource/main/www/index.html`, gestaltet nach den Vorgaben der
-bestehenden Oberfläche. Beide Geräte tragen dieselbe Seite; welche Abschnitte erscheinen, richtet
+bestehenden Oberfläche. Beide Geräte liefern dieselbe Seite aus; welche Abschnitte erscheinen, richtet
 sich nach den zugeordneten Fühlern und Heizkreisen.
 
 | Reiter | Inhalt |
@@ -450,10 +515,10 @@ die passenden Entitäten ein.
 | Stufe | Inhalt | Stand |
 |---|---|---|
 | 0 | Projektstruktur umbauen, Nachweis, OTA — siehe [umbau-projektstruktur.md](umbau-projektstruktur.md) | umgesetzt |
-| 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke | umgesetzt, noch nicht auf der Hardware erprobt |
-| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; Tasmota-Anbindung noch nicht an einem Relais erprobt |
-| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | umgesetzt; am Abgasfühler noch nicht erprobt |
-| 4 | Ladezustand aus den aufgezeichneten Kurven, MQTT-Discovery, Erweiterung der Integration | offen |
+| 1 | `apps/heatsource`: eigene Konfiguration, `onewire_temp`, Oberfläche mit Schema, Fühlerzuordnung, Verlauf, `/api/measurements`, mDNS mit Rollenfeld, OTA, Prüfstrecke | umgesetzt und an beiden Geräten im Betrieb |
+| 2 | `/api/demand` auf den Verteilern, Bedarfsabfrage, `heatlogic` mit Pumpenzustandsmaschine, `mqttc`, Tasmota-Anbindung, Handbetrieb | umgesetzt; drei Relais im Betrieb, angesprochen über HTTP |
+| 3 | Brennererkennung, Laufzeit, Starts, Verbrauchsschätzung, Aufzeichnung einer Ladung mit CSV-Ausgabe | umgesetzt; Brennererkennung nach den Aufzeichnungen um den Ausschlag ergänzt |
+| 4 | Ladezustand aus den aufgezeichneten Kurven, Kesselkreispumpe, MQTT-Discovery, Erweiterung der Integration | umgesetzt; MQTT-Discovery mangels Broker nicht erprobt |
 | 5 (optional) | `netmgr_cfg_t`, gemeinsamer JSON-Unterbau, gemeinsames Stilblatt, `hw_map` und `config_store` des Verteilers nach `apps/manifold/components/` | `netmgr_cfg_t`, `cfgjson` und das Stilblatt umgesetzt; das Verschieben ist offen |
 
 Zur Aufzeichnung: Sie lässt sich scharf schalten und beginnt dann von selbst — der Anfang einer
@@ -481,8 +546,8 @@ laufenden Verteiler-Firmware verändert, ohne dass jemand danach gefragt hätte.
 Zur ersten Inbetriebnahme eines Heizungsgeräts: Nach dem Einspielen öffnet es einen
 Zugangspunkt `heizung-XXXX`, danach führt der Assistent durch Bezeichnung und
 Fühlerzuordnung. Der 1-Wire-Anschluss steht unter **System** und ist auf GPIO 13
-voreingestellt; weicht die vorhandene Verdrahtung ab, wird er dort eingetragen und das Gerät
-neu gestartet.
+voreingestellt; weicht die vorhandene Verdrahtung ab, wird er dort eingetragen. Die
+Fühlererfassung stellt ohne Neustart um.
 
 Die Stufen 0 bis 2 ergeben betriebsfähige Geräte; alles Weitere ist additiv.
 
@@ -490,17 +555,20 @@ Die Stufen 0 bis 2 ergeben betriebsfähige Geräte; alles Weitere ist additiv.
 
 ### Stand
 
-Geprüft ist die Kette Verteiler → Bedarf → Pumpenlogik am laufenden Aufbau: das Heizungsgerät
-findet den Verteiler über mDNS, holt `/api/demand` im Fünfsekundentakt und schaltet danach.
-Handbetrieb und Rückkehr in die Automatik greifen sofort.
+Stand 21. September 2026. Beide Heizungsgeräte laufen an der Anlage, das Gerät am Kessel mit
+drei Fühlern, das am Speicher mit fünf, beide an einem Bus an GPIO 13. Geprüft sind die Kette
+Verteiler → Bedarf → Pumpenlogik, das Schalten der drei Tasmota-Relais über HTTP, Handbetrieb
+und Rückkehr in die Automatik. Seit dem 19. August sind 23 Ladungen aufgezeichnet; an ihnen
+sind Brennererkennung, Ladezustand und Kesselkreispumpe nachgestellt, wie in den jeweiligen
+Abschnitten beschrieben.
 
-Nicht erprobt ist alles, wofür Hardware fehlt: das Schalten eines Tasmota-Relais (kein Broker
-eingerichtet), die Rückmeldung aus `stat/…`, die Regel für das Lebenszeichen und sämtliche
-Messwerte, weil an keinem der beiden Geräte Fühler hängen.
+Nicht erprobt ist, was einen Broker voraussetzt: das Schalten über MQTT, die Rückmeldung aus
+`stat/…` und die Regel für das Lebenszeichen.
 
 ### Ohne Hardware
 
-`heatlogic` in `test/host`, im selben Stil wie die vorhandenen 215 Prüfungen:
+`heatlogic` in `test/host`, im selben Stil wie die bei Beginn vorhandenen 215 Prüfungen; heute
+umfasst der Lauf 524:
 
 - Brennererkennung gegen eine aufgezeichnete Abgaskurve, einschließlich Taktbetrieb
 - Pumpenzustandsmaschine: Mindestlaufzeit, Mindestpause, Nachlauf, Frostschutz, Schutzlauf
@@ -535,9 +603,9 @@ wird und nicht gegen angenommene.
 
 | Punkt | Stand |
 |---|---|
-| Belastbarkeit des Abgasfühlers | Ein DS18B20 hält 125 °C aus. Der bisherige Aufbau läuft damit, der Höchstwert ist nicht dokumentiert und wird in Stufe 1 erfasst. |
+| Belastbarkeit des Abgasfühlers | Ein DS18B20 hält 125 °C aus. In 23 Ladungen lag der höchste Abgaswert bei 88,0 °C; der Fühler kann bleiben, wo er ist. |
 | Zweiter Pufferfühler | Solange nur ein Fühler vorhanden ist und dieser ungünstig sitzt, bleibt der Füllstand eine Schätzung. Rolle `puffer_unten` ist vorgesehen. |
 | Mischerstellung | Der Steuerung nicht bekannt. Ob eine Rückmeldung oder eine eigene Mischerregelung sinnvoll ist, bleibt offen. |
-| Buslänge | Fünf beziehungsweise drei Fühler je Gerät. `onewire_temp` sieht zwei getrennte Busse vor; die Entscheidung fällt nach dem ersten Suchlauf. |
-| Täglicher Neustart | Auf dem Speicherboard nur zulässig, wenn keine Pumpe in einer Mindestlaufzeit steht. `netmgr_set_reboot_guard()` wird dafür benutzt; Tagesstatistiken werden vorher im NVS abgelegt. |
+| Buslänge | Entschieden: Beide Geräte kommen mit einem Bus aus, fünf beziehungsweise drei Fühler. Der zweite Bus bleibt als Möglichkeit bestehen. |
+| Täglicher Neustart | Ab Werk abgeschaltet. Wird er eingestellt, verschiebt `netmgr_set_reboot_guard()` ihn, solange eine Pumpe in einer Mindestlaufzeit steht; die Tageswerte werden bei laufendem Brenner alle fünf Minuten gesichert. |
 | Anzeige am Gerät | Nicht vorgesehen. `ssd1327` stünde zur Verfügung. |

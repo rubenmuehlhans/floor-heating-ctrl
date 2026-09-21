@@ -134,6 +134,13 @@ Vorjahr —, deutet das auf durchströmte Leitungen bei stehender Pumpe: ein Rü
 nicht schließt, oder Schwerkraftzirkulation. Das ist ein Fehler, der Öl kostet und den sonst
 niemand bemerkt.
 
+Die Zeitkonstante selbst wird noch nicht bestimmt. Umgesetzt ist die Trennung der Abkühlung von
+Warmwasserzapfungen: An dieser Anlage verliert der Speicher im Stillstand 0,8 K je Stunde, ein
+Vollbad senkt ihn in einer halben Stunde um 6,5 K. Ein Einbruch von mindestens `zapf_drop_k`
+(2 K) innerhalb von `zapf_win_s` (900 s) zählt als Zapfung; Anzahl und Summe stehen in der
+Oberfläche, mit angegebenem Speicherinhalt auch in Kilowattstunden. Die Durchströmung bei
+stehender Pumpe erkennt bereits die Rückströmungsprüfung unter „Plausibilität der Fühler".
+
 ### Plausibilität der Fühler
 
 Mehrere Prüfungen, die sich aus der Anlage selbst ergeben:
@@ -146,6 +153,15 @@ Mehrere Prüfungen, die sich aus der Anlage selbst ergeben:
 
 Die erste Prüfung hätte den vertauschten Vorlauf an Heizkreis 1 gefunden, ohne dass jemand
 Zahlen vergleichen musste.
+
+Umgesetzt sind die erste und die vierte Prüfung. Die zweite ist im Rechenmodul vorhanden und
+geprüft (`plausi_buffer_tick`), in der Firmware aber nicht angeschlossen; die dritte fehlt.
+Hinzugekommen ist eine Prüfung, die sich erst an der Anlage ergab: Steigt der Kesselrücklauf bei
+stehender Pumpe und ausgeschaltetem Brenner um mindestens 3 K über seinen Tiefstwert, strömt
+Wasser aus dem Speicher in den Kessel zurück (Befund `backflow`). Beobachtet wurde das bei einer
+Warmwasserzapfung: Der Rücklauf stieg von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb.
+Die Ursache liegt in der Verrohrung, vermutlich an einer fehlenden oder undichten
+Schwerkraftbremse.
 
 ### Zustand der Stellantriebe
 
@@ -196,16 +212,22 @@ erfundene Größe der Anlage in eine gemessene.
 |---|---|---|---|
 | 0 | Ladungs- und Tagesprotokoll im NVS, vollständiger MQTT-Strom, richtige Zustandsklassen | keine | umgesetzt |
 | 1a | Plausibilitätsprüfungen der Fühler | Stufe 0 nicht nötig | umgesetzt |
-| 1b | Verbrauchslinie und Tagesabweichung | Tagesprotokoll | umgesetzt, trägt ab dem ersten Winter |
-| 1c | Abgas-Vorlauf-Abstand je Ladung | Ladungsprotokoll | umgesetzt, trägt ab zehn Ladungen |
-| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 | teilweise: Rueckstroemung und Warmwasserzapfung erkannt |
+| 1b | Verbrauchslinie und Tagesabweichung | Tagesprotokoll | umgesetzt; aussagekräftig erst in der Heizperiode |
+| 1c | Abgas-Vorlauf-Abstand je Ladung | Ladungsprotokoll | umgesetzt; rechnet aus 23 Ladungen |
+| 1d | Stillstandsverlust, Fahrzeit der Antriebe | Stufe 0 | teilweise: Rückströmung und Warmwasserzapfung werden erkannt, Zeitkonstante und Fahrzeit nicht |
 | 2 | Auswertung auf dem Rechner | ein Winter Daten | offen |
 | 3 | zusätzliche Messstellen | Entscheidung über Hardware | offen |
 
-Stufe 1b rechnet, sobald vierzehn Tage vorliegen und die Außenlage weit genug auseinanderliegt.
-Im Sommer ist beides nicht gegeben: Alle Tage stehen bei null Gradtagen, und durch eine
-senkrechte Punktwolke führt keine sinnvolle Gerade. Die Oberfläche sagt das, statt eine Linie
-zu zeigen, die keine ist.
+Stufe 1b rechnet, sobald vierzehn Tage vorliegen und die Gradtage um mindestens 3 K
+auseinanderliegen. Im Hochsommer ist das nicht gegeben: Alle Tage stehen bei null Gradtagen, und
+durch Punkte mit gleichem Abszissenwert lässt sich keine Gerade legen; die Oberfläche nennt dann
+den Grund. Seit September rechnet die Linie aus 28 Tagen, erklärt die Laufzeit aber nicht: Das
+Bestimmtheitsmaß liegt bei 0,006, weil der Brenner fast nur Warmwasser bereitet. Solange das so
+ist, sagt auch die Meldung eines auffälligen Tages wenig aus. Ob sie an ein
+Mindestbestimmtheitsmaß gebunden werden soll, ist offen.
+
+Stufe 1c rechnet aus 23 Ladungen seit der Reinigung am 17. August einen Abstand von 7 K,
+unverändert gegenüber dem Bezug.
 
 Stufe 1a lohnt sich sofort und unabhängig: Sie braucht keine Historie, nur die laufenden Werte.
 

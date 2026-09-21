@@ -14,18 +14,23 @@ keine Endschalter; erkannt wird die Endlage an der Gegenspannung des
 blockierenden Motors. Die Raumtemperaturen kommen über Bluetooth von
 Xiaomi-Thermometern, die Außentemperatur von einem RuuviTag. Bedient wird über die Weboberfläche oder über Anzeige und
 drei Tasten am Gehäuse. Einmal in der Woche fährt jeder Kreis einmal durch,
-damit er über den Sommer nicht festsitzt.
+damit er über den Sommer nicht festsitzt. Wärmebedarf meldet sie nur für Räume,
+die sie tatsächlich regelt; Kreise ohne Raum fährt sie zu.
 
 **Gerät am Kessel.** Es misst Abgas, Kesselvorlauf und Kesselrücklauf. Am
-Abgasfühler erkennt es, ob der Brenner läuft — gegen eine gleitende Bezugslinie
-statt gegen einen festen Schwellwert, damit die Erkennung im Sommer wie im
-Winter trägt. Daraus führt es Laufzeit, Startzahl und eine Verbrauchsschätzung.
-Es schaltet die Kesselkreispumpe: Ist der Kesselrücklauf wärmer als der
-Vorlauf, gibt der Kessel keine Wärme mehr ab, sondern zieht sie aus dem
-Speicher — dann wird die Pumpe abgeschaltet.
+Abgasfühler erkennt es, ob der Brenner läuft: Angelaufen ist er, wenn das Abgas
+deutlich über einer gleitenden Bezugslinie liegt und um einen festen Ausschlag
+über seinen letzten Tiefstwert gestiegen ist; aus ist er, wenn es um denselben
+Ausschlag unter den Höchstwert der Fahrt fällt. Der Ausschlag greift auch bei
+warmem Kessel, bei dem die Bezugslinie nicht mehr unterscheidet. Daraus
+führt es Laufzeit, Startzahl und eine Verbrauchsschätzung. Es schaltet die
+Kesselkreispumpe nach dem Abstand zwischen Kesselvorlauf und Speicher: Sie
+läuft, solange der Kessel Wärme abgibt, und steht, sobald sie nur noch Wärme aus
+dem Speicher in den Kessel tragen würde.
 
 **Gerät am Pufferspeicher.** Es misst die Speichertemperatur und Vor- und
-Rücklauf der Heizkreise, beurteilt daraus den Ladezustand und schaltet die
+Rücklauf der Heizkreise, beurteilt daraus Ladezustand und Füllstand — dessen
+Nullpunkt wird bei jedem Brennerstart nachgemessen — und schaltet die
 Umwälzpumpen über Tasmota-Relais — ab, wenn kein Raum Wärme abruft, und
 wöchentlich kurz an, damit sie nicht festsitzen. Ob ein Abnehmer da ist, fragt
 es bei den Verteilerplatinen ab; den Brennerzustand holt es sich vom Gerät am
@@ -48,7 +53,9 @@ Kennzahlen, die man sonst schätzt — den Wärmebedarf des Hauses je Heizgradta
 und den Grundverbrauch für Warmwasser — und meldet einen Tag, der deutlich über
 dieser Linie liegt. Der Abstand zwischen Abgas- und Kesselvorlaufhöchstwert je
 Ladung zeigt, ob der Wärmetauscher verrußt. Dazu kommen Plausibilitätsprüfungen
-der Fühler. Alle Verfahren melden, sie greifen nicht ein.
+der Fühler, die Erkennung von Warmwasser, das bei stehender Pumpe in den
+Kesselrücklauf strömt, und die Zählung der Warmwasserzapfungen. Alle Verfahren
+melden, sie greifen nicht ein.
 
 ## Was daraus entsteht
 
@@ -113,6 +120,7 @@ darin; siehe [Lizenz](#lizenz).
 | [Konzept: Wärmeerzeugung und Pumpensteuerung](docs/konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Pumpenlogik |
 | [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md) | Aufteilung des Projekts und gemeinsame Komponenten |
 | [Konzept: Auswertung der Anlage](docs/konzept-auswertung.md) | Anomalien und Wirkungsgrad aus den erfassten Daten — Datengrundlage, Verfahren, Reihenfolge |
+| [Änderungen](CHANGELOG.md) | was sich seit welcher Fassung geändert hat |
 
 Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer die Geräte bedienen
 oder einrichten will, findet das im [Handbuch](docs/handbuch.md).
@@ -143,7 +151,7 @@ Pufferspeicher brauchen keine eigene Platine: dort genügt ein ESP32-DevKitC mit
 DS18B20 am 1-Wire-Bus, ein Anschlusswiderstand nach 3,3 V und, am
 Pufferspeicher, je Heizkreis ein Tasmota-Relais für die Umwälzpumpe. Welcher
 Anschluss sich für den Bus eignet, steht im
-[Handbuch](docs/handbuch.md#fühler-und-1-wire-bus).
+[Handbuch](docs/handbuch.md#anschluss-des-busses).
 
 Verbaut sind motorische Stellantriebe vom Typ **HmIP-VDMOT**. Sie haben keine
 Endschalter; die Endlage ist daran zu erkennen, dass der Motor am Anschlag
@@ -452,12 +460,15 @@ aufgebaut und nichts gesendet. Damit hängt die Regelung nicht am Netzwerk.
 Bleibt ein Messwert länger als eingestellt aus (Vorgabe 900 s), setzt die
 Regelung für diesen Raum aus und die Ventile bleiben stehen, statt mit einem
 veralteten Wert weiterzuregeln. Dasselbe gilt, solange für einen Raum noch kein
-Messwert eingegangen ist.
+Messwert eingegangen ist. Wärmebedarf meldet der Raum in dieser Zeit nicht.
 
 ## Vorgabewerte
 
 Bis zur ersten Messfahrt und vor der Einrichtung gelten diese Werte. Sie
-stammen aus dem Betrieb der Anlage.
+stammen aus dem Betrieb der Anlage. Die Tabelle gilt für die Verteilerplatine;
+die Vorgaben der Heizungsgeräte und jede einzelne Einstellung beider Gerätetypen
+mit ihrem zulässigen Bereich stehen im
+[Handbuch](docs/handbuch.md#konfiguration-im-einzelnen).
 
 | Größe | Vorgabe |
 |---|---|
@@ -584,10 +595,11 @@ ohne Hardware:
 make -C test/host
 ```
 
-Der Lauf umfasst 483 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
-Pumpensteuerung, Bedarfsauswertung, Brennererkennung, Ladezustand, Dekodierung der Funkpakete,
-Wochentermin, Plausibilität der Fühler, Kesselkreispumpe, Verbrauchslinie und
-Abgas-Vorlauf-Abstand.
+Der Lauf umfasst 524 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
+Pumpensteuerung, Bedarfsauswertung, Brennererkennung, Ladezustand und Kalibrierung des
+Nullpunkts, Auslöser der Aufzeichnung, Dekodierung der Funkpakete, Wochentermin,
+Plausibilität der Fühler, Rückströmung, Warmwasserzapfung, Kesselkreispumpe, Verbrauchslinie
+und Abgas-Vorlauf-Abstand.
 
 Dazu prüft
 
@@ -600,6 +612,20 @@ zusammengesetzt, geprüft wird also das, was auch im Gerät landet — der Skrip
 geprüft. Anlass war, dass beim Bearbeiten zweimal ein Block an der falschen Stelle gelandet ist:
 einmal JavaScript im Stilblatt, einmal CSS im Skript. Im Quelltext fällt das nicht auf, im
 Browser bleibt die Seite leer.
+
+Außerdem vergleicht
+
+```bash
+python3 tools/check_defaults.py
+```
+
+Vorgabewerte, die an zwei Stellen stehen: die der Einstellungsablage des Heizungsgeräts mit
+denen der Rechenmodule unter `components/heatlogic`, und die Werte, mit denen die
+Verteiler-Oberfläche einen neuen Raum anlegt, mit denen der Firmware. Die Rechenmodule werden
+ohne Gerät geprüft, ein neues Gerät bezieht seine Einstellungen aber aus der Ablage — laufen die
+beiden auseinander, gelten die Prüfungen für andere Werte als die im Betrieb. Anlass war die
+Kesselkreispumpe: Das Modul schaltete bei 3,0 und 2,0 K, ein neu eingerichtetes Gerät hätte
+1,0 und 0,5 K erhalten.
 
 Gegen ein laufendes Gerät prüft
 
@@ -630,15 +656,20 @@ An der Hardware sind folgende Schritte vorgesehen:
 
 ## Stand der Erprobung
 
-Im Haus laufen vier Geräte: Verteilerplatinen im Keller und im Erdgeschoss
-sowie je ein ESP32 an Kessel und Pufferspeicher.
+Stand 21. September 2026. Im Haus laufen fünf Geräte: Verteilerplatinen im Keller, im
+Erdgeschoss und im Obergeschoss sowie je ein ESP32 an Kessel und Pufferspeicher.
 
 **Verteilerplatinen.** Erprobt sind Start, BLE-Empfang der Thermometer,
 Tastenauswertung, Weboberfläche, Captive Portal, Aktualisierung über das Netz,
-Handsteuerung, drei Messfahrten und die wöchentliche Schutzfahrt — elf Kreise
+Handsteuerung, Messfahrten und die wöchentliche Schutzfahrt — elf Kreise
 in 168 s, sechs gleichzeitig, danach alle wieder auf ihrer vorherigen Stellung.
 Bei der Schutzfahrt fiel auf, dass acht der elf Kreise mangels Messfahrt keine
 Endlage erkennen und in die Maximallaufzeit laufen.
+
+**Einrichtung einer neuen Platine.** Die Verbindung mit dem Einrichtungs-Zugangspunkt gelang
+anfangs nur unzuverlässig, weil der Bluetooth-Empfang das gemeinsame Funkteil durchgehend
+belegte. Er belegt es jetzt zu 30 Prozent und ruht, solange nur der Zugangspunkt läuft; die
+Verbindung gelingt seitdem beim ersten Versuch.
 
 **Kessel und Pufferspeicher.** Erprobt sind Fühlererfassung, gegenseitiges
 Auffinden über mDNS und die Übernahme der Kesselwerte durch den Pufferspeicher:
@@ -646,10 +677,30 @@ Er zeigt Brennerzustand und Abgaswert des Nachbargeräts an und schaltet die
 Aufzeichnung von selbst auf den Brennerzustand um, sobald der Kessel im Netz
 ist. Nach einem Neustart dauert das rund achtzig Sekunden.
 
-**Kesselkreispumpe.** An der Anlage nachgewiesen: Bei −0,56 K Spreizung lief die
-Pumpe noch, bis die Haltezeit von zwei Minuten ablief, dann fiel das Relais.
-Danach fielen Vor- und Rücklauf gleichmäßig — der Kessel kühlte für sich aus,
-statt den Speicher leerzuziehen.
+**Heizbetrieb.** Seit Mitte August zeichnen die Heizungsgeräte Ladungen auf, bis zum Stichtag
+23. Die Brennererkennung ist an diesen Verläufen nachgestellt: Die ursprüngliche Regel — aus,
+sobald sich das Abgas der Bezugslinie nähert — hielt den Brenner bei warmem Kessel vier Stunden
+lang für an. Das Ende wird seitdem am Abfall gegen den Höchstwert der Fahrt erkannt. Eine Ladung
+aus dem kalten Kessel galt anfangs nach wenigen Minuten als fertig, weil Vor- und Rücklauf beide
+kalt waren und dicht beieinanderlagen; verlangt wird seitdem zusätzlich ein heißer Vorlauf.
+
+**Kesselkreispumpe.** Die Ausschaltschwelle von 2 K stammt aus einer Messung: Der Speicher
+erreichte seinen Höchststand in dem Augenblick, in dem der Abstand zwischen Kesselvorlauf und
+Speicher auf 2 K gefallen war. Mit der vorherigen Schwelle von 0,5 K lief die Pumpe nach dem
+Brennerende noch rund fünf Stunden weiter.
+
+**Füllstand und Warmwasser.** Das Gerät am Kessel hat den Nullpunkt des Füllstands am
+5. September zum ersten Mal an einem Brennerstart nachgemessen, von 51,5 auf 51,8 °C; das Gerät
+am Speicher hat diesen Brennerstart nicht erfasst. Ein Vollbad ließ den Speicher in einer
+halben Stunde um 6,5 K fallen, im Stillstand verliert er 0,8 K je Stunde. Die Zapfschwelle von
+2 K in 15 Minuten liegt zwischen beiden.
+
+**Rückströmung.** Bei stehender Pumpe und ausgeschaltetem Brenner stieg der Kesselrücklauf
+während einer Warmwasserzapfung von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb:
+Heißes Wasser strömt aus dem Speicher in die Rücklaufleitung des Kessels. Am Stichtag meldete
+das Gerät am Kessel zwei solche Ereignisse innerhalb von elf Stunden, mit bis zu 10,1 K
+Anstieg. Die Ursache liegt in der Verrohrung, vermutlich an einer fehlenden oder undichten
+Schwerkraftbremse.
 
 **Bedarfskette.** Alle drei Verteiler meldeten dauerhaft Wärmebedarf, ohne dass
 ein Raum etwas abgerufen hätte: zwölf Kreise standen auf Anschlag offen, weil
@@ -659,13 +710,15 @@ Kreise werden zudem zugefahren. Nachgewiesen: `demand: false` auf allen drei
 Verteilern, alle zwölf Kreise in zwei Minuten auf 0 — paarweise, weil in einer
 Messgruppe immer nur ein Kanal fahren darf.
 
-**Sicherung der Einstellungen.** Rundlauf über alle vier Geräte geprüft: Räume,
+**Sicherung der Einstellungen.** Rundlauf über die vier damals laufenden Geräte geprüft: Räume,
 Fühlerrollen, Fahrzeiten, Auslöseschwellen und Relaisangaben kommen vollständig
 zurück, der Netzzugang bleibt unverändert, und eine Sicherung des jeweils
 anderen Gerätetyps wird abgewiesen.
 
-Vermessen sind neun der 22 Kreise, drei im Keller und sechs im Erdgeschoss. Die Messfahrten
-liegen durchweg unter den Vorgabewerten:
+Vermessen sind 16 der 33 Kreise: drei im Keller, sechs im Erdgeschoss und sieben im
+Obergeschoss. Bis auf zwei Kreise im Obergeschoss liegen die Messfahrten unter den
+Vorgabewerten; Obergeschoss 8 fährt deutlich langsamer und löst erst bei 210 mV aus. Eine
+Auswahl:
 
 | Kreis | auf | zu | Auslöseschwelle |
 |---|---|---|---|
@@ -673,19 +726,20 @@ liegen durchweg unter den Vorgabewerten:
 | Keller 2 | 38,4 s | 39,5 s | 168 mV |
 | Keller 4 | 33,7 s | 35,2 s | 182 mV |
 | Erdgeschoss 1 | 33,9 s | 34,9 s | 163 mV |
+| Obergeschoss 5 | 34,2 s | 35,6 s | 191 mV |
+| Obergeschoss 8 | 42,2 s | 45,3 s | 210 mV |
 | Vorgabe | 39 s | 40 s | 190 mV |
 
-Nicht erprobt sind der Dauerbetrieb der Regelung über längere Zeit, Anzeige
-(SSD1327) und DS18B20 an der Verteilerplatine, weil beide dort nicht dauerhaft
-angeschlossen sind, sowie alles, was Heizbetrieb voraussetzt: Brennerlauf,
-Ladeerkennung und die Aufzeichnung einer Ladung. Ein Broker ist bislang nicht
-eingerichtet, die MQTT-Anbindung deshalb ebenfalls unerprobt.
+Nicht erprobt sind Anzeige (SSD1327) und DS18B20 an der Verteilerplatine, weil beide dort
+nicht dauerhaft angeschlossen sind, und die Raumregelung unter Heizlast: Seit Beginn der
+Aufzeichnung wurde fast nur Warmwasser bereitet. Ein Broker ist bislang nicht eingerichtet,
+die MQTT-Anbindung deshalb ebenfalls unerprobt.
 
-Verbrauchslinie und Abgas-Vorlauf-Abstand rechnen, sobald die Protokolle
-tragen: die eine ab vierzehn Tagen mit ausreichend gespreizter Außenlage, die
-andere ab zehn abgeschlossenen Ladungen. Beides ist eine Frage der Heizperiode,
-nicht der Umsetzung; die Oberfläche nennt bis dahin den Grund, statt eine Linie
-zu zeigen, die keine ist.
+Beide Auswertungen rechnen inzwischen. Die Verbrauchslinie stützt sich auf 28 Tage, erklärt die
+Laufzeit aber noch nicht: Im Spätsommer hängt sie fast nur am Warmwasser, das Bestimmtheitsmaß
+liegt bei 0,006. Aussagekraft erhält sie erst in der Heizperiode. Der Abgas-Vorlauf-Abstand
+liegt aus 23 Ladungen bei 7 K, unverändert gegenüber dem Stand nach der Reinigung am
+17. August.
 
 ## Offene Punkte
 
@@ -693,6 +747,9 @@ zu zeigen, die keine ist.
   an der Messdauer der Treiberfassung und sind unter **Sensoren**
   nachzustellen.
 - **MAC-Adressen der Thermometer** ergeben sich beim ersten BLE-Empfang.
+- **Düsendurchsatz** (2,2 l/h) ist angenommen, nicht gemessen. Die Verbrauchsschätzung und
+  jede daraus abgeleitete Größe hängen an diesem Wert; maßgeblich ist die Angabe auf der Düse
+  oder im Wartungsprotokoll.
 - **Matter und Thread** sind nicht umgesetzt. Thread scheidet auf dieser
   Platine aus, weil dem ESP32-WROOM-32 das 802.15.4-Funkteil fehlt. Matter über
   WLAN passt nicht in den verfügbaren Programmspeicher. Wird Matter gebraucht,
@@ -702,8 +759,9 @@ zu zeigen, die keine ist.
 ## Geplante Erweiterungen
 
 Die Auswertung der Protokolle ist in Stufen angelegt; umgesetzt sind die
-Datengrundlage, die Plausibilitätsprüfungen der Fühler, die Verbrauchslinie und
-der Abgas-Vorlauf-Abstand. Offen sind:
+Datengrundlage, die Plausibilitätsprüfungen der Fühler, die Verbrauchslinie, der
+Abgas-Vorlauf-Abstand, die Erkennung der Rückströmung und die Zählung der
+Warmwasserzapfungen. Offen sind:
 
 - **Stillstandsverlust des Speichers.** Aus dem Abkühlen ohne Brennerlauf und
   ohne laufende Pumpe ergibt sich die Zeitkonstante der Dämmung. Ändert sie
@@ -713,6 +771,8 @@ der Abgas-Vorlauf-Abstand. Offen sind:
   Monate, sitzt das Ventil schwerer.
 - **Auswertung auf dem Rechner.** Ein Werkzeug unter `tools/`, das die CSV-Dateien
   aller Geräte einliest. Es setzt einen Winter Daten voraus.
+
+Die zugehörigen Konzepte:
 
 - [Konzept: Auswertung der Anlage mit statistischen Verfahren](docs/konzept-auswertung.md)
   — Datengrundlage, Verfahren auf dem Gerät, Auswertung außerhalb, und was

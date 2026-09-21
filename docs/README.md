@@ -3,8 +3,14 @@
 | Dokument | Inhalt |
 |---|---|
 | [Benutzerhandbuch](handbuch.md) | Bedienung, Einrichtung, Wartung und Fehlersuche beider Gerätearten |
-| [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Schnittstellen |
+| [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Kesselkreispumpe, Schnittstellen |
+| [Konzept: Auswertung der Anlage](konzept-auswertung.md) | Protokolle, Verbrauchslinie, Abgas-Vorlauf-Abstand, Plausibilität, Rückströmung, Warmwasserzapfung, Reihenfolge der Umsetzung |
 | [Umbau auf zwei Anwendungen](umbau-projektstruktur.md) | Aufteilung des Projekts, gemeinsame Komponenten, Nachweis der Unverändertheit |
+| [Änderungen](../CHANGELOG.md) | was sich seit welcher Fassung geändert hat |
+
+Jede Einstellung beider Gerätetypen mit Vorgabe und zulässigem Bereich steht im Handbuch unter
+[Konfiguration im Einzelnen](handbuch.md#konfiguration-im-einzelnen). Die Konzepte beschreiben,
+warum etwas so gebaut ist.
 
 Die Übersicht über die Hardware, den Quelltextbestand und die Prüfungen steht in der
 [README](../README.md) im Wurzelverzeichnis.
@@ -15,11 +21,14 @@ Sie entstehen gegen die Geräteattrappen, damit sie ohne angeschlossene Hardware
 reproduzierbar sind:
 
 ```bash
-python3 tools/mock_device.py &      && tools/screenshots.sh
-python3 tools/mock_heatsource.py &  && tools/screenshots_heat.sh
+python3 tools/mock_device.py &
+tools/screenshots.sh
+
+python3 tools/mock_heatsource.py &
+tools/screenshots_heat.sh
 ```
 
-Die Konzepte beschreiben, warum etwas so gebaut ist: [Wärmeerzeugung](konzept-waermeerzeuger.md), [Auswertung](konzept-auswertung.md) und der [Umbau auf zwei Anwendungen](umbau-projektstruktur.md).
+Die Attrappen laufen danach im Hintergrund weiter, bis sie beendet werden.
 
 `screenshots.sh` legt die Aufnahmen der Verteilerplatine in `screenshots/` ab,
 `screenshots_heat.sh` die des Heizungsgeräts in `screenshots/heizung/`.

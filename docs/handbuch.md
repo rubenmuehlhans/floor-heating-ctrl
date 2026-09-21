@@ -141,9 +141,10 @@ Auf der **Übersicht** trägt jeder Raum eine Karte mit Ist- und Solltemperatur.
 verstellen Sie über die Schaltflächen **−** und **+** in Schritten von 0,5 K oder durch
 unmittelbare Eingabe der Zahl.
 
-Die Ventilstellung folgt der Abweichung proportional: bei zwei Kelvin unter Soll fährt der Kreis
-auf, bei Erreichen des Sollwerts steht er halb offen, darüber schließt er. Die Zeile unter den
-Kreisen nennt die Zielstellung und wann die Regelung das nächste Mal prüft.
+Die Ventilstellung folgt der Abweichung proportional: Am Sollwert steht der Kreis halb offen.
+Liegt der Raum um das Proportionalband darunter — in der Vorgabe 1 K —, fährt er ganz auf, liegt
+er um denselben Betrag darüber, ganz zu. Die Zeile unter den Kreisen nennt die Zielstellung und
+wann die Regelung das nächste Mal prüft.
 
 ### Raum abschalten
 
@@ -211,10 +212,10 @@ seine Temperatur liefert.
 | Angabe | Bedeutung |
 |---|---|
 | Name | erscheint auf der Übersicht, am Gerät und in Home Assistant |
-| Heizkreise | ein Kreis gehört zu höchstens einem Raum; nicht zugeordnete Kreise bleiben nur von Hand fahrbar |
+| Heizkreise | ein Kreis gehört zu höchstens einem Raum; Kreise ohne Raum werden zugefahren, siehe oben |
 | Thermometer | eines der empfangenen Geräte, siehe unten |
 | Sollwert | Zieltemperatur |
-| Proportionalband | über welche Abweichung die Ventilstellung von zu nach auf läuft; Vorgabe 1 K |
+| Proportionalband | Abweichung vom Sollwert, bei der der Kreis ganz auf (darunter) oder ganz zu (darüber) steht; am Sollwert steht er halb offen. Vorgabe 1 K |
 | Prüfintervall | wie oft die Regelung nachsteuert; Vorgabe 30 s |
 | Rasterung | Schrittweite der Zielstellung; Vorgabe 0,1 |
 
@@ -549,8 +550,9 @@ nichts: Vor- und Rücklauf nehmen dann beide die Temperatur des Kesselkörpers a
 geht gegen null, und ein Kessel mit Restwärme bliebe stehen, obwohl der Speicher kälter ist.
 
 Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
-Speicher abkühlen. Sie springt an, sobald der Vorlauf den Rücklauf überholt — das ist zugleich
-die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung erspart.
+Speicher abkühlen. Sie springt an, sobald der Kesselvorlauf den Speicher um den Einschaltabstand
+übersteigt — das ist zugleich die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung
+erspart.
 
 | Einstellung | Vorgabe | Bedeutung |
 |---|---|---|
@@ -632,19 +634,24 @@ und was gleichzeitig gezapft wird, lässt sich am Fühler nicht abtrennen.
 
 ### Befunde
 
-Auffälligkeiten stehen gesammelt auf der Anlagenseite, nicht über die Karten verstreut:
+Auffälligkeiten stehen gesammelt auf der Anlagenseite, nicht über die Karten verstreut. Die
+Schnittstelle führt sie unter `findings` in `GET /api/state`, jeweils mit einer festen Kennung
+(`code`), dem Ort (`where`) und einem Text:
 
-| Befund | Bedeutung |
-|---|---|
-| Vorlauf und Rücklauf vertauscht | Bei laufender Pumpe und warmem Speicher ist der Vorlauf eines Kreises dauerhaft kälter als sein Rücklauf. Entweder sitzen die Fühler an den falschen Rohren oder ihre Rollen sind vertauscht zugeordnet. |
-| Fühler verwirft viele Messungen | Meist ein Wackelkontakt, eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand. |
-| Warmes Wasser strömt in den Kesselrücklauf | Bei stehender Pumpe und ausgeschaltetem Brenner kann der Kesselrücklauf nicht von selbst wärmer werden. An dieser Anlage sprang er bei einer Warmwasserzapfung von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb — heißes Wasser wird in die Rücklaufleitung gedrückt und kühlt dort ab. Meist eine fehlende oder undichte Schwerkraftbremse. Jede Zapfung schiebt so Wärme in den kalten Kessel. |
-| Tag über der Verbrauchslinie | siehe oben |
-| Kessel überträgt schlechter | siehe oben |
+| Befund | Kennung | Bedingung und Bedeutung |
+|---|---|---|
+| Vorlauf und Rücklauf vertauscht | `flow_swapped` | Bei laufender Pumpe und einem Speicher ab 35 °C ist der Vorlauf eines Kreises länger als eine halbe Stunde mehr als 1 K kälter als sein Rücklauf. Entweder sitzen die Fühler an den falschen Rohren, oder ihre Rollen sind vertauscht zugeordnet. |
+| Fühler verwirft viele Messungen | `probe_errors` | Mehr als 5 Prozent der Messungen eines Fühlers seit dem Start sind verworfen worden, gezählt ab hundert Messungen. Meist ein Wackelkontakt, eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand. |
+| Warmes Wasser strömt in den Kesselrücklauf | `backflow` | Bei stehender Pumpe und ausgeschaltetem Brenner steigt der Kesselrücklauf um mindestens 3 K über seinen Tiefstwert. Von selbst kann er dabei nicht wärmer werden. An dieser Anlage sprang er bei einer Warmwasserzapfung von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb: Heißes Wasser wird in die Rücklaufleitung gedrückt und kühlt dort ab. Meist fehlt eine Schwerkraftbremse oder sie ist undicht; jede Zapfung führt dann Wärme in den kalten Kessel. |
+| Tag über der Verbrauchslinie | `day_above_trend` | Die Brennerlaufzeit des letzten abgeschlossenen Tages liegt mehr als drei Standardabweichungen über der Verbrauchslinie, siehe oben. |
+| Kessel überträgt schlechter | `flue_gap_rising` | Der Abgas-Vorlauf-Abstand der letzten Ladungen liegt mehr als 15 K über dem Stand nach der Reinigung, siehe oben. |
 
-Jeder Befund muss eine halbe Stunde durchgehend anliegen, bevor er erscheint, und er verschwindet
-ebenso langsam wieder. Eine Meldung, die bei jedem Anlaufen der Pumpe kommt und geht, liest
-niemand mehr.
+Die Prüfung auf vertauschte Fühler urteilt nur, solange sich der Zustand beurteilen lässt; steht
+die Pumpe, ruht sie, statt von vorn zu beginnen. Gemeldet wird erst, wenn der Zustand eine halbe
+Stunde anliegt, und die Meldung erlischt, sobald er beurteilbar nicht mehr zutrifft. Die Rückströmung zählt Ereignisse: Der Befund bleibt stehen,
+bis das Gerät neu startet, und nennt ihre Anzahl sowie den größten Anstieg. Verbrauchslinie und
+Abgasabstand werden aus den Protokollen berechnet und ändern sich nur mit einem neuen Tag bzw.
+einer neuen Ladung.
 
 ## Schutzfahrt und Schutzlauf
 
@@ -674,8 +681,9 @@ auch die zwischenzeitlich gefahrenen mit. **Abbrechen** streicht die noch offene
 angefangene Fahrten laufen zu Ende, weil ein Ventil auf halbem Weg schlechter stünde als eines,
 das seine Fahrt abschließt.
 
-**Am Heizungsgerät.** Jede Umwälzpumpe läuft drei Minuten. Übergangen wird, wer am selben Tag
-ohnehin gelaufen ist. Der Schutzlauf gilt unabhängig von Bedarf und Speichertemperatur — er dient
+**Am Heizungsgerät.** Jede Heizkreispumpe läuft drei Minuten. Übergangen wird eine Pumpe, die in
+den letzten 24 Stunden ohnehin gelaufen ist. Die Kesselkreispumpe hat keinen Schutzlauf; sie läuft
+bei jeder Ladung. Der Schutzlauf gilt unabhängig von Bedarf und Speichertemperatur — er dient
 dem Lager, nicht der Wärme.
 
 Gemessen wird der Termin an der Uhr, nicht an der Laufzeit seit dem Einschalten. Das ist der
@@ -808,7 +816,7 @@ einem Fehler aussähe.
 
 Zwei Dinge bleiben ausgenommen:
 
-- **Der Netzzugang.** Wer über das Netz einspielt, sägte sonst den Ast ab, auf dem er sitzt.
+- **Der Netzzugang.** Wer über das Netz einspielt, verlöre sonst die Verbindung zum Gerät.
   WLAN-Name, Kennwort und Gerätename bleiben, wie sie sind.
 - **Sicherungen des anderen Gerätetyps.** Eine Verteiler-Sicherung auf einem Heizungsgerät wird
   abgewiesen, und umgekehrt.
@@ -869,10 +877,12 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | | Ausschlag gegen den Extremwert | 6 K |
 | | Haltezeit ein / aus | 60 s / 300 s |
 | | Düsendurchsatz | 2,2 l/h |
-| Speicher | Spreizung „geladen" | 8 K über 5 min |
+| Speicher | Spreizung „geladen" | 8 K über 5 min, Vorlauf über 60 °C |
 | | voll / leer | 62 °C / 35 °C |
+| | Leerpunkt nachmessen ab | 3 K Abfall seit dem Höchststand |
 | | Warnung Warmwasser | 40 °C |
-| Kesselkreispumpe | Ein / Aus über dem Speicher | 1,0 K / 0,5 K |
+| | Warmwasserzapfung ab | 2 K Einbruch in 900 s |
+| Kesselkreispumpe | Ein / Aus über dem Speicher | 3,0 K / 2,0 K |
 | | Haltezeit | 120 s |
 | | Mindestlaufzeit, Mindestpause | je 180 s |
 | | Notgrenze | 85 °C |
@@ -880,7 +890,9 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | | Befund ab | 3 Streuungen über der Linie |
 | | Abgasabstand ab | 10 Ladungen, Fenster 50 |
 | | Befund ab | 15 K über dem Zustand nach der Reinigung |
-| | Haltezeit der Befunde | 1800 s |
+| Befunde | Vorlauf und Rücklauf vertauscht | 1 K, 1800 s anliegend |
+| | Fühler verwirft Messungen | über 5 %, ab 100 Messungen |
+| | Rückströmung in den Kesselrücklauf | 3 K Anstieg |
 | Außenfühler | Zeitgrenze | 900 s |
 | | Abfrage durch die Heizungsgeräte | alle 60 s |
 | Fühler | Abtastabstand | 10 s |
@@ -934,11 +946,195 @@ POST    /api/record/start       sofort aufzeichnen
 POST    /api/record/stop        beenden, im scharfen Zustand abbrechen
 POST    /api/record/discard     verwerfen und Speicher freigeben
 POST    /api/circuit/{n}/mode   auto | ein | aus
-POST    /api/boilerpump/{modus}  auto | ein | aus
+POST    /api/boilerpump/{modus} auto | ein | aus
 POST    /api/probes/rescan      Bus neu absuchen
 GET     /api/log/charges        Ladungsprotokoll als CSV
 GET     /api/log/days           Tagesprotokoll als CSV
 ```
+
+### Konfiguration im Einzelnen
+
+Die Konfiguration ist ein JSON-Dokument. `GET /api/config` gibt es ohne Kennwörter aus,
+`PUT /api/config` nimmt es ganz oder in Teilen entgegen, und die Sicherungsdatei aus
+`GET /api/config/backup` enthält es vollständig. Die Bereiche in den Tabellen sind die der
+Prüfung im Gerät: Ein Wert außerhalb wird mit einer Meldung abgewiesen und nichts gespeichert.
+Geprüft wird stets die gesamte Konfiguration, wie sie nach dem Zusammenführen aussähe.
+
+Beim Zusammenführen gilt:
+
+- **Einzelwerte und Gruppen** (`burner`, `buffer`, `boiler_pump`, `wifi`, `mqtt`, `touch`):
+  Es ändert sich nur, was im Rumpf steht.
+- **Listen** (`probes`, `circuits`, `rooms`) ersetzen die gespeicherte Liste. Ein Eintrag, der
+  fehlt, ist danach entfernt.
+- **Innerhalb eines Listeneintrags** übernimmt das Heizungsgerät fehlende Felder aus dem
+  bisherigen Stand desselben Eintrags — bei Fühlern erkannt an `rom`, bei Heizkreisen an `id`.
+  Der Verteiler baut jeden Raum dagegen aus den Vorgaben neu auf: Ein fehlendes Feld erhält die
+  Vorgabe. Solltemperatur und Betriebsart eines Raums ändern Sie deshalb besser über
+  `POST /api/room/<id>/target` und `POST /api/room/<id>/mode`.
+- **`channels`** beim Verteiler ändert nur die genannten Kreise und Felder.
+- **Kennwörter** erscheinen in `GET /api/config` nur als `pass_set` bzw. `ap_pass_set`. Ein
+  Kennwortfeld, das im Rumpf fehlt, bleibt unverändert.
+
+Für das Zurückspielen einer Sicherung gelten andere Regeln, siehe **Einstellungen sichern**.
+
+#### Heizungsgerät
+
+**Allgemein**
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `cfg_version` | — | nur lesend | Aufbaustand der Konfiguration |
+| `site` | leer | Text | Bezeichnung des Geräts, in der Kopfzeile und bei den anderen Geräten im Haus. Solange sie fehlt, öffnet die Oberfläche den Einrichtungsassistenten. |
+| `onewire_pin` | `[13, -1]` | GPIO 0–33 außer 1, 3, 6–11 und 12; −1 = unbenutzt | Anschlüsse der beiden 1-Wire-Busse. Mindestens einer muss belegt sein, beide nicht am selben GPIO. Eine Änderung wirkt sofort. |
+| `poll_s` | 10 | 1–600 s | Abtastabstand der Fühler |
+| `demand_poll_s` | 5 | 1–300 s | Abfrageabstand der Verteiler |
+| `demand_timeout_s` | 180 | 10–3600 s | Antwortet ein Verteiler, der schon einmal geantwortet hat, länger nicht, zählt er als Bedarf |
+| `timezone` | `CET-1CEST,M3.5.0,M10.5.0/3` | POSIX-Zeitzone | Bestimmt den Tageswechsel der Protokolle und die Termine |
+| `reboot_hour`, `reboot_minute` | −1, 0 | −1 bis 23, 0–59 | Täglicher Neustart; −1 schaltet ihn ab |
+| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentlicher Schutzlauf der Pumpen; 0 = Sonntag, −1 schaltet ihn ab |
+
+GPIO 34 bis 39 sind reine Eingänge, 6 bis 11 gehören zum Flash-Speicher, 1 und 3 zur seriellen
+Schnittstelle, und GPIO 12 bestimmt beim Start die Flash-Spannung — der Anschlusswiderstand des
+Busses würde dort den Start verhindern.
+
+**Fühler** — `probes[]`, höchstens zwölf
+
+| Schlüssel | Bereich | Bedeutung |
+|---|---|---|
+| `rom` | 16 Hexadezimalziffern | Kennung des DS18B20, wie sie unter **Fühler** steht, etwa `42011453677EAA28`. Andere Zeichen werden übergangen, Groß- und Kleinschreibung ist gleichgültig. |
+| `role` | Rolle oder leer | Jede Rolle nur einmal; leer gibt den Fühler frei |
+| `name` | Text | Bezeichnung; leer ergibt den Namen der Rolle |
+| `offset_k` | −20 bis 20 K | Korrekturwert, wird auf jeden Messwert aufgeschlagen |
+
+Rollen: `abgas`, `kessel_vl`, `kessel_rl`, `puffer`, `puffer_unten`, `hk1_vl`, `hk1_rl`,
+`hk2_vl`, `hk2_rl`, `hk3_vl`, `hk3_rl`, `hk4_vl`, `hk4_rl`, `aussen`.
+
+**Heizkreise** — `circuits[]`, höchstens vier, nur auf dem Gerät mit eigenem Pufferfühler
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `id` | laufend | 1–4, eindeutig | Kennung; bestimmt die vorgegebenen Fühlerrollen |
+| `name` | „Heizkreis *n*" | Text | Bezeichnung |
+| `enabled` | ja | ja/nein | Ein abgeschalteter Kreis wird weder geregelt noch geschaltet |
+| `vl_role`, `rl_role` | `hk<n>_vl`, `hk<n>_rl` | Rolle | Vor- und Rücklauffühler des Kreises |
+| `peers` | leer | bis zu vier Kennungen | Verteiler, deren Bedarf der Kreis bedient, etwa `fbh_c2e55c` |
+| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart der Pumpe. Der Frostschutz gilt auch bei `aus`. |
+| `overrun_s` | 300 | 0–3600 s | Nachlauf nach dem letzten Bedarf |
+| `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause |
+| `min_buffer_c` | 40 | 0–90 °C | Ist der Speicher kälter, läuft die Pumpe auch bei Bedarf nicht |
+| `frost_c` | 6 | −10 bis 20 °C | Meldet ein zugeordneter Verteiler einen Raum unter diesem Wert, läuft die Pumpe in jedem Fall. Unabhängig davon läuft sie bei einem Vorlauf unter 8 °C. |
+| `pump.topic` | leer | Text | Tasmota-Thema; wird verwendet, solange MQTT verbunden ist |
+| `pump.host` | leer | Adresse | Tasmota-Adresse; wird über HTTP angesprochen, wenn kein Thema eingetragen oder MQTT nicht verbunden ist |
+| `pump.relay` | 1 | 1–8 | Relaisnummer am Tasmota-Gerät |
+| `pump.user`, `pump.pass` | leer | Text | Anmeldung am Tasmota-Gerät, falls dort eingerichtet |
+
+**Brenner** — `burner`
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `delta_on_k` | 12 | 1–100 K, über `delta_off_k` | Einschaltschwelle über der Bezugslinie |
+| `delta_off_k` | 6 | ab 0 K | Ausschaltschwelle über der Bezugslinie |
+| `swing_k` | 6 | 1–60 K | Ausschlag: um so viel unter dem Höchstwert der Fahrt gilt der Brenner als aus, um so viel über dem folgenden Tiefstwert wieder als an |
+| `on_hold_s` | 60 | 0–3600 s | So lange muss die Einschaltbedingung anstehen |
+| `off_hold_s` | 300 | 0–3600 s | So lange muss die Ausschaltbedingung anstehen |
+| `duese_l_h` | 2,2 | 0–20 l/h | Düsendurchsatz für die Verbrauchsschätzung; eine Annahme, keine Messung |
+| `wartung_epoch` | 0 | Unix-Zeit, 0 = nicht gesetzt | Datum der letzten Kesselreinigung; Bezug für den Abgas-Vorlauf-Abstand |
+
+**Pufferspeicher** — `buffer`
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `leer_c` | 35 | 15–90 °C | Nullpunkt des Füllstands |
+| `voll_c` | 62 | 20–95 °C, über `leer_c` | Hundertpunkt des Füllstands |
+| `leer_lernen` | ja | ja/nein | Nullpunkt beim Brennerstart nachmessen |
+| `lern_drop_k` | 3 | 0,5–30 K | Mindestabfall seit dem Höchststand, damit ein Brennerstart als Messpunkt zählt |
+| `leer_epoch` | 0 | Unix-Zeit | Zeitpunkt der letzten Kalibrierung; setzt das Gerät |
+| `spread_full_k` | 8 | 1–40 K | Unterschreitet die Spreizung Kesselvorlauf – Kesselrücklauf diesen Wert, gilt der Speicher als geladen |
+| `spread_hold_s` | 300 | 0–3600 s | So lange muss die Spreizung darunter liegen |
+| `kessel_hot_c` | 60 | 20–95 °C | Zusätzlich muss der Kesselvorlauf diesen Wert übersteigen |
+| `warn_c` | 40 | 20–80 °C | Unter dieser Speichertemperatur erscheint die Warnung zur Warmwasserreserve |
+| `volumen_l` | 0 | 0–20000 l | Speicherinhalt, nur für die Umrechnung in Kilowattstunden; 0 = unbekannt |
+| `zapf_drop_k` | 2 | 0,2–40 K | Einbruch, ab dem eine Warmwasserzapfung gezählt wird |
+| `zapf_win_s` | 900 | 60–7200 s | Zeitfenster für diesen Einbruch |
+
+Beide Heizungsgeräte berechnen den Füllstand und kalibrieren den Nullpunkt jeweils für sich,
+aus denselben Messwerten. Verpasst eines einen Brennerstart — etwa weil es gerade neu startete —,
+weichen die beiden Nullpunkte voneinander ab. Mit jedem gemeinsamen Messpunkt verringert sich
+der Unterschied auf 60 Prozent.
+
+**Kesselkreispumpe** — `boiler_pump`, nur auf dem Gerät mit eigenem Kesselvor- und
+-rücklauffühler. Die Bereiche werden geprüft, sobald `enabled` gesetzt ist.
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `enabled` | nein | ja/nein | Pumpe vorhanden und angeschlossen |
+| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart |
+| `on_k` | 3 | über 0 bis 20 K | Einschalten, wenn der Kesselvorlauf den Speicher um diesen Wert übersteigt; ohne Speicherwert gilt der Kesselrücklauf |
+| `off_k` | 2 | unter `on_k` | Ausschalten, wenn der Abstand nicht mehr darüber liegt |
+| `hold_s` | 120 | 0–3600 s | So lange muss die neue Bedingung anstehen |
+| `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause |
+| `emergency_c` | 85 | 60–110 °C | Über diesem Kesselvorlauf läuft die Pumpe in jedem Fall |
+| `topic`, `host`, `relay`, `user`, `pass` | — | wie bei den Heizkreisen | Relais |
+
+**Netz** — `wifi`, `mqtt`
+
+| Schlüssel | Vorgabe | Bedeutung |
+|---|---|---|
+| `wifi.ssid`, `wifi.pass` | leer | Heimnetz |
+| `wifi.hostname` | `heizung` | Gerätename im Netz |
+| `wifi.ap_pass` | `fussboden` | Kennwort des Einrichtungs-Zugangspunkts, mindestens acht Zeichen. Leer öffnet den Zugangspunkt ohne Kennwort. |
+| `mqtt.enabled` | nein | MQTT einschalten; verlangt `mqtt.uri` |
+| `mqtt.uri` | leer | etwa `mqtt://192.168.1.10:1883` |
+| `mqtt.user`, `mqtt.pass` | leer | Anmeldung am Broker |
+| `mqtt.prefix` | `heiz` | Präfix der Themen |
+
+#### Verteilerplatine
+
+**Allgemein**
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `cfg_version` | — | nur lesend | Aufbaustand der Konfiguration |
+| `site` | leer | Text | Bezeichnung; solange sie fehlt, öffnet die Oberfläche den Einrichtungsassistenten |
+| `sensor_timeout_s` | 900 | 60–43200 s | Ist der letzte Messwert eines Raumthermometers älter, setzt die Regelung des Raums aus: Die Ventile bleiben stehen, und der Raum meldet keinen Bedarf. |
+| `outdoor_mac` | leer | MAC oder `null` | RuuviTag für die Außentemperatur; `null` entfernt die Zuordnung, ein fehlender Schlüssel lässt sie bestehen |
+| `display_brightness` | 2 | 0–100 % | Helligkeit der Anzeige |
+| `timezone` | `CET-1CEST,M3.5.0,M10.5.0/3` | POSIX-Zeitzone | wie beim Heizungsgerät |
+| `reboot_hour`, `reboot_minute` | 10, 0 | −1 bis 23, 0–59 | Täglicher Neustart; −1 schaltet ihn ab |
+| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentliche Schutzfahrt der Ventile; 0 = Sonntag, −1 schaltet sie ab |
+| `touch.enabled` | ja | ja/nein | Tasten am Gehäuse verwenden |
+| `touch.thresholds` | `[1000, 870, 1000]` | Zahlen | Eine Taste gilt als berührt, solange ihr Messwert unter der Schwelle liegt. Die laufenden Werte zeigt die Seite **Sensoren**. |
+
+**Räume** — `rooms[]`, höchstens elf
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `id` | laufend | ab 1, eindeutig | Kennung |
+| `name` | — | nicht leer | Bezeichnung |
+| `channels` | leer | Kreisnummern 1–11 | Zugehörige Heizkreise; jeder Kreis gehört höchstens einem Raum |
+| `sensor_mac` | keines | MAC oder `null` | Raumthermometer (ATC- oder pvvx-Firmware, RuuviTag) |
+| `mode` | `heat` | `heat`, `off` | `off` fährt die Ventile zu; der Raum meldet dann keinen Bedarf |
+| `target_c` | 20 | 5–35 °C | Solltemperatur |
+| `p_band_k` | 1,0 | 0,2–10 K | Proportionalband: um diesen Betrag unter dem Sollwert ganz auf, darüber ganz zu, am Sollwert halb offen |
+| `interval_s` | 30 | 5–3600 s | Prüfabstand der Regelung |
+| `step` | 0,1 | 0,01–0,5 | Rasterung der Zielstellung |
+| `min_delta` | 0,01 | 0–0,5 | Kleinere Änderungen der Zielstellung lösen keine Fahrt aus |
+
+**Heizkreise** — `channels[]`, elf; die Werte stammen meist aus der Messfahrt
+
+| Schlüssel | Vorgabe | Bereich | Bedeutung |
+|---|---|---|---|
+| `id` | — | 1–11 | Kreisnummer; bestimmt, welcher Kreis geändert wird |
+| `open_ms`, `close_ms` | 39000, 40000 | 1000–300000 ms | Fahrzeit auf und zu |
+| `max_ms` | 45000 | längere Fahrzeit bis 600000 ms | Abbruch, wenn die Endlage ausbleibt. Die Messfahrt setzt die längere Fahrzeit plus ein Sechstel. |
+| `blank_ms` | 2000 | 0–30000 ms | Sperrzeit nach dem Anlaufen, in der die Endlagenerkennung nicht auslöst |
+| `bemf_mv` | 190 | 10–2200 mV | Schwelle der Endlagenerkennung an der Gegenspannung des Motors. Die Messfahrt legt sie in die Mitte zwischen dem Wert während der Fahrt und dem in der Endlage. |
+| `bemf_hyst_mv` | 30 | bis `bemf_mv` | Hysterese dazu; aus der Messfahrt ein Viertel desselben Abstands, mindestens 10 mV |
+| `calibrated` | nein | ja/nein | Die Werte stammen aus einer Messfahrt |
+| `bemf_group` | — | nur lesend | Messgruppe; die Kreise einer Gruppe teilen sich einen Messeingang |
+
+**Netz** — `wifi` und `mqtt` wie beim Heizungsgerät, mit `floor-heating` als Gerätename und
+`fbh` als Präfix.
 
 ### Begriffe
 
@@ -958,22 +1154,29 @@ GET     /api/log/days           Tagesprotokoll als CSV
 
 ### Stand der Erprobung
 
-Im Haus laufen vier Geräte: Verteilerplatinen im Keller und im Erdgeschoss sowie je ein Gerät an
-Kessel und Pufferspeicher.
+Stand 21. September 2026. Im Haus laufen fünf Geräte: Verteilerplatinen im Keller, im
+Erdgeschoss und im Obergeschoss sowie je ein Gerät an Kessel und Pufferspeicher.
 
 | Bereich | Stand |
 |---|---|
-| Regelung, Ventile, Messfahrt | im Betrieb; 9 von 22 Kreisen vermessen |
+| Regelung, Ventile, Messfahrt | im Betrieb; 16 von 33 Kreisen vermessen |
 | Thermometer über Bluetooth | im Betrieb |
+| Einrichtung über den Zugangspunkt | im Betrieb; Verbindung beim ersten Versuch, seit der Bluetooth-Empfang Funkzeit abgibt |
 | Gegenseitiges Auffinden der Geräte | im Betrieb |
 | Fühler an Kessel und Pufferspeicher | im Betrieb |
 | Bedarfsabfrage und Pumpenlogik | im Betrieb |
-| Kesselkreispumpe mit Relais | an der Anlage nachgewiesen |
-| Sicherung der Einstellungen | Rundlauf über alle vier Geräte geprüft |
+| Kesselkreispumpe mit Relais | im Betrieb; Schwellen an der Anlage gemessen |
+| Brennerlauf, Ladeerkennung, Aufzeichnung | im Betrieb seit Mitte August, 23 Ladungen |
+| Nullpunkt des Füllstands nachmessen | im Betrieb; erster Messpunkt am 5. September |
+| Warmwasserzapfung, Rückströmung | im Betrieb; beide an der Anlage beobachtet |
+| Sicherung der Einstellungen | Rundlauf über die vier damals laufenden Geräte geprüft |
 | Außentemperatur bis zu den Heizungsgeräten | im Betrieb |
-| Brennerlauf, Ladeerkennung, Aufzeichnung | nicht erprobt, kein Heizbetrieb |
-| Verbrauchslinie, Abgas-Vorlauf-Abstand | rechnen ab der ersten Heizperiode |
+| Verbrauchslinie | rechnet aus 28 Tagen, aussagekräftig erst in der Heizperiode |
+| Abgas-Vorlauf-Abstand | rechnet aus 23 Ladungen, 7 K |
+| Raumregelung unter Heizlast | nicht erprobt, bisher fast nur Warmwasserbereitung |
 | MQTT-Discovery | nicht erprobt, kein Broker eingerichtet |
 
 Die Rechenmodule hinter Regelung, Ventilen, Pumpen, Brenner, Ladezustand, Plausibilität,
-Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 483 Prüfungen (`make -C test/host`).
+Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 524 Prüfungen (`make -C test/host`).
+Dass Einstellungsablage, Rechenmodule und Oberfläche dieselben Vorgaben führen, prüft
+`python3 tools/check_defaults.py`.
