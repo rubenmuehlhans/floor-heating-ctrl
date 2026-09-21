@@ -46,7 +46,7 @@ extern "C" {
 typedef enum {
     BP_REASON_NONE = 0,
     BP_REASON_TRANSFER,     /* der Kessel gibt Waerme ab */
-    BP_REASON_NO_TRANSFER,  /* Ruecklauf waermer als Vorlauf */
+    BP_REASON_NO_TRANSFER,  /* Kessel kaum waermer als der Speicher (ersatzweise der Ruecklauf) */
     BP_REASON_EMERGENCY,    /* Notgrenze des Kesselvorlaufs ueberschritten */
     BP_REASON_NO_READING,   /* ohne Messwerte laeuft sie */
     BP_REASON_HOLD,         /* Bedingung hat gewechselt, Haltezeit laeuft noch */

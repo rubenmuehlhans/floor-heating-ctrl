@@ -289,7 +289,7 @@ def state() -> dict:
             "enabled": True, "mode": STATE_BP["mode"],
             "on": brenner_laeuft if STATE_BP["mode"] == "auto" else STATE_BP["mode"] == "ein",
             "reason": "Kessel gibt Waerme ab" if brenner_laeuft
-                      else "Ruecklauf waermer als Vorlauf",
+                      else "Kessel kaum waermer als der Speicher",
             "reason_key": "transfer" if brenner_laeuft else "no_transfer",
             "since_s": 940, "path": "http",
             "relay": {"known": True, "on": brenner_laeuft, "online": True, "status": 200,

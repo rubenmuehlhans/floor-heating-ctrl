@@ -147,7 +147,7 @@ const char *bp_reason_text(bp_reason_t r)
 {
     switch (r) {
     case BP_REASON_TRANSFER:     return "Kessel gibt Waerme ab";
-    case BP_REASON_NO_TRANSFER:  return "Ruecklauf waermer als Vorlauf";
+    case BP_REASON_NO_TRANSFER:  return "Kessel kaum waermer als der Speicher";
     case BP_REASON_EMERGENCY:    return "Notabfuhr, Kessel ueber der Grenze";
     case BP_REASON_NO_READING:   return "keine Kesselwerte, Pumpe laeuft sicherheitshalber";
     case BP_REASON_HOLD:         return "Haltezeit, Bedingung eben erst gewechselt";
