@@ -3,7 +3,7 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
-## Unveröffentlicht, seit v0.3.0
+## v0.4.0 — 22. September 2026
 
 ### Verteilerplatine
 
@@ -88,6 +88,9 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   höchstens 300 s.
 - **Meldung zur Busbelegung.** Das Protokoll verlangte nach einer Änderung einen Neustart; die
   Fühlererfassung stellt aber sofort um.
+- **Grund der stehenden Kesselkreispumpe.** Er lautete „Rücklauf wärmer als Vorlauf", nach der
+  Regel bis zum 18. August. Seitdem wird der Kesselvorlauf mit dem Speicher verglichen; der
+  Grund heißt jetzt „Kessel kaum wärmer als der Speicher".
 
 ### Werkzeuge und Dokumentation
 
