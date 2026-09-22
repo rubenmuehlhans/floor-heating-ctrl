@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Datenschutzerklärung der App „Heizung“</title>
+<meta name="description" content="Welche Daten die App „Heizung“ für iPhone, iPad und Mac verarbeitet und wohin sie gehen.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🔥</text></svg>">
+<style>
+:root{
+  --ground:#eef0ee; --surface:#fff; --sunken:#f6f8f6;
+  --ink:#141817; --muted:#697370; --faint:#98a19d;
+  --line:#dde1de; --accent:#10646f; --accent-soft:#e3eef0;
+  --r-sm:7px;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+  --data:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#121514; --surface:#1a1e1d; --sunken:#161a19;
+    --ink:#e8ecea; --muted:#98a29e; --faint:#6d7773;
+    --line:#2b312f; --accent:#57b6c2; --accent-soft:#173338;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--ground); color:var(--ink); font-family:var(--ui); line-height:1.55; font-size:16px}
+.wrap{max-width:46rem; margin:0 auto; padding:2.4rem 1.2rem 4rem}
+header{border-bottom:1px solid var(--line); padding-bottom:1.4rem; margin-bottom:2rem}
+h1{font-size:1.6rem; line-height:1.25; margin:0 0 .5rem; letter-spacing:-.01em; text-wrap:balance}
+.stand{display:inline-flex; font-size:.78rem; font-weight:500; color:var(--accent); background:var(--accent-soft);
+       border-radius:99px; padding:.18rem .6rem; font-family:var(--data)}
+p, li{color:var(--muted); max-width:38rem}
+p{margin:0 0 1rem}
+p.lead{color:var(--ink)}
+ul{margin:0 0 1rem; padding-left:1.2rem}
+li{margin:.2rem 0}
+h2{font-size:1.08rem; margin:2.2rem 0 .7rem; letter-spacing:-.005em}
+a{color:var(--accent)}
+code{font-family:var(--data); font-size:.86em; background:var(--sunken); border:1px solid var(--line);
+     border-radius:4px; padding:.08em .34em}
+footer{margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line); font-size:.85rem; color:var(--faint)}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Datenschutzerklärung der App „Heizung“</h1>
+  <p class="lead">Die App für iPhone, iPad und Mac bedient die Geräte des Projekts floor-heating-ctrl.
+     Sie erhebt keine Daten für den Entwickler. Was sie braucht, speichert sie auf Ihrem Gerät, und
+     die Heizungsgeräte spricht sie direkt in Ihrem Heimnetz an. An einen Dienst außerhalb des
+     Heimnetzes gehen Daten nur, wenn Sie Claude von Anthropic ausdrücklich zustimmen.</p>
+  <span class="stand">Stand 22.09.2026</span>
+</header>
+
+<h2>Anbieter und Kontakt</h2>
+<p>Die App ist ein privates Projekt von Ruben Mühlhans. Fragen zum Datenschutz richten Sie bitte über
+   die <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl/issues">Issues des Repositorys auf GitHub</a>
+   an ihn.</p>
+
+<h2>Daten auf Ihrem Gerät</h2>
+<p>Die App speichert auf dem Gerät, auf dem sie läuft:</p>
+<ul>
+  <li>Adressen und Kennungen der eingebundenen Geräte,</li>
+  <li>Messwerte, den gespeicherten Verlauf und die Befunde der Anlage,</li>
+  <li>die Gespräche mit dem Assistenten, seine Vorschläge und das Änderungsprotokoll,</li>
+  <li>Sicherungen der Gerätekonfiguration, verschlüsselt; der Schlüssel dazu liegt im Schlüsselbund,</li>
+  <li>Ihren API-Schlüssel von Anthropic, im Schlüsselbund und so abgelegt, dass er nicht auf andere Geräte übertragen wird,</li>
+  <li>die Einstellungen der App.</li>
+</ul>
+<p>Diese Daten gehen weder an den Entwickler noch an Dritte. In Backups des Geräts über iCloud oder
+   einen Computer sind sie enthalten wie die Daten anderer Apps. Den Verlauf löschen Sie unter
+   Einstellungen der App › Daten, alle Daten der App mit dem Löschen der App.</p>
+
+<h2>Verbindungen im Heimnetz</h2>
+<p>Die App sucht die Heizungsgeräte per Bonjour und verbindet sich mit ihnen und mit den Relais der
+   Pumpen über das lokale Netz. Diese Verbindungen verlassen Ihr Heimnetz nicht. Unter iOS und iPadOS
+   fragt das System dafür nach der Erlaubnis für das lokale Netzwerk.</p>
+
+<h2>Claude von Anthropic</h2>
+<p>Nur wenn Sie in der App Claude als Modell wählen, einen eigenen API-Schlüssel hinterlegen und der
+   Übertragung zustimmen, sendet die App bei jeder Frage an den Assistenten und bei jedem Lagebericht
+   Daten an Anthropic PBC, den Anbieter von Claude mit Sitz in den USA. Übertragen werden, verschlüsselt
+   an <code>api.anthropic.com</code>:</p>
+<ul>
+  <li>Messwerte, Einstellungen, Befunde und Protokolle der Anlage,</li>
+  <li>Namen der Räume und Geräte,</li>
+  <li>Ihre Fragen und der bisherige Verlauf des Gesprächs,</li>
+  <li>das Handbuch der Anlage.</li>
+</ul>
+<p>Nicht übertragen werden Kennwörter, WLAN-Zugangsdaten, die Adressen der Relais und die Adressen der
+   Thermometer. Die Übertragung läuft über Ihr eigenes Konto bei Anthropic, das auch die Nutzung mit
+   Ihnen abrechnet; für die Verarbeitung dort gelten die Bedingungen und die
+   <a href="https://www.anthropic.com/legal/privacy">Datenschutzerklärung von Anthropic</a>. Der Entwickler
+   erhält diese Daten nicht.</p>
+<p>Ihre Zustimmung widerrufen Sie unter Einstellungen der App › KI › Zustimmung widerrufen. Danach sendet
+   die App nichts mehr an Anthropic, auch keinen Lagebericht.</p>
+
+<h2>Apple-Modelle</h2>
+<p>Das Apple-Modell auf dem Gerät rechnet vollständig auf Ihrem Gerät; dabei verlassen keine Daten das
+   Gerät. Apple Private Cloud Compute nutzt die App derzeit nicht.</p>
+
+<h2>Mitteilungen</h2>
+<p>Mitteilungen über Befunde erzeugt die App auf dem Gerät selbst. Einen Push-Dienst verwendet sie nicht.</p>
+
+<h2>Keine Analyse, keine Werbung</h2>
+<p>Die App enthält keine Analyse-, Werbe- oder Absturzberichtdienste Dritter und erstellt keine
+   Nutzerprofile. Absturzberichte erhält der Entwickler nur über Apple und nur, wenn Sie in den
+   Einstellungen Ihres Geräts das Teilen mit App-Entwicklern eingeschaltet haben.</p>
+<p>Nehmen Sie über TestFlight am Test der App teil, sieht der Entwickler, wie TestFlight es vorsieht,
+   Ihren Namen und Ihre E-Mail-Adresse aus der Einladung sowie Rückmeldungen und Absturzberichte, die
+   Sie über TestFlight senden.</p>
+
+<footer>
+  <p>Quelltext der App und der Geräte auf
+     <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl">GitHub</a> ·
+     <a href="index.html">Firmware aufspielen</a></p>
+</footer>
+
+</div>
+</body>
+</html>
