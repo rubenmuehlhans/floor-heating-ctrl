@@ -140,7 +140,7 @@ bool atc_bthome_counter_fresh(bool known, uint32_t last, uint32_t last_ms, uint3
 
 /*
  * Schluessel aus Text: 32 Hexadezimalziffern, Gross- und Kleinschreibung
- * gleich. Leerzeichen, Doppelpunkte und Bindestriche dazwischen werden
+ * gleich. Leerraum, Doppelpunkte und Bindestriche dazwischen werden
  * uebergangen, so wie Apps den Schluessel gern gruppiert anzeigen.
  */
 bool atc_parse_key(const char *text, uint8_t key[16]);

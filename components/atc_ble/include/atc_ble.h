@@ -41,6 +41,19 @@ typedef void (*atc_cb_t)(const atc_device_t *dev, void *ctx);
 
 esp_err_t atc_ble_start(atc_cb_t cb, void *ctx);
 
+/*
+ * Legt den Schluesselspeicher an und laedt die Schluessel aus dem
+ * NVS-Namensraum `nvs_namespace`, ohne Bluetooth zu starten. So bleiben
+ * Schluessel les- und aenderbar, auch wenn der Empfang ausgeschaltet ist --
+ * sonst ginge eine Sicherung ohne sie hinaus und loeschte sie beim
+ * Zurueckspielen. atc_ble_start ruft es mit "fbh" auf, falls es noch nicht
+ * geschehen ist.
+ */
+esp_err_t atc_ble_keys_init(const char *nvs_namespace);
+
+/* Ob der Empfang laeuft. */
+bool atc_ble_running(void);
+
 /* Kopiert die bekannten Geraete in der Reihenfolge, in der sie zuerst
  * empfangen wurden. */
 size_t atc_ble_devices(atc_device_t *out, size_t max);

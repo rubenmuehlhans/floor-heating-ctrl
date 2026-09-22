@@ -272,7 +272,9 @@ static int hexwert(char c)
     return -1;
 }
 
-/* Liest genau 2 * n Hexadezimalziffern; Trennzeichen dazwischen zaehlen nicht. */
+/* Liest genau 2 * n Hexadezimalziffern. Leerraum, Doppelpunkte und
+ * Bindestriche dazwischen zaehlen nicht: Kopiert aus einer App, bringt ein
+ * Schluessel gern einen Zeilenumbruch oder einen Tabulator mit. */
 static bool hex_bytes(const char *text, uint8_t *out, size_t n)
 {
     if (text == NULL) {
@@ -280,7 +282,7 @@ static bool hex_bytes(const char *text, uint8_t *out, size_t n)
     }
     size_t ziffern = 0;
     for (const char *p = text; *p; p++) {
-        if (*p == ' ' || *p == ':' || *p == '-') {
+        if (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || *p == ':' || *p == '-') {
             continue;
         }
         int v = hexwert(*p);

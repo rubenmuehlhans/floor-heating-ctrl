@@ -1759,6 +1759,8 @@ static void test_bthome_zaehler(void)
           "gruppiert geschrieben");
     CHECK(atc_parse_key("00112233-44556677-8899AABB-CCDDEEFF", k2) && memcmp(key, k2, 16) == 0,
           "gross und mit Bindestrichen");
+    CHECK(atc_parse_key("0011223344556677\n8899aabbccddeeff\t\r\n", k2) && memcmp(key, k2, 16) == 0,
+          "mit Zeilenumbruch und Tabulator aus einer Zwischenablage");
     CHECK(!atc_parse_key("00112233445566778899aabbccddeef", k2), "31 Ziffern abgewiesen");
     CHECK(!atc_parse_key("00112233445566778899aabbccddeeff00", k2), "34 Ziffern abgewiesen");
     CHECK(!atc_parse_key("00112233445566778899aabbccddeexx", k2), "fremde Zeichen abgewiesen");

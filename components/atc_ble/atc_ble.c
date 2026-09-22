@@ -22,7 +22,6 @@ static const char *TAG = "ble";
  * NVS, dessen Laenge begrenzt ist, und jeder Raum wird beim Speichern aus
  * den Vorgaben neu aufgebaut. Ein Schluessel dort ginge bei jeder
  * Raumaenderung verloren, die ihn nicht mitschickt. */
-#define NVS_NAMESPACE "fbh"
 #define NVS_KEYS "blekeys"
 #define KEYS_VERSION 1
 
@@ -35,6 +34,8 @@ static atc_device_t s_devices[ATC_MAX_DEVICES];
 static size_t s_device_count;
 static atc_key_t s_keys[ATC_MAX_KEYS];
 static size_t s_key_count;
+static const char *s_nvs_ns = "fbh";
+static bool s_laeuft;
 static SemaphoreHandle_t s_mtx;
 static atc_cb_t s_cb;
 static void *s_ctx;
@@ -169,7 +170,7 @@ static void device_key_changed(const uint8_t mac[6])
 static esp_err_t keys_save(void)
 {
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    esp_err_t err = nvs_open(s_nvs_ns, NVS_READWRITE, &h);
     if (err != ESP_OK) {
         return err;
     }
@@ -195,7 +196,7 @@ static esp_err_t keys_save(void)
 static void keys_load(void)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+    if (nvs_open(s_nvs_ns, NVS_READONLY, &h) != ESP_OK) {
         return;
     }
     uint8_t buf[1 + ATC_MAX_KEYS * sizeof(atc_key_t)];
@@ -581,6 +582,10 @@ void atc_ble_pause(bool pausieren)
     if (s_pausiert == pausieren) {
         return;
     }
+    if (!s_laeuft) {
+        s_pausiert = pausieren; /* gilt, sobald der Empfang startet */
+        return;
+    }
     s_pausiert = pausieren;
     if (pausieren) {
         ble_gap_disc_cancel();
@@ -603,15 +608,35 @@ static void host_task(void *param)
     nimble_port_freertos_deinit();
 }
 
-esp_err_t atc_ble_start(atc_cb_t cb, void *ctx)
+esp_err_t atc_ble_keys_init(const char *nvs_namespace)
 {
+    if (s_mtx != NULL) {
+        return ESP_OK;
+    }
     s_mtx = xSemaphoreCreateMutex();
     if (s_mtx == NULL) {
         return ESP_ERR_NO_MEM;
     }
+    if (nvs_namespace != NULL) {
+        s_nvs_ns = nvs_namespace;
+    }
+    keys_load();
+    return ESP_OK;
+}
+
+bool atc_ble_running(void)
+{
+    return s_laeuft;
+}
+
+esp_err_t atc_ble_start(atc_cb_t cb, void *ctx)
+{
+    esp_err_t kerr = atc_ble_keys_init("fbh");
+    if (kerr != ESP_OK) {
+        return kerr;
+    }
     s_cb = cb;
     s_ctx = ctx;
-    keys_load();
 
     esp_err_t err = nimble_port_init();
     if (err != ESP_OK) {
@@ -623,5 +648,6 @@ esp_err_t atc_ble_start(atc_cb_t cb, void *ctx)
     ble_hs_cfg.reset_cb = on_reset;
 
     nimble_port_freertos_init(host_task);
+    s_laeuft = true;
     return ESP_OK;
 }

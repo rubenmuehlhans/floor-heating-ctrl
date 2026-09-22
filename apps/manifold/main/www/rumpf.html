@@ -376,11 +376,15 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
       <p class="lede">Manche Thermometer senden ihre Werte verschlüsselt, etwa der Climate-Sat von
         camperSense. Lesbar werden sie erst mit dem Schlüssel des jeweiligen Geräts. Ihn zeigt die
         camperSense-App beim Sensor an: 32 Zeichen aus Ziffern und den Buchstaben a bis f;
-        Leerzeichen und Bindestriche dürfen mit eingegeben werden. Der Schlüssel wird auf dem
-        Gerät gespeichert und erscheint danach nur noch in der Sicherung.</p>
+        Leerzeichen und Bindestriche dürfen mit eingegeben werden. Wird das Thermometer gerade
+        nicht empfangen, lässt sich der Schlüssel auch zu einer von Hand eingegebenen Adresse
+        hinterlegen; die Adresse zeigt die camperSense-App neben dem Schlüssel. Der Schlüssel wird
+        auf dem Gerät gespeichert und erscheint danach nur noch in der Sicherung.</p>
       <div class="row" id="keyState" style="margin-bottom:.8rem"></div>
       <div class="fields">
         <label class="f"><span>Gerät</span><select id="keySel"></select></label>
+        <label class="f" id="keyMacRow" hidden><span>Adresse</span><input id="keyMac" class="mono"
+          autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="C0:FF:EE:12:34:56"></label>
         <label class="f"><span>Schlüssel</span><input id="keyText" class="mono" autocomplete="off"
           autocapitalize="off" spellcheck="false" placeholder="32 Hexadezimalziffern"></label>
       </div>
@@ -577,6 +581,12 @@ let fetchedAt = 0;    /* Zeitpunkt dieser Antwort, für das lokale Weiterzählen
 let pollTimer = null;
 
 /* Deutsche Schreibweise: Dezimalkomma. */
+/* Text für innerHTML maskieren. Namen aus Bluetooth-Rundrufen setzt jedes
+   Gerät in Funkreichweite selbst; ungeprüft eingefügt, könnte es darüber
+   Skript in diese Seite bringen. */
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
+
 const num = (v, d) => (v === undefined || v === null || isNaN(v)) ? "–" : v.toFixed(d).replace(".", ",");
 const pct = v => Math.round(v * 100);
 
@@ -668,8 +678,10 @@ async function loadPeers() {
 function renderPeers() {
   const el = $("#floors");
   if (!el) return;
-  const link = p => `<a href="http://${p.host}/" title="${p.hostname || p.host}">`
-                  + `${p.site || p.host}</a>`;
+  /* Namen und Adressen kommen per mDNS von den Geräten; maskiert, weil sie
+     jedes Gerät im Netz selbst setzt. */
+  const link = p => `<a href="http://${esc(p.host)}/" title="${esc(p.hostname || p.host)}">`
+                  + `${esc(p.site || p.host)}</a>`;
   const verteiler = peers.filter(p => p.role !== "heat");
   const heizung   = peers.filter(p => p.role === "heat");
   el.innerHTML = verteiler.map(link).join("")
@@ -853,7 +865,7 @@ async function setMode(id, mode) {
 /* ---------------- Raumeditor ---------------- */
 
 /* Name aus dem Rundruf, falls vorhanden — sonst bleibt nur die Adresse. */
-const bleLabel = d => d.name ? `${d.name} (${d.mac})` : d.mac;
+const bleLabel = d => esc(d.name ? `${d.name} (${d.mac})` : d.mac);
 
 const FORMATE = {pvvx: "pvvx", atc1441: "ATC", ruuvi: "RuuviTag", bthome: "BTHome"};
 const formatName = d => FORMATE[d.format] || d.format;
@@ -1287,7 +1299,7 @@ async function loadBle() {
                : d.battery_mv ? `${d.battery_mv} mV` : "–";
     const zu = aussen ? '<span class="chip ok">Außenfühler</span>'
              : room ? room.name : '<span class="chip">nicht zugeordnet</span>';
-    return `<tr><td>${d.name ? `<b>${d.name}</b><br><span class="mono muted">${d.mac}</span>`
+    return `<tr><td>${d.name ? `<b>${esc(d.name)}</b><br><span class="mono muted">${esc(d.mac)}</span>`
                               : `<span class="mono">${d.mac}</span>`}</td>
       <td class="num">${num(d.temp_c,2)} °C</td><td class="num">${num(d.humidity,1)} %</td>
       <td class="num">${batt}</td>
@@ -1314,17 +1326,28 @@ function renderKeys() {
     for (const mac of bleKeys) {
       if (!empfangen.has(mac)) html += `<option value="${mac}">${mac} · nicht in Reichweite</option>`;
     }
-    sel.innerHTML = html || '<option value="">— kein verschlüsseltes Gerät empfangen —</option>';
+    html += '<option value="*">Adresse von Hand eingeben …</option>';
+    sel.innerHTML = html;
     if (vorher && [...sel.options].some(o => o.value === vorher)) sel.value = vorher;
   }
+  $("#keyMacRow").hidden = sel.value !== "*";
   const offen = verschl.filter(d => d.key !== "ok");
   $("#keyState").innerHTML = !verschl.length && !bleKeys.length
     ? '<span class="chip">kein verschlüsseltes Gerät in Reichweite</span>'
     : offen.length
-      ? offen.map(d => `<span class="chip ${d.key === "wrong" ? "bad" : "warn"}">${d.name || d.mac}: ${
+      ? offen.map(d => `<span class="chip ${d.key === "wrong" ? "bad" : "warn"}">${esc(d.name || d.mac)}: ${
           d.key === "wrong" ? "Schlüssel falsch" : "Schlüssel fehlt"}</span>`).join("")
       : '<span class="chip ok">alle Schlüssel passen</span>';
-  $("#keyDel").disabled = !bleKeys.includes(sel.value);
+  $("#keyDel").disabled = !bleKeys.includes(keyMac());
+}
+
+/* Adresse für den Schlüssel: das gewählte Gerät oder die von Hand eingegebene,
+   in der Schreibweise, die /api/ble verwendet. Leer, wenn sie nicht stimmt. */
+function keyMac() {
+  const sel = $("#keySel");
+  if (sel.value !== "*") return sel.value;
+  const t = $("#keyMac").value.replace(/[\s:-]/g, "").toUpperCase();
+  return /^[0-9A-F]{12}$/.test(t) ? t.match(/../g).join(":") : "";
 }
 
 /* Zuordnung und Zustand des Außenfühlers. */
@@ -1337,7 +1360,7 @@ function renderOutdoor() {
     let html = `<option value=""${gewaehlt ? "" : " selected"}>— keiner —</option>`;
     for (const d of ble) {
       if (belegt.has(d.mac) && d.mac !== gewaehlt) continue;   /* gehört zu einem Raum */
-      const bez = d.name ? `${d.name} (${d.mac})` : d.mac;
+      const bez = bleLabel(d);
       html += `<option value="${d.mac}"${d.mac === gewaehlt ? " selected" : ""}>${bez}</option>`;
     }
     if (gewaehlt && !ble.some(d => d.mac === gewaehlt)) {
@@ -1541,24 +1564,36 @@ $("#outdoorSave").onclick = () => {
   saveConfig();
 };
 
-$("#keySel").onchange = () => { $("#keyDel").disabled = !bleKeys.includes($("#keySel").value); };
+$("#keySel").onchange = () => {
+  $("#keyMacRow").hidden = $("#keySel").value !== "*";
+  $("#keyDel").disabled = !bleKeys.includes(keyMac());
+};
+$("#keyMac").oninput = () => { $("#keyDel").disabled = !bleKeys.includes(keyMac()); };
 
 $("#keySave").onclick = async () => {
-  const mac = $("#keySel").value, text = $("#keyText").value.trim();
-  if (!mac) return toast("Kein verschlüsseltes Gerät ausgewählt.", true);
-  if (!/^[0-9a-fA-F]{32}$/.test(text.replace(/[\s:-]/g, ""))) {
+  const mac = keyMac();
+  const bindkey = $("#keyText").value.replace(/[\s:-]/g, "").toLowerCase();
+  if (!mac) {
+    return toast($("#keySel").value === "*"
+      ? "Die Adresse muss aus zwölf Hexadezimalziffern bestehen, etwa C0:FF:EE:12:34:56."
+      : "Kein Thermometer ausgewählt.", true);
+  }
+  if (!/^[0-9a-f]{32}$/.test(bindkey)) {
     return toast("Der Schlüssel muss aus 32 Hexadezimalziffern bestehen.", true);
   }
   try {
-    await post("/api/ble/key", {mac, bindkey: text});
+    await post("/api/ble/key", {mac, bindkey});
     $("#keyText").value = "";
-    toast("Schlüssel gespeichert. Mit dem nächsten Rundruf erscheinen die Werte.");
+    toast("Schlüssel gespeichert. Mit dem nächsten Rundruf des Thermometers erscheinen seine Werte.");
     await loadBle();
+    /* Ob der Schlüssel passt, zeigt erst der nächste Rundruf; er kommt beim
+       Climate-Sat alle zwei Sekunden, die Liste sonst erst nach 30 s. */
+    setTimeout(loadBle, 4000);
   } catch (e) { toast(e.message, true); }
 };
 
 $("#keyDel").onclick = async () => {
-  const mac = $("#keySel").value;
+  const mac = keyMac();
   if (!mac || !confirm(`Schlüssel für ${mac} entfernen? Das Gerät liefert danach keine Werte mehr.`)) return;
   try {
     await post("/api/ble/key", {mac, bindkey: ""});
