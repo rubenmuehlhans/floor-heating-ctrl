@@ -89,7 +89,7 @@ esp-web-install-button button:focus-visible{outline:2px solid var(--heat); outli
   <p class="lead">Heizungssteuerung für Fußbodenheizung, Ölkessel und Pufferspeicher.
      Die Firmware geht über USB direkt aus dem Browser auf den ESP32 — ohne Übersetzen,
      ohne esptool.</p>
-  <span class="stand">v0.3.0</span>
+  <span class="stand">v0.4.0</span>
 </header>
 
 <div class="note">
@@ -155,19 +155,19 @@ esp-web-install-button button:focus-visible{outline:2px solid var(--heat); outli
 <p>Ist das Gerät einmal im Netz, braucht es kein Kabel mehr. Über die Oberfläche unter
    <strong>System → Firmware</strong>, oder auf der Kommandozeile:</p>
 
-<pre><code>curl -X POST --data-binary @floor-heating-ctrl-v0.3.0.bin http://&lt;adresse&gt;/api/ota</code></pre>
+<pre><code>curl -X POST --data-binary @floor-heating-ctrl-v0.4.0.bin http://&lt;adresse&gt;/api/ota</code></pre>
 
 <p>Dafür ist die Datei <em>ohne</em> <code>-merged</code> zuständig; die hier aufgespielte
    enthält zusätzlich Bootlader und Partitionstabelle und gehört nur an den Anfang des
    Speichers. Beide liegen bei der
-   <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl/releases/tag/v0.3.0">Veröffentlichung</a>.</p>
+   <a href="https://github.com/rubenmuehlhans/floor-heating-ctrl/releases/tag/v0.4.0">Veröffentlichung</a>.</p>
 
 <p>Schlägt die neue Fassung fehl, kehrt der Bootlader zur vorherigen zurück. Die
    Einstellungen bleiben in beiden Fällen erhalten.</p>
 
 <h2>Ohne Browser</h2>
 
-<pre><code>esptool.py --chip esp32 write_flash 0x0 floor-heating-ctrl-v0.3.0-merged.bin</code></pre>
+<pre><code>esptool.py --chip esp32 write_flash 0x0 floor-heating-ctrl-v0.4.0-merged.bin</code></pre>
 
 <footer>
   <p>Privates Bastelprojekt, GPL-3.0. Quelltext und Fehlermeldungen auf
