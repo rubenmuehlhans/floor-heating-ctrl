@@ -482,6 +482,27 @@ static esp_err_t config_backup_get(httpd_req_t *req)
     char id[24];
     snprintf(id, sizeof(id), "fbh_%02x%02x%02x", mac[3], mac[4], mac[5]);
 
+    /* Die Schluessel der verschluesselten Thermometer gehoeren dazu wie die
+     * WLAN-Zugangsdaten: Ohne sie waeren die Raeume nach dem Zurueckspielen
+     * auf einem Ersatzgeraet ohne Messwert. */
+    static atc_key_t keys[ATC_MAX_KEYS];
+    size_t nk = atc_ble_keys(keys, ATC_MAX_KEYS);
+    cJSON *jkeys = cJSON_AddArrayToObject(root, "ble_keys");
+    for (size_t i = 0; i < nk; i++) {
+        char kmac[18], khex[33];
+        snprintf(kmac, sizeof(kmac), "%02X:%02X:%02X:%02X:%02X:%02X", keys[i].mac[0],
+                 keys[i].mac[1], keys[i].mac[2], keys[i].mac[3], keys[i].mac[4], keys[i].mac[5]);
+        for (int j = 0; j < 16; j++) {
+            snprintf(khex + 2 * j, 3, "%02x", keys[i].key[j]);
+        }
+        cJSON *jk = cJSON_CreateObject();
+        cJSON_AddStringToObject(jk, "mac", kmac);
+        cJSON_AddStringToObject(jk, "bindkey", khex);
+        cJSON_AddItemToArray(jkeys, jk);
+        memset(khex, 0, sizeof(khex));
+    }
+    memset(keys, 0, sizeof(keys));
+
     cJSON *kopf = cJSON_CreateObject();
     cJSON_AddStringToObject(kopf, "app", "floor-heating-ctrl");
     cJSON_AddStringToObject(kopf, "device_id", id);
@@ -535,6 +556,47 @@ static esp_err_t config_restore_post(httpd_req_t *req)
      * Aenderungen gehoeren nach PUT /api/config, das nur uebernimmt, was
      * dasteht.
      */
+    /*
+     * Schluessel der verschluesselten Thermometer. Aeltere Sicherungen haben
+     * keine; dann bleiben die vorhandenen, statt stillschweigend zu
+     * verschwinden. Geprueft wird vorher, damit eine fehlerhafte Liste nicht
+     * halb uebernommen wird.
+     */
+    static atc_key_t neue_schluessel[ATC_MAX_KEYS];
+    size_t neue_n = 0;
+    bool schluessel_da = false;
+    {
+        cJSON *doc = cJSON_Parse(body);
+        const cJSON *jkeys = doc ? cJSON_GetObjectItemCaseSensitive(doc, "ble_keys") : NULL;
+        const char *fehler = NULL;
+        if (cJSON_IsArray(jkeys)) {
+            schluessel_da = true;
+            const cJSON *jk;
+            cJSON_ArrayForEach(jk, jkeys)
+            {
+                const cJSON *m = cJSON_GetObjectItemCaseSensitive(jk, "mac");
+                const cJSON *k = cJSON_GetObjectItemCaseSensitive(jk, "bindkey");
+                if (neue_n >= ATC_MAX_KEYS) {
+                    fehler = "Die Sicherung enthaelt mehr als 16 Thermometerschluessel";
+                    break;
+                }
+                if (!cJSON_IsString(m) || !cJSON_IsString(k) ||
+                    !atc_parse_mac(m->valuestring, neue_schluessel[neue_n].mac) ||
+                    !atc_parse_key(k->valuestring, neue_schluessel[neue_n].key)) {
+                    fehler = "Ein Thermometerschluessel in der Sicherung ist ungueltig";
+                    break;
+                }
+                neue_n++;
+            }
+        }
+        cJSON_Delete(doc);
+        if (fehler != NULL) {
+            memset(neue_schluessel, 0, sizeof(neue_schluessel));
+            free(body);
+            return send_error(req, "400 Bad Request", fehler);
+        }
+    }
+
     {
         cJSON *doc = cJSON_Parse(body);
         const cJSON *kopf = doc ? cJSON_GetObjectItemCaseSensitive(doc, "backup") : NULL;
@@ -543,11 +605,13 @@ static esp_err_t config_restore_post(httpd_req_t *req)
         bool falsch = !fehlt && strcmp(app->valuestring, "floor-heating-ctrl") != 0;
         cJSON_Delete(doc);
         if (fehlt) {
+            memset(neue_schluessel, 0, sizeof(neue_schluessel));
             free(body);
             return send_error(req, "400 Bad Request",
                               "Das ist keine Sicherung dieses Geraets");
         }
         if (falsch) {
+            memset(neue_schluessel, 0, sizeof(neue_schluessel));
             free(body);
             return send_error(req, "400 Bad Request",
                               "Diese Sicherung stammt von einem anderen Geraetetyp");
@@ -566,6 +630,7 @@ static esp_err_t config_restore_post(httpd_req_t *req)
     esp_err_t rc = cfg_from_json(body, &next, err, sizeof(err));
     free(body);
     if (rc != ESP_OK) {
+        memset(neue_schluessel, 0, sizeof(neue_schluessel));
         return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung nicht lesbar");
     }
     /* Der Netzzugang der Sicherung wird verworfen, siehe oben. */
@@ -573,7 +638,19 @@ static esp_err_t config_restore_post(httpd_req_t *req)
 
     rc = cfg_set(&next, err, sizeof(err));
     if (rc != ESP_OK) {
+        memset(neue_schluessel, 0, sizeof(neue_schluessel));
         return send_error(req, "400 Bad Request", err[0] ? err : "Sicherung abgelehnt");
+    }
+
+    if (schluessel_da) {
+        esp_err_t krc = atc_ble_keys_replace(neue_schluessel, neue_n);
+        memset(neue_schluessel, 0, sizeof(neue_schluessel));
+        if (krc != ESP_OK) {
+            ESP_LOGE(TAG, "Thermometerschluessel aus der Sicherung nicht gespeichert: %s",
+                     esp_err_to_name(krc));
+            return send_error(req, "500 Internal Server Error",
+                              "Einstellungen zurueckgespielt, die Thermometerschluessel aber nicht");
+        }
     }
 
     control_config_changed();
@@ -823,8 +900,14 @@ static esp_err_t ble_get(httpd_req_t *req)
         cJSON_AddStringToObject(jd, "mac", mac);
         cJSON_AddStringToObject(jd, "name", d->name);
         cJSON_AddNumberToObject(jd, "rssi", d->rssi);
-        cJSON_AddNumberToObject(jd, "temp_c", d->temp_c);
-        cJSON_AddNumberToObject(jd, "humidity", d->humidity);
+        /* Ein verschluesseltes Geraet ohne passenden Schluessel hat keine
+         * Werte; die Felder fehlen dann, statt eine Null vorzutaeuschen. */
+        if (d->has_temp) {
+            cJSON_AddNumberToObject(jd, "temp_c", d->temp_c);
+        }
+        if (d->has_humidity) {
+            cJSON_AddNumberToObject(jd, "humidity", d->humidity);
+        }
         cJSON_AddNumberToObject(jd, "battery", d->battery);
         cJSON_AddNumberToObject(jd, "battery_mv", d->battery_mv);
         cJSON_AddNumberToObject(jd, "packets", d->packets);
@@ -832,9 +915,83 @@ static esp_err_t ble_get(httpd_req_t *req)
         if (d->pressure_hpa > 0.0f) {
             cJSON_AddNumberToObject(jd, "pressure_hpa", d->pressure_hpa);
         }
+        if (d->format == ATC_FMT_BTHOME) {
+            cJSON_AddBoolToObject(jd, "encrypted", d->encrypted);
+            const char *k = atc_key_state_name(d->key);
+            if (k != NULL) {
+                cJSON_AddStringToObject(jd, "key", k);
+            }
+        }
         cJSON_AddItemToArray(arr, jd);
     }
+
+    /* Die Adressen, fuer die ein Schluessel hinterlegt ist -- auch solche,
+     * die gerade nicht in Reichweite sind. Die Schluessel selbst stehen nur
+     * in der Sicherung. */
+    static atc_key_t keys[ATC_MAX_KEYS];
+    size_t nk = atc_ble_keys(keys, ATC_MAX_KEYS);
+    cJSON *jk = cJSON_AddArrayToObject(root, "keys");
+    for (size_t i = 0; i < nk; i++) {
+        char mac[18];
+        snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", keys[i].mac[0], keys[i].mac[1],
+                 keys[i].mac[2], keys[i].mac[3], keys[i].mac[4], keys[i].mac[5]);
+        cJSON_AddItemToArray(jk, cJSON_CreateString(mac));
+    }
+    memset(keys, 0, sizeof(keys));
     return send_json_obj(req, root);
+}
+
+/*
+ * Schluessel eines verschluesselt sendenden Thermometers hinterlegen:
+ * {"mac": "C0:FF:EE:12:34:56", "bindkey": "<32 Hexadezimalziffern>"}.
+ * Ein leerer oder fehlender Schluessel entfernt ihn. Eine Antwort traegt ihn
+ * nie; ob er passt, zeigt /api/ble am naechsten Rundruf.
+ */
+static esp_err_t ble_key_post(httpd_req_t *req)
+{
+    char *body = read_body(req);
+    if (body == NULL) {
+        return send_error(req, "400 Bad Request", "Anfrage konnte nicht gelesen werden");
+    }
+    cJSON *doc = cJSON_Parse(body);
+    memset(body, 0, strlen(body));
+    free(body);
+    if (doc == NULL) {
+        return send_error(req, "400 Bad Request", "Anfrage ist kein JSON");
+    }
+
+    const cJSON *jm = cJSON_GetObjectItemCaseSensitive(doc, "mac");
+    const cJSON *jk = cJSON_GetObjectItemCaseSensitive(doc, "bindkey");
+    uint8_t mac[6], key[16];
+    bool entfernen = jk == NULL || cJSON_IsNull(jk) ||
+                     (cJSON_IsString(jk) && jk->valuestring && jk->valuestring[0] == '\0');
+    const char *fehler = NULL;
+    if (!cJSON_IsString(jm) || !atc_parse_mac(jm->valuestring, mac)) {
+        fehler = "Die MAC-Adresse ist ungueltig";
+    } else if (!entfernen && (!cJSON_IsString(jk) || !atc_parse_key(jk->valuestring, key))) {
+        fehler = "Der Schluessel muss aus 32 Hexadezimalziffern (0-9, a-f) bestehen";
+    }
+    if (cJSON_IsString(jk) && jk->valuestring) {
+        memset(jk->valuestring, 0, strlen(jk->valuestring));
+    }
+    cJSON_Delete(doc);
+    if (fehler != NULL) {
+        memset(key, 0, sizeof(key));
+        return send_error(req, "400 Bad Request", fehler);
+    }
+
+    esp_err_t rc = atc_ble_key_set(mac, entfernen ? NULL : key);
+    memset(key, 0, sizeof(key));
+    if (rc == ESP_ERR_NO_MEM) {
+        return send_error(req, "400 Bad Request",
+                          "Kein Platz fuer weitere Schluessel; hoechstens 16 lassen sich hinterlegen");
+    }
+    if (rc != ESP_OK) {
+        return send_error(req, "500 Internal Server Error", "Schluessel liess sich nicht speichern");
+    }
+    ESP_LOGI(TAG, "Schluessel fuer %02X:%02X:%02X:%02X:%02X:%02X %s", mac[0], mac[1], mac[2], mac[3],
+             mac[4], mac[5], entfernen ? "entfernt" : "hinterlegt");
+    return send_ok(req);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1054,6 +1211,11 @@ static esp_err_t system_post(httpd_req_t *req)
         if (cfg_reset_defaults() != ESP_OK) {
             return send_error(req, "500 Internal Server Error", "Zuruecksetzen fehlgeschlagen");
         }
+        /* Zur Werksvorgabe gehoert auch, dass keine Thermometerschluessel
+         * mehr auf dem Geraet liegen. */
+        if (atc_ble_keys_replace(NULL, 0) != ESP_OK) {
+            ESP_LOGE(TAG, "Thermometerschluessel liessen sich nicht loeschen");
+        }
         control_config_changed();
         mqtt_config_changed();
         return send_ok(req);
@@ -1125,6 +1287,7 @@ static const httpd_uri_t s_routes[] = {
     {.uri = "/api/calib", .method = HTTP_GET, .handler = calib_get},
     {.uri = "/api/calib/*", .method = HTTP_POST, .handler = calib_post},
     {.uri = "/api/ble", .method = HTTP_GET, .handler = ble_get},
+    {.uri = "/api/ble/key", .method = HTTP_POST, .handler = ble_key_post},
     {.uri = "/api/demand", .method = HTTP_GET, .handler = demand_get},
     {.uri = "/api/peers", .method = HTTP_GET, .handler = peers_get_handler},
     {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},

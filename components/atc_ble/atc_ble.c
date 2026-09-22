@@ -10,14 +10,31 @@
 #include "host/ble_hs.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
+#include "nvs.h"
 
 static const char *TAG = "ble";
 
 #define MFG_RUUVI 0x0499
 #define UUID_ENV_SENSING 0x181A
+#define UUID_BTHOME 0xFCD2
+
+/* Eigener Eintrag neben der Konfiguration: Die steht als ein JSON-Text im
+ * NVS, dessen Laenge begrenzt ist, und jeder Raum wird beim Speichern aus
+ * den Vorgaben neu aufgebaut. Ein Schluessel dort ginge bei jeder
+ * Raumaenderung verloren, die ihn nicht mitschickt. */
+#define NVS_NAMESPACE "fbh"
+#define NVS_KEYS "blekeys"
+#define KEYS_VERSION 1
+
+/* Nach einem gueltigen Rahmen gilt ein einzelner mit falscher Pruefsumme
+ * eine Minute lang als Stoerung, nicht als falscher Schluessel. Sonst liesse
+ * sich die Anzeige mit gefaelschten Paketen unter fremder Adresse umschalten. */
+#define KEY_WRONG_GRACE_MS 60000u
 
 static atc_device_t s_devices[ATC_MAX_DEVICES];
 static size_t s_device_count;
+static atc_key_t s_keys[ATC_MAX_KEYS];
+static size_t s_key_count;
 static SemaphoreHandle_t s_mtx;
 static atc_cb_t s_cb;
 static void *s_ctx;
@@ -31,36 +48,41 @@ static inline uint32_t now_ms(void)
 /* Geraeteliste                                                        */
 /* ------------------------------------------------------------------ */
 
+/* Platz eines Geraets in der Liste, bei Bedarf neu angelegt. Aufruf mit
+ * gehaltenem s_mtx. */
+static atc_device_t *slot_for(const uint8_t mac[6], const char *name, atc_format_t format)
+{
+    for (size_t i = 0; i < s_device_count; i++) {
+        if (memcmp(s_devices[i].mac, mac, 6) == 0) {
+            return &s_devices[i];
+        }
+    }
+    atc_device_t *slot = NULL;
+    if (s_device_count < ATC_MAX_DEVICES) {
+        slot = &s_devices[s_device_count++];
+    } else {
+        /* Aeltesten Eintrag verdraengen. */
+        uint32_t oldest = UINT32_MAX;
+        for (size_t i = 0; i < s_device_count; i++) {
+            if (s_devices[i].last_seen_ms < oldest) {
+                oldest = s_devices[i].last_seen_ms;
+                slot = &s_devices[i];
+            }
+        }
+    }
+    memset(slot, 0, sizeof(*slot));
+    memcpy(slot->mac, mac, 6);
+    ESP_LOGI(TAG, "Neues Thermometer %s %02X:%02X:%02X:%02X:%02X:%02X (%s)",
+             name[0] ? name : "ohne Namen", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+             atc_format_name(format));
+    return slot;
+}
+
 static void store_device(const atc_device_t *in)
 {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
 
-    atc_device_t *slot = NULL;
-    for (size_t i = 0; i < s_device_count; i++) {
-        if (memcmp(s_devices[i].mac, in->mac, 6) == 0) {
-            slot = &s_devices[i];
-            break;
-        }
-    }
-    if (slot == NULL) {
-        if (s_device_count < ATC_MAX_DEVICES) {
-            slot = &s_devices[s_device_count++];
-        } else {
-            /* Aeltesten Eintrag verdraengen. */
-            uint32_t oldest = UINT32_MAX;
-            for (size_t i = 0; i < s_device_count; i++) {
-                if (s_devices[i].last_seen_ms < oldest) {
-                    oldest = s_devices[i].last_seen_ms;
-                    slot = &s_devices[i];
-                }
-            }
-        }
-        memset(slot, 0, sizeof(*slot));
-        memcpy(slot->mac, in->mac, 6);
-        ESP_LOGI(TAG, "Neues Thermometer %s %02X:%02X:%02X:%02X:%02X:%02X (%s)",
-                 in->name[0] ? in->name : "ohne Namen", in->mac[0], in->mac[1], in->mac[2],
-                 in->mac[3], in->mac[4], in->mac[5], atc_format_name(in->format));
-    }
+    atc_device_t *slot = slot_for(in->mac, in->name, in->format);
 
     uint32_t packets = slot->packets + 1;
     char kept_name[sizeof(slot->name)];
@@ -101,6 +123,291 @@ static void update_name(const uint8_t mac[6], const char *name)
         }
     }
     xSemaphoreGive(s_mtx);
+}
+
+/* ------------------------------------------------------------------ */
+/* Schluessel                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Aufruf mit gehaltenem s_mtx. */
+static atc_key_t *key_find(const uint8_t mac[6])
+{
+    for (size_t i = 0; i < s_key_count; i++) {
+        if (memcmp(s_keys[i].mac, mac, 6) == 0) {
+            return &s_keys[i];
+        }
+    }
+    return NULL;
+}
+
+static bool key_lookup(const uint8_t mac[6], uint8_t key[16])
+{
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    const atc_key_t *k = key_find(mac);
+    if (k != NULL) {
+        memcpy(key, k->key, 16);
+    }
+    xSemaphoreGive(s_mtx);
+    return k != NULL;
+}
+
+/* Nach einem neuen oder entfernten Schluessel beginnt die Pruefung des
+ * Geraets von vorn: Zaehler vergessen, der naechste Rahmen entscheidet.
+ * Aufruf mit gehaltenem s_mtx. */
+static void device_key_changed(const uint8_t mac[6])
+{
+    for (size_t i = 0; i < s_device_count; i++) {
+        if (memcmp(s_devices[i].mac, mac, 6) == 0) {
+            s_devices[i].counter_set = false;
+            s_devices[i].counter = 0;
+            s_devices[i].counter_ms = 0;
+        }
+    }
+}
+
+/* Aufruf mit gehaltenem s_mtx. */
+static esp_err_t keys_save(void)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) {
+        return err;
+    }
+    if (s_key_count == 0) {
+        err = nvs_erase_key(h, NVS_KEYS);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            err = ESP_OK;
+        }
+    } else {
+        uint8_t buf[1 + ATC_MAX_KEYS * sizeof(atc_key_t)];
+        buf[0] = KEYS_VERSION;
+        memcpy(buf + 1, s_keys, s_key_count * sizeof(atc_key_t));
+        err = nvs_set_blob(h, NVS_KEYS, buf, 1 + s_key_count * sizeof(atc_key_t));
+        memset(buf, 0, sizeof(buf));
+    }
+    if (err == ESP_OK) {
+        err = nvs_commit(h);
+    }
+    nvs_close(h);
+    return err;
+}
+
+static void keys_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+        return;
+    }
+    uint8_t buf[1 + ATC_MAX_KEYS * sizeof(atc_key_t)];
+    size_t len = sizeof(buf);
+    esp_err_t err = nvs_get_blob(h, NVS_KEYS, buf, &len);
+    nvs_close(h);
+    if (err != ESP_OK) {
+        return;
+    }
+    if (len < 1 || buf[0] != KEYS_VERSION || (len - 1) % sizeof(atc_key_t) != 0) {
+        ESP_LOGE(TAG, "Gespeicherte Schluessel unlesbar, sie werden nicht verwendet");
+        memset(buf, 0, sizeof(buf));
+        return;
+    }
+    s_key_count = (len - 1) / sizeof(atc_key_t);
+    memcpy(s_keys, buf + 1, s_key_count * sizeof(atc_key_t));
+    memset(buf, 0, sizeof(buf));
+    ESP_LOGI(TAG, "%u Schluessel fuer verschluesselte Thermometer geladen", (unsigned)s_key_count);
+}
+
+esp_err_t atc_ble_key_set(const uint8_t mac[6], const uint8_t key[16])
+{
+    if (s_mtx == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    atc_key_t vorher[ATC_MAX_KEYS];
+    size_t vorher_n = s_key_count;
+    memcpy(vorher, s_keys, sizeof(vorher));
+
+    atc_key_t *k = key_find(mac);
+    if (key == NULL) {
+        if (k != NULL) {
+            *k = s_keys[--s_key_count];
+            memset(&s_keys[s_key_count], 0, sizeof(atc_key_t));
+        }
+    } else if (k != NULL) {
+        memcpy(k->key, key, 16);
+    } else if (s_key_count < ATC_MAX_KEYS) {
+        memcpy(s_keys[s_key_count].mac, mac, 6);
+        memcpy(s_keys[s_key_count].key, key, 16);
+        s_key_count++;
+    } else {
+        xSemaphoreGive(s_mtx);
+        memset(vorher, 0, sizeof(vorher));
+        return ESP_ERR_NO_MEM;
+    }
+
+    esp_err_t err = keys_save();
+    if (err != ESP_OK) {
+        /* Nicht gespeichert heisst auch nicht wirksam: Nach dem naechsten
+         * Neustart waere der Schluessel sonst stillschweigend weg. */
+        memcpy(s_keys, vorher, sizeof(s_keys));
+        s_key_count = vorher_n;
+    } else {
+        device_key_changed(mac);
+    }
+    xSemaphoreGive(s_mtx);
+    memset(vorher, 0, sizeof(vorher));
+    return err;
+}
+
+size_t atc_ble_keys(atc_key_t *out, size_t max)
+{
+    if (s_mtx == NULL) {
+        return 0;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    size_t n = s_key_count < max ? s_key_count : max;
+    memcpy(out, s_keys, n * sizeof(atc_key_t));
+    xSemaphoreGive(s_mtx);
+    return n;
+}
+
+esp_err_t atc_ble_keys_replace(const atc_key_t *keys, size_t n)
+{
+    if (s_mtx == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if (n > ATC_MAX_KEYS) {
+        return ESP_ERR_NO_MEM;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    atc_key_t vorher[ATC_MAX_KEYS];
+    size_t vorher_n = s_key_count;
+    memcpy(vorher, s_keys, sizeof(vorher));
+
+    memset(s_keys, 0, sizeof(s_keys));
+    if (n > 0) {
+        memcpy(s_keys, keys, n * sizeof(atc_key_t));
+    }
+    s_key_count = n;
+    esp_err_t err = keys_save();
+    if (err != ESP_OK) {
+        memcpy(s_keys, vorher, sizeof(s_keys));
+        s_key_count = vorher_n;
+    } else {
+        for (size_t i = 0; i < s_device_count; i++) {
+            device_key_changed(s_devices[i].mac);
+        }
+    }
+    xSemaphoreGive(s_mtx);
+    memset(vorher, 0, sizeof(vorher));
+    return err;
+}
+
+/* ------------------------------------------------------------------ */
+/* BTHome                                                              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Ein BTHome-Geraet verteilt seine Werte unter Umstaenden auf mehrere
+ * Rundrufe; der Climate-Sat mit Lagesensor wechselt zwischen einem Satz mit
+ * Temperatur und einem mit Neigung. Uebernommen wird deshalb feldweise: Was
+ * ein Paket nicht enthaelt, bleibt stehen. Der Regelung gemeldet wird nur
+ * ein Paket, das selbst eine Temperatur trug -- sonst hielte ein Paket ohne
+ * sie einen alten Messwert kuenstlich frisch.
+ */
+static void store_bthome(const uint8_t mac[6], const char *name, int8_t rssi,
+                         atc_bthome_result_t res, const atc_bthome_t *b)
+{
+    uint32_t now = now_ms();
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    atc_device_t *slot = slot_for(mac, name, ATC_FMT_BTHOME);
+
+    if (res == ATC_BTHOME_KEY_WRONG && slot->key == ATC_KEY_OK &&
+        (uint32_t)(now - slot->counter_ms) < KEY_WRONG_GRACE_MS) {
+        xSemaphoreGive(s_mtx);
+        return;
+    }
+    if (res == ATC_BTHOME_OK && b->encrypted) {
+        if (!atc_bthome_counter_fresh(slot->counter_set, slot->counter, slot->counter_ms,
+                                      b->counter, now)) {
+            /* Derselbe Rahmen noch einmal oder ein alter: nichts davon gilt. */
+            xSemaphoreGive(s_mtx);
+            return;
+        }
+        slot->counter_set = true;
+        slot->counter = b->counter;
+        slot->counter_ms = now;
+    }
+
+    slot->format = ATC_FMT_BTHOME;
+    slot->encrypted = b->encrypted;
+    slot->rssi = rssi;
+    slot->last_seen_ms = now;
+    slot->packets++;
+    if (name[0] != '\0') {
+        snprintf(slot->name, sizeof(slot->name), "%s", name);
+    }
+
+    bool melden = false;
+    if (res == ATC_BTHOME_OK) {
+        slot->key = b->encrypted ? ATC_KEY_OK : ATC_KEY_NONE;
+        if (b->has_temp) {
+            slot->temp_c = b->temp_c;
+            slot->has_temp = true;
+            melden = true;
+        }
+        if (b->has_humidity) {
+            slot->humidity = b->humidity;
+            slot->has_humidity = true;
+        }
+        if (b->has_battery) {
+            slot->battery = b->battery;
+        }
+        if (b->has_voltage) {
+            slot->battery_mv = b->battery_mv;
+        }
+        if (b->has_pressure) {
+            slot->pressure_hpa = b->pressure_hpa;
+        }
+    } else {
+        /* Ohne passenden Schluessel gibt es keine Werte, und alte bleiben
+         * nicht stehen, als waeren sie frisch. */
+        slot->key = res == ATC_BTHOME_KEY_MISSING ? ATC_KEY_MISSING : ATC_KEY_WRONG;
+        slot->has_temp = false;
+        slot->has_humidity = false;
+        slot->temp_c = 0.0f;
+        slot->humidity = 0.0f;
+        slot->battery = 0;
+        slot->battery_mv = 0;
+        slot->pressure_hpa = 0.0f;
+    }
+
+    atc_device_t copy = *slot;
+    xSemaphoreGive(s_mtx);
+
+    if (melden && s_cb) {
+        s_cb(&copy, s_ctx);
+    }
+}
+
+static void handle_bthome(const uint8_t mac[6], const char *name, int8_t rssi, const uint8_t *d,
+                          size_t len)
+{
+    uint8_t key[16];
+    bool mit_schluessel = key_lookup(mac, key);
+    atc_bthome_t b;
+    atc_bthome_result_t res = atc_decode_bthome(d, len, mac, mit_schluessel ? key : NULL, &b);
+    memset(key, 0, sizeof(key));
+    if (res == ATC_BTHOME_INVALID) {
+        return;
+    }
+    /* Unplausible Werte verwerfen wie bei den anderen Formaten. */
+    if (b.has_temp && (b.temp_c < -40.0f || b.temp_c > 80.0f)) {
+        b.has_temp = false;
+    }
+    if (b.has_humidity && (b.humidity < 0.0f || b.humidity > 100.0f)) {
+        b.has_humidity = false;
+    }
+    store_bthome(mac, name, rssi, res, &b);
 }
 
 size_t atc_ble_devices(atc_device_t *out, size_t max)
@@ -168,6 +475,12 @@ static void handle_adv(const struct ble_gap_disc_desc *disc)
 
     const uint8_t *sd = fields.svc_data_uuid16;
     uint16_t uuid = (uint16_t)(sd[0] | (sd[1] << 8));
+    if (uuid == UUID_BTHOME) {
+        /* Die Adresse kommt hier aus dem Sender, nicht aus dem Inhalt: BTHome
+         * traegt sie meist nicht mit, und die Nonce braucht genau diese. */
+        handle_bthome(addr, name, disc->rssi, sd + 2, (size_t)(fields.svc_data_uuid16_len - 2));
+        return;
+    }
     if (uuid != UUID_ENV_SENSING) {
         if (name[0] != '\0') {
             update_name(addr, name);
@@ -298,6 +611,7 @@ esp_err_t atc_ble_start(atc_cb_t cb, void *ctx)
     }
     s_cb = cb;
     s_ctx = ctx;
+    keys_load();
 
     esp_err_t err = nimble_port_init();
     if (err != ESP_OK) {

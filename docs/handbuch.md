@@ -226,8 +226,9 @@ Wert weiter.
 
 ### Thermometer
 
-Unter **Sensoren** stehen alle in Reichweite empfangenen Geräte mit ATC- oder pvvx-Firmware. Sie
-senden ihre Messwerte offen als Rundruf; das Gerät hört nur mit.
+Unter **Sensoren** stehen alle in Reichweite empfangenen Geräte: Xiaomi-Thermometer mit ATC- oder
+pvvx-Firmware, RuuviTags und Thermometer, die BTHome senden. Sie senden ihre Messwerte als
+Rundruf; das Gerät hört nur mit.
 
 ![Sensoren](screenshots/sensoren.png)
 
@@ -235,6 +236,33 @@ Trägt ein Thermometer einen Namen, steht er in der ersten Spalte über der Adre
 pvvx-Firmware lässt sich der Name frei setzen, was die Zuordnung erheblich erleichtert. Die Namen
 kommen erst auf Nachfrage vom Thermometer, deshalb erscheinen sie einige Sekunden nach dem
 ersten Messwert.
+
+#### Verschlüsselte Thermometer
+
+Der Climate-Sat von camperSense sendet BTHome in Fassung 2 verschlüsselt mit AES-128-CCM. Jedes
+Gerät hat einen eigenen Schlüssel aus 32 Hexadezimalziffern; die camperSense-App zeigt ihn beim
+jeweiligen Sensor an. Ohne Schlüssel erscheint das Thermometer unter **Sensoren** mit Adresse und
+Empfang, aber ohne Messwerte und mit dem Hinweis „Schlüssel fehlt".
+
+Eingetragen wird der Schlüssel unter **Sensoren → Schlüssel verschlüsselter Thermometer**, in der
+App unter **Geräte → Verteiler → Sensoren** durch Antippen des Thermometers. Leerzeichen und
+Bindestriche in der Eingabe werden übergangen. Mit dem nächsten Rundruf, beim Climate-Sat nach
+etwa zwei Sekunden, erscheinen die Werte; passt der Schlüssel nicht, steht dort „Schlüssel
+falsch". Zugeordnet wird das Thermometer danach wie jedes andere, einem Raum oder als
+Außenfühler.
+
+- Ein Verteiler speichert bis zu 16 Schlüssel, in einem eigenen Speicherbereich und nicht in der
+  Konfiguration. `GET /api/config` zeigt sie nicht, `GET /api/ble` nennt nur die Adressen, für die
+  einer hinterlegt ist. Im Klartext stehen sie allein in der Sicherung.
+- Jeder Rahmen trägt einen Zähler. Angenommen wird nur ein höherer als der zuletzt angenommene;
+  ein aufgezeichneter und später erneut gesendeter Rahmen bleibt damit ohne Wirkung. Springt der
+  Zähler zurück, etwa weil der Speicher des Satelliten gelöscht wurde, gilt er nach zehn Minuten
+  ohne gültigen Rahmen wieder.
+- Der Climate-Sat mit Lagesensor sendet abwechselnd einen Rahmen mit Temperatur und einen mit der
+  Neigung. Der Verteiler übernimmt die Werte feldweise. Das Alter des Raummesswerts setzt nur ein
+  Rahmen mit Temperatur zurück.
+- Offen gesendetes BTHome, etwa von der pvvx-Firmware in dieser Betriebsart, braucht keinen
+  Schlüssel.
 
 ## Heizkreise und Messfahrt
 
@@ -798,14 +826,16 @@ curl -s -o sicherung.json http://<adresse>/api/config/backup
 curl -X POST -H "Content-Type: application/json" --data @sicherung.json http://<adresse>/api/config/restore
 ```
 
-Die Sicherung enthält die Zugangsdaten **im Klartext**. Ohne sie ließe sich nichts
-zurückspielen, was den Namen verdient; die Datei gehört deshalb behandelt wie ein
-Kennwortzettel. Die Ausgabe von `GET /api/config` ist etwas anderes: Dort erscheinen Kennwörter
+Die Sicherung enthält die Zugangsdaten **im Klartext**, auf dem Verteiler auch die Schlüssel
+verschlüsselter Thermometer. Ohne sie ließe sich nichts zurückspielen, was den Namen verdient;
+die Datei gehört deshalb behandelt wie ein Kennwortzettel. Die Ausgabe von `GET /api/config` ist etwas anderes: Dort erscheinen Kennwörter
 nur als „gesetzt" oder „nicht gesetzt", und sie taugt daher nicht als Sicherung.
 
 Beim Zurückspielen wird von den Werkseinstellungen aus aufgebaut. Ein Feld, das in der Sicherung
 fehlt, fällt damit auf seine Vorgabe, statt den laufenden Wert zu behalten — sonst wäre das
-Ergebnis eine Mischung aus zwei Ständen.
+Ergebnis eine Mischung aus zwei Ständen. Die Schlüssel verschlüsselter Thermometer ersetzt das
+Zurückspielen nur, wenn die Sicherung welche enthält; eine ältere Sicherung ohne sie lässt die
+vorhandenen unverändert.
 
 Angenommen wird nur eine Datei aus `GET /api/config/backup` — sie trägt dafür eine Kopfzeile mit
 Gerätetyp, Kennung und Zeitpunkt. Die Ausgabe von `GET /api/config` hat diese Kopfzeile nicht und
@@ -824,7 +854,7 @@ Zwei Dinge bleiben ausgenommen:
 ### Auf Werksvorgabe zurücksetzen
 
 **System → Auf Werksvorgabe zurücksetzen** verwirft alle Einstellungen einschließlich der
-WLAN-Zugangsdaten. Das Gerät öffnet danach wieder seinen Einrichtungs-Zugangspunkt.
+WLAN-Zugangsdaten, auf dem Verteiler auch die Schlüssel verschlüsselter Thermometer. Das Gerät öffnet danach wieder seinen Einrichtungs-Zugangspunkt.
 
 ### Täglicher Neustart
 
@@ -838,6 +868,7 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 |---|---|---|
 | Raum wird nicht warm, Ventile stehen | kein Thermometer zugeordnet oder Messwert veraltet | **Räume** prüfen; unter **Sensoren** sehen, ob das Thermometer empfangen wird |
 | Raum zeigt „kein Thermometer" | Zuordnung fehlt | unter **Räume** ein Gerät auswählen |
+| Thermometer ohne Werte, „Schlüssel fehlt" oder „Schlüssel falsch" | verschlüsselt sendendes Gerät ohne passenden Schlüssel | Schlüssel aus der camperSense-App unter **Sensoren** eintragen |
 | Ein Kreis fährt nicht | Handbetrieb aktiv oder Messgruppe belegt | **Kreise** prüfen, gegebenenfalls **Wieder regeln** |
 | Ventilstellung passt nicht zur Wirklichkeit | Stellung nach einem Neustart unbekannt | Kreis von Hand ganz zu und ganz auf fahren, danach Messfahrt |
 | Endlage wird nicht erkannt | Schwelle zu hoch | Messfahrt für diesen Kreis |
@@ -911,13 +942,10 @@ PUT     /api/config             Konfiguration aendern
 GET     /api/config/backup      Sicherung, mit Kennwoertern im Klartext
 POST    /api/config/restore     Sicherung zurueckspielen, ohne den Netzzugang
 GET     /api/peers              gefundene Geraete im Haus
-GET     /api/wifi/scan          erreichbare Netze
-POST    /api/system/seize       Schutzfahrt jetzt fahren
-POST    /api/system/seize-all   dasselbe, auch die zwischenzeitlich gefahrenen
-POST    /api/system/seize-abort offene Kreise streichen
+POST    /api/wifi/scan          Suchlauf nach Netzen starten
+GET     /api/wifi/scan          Stand des Suchlaufs und gefundene Netze
 POST    /api/system/restart     Neustart
 POST    /api/system/factory     auf Werksvorgabe zuruecksetzen
-POST    /api/system/clear-logs  Protokolle und Tageswerte verwerfen
 POST    /api/ota                Firmware einspielen
 ```
 
@@ -927,19 +955,33 @@ POST    /api/ota                Firmware einspielen
 POST    /api/room/{id}/target   Sollwert setzen
 POST    /api/room/{id}/mode     heat | off
 POST    /api/room/{id}/check    Regelung sofort ausloesen
-POST    /api/channel/{n}/cmd    open | close | stop | position | force | release
-GET     /api/calib              Stand der Messfahrt samt Messreihe
+POST    /api/channel/{n}/cmd    open | close | stop | auto | position
+POST    /api/channel/all/cmd    dasselbe fuer alle Kreise, ohne position
+GET     /api/calib?from=N       Stand der Messfahrt, Messreihe ab Punkt N
 POST    /api/calib/{n}/start    Messfahrt starten
+POST    /api/calib/abort        laufende Messfahrt abbrechen
 POST    /api/calib/accept       Ergebnis uebernehmen
-GET     /api/ble                empfangene Thermometer
+POST    /api/calib/discard      Ergebnis verwerfen
+GET     /api/ble                empfangene Thermometer, Adressen mit Schluessel
+POST    /api/ble/key            {"mac","bindkey"}: Schluessel setzen, "" entfernt ihn
 GET     /api/demand             Waermebedarf, fuer das Heizungsgeraet
+POST    /api/system/seize       Schutzfahrt jetzt fahren
+POST    /api/system/seize-all   dasselbe, auch die zwischenzeitlich gefahrenen
+POST    /api/system/seize-abort offene Kreise streichen
 ```
+
+Kanalbefehle erwarten `{"cmd": "…"}`. `open` und `close` fahren den Kreis ganz auf bzw. zu,
+`stop` hält ihn an; alle drei setzen ihn in den Handbetrieb, in dem die Regelung ihn nicht
+bewegt. `auto` gibt ihn an die Regelung zurück. `position` fährt mit `"position"` zwischen 0 und
+1 eine Zwischenstellung an, ohne Handbetrieb: Der nächste Regeldurchlauf kann sie wieder
+verwerfen. Befehle an einen Kreis in der Messfahrt bleiben ohne Wirkung; die Antwort lautet
+trotzdem `ok`, ebenso bei `position` an `all`.
 
 **Heizungsgerät**
 
 ```
 GET     /api/measurements       Messstellen und Brennerzustand, fuer das Nachbargeraet
-GET     /api/history            Verlauf, Ein-Minuten-Raster
+GET     /api/history            Verlauf der letzten 24 Stunden, Zwei-Minuten-Raster
 GET     /api/record             Aufzeichnung einer Ladung als CSV
 POST    /api/record/arm         bei der naechsten Ladung aufzeichnen
 POST    /api/record/start       sofort aufzeichnen
@@ -950,7 +992,12 @@ POST    /api/boilerpump/{modus} auto | ein | aus
 POST    /api/probes/rescan      Bus neu absuchen
 GET     /api/log/charges        Ladungsprotokoll als CSV
 GET     /api/log/days           Tagesprotokoll als CSV
+POST    /api/system/clear-logs  Protokolle und Tageswerte verwerfen
 ```
+
+`/api/history` nimmt zwei Angaben entgegen: `step` ist die Zahl der Rasterschritte je Punkt
+(Vorgabe 5, also zehn Minuten), `max` die Zahl der Punkte (Vorgabe 288, höchstens 1440). Der
+jüngste Punkt steht zuletzt.
 
 ### Konfiguration im Einzelnen
 
@@ -973,7 +1020,8 @@ Beim Zusammenführen gilt:
   `POST /api/room/<id>/target` und `POST /api/room/<id>/mode`.
 - **`channels`** beim Verteiler ändert nur die genannten Kreise und Felder.
 - **Kennwörter** erscheinen in `GET /api/config` nur als `pass_set` bzw. `ap_pass_set`. Ein
-  Kennwortfeld, das im Rumpf fehlt, bleibt unverändert.
+  Kennwortfeld, das im Rumpf fehlt, bleibt unverändert; eine leere Zeichenkette löscht das
+  Kennwort.
 
 Für das Zurückspielen einer Sicherung gelten andere Regeln, siehe **Einstellungen sichern**.
 
@@ -1017,7 +1065,7 @@ Rollen: `abgas`, `kessel_vl`, `kessel_rl`, `puffer`, `puffer_unten`, `hk1_vl`, `
 | `name` | „Heizkreis *n*" | Text | Bezeichnung |
 | `enabled` | ja | ja/nein | Ein abgeschalteter Kreis wird weder geregelt noch geschaltet |
 | `vl_role`, `rl_role` | `hk<n>_vl`, `hk<n>_rl` | Rolle | Vor- und Rücklauffühler des Kreises |
-| `peers` | leer | bis zu vier Kennungen | Verteiler, deren Bedarf der Kreis bedient, etwa `fbh_c2e55c` |
+| `peers` | leer | bis zu vier Kennungen | Verteiler, deren Bedarf der Kreis bedient, etwa `fbh_a1b2c3` |
 | `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart der Pumpe. Der Frostschutz gilt auch bei `aus`. |
 | `overrun_s` | 300 | 0–3600 s | Nachlauf nach dem letzten Bedarf |
 | `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause |
@@ -1145,7 +1193,7 @@ der Unterschied auf 60 Prozent.
 | **Messfahrt** | Einmaliges Zu- und Auffahren mit Aufzeichnung, um Fahrzeiten und Auslöseschwelle zu ermitteln. |
 | **Referenzfahrt** | Fahrt in eine Endlage, wenn die Stellung eines Kreises unbekannt ist — etwa nach einem Neustart ohne gespeicherte Stellung. |
 | **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. Gezählt wird nur, was geregelt wird: Kreise ausgeschalteter Räume, Räume ohne Messwert und Kreise ohne Raum bleiben außen vor. |
-| **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, über den Tag gemittelt. Ohne diese Größe ist Verbrauch nicht vergleichbar. |
+| **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, gemittelt über die Stunden des Tages mit gültigem Außenwert. Ohne diese Größe ist Verbrauch nicht vergleichbar. Anders als die Gradtagzahl nach VDI 3807 (G20/15) gibt es keine Heizgrenze von 15 °C: Jede Stunde unter 20 °C zählt. Die Werte liegen deshalb nie unter veröffentlichten Gradtagzahlen, in der Übergangszeit deutlich darüber. |
 | **Nachlauf** | Zeit, die eine Pumpe nach dem letzten Bedarf weiterläuft, um die Restwärme abzuführen. |
 | **Schutzlauf** | Kurzer Lauf nach langer Standzeit, damit die Pumpe nicht festsitzt. |
 | **Bezugslinie** | Das Minimum des Abgasfühlers über 24 Stunden: die Temperatur des kalten Rohrs. Sie erkennt das Anlaufen des Brenners. |
@@ -1154,13 +1202,14 @@ der Unterschied auf 60 Prozent.
 
 ### Stand der Erprobung
 
-Stand 21. September 2026. Im Haus laufen fünf Geräte: Verteilerplatinen im Keller, im
+Stand 22. September 2026. Im Haus laufen fünf Geräte: Verteilerplatinen im Keller, im
 Erdgeschoss und im Obergeschoss sowie je ein Gerät an Kessel und Pufferspeicher.
 
 | Bereich | Stand |
 |---|---|
 | Regelung, Ventile, Messfahrt | im Betrieb; 16 von 33 Kreisen vermessen |
 | Thermometer über Bluetooth | im Betrieb |
+| Verschlüsselte BTHome-Thermometer (Climate-Sat) | nicht an der Anlage erprobt; Entschlüsselung gegen Rahmen aus dem Rahmenbau der Satelliten-Firmware geprüft |
 | Einrichtung über den Zugangspunkt | im Betrieb; Verbindung beim ersten Versuch, seit der Bluetooth-Empfang Funkzeit abgibt |
 | Gegenseitiges Auffinden der Geräte | im Betrieb |
 | Fühler an Kessel und Pufferspeicher | im Betrieb |
@@ -1177,6 +1226,7 @@ Erdgeschoss und im Obergeschoss sowie je ein Gerät an Kessel und Pufferspeicher
 | MQTT-Discovery | nicht erprobt, kein Broker eingerichtet |
 
 Die Rechenmodule hinter Regelung, Ventilen, Pumpen, Brenner, Ladezustand, Plausibilität,
-Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 524 Prüfungen (`make -C test/host`).
+Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 578 Prüfungen (`make -C test/host`),
+ebenso die Dekodierung und Entschlüsselung der Funkpakete.
 Dass Einstellungsablage, Rechenmodule und Oberfläche dieselben Vorgaben führen, prüft
 `python3 tools/check_defaults.py`.

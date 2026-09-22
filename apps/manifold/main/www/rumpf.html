@@ -361,13 +361,33 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card">
       <h2>Raumthermometer</h2>
       <p class="lede">Alle in Reichweite empfangenen Geräte: Xiaomi-Thermometer mit ATC- oder
-        pvvx-Firmware und RuuviTags. Raumthermometer werden unter „Räume“ zugeordnet, der
-        Außenfühler weiter unten.</p>
+        pvvx-Firmware, RuuviTags und Thermometer, die BTHome senden, etwa der Climate-Sat von
+        camperSense. Raumthermometer werden unter „Räume“ zugeordnet, der Außenfühler weiter
+        unten.</p>
       <div class="scroll"><table><thead><tr>
         <th>Gerät</th><th class="num">Temperatur</th><th class="num">Feuchte</th>
         <th class="num">Batterie</th><th class="num">Empfang</th><th class="num">Pakete</th>
         <th>Format</th><th>Raum</th>
       </tr></thead><tbody id="bleBody"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Schlüssel verschlüsselter Thermometer</h2>
+      <p class="lede">Manche Thermometer senden ihre Werte verschlüsselt, etwa der Climate-Sat von
+        camperSense. Lesbar werden sie erst mit dem Schlüssel des jeweiligen Geräts. Ihn zeigt die
+        camperSense-App beim Sensor an: 32 Zeichen aus Ziffern und den Buchstaben a bis f;
+        Leerzeichen und Bindestriche dürfen mit eingegeben werden. Der Schlüssel wird auf dem
+        Gerät gespeichert und erscheint danach nur noch in der Sicherung.</p>
+      <div class="row" id="keyState" style="margin-bottom:.8rem"></div>
+      <div class="fields">
+        <label class="f"><span>Gerät</span><select id="keySel"></select></label>
+        <label class="f"><span>Schlüssel</span><input id="keyText" class="mono" autocomplete="off"
+          autocapitalize="off" spellcheck="false" placeholder="32 Hexadezimalziffern"></label>
+      </div>
+      <div class="actions">
+        <button class="btn" id="keySave">Speichern</button>
+        <button class="btn quiet" id="keyDel">Schlüssel entfernen</button>
+      </div>
     </div>
 
     <div class="card">
@@ -539,7 +559,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
 "use strict";
 const $ = s => document.querySelector(s);
 const CH_COUNT = 11;
-let state = null, config = null, ble = [], calibFrom = 0, calibSamples = [], calibInfo = null;
+let state = null, config = null, ble = [], bleKeys = [], calibFrom = 0, calibSamples = [], calibInfo = null;
 
 /* Abfragetakt.
    Nur eine laufende Ventilfahrt braucht frische Daten im Sekundentakt — dabei
@@ -835,6 +855,20 @@ async function setMode(id, mode) {
 /* Name aus dem Rundruf, falls vorhanden — sonst bleibt nur die Adresse. */
 const bleLabel = d => d.name ? `${d.name} (${d.mac})` : d.mac;
 
+const FORMATE = {pvvx: "pvvx", atc1441: "ATC", ruuvi: "RuuviTag", bthome: "BTHome"};
+const formatName = d => FORMATE[d.format] || d.format;
+
+/* Stand des Schlüssels bei verschlüsselt sendenden Geräten, als Zusatz im
+   Auswahltext und als Marke in der Liste. */
+const keyHint = d => !d.encrypted || d.key === "ok" ? ""
+                   : d.key === "wrong" ? " · Schlüssel falsch" : " · Schlüssel fehlt";
+function keyChip(d) {
+  if (!d.encrypted) return "";
+  if (d.key === "ok") return '<span class="chip ok">verschlüsselt</span>';
+  if (d.key === "wrong") return '<span class="chip bad">Schlüssel falsch</span>';
+  return '<span class="chip warn">Schlüssel fehlt</span>';
+}
+
 function sensorOptions(mac) {
   let html = `<option value=""${mac ? "" : " selected"}>— kein Thermometer —</option>`;
   let seen = false;
@@ -842,7 +876,7 @@ function sensorOptions(mac) {
     const on = d.mac === mac;
     if (on) seen = true;
     html += `<option value="${d.mac}"${on ? " selected" : ""}>`
-          + `${bleLabel(d)} · ${num(d.temp_c,1)} °C · ${d.rssi} dBm</option>`;
+          + `${bleLabel(d)} · ${num(d.temp_c,1)} °C · ${d.rssi} dBm${keyHint(d)}</option>`;
   }
   /* Ein zugeordnetes, gerade nicht empfangenes Gerät muss sichtbar bleiben,
      sonst geht die Zuordnung beim nächsten Speichern verloren. */
@@ -1242,12 +1276,15 @@ async function loadBle() {
   try {
     const d = await api("/api/ble");
     ble = d.devices.sort((a, b) => b.rssi - a.rssi);
+    bleKeys = d.keys || [];
   } catch (e) { return; }
   $("#bleBody").innerHTML = ble.map(d => {
     const room = (config ? config.rooms : []).find(r => r.sensor_mac === d.mac);
     const aussen = config?.outdoor_mac === d.mac;
-    /* Der RuuviTag meldet keine Ladung in Prozent, nur die Spannung. */
-    const batt = d.battery ? `${d.battery} % · ${d.battery_mv} mV` : `${d.battery_mv} mV`;
+    /* Der RuuviTag meldet keine Ladung in Prozent, nur die Spannung; ein
+       verschlüsseltes Gerät ohne Schlüssel gar nichts. */
+    const batt = d.battery ? `${d.battery} % · ${d.battery_mv} mV`
+               : d.battery_mv ? `${d.battery_mv} mV` : "–";
     const zu = aussen ? '<span class="chip ok">Außenfühler</span>'
              : room ? room.name : '<span class="chip">nicht zugeordnet</span>';
     return `<tr><td>${d.name ? `<b>${d.name}</b><br><span class="mono muted">${d.mac}</span>`
@@ -1255,12 +1292,39 @@ async function loadBle() {
       <td class="num">${num(d.temp_c,2)} °C</td><td class="num">${num(d.humidity,1)} %</td>
       <td class="num">${batt}</td>
       <td class="num">${d.rssi} dBm</td><td class="num">${d.packets}</td>
-      <td>${d.format}${d.pressure_hpa ? `<br><span class="muted">${
+      <td>${formatName(d)}${d.encrypted ? `<br>${keyChip(d)}` : ""}${d.pressure_hpa ? `<br><span class="muted">${
         num(d.pressure_hpa,0)} hPa</span>` : ""}</td>
       <td>${zu}</td></tr>`;
   }).join("") || '<tr><td colspan="8" class="empty">Noch kein Gerät empfangen.</td></tr>';
 
+  renderKeys();
   renderOutdoor();
+}
+
+/* Geräteauswahl und Zustand für die Schlüssel verschlüsselter Thermometer. */
+function renderKeys() {
+  const sel = $("#keySel");
+  if (!sel) return;
+  const verschl = ble.filter(d => d.encrypted);
+  const empfangen = new Set(verschl.map(d => d.mac));
+  if (sel !== document.activeElement) {
+    const vorher = sel.value;
+    let html = verschl.map(d => `<option value="${d.mac}">${bleLabel(d)}${
+      keyHint(d) || " · Schlüssel passt"}</option>`).join("");
+    for (const mac of bleKeys) {
+      if (!empfangen.has(mac)) html += `<option value="${mac}">${mac} · nicht in Reichweite</option>`;
+    }
+    sel.innerHTML = html || '<option value="">— kein verschlüsseltes Gerät empfangen —</option>';
+    if (vorher && [...sel.options].some(o => o.value === vorher)) sel.value = vorher;
+  }
+  const offen = verschl.filter(d => d.key !== "ok");
+  $("#keyState").innerHTML = !verschl.length && !bleKeys.length
+    ? '<span class="chip">kein verschlüsseltes Gerät in Reichweite</span>'
+    : offen.length
+      ? offen.map(d => `<span class="chip ${d.key === "wrong" ? "bad" : "warn"}">${d.name || d.mac}: ${
+          d.key === "wrong" ? "Schlüssel falsch" : "Schlüssel fehlt"}</span>`).join("")
+      : '<span class="chip ok">alle Schlüssel passen</span>';
+  $("#keyDel").disabled = !bleKeys.includes(sel.value);
 }
 
 /* Zuordnung und Zustand des Außenfühlers. */
@@ -1475,6 +1539,32 @@ $("#sysSave").onclick = () => {
 $("#outdoorSave").onclick = () => {
   config.outdoor_mac = $("#outdoorSel").value || null;
   saveConfig();
+};
+
+$("#keySel").onchange = () => { $("#keyDel").disabled = !bleKeys.includes($("#keySel").value); };
+
+$("#keySave").onclick = async () => {
+  const mac = $("#keySel").value, text = $("#keyText").value.trim();
+  if (!mac) return toast("Kein verschlüsseltes Gerät ausgewählt.", true);
+  if (!/^[0-9a-fA-F]{32}$/.test(text.replace(/[\s:-]/g, ""))) {
+    return toast("Der Schlüssel muss aus 32 Hexadezimalziffern bestehen.", true);
+  }
+  try {
+    await post("/api/ble/key", {mac, bindkey: text});
+    $("#keyText").value = "";
+    toast("Schlüssel gespeichert. Mit dem nächsten Rundruf erscheinen die Werte.");
+    await loadBle();
+  } catch (e) { toast(e.message, true); }
+};
+
+$("#keyDel").onclick = async () => {
+  const mac = $("#keySel").value;
+  if (!mac || !confirm(`Schlüssel für ${mac} entfernen? Das Gerät liefert danach keine Werte mehr.`)) return;
+  try {
+    await post("/api/ble/key", {mac, bindkey: ""});
+    toast("Schlüssel entfernt.");
+    await loadBle();
+  } catch (e) { toast(e.message, true); }
 };
 
 $("#sysWizard").onclick = () => openWizard();
@@ -1693,7 +1783,7 @@ function drawSensorStep() {
           ${r.sensor_mac === d.mac ? "checked" : ""}>
         <span class="mac">${bleLabel(d)}</span>
         ${other ? `<span class="taken">→ ${assigned[d.mac]}</span>` : ""}
-        <span class="val">${num(d.temp_c,1)} °C · ${d.rssi} dBm</span></label>`;
+        <span class="val">${num(d.temp_c,1)} °C · ${d.rssi} dBm${keyHint(d)}</span></label>`;
     }).join("");
     return `<div class="card" style="margin-bottom:.9rem">
       <h2>${r.name || "Raum " + (i+1)}</h2>

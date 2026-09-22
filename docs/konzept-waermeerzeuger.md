@@ -149,7 +149,7 @@ werden können. Das Vorgehen ist daher zweistufig.
 
 ### Zuerst messen, nicht bewerten
 
-- alle Temperaturen im Ein-Minuten-Raster über 24 Stunden
+- alle Temperaturen im Zwei-Minuten-Raster über 24 Stunden
 - zusätzlich eine hochaufgelöste Aufzeichnung einer vollständigen Ladung: 5-Sekunden-Raster,
   1600 Zeilen für gut zwei Stunden, ausgebbar als CSV
 
@@ -213,7 +213,7 @@ Das Speicherboard findet die Verteiler über mDNS und fragt jeden alle 5 Sekunde
 ```
 GET /api/demand          (neu auf der Verteiler-Firmware)
 
-{ "id": "fbh_c2e55c",
+{ "id": "fbh_a1b2c3",
   "site": "Keller",
   "demand": true,
   "max_target": 1.00,
@@ -375,7 +375,7 @@ anschließender Überlagerung. Ein neu hinzugefügtes Feld ist damit von selbst 
   "circuits": [
     { "id": 1, "name": "Keller und Erdgeschoss", "enabled": true,
       "vl_role": "hk1_vl", "rl_role": "hk1_rl",
-      "peers": ["fbh_c2e55c", "fbh_cb6078"],
+      "peers": ["fbh_a1b2c3", "fbh_d4e5f6"],
       "pump": { "host": "192.168.1.203", "relay": 1 },
       "mode": "auto",
       "overrun_s": 300, "min_run_s": 180, "min_pause_s": 180,
@@ -406,7 +406,7 @@ unter „Konfiguration im Einzelnen".
 GET     /api/state              Messwerte samt Fuehlerliste, Brenner, Ladung, Kreise, Pumpen,
                                 Auswertung und Befunde
 GET     /api/measurements       eigene Fuehler mit Rolle, Wert und Alter
-GET     /api/history            Verlauf, Ein-Minuten-Raster
+GET     /api/history            Verlauf, Zwei-Minuten-Raster
 GET     /api/record             Aufzeichnung einer Ladung als CSV
 POST    /api/record/{aktion}    arm | start | stop | discard
 GET     /api/log/charges        Ladungsprotokoll als CSV

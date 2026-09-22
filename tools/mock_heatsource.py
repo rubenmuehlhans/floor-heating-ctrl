@@ -59,7 +59,7 @@ KESSEL = ["abgas", "kessel_vl", "kessel_rl"]
 
 # Heizkreise, wie sie das Gerät am Pufferspeicher führt.
 KREISE = [
-    {"id": 1, "name": "Keller und Erdgeschoss", "peers": ["fbh_c2e55c", "fbh_a1b2c3"],
+    {"id": 1, "name": "Keller und Erdgeschoss", "peers": ["fbh_3a91c4", "fbh_a1b2c3"],
      "topic": "pumpe_hk1", "relay": 1},
     {"id": 2, "name": "Obergeschoss", "peers": ["fbh_d4e5f6"],
      "topic": "pumpe_hk2", "relay": 2},
@@ -97,6 +97,14 @@ CFG = {
     "seize_hour": 11,
     "reboot_minute": 0,
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
+    # Vorgaben wie cfg_defaults() in components/config_store
+    "demand_poll_s": 5,
+    "demand_timeout_s": 180,
+    "burner": {"delta_on_k": 12.0, "delta_off_k": 6.0, "swing_k": 6.0, "on_hold_s": 60,
+               "off_hold_s": 300, "duese_l_h": 2.2, "wartung_epoch": 0},
+    "buffer": {"spread_full_k": 8.0, "spread_hold_s": 300, "voll_c": 62.0, "leer_c": 35.0,
+               "warn_c": 40.0, "kessel_hot_c": 60.0, "leer_lernen": True, "lern_drop_k": 3.0,
+               "leer_epoch": 0, "volumen_l": 0.0, "zapf_drop_k": 2.0, "zapf_win_s": 900},
     "boiler_pump": {"enabled": True, "topic": "", "host": "192.168.1.204", "user": "",
                     "pass_set": False, "relay": 1, "mode": "auto", "on_k": 1.0, "off_k": 0.5,
                     "hold_s": 120, "min_run_s": 180, "min_pause_s": 180, "emergency_c": 85.0},
@@ -225,7 +233,7 @@ def state() -> dict:
         for j, pid in enumerate(c.get("peers", [])):
             quellen.append({
                 "id": pid,
-                "site": {"fbh_c2e55c": "Keller", "fbh_a1b2c3": "Erdgeschoss",
+                "site": {"fbh_3a91c4": "Keller", "fbh_a1b2c3": "Erdgeschoss",
                          "fbh_d4e5f6": "Obergeschoss"}.get(pid, pid),
                 "host": f"192.168.1.{250 + j}",
                 "seen": True, "demand": c["id"] == 1 and j == 0,
@@ -243,8 +251,9 @@ def state() -> dict:
     krl = belegt.get("kessel_rl", fremd.get("kessel_rl"))
 
     return {
-        "device": {"id": "heiz_3f21ac", "mac": "A0:B7:65:3F:21:AC", "site": CFG["site"],
-                   "model": "Waermeerzeuger", "role": "heat"},
+        "device": {"id": "heiz_9a1b2c" if args_kessel() else "heiz_3f21ac",
+                   "mac": "A0:B7:65:9A:1B:2C" if args_kessel() else "A0:B7:65:3F:21:AC",
+                   "site": CFG["site"], "model": "Waermeerzeuger", "role": "heat"},
         "version": "attrappe",
         "uptime_s": int(time.time() - T0),
         "heap": 198000,
@@ -284,9 +293,9 @@ def state() -> dict:
             "spread_k": None if kvl is None or krl is None else round(kvl - krl, 2),
         },
         "record": REC,
-        "log": {"charges": 37, "days": 112},
+        "log": {"charges": 0, "days": 1} if PROTOKOLLE_GELOESCHT[0] else {"charges": 37, "days": 112},
         "boiler_pump": {
-            "enabled": True, "mode": STATE_BP["mode"],
+            "enabled": CFG["boiler_pump"]["enabled"], "mode": STATE_BP["mode"],
             "on": brenner_laeuft if STATE_BP["mode"] == "auto" else STATE_BP["mode"] == "ein",
             "reason": "Kessel gibt Waerme ab" if brenner_laeuft
                       else "Kessel kaum waermer als der Speicher",
@@ -317,6 +326,39 @@ def args_kessel() -> bool:
     return KESSELBOARD
 
 
+# Wird durch POST /api/system/clear-logs gesetzt; danach sind beide Protokolle leer.
+PROTOKOLLE_GELOESCHT = [False]
+
+
+def ladungen_csv() -> str:
+    """Ladungsprotokoll wie die Firmware: jüngste zuerst, eine Ladung alle drei Tage."""
+    zeilen = ["beginn,dauer_s,brenner_s,starts,puffer_start,puffer_ende,"
+              "kessel_vl_max,abgas_max,aussen_mittel,liter"]
+    jetzt = int(time.time())
+    for i in range(0 if PROTOKOLLE_GELOESCHT[0] else 37):
+        beginn = jetzt - 86400 * (1 + 3 * i) - 5 * 3600
+        brenner = 3100 + (i * 37) % 400
+        zeilen.append("%d,%d,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.3f" % (
+            beginn, brenner + 900, brenner, 1 + i % 2, 51.0 + (i % 3) * 0.4,
+            68.5 + (i % 4) * 0.3, 77.0 + (i % 5) * 0.8, 85.0 + (i % 6) * 0.7 + i * 0.05,
+            14.0 - i * 0.1, brenner / 3600 * 2.2))
+    return "\n".join(zeilen) + "\n"
+
+
+def tage_csv() -> str:
+    """Tagesprotokoll: der laufende Tag zuerst, dann 111 abgeschlossene."""
+    zeilen = ["datum,laufzeit_s,starts,liter,heizgradtage,aussen_min,aussen_max"]
+    heute = time.time()
+    for i in range(1 if PROTOKOLLE_GELOESCHT[0] else 112):
+        tag = time.localtime(heute - 86400 * i)
+        laufzeit = 0 if i == 0 else (3300 if i % 3 == 1 else 0)
+        gradtage = max(0.0, 3.5 - i * 0.05) if i % 2 else 0.0
+        zeilen.append("%04d-%02d-%02d,%d,%d,%.3f,%.1f,%.1f,%.1f" % (
+            tag.tm_year, tag.tm_mon, tag.tm_mday, laufzeit, 2 if laufzeit else 0,
+            laufzeit / 3600 * 2.2, gradtage, 9.0 + (i % 5), 19.0 + (i % 7)))
+    return "\n".join(zeilen) + "\n"
+
+
 def history(step: int, hoechstens: int) -> dict:
     punkte = min(hoechstens, 1440 // max(1, step))
     jetzt = time.time()
@@ -330,6 +372,18 @@ def history(step: int, hoechstens: int) -> dict:
                          for i in range(punkte)]
     return {"step_min": step, "points": punkte, "newest_epoch": int(jetzt),
             "roles": ROLLEN, "series": reihen}
+
+
+def aufzeichnung_csv() -> str:
+    """Aufzeichnung wie record_get() der Firmware: Kopfzeile, dann eine Zeile je Raster."""
+    rollen = [p["role"] for p in CFG["probes"]][:REC["cols"]]
+    zeilen = ["# Aufzeichnung einer Ladung, %d Zeilen im %d-Sekunden-Raster, Beginn %d"
+              % (REC["samples"], REC["period_s"], REC["started_epoch"]),
+              ",".join(["sekunde"] + rollen)]
+    for i in range(REC["samples"]):
+        t = REC["started_epoch"] + i * REC["period_s"]
+        zeilen.append(",".join([str(i * REC["period_s"])] + ["%.1f" % wert(r, t) for r in rollen]))
+    return "\n".join(zeilen) + "\n"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -370,6 +424,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(state())
         if u.path == "/api/config":
             return self._send(CFG)
+        if u.path == "/api/config/backup":
+            # Wie die Firmware: vollstaendige Einstellungen samt Kopf
+            return self._send(dict(CFG, backup={
+                "app": "heat-source-ctrl", "device_id": "heiz_9a1b2c" if args_kessel() else "heiz_3f21ac",
+                "site": CFG["site"], "version": "attrappe", "epoch": int(time.time())}))
         if u.path == "/api/measurements":
             ps = [{"role": p["role"], "c": p["temp_c"], "age_s": p["age_s"]}
                   for p in probes() if p["role"]]
@@ -378,9 +437,27 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/history":
             return self._send(history(int(q.get("step", ["5"])[0]),
                                       int(q.get("max", ["288"])[0])))
+        if u.path == "/api/record":
+            body = aufzeichnung_csv().encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="ladung.csv"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if u.path in ("/api/log/charges", "/api/log/days"):
+            text = ladungen_csv() if u.path.endswith("charges") else tage_csv()
+            body = text.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if u.path == "/api/peers":
             return self._send({"peers": [
-                {"id": "fbh_c2e55c", "site": "Keller", "role": "manifold",
+                {"id": "fbh_3a91c4", "site": "Keller", "role": "manifold",
                  "host": "192.168.1.250", "hostname": "floor-heating-keller"},
                 {"id": "fbh_a1b2c3", "site": "Erdgeschoss", "role": "manifold",
                  "host": "192.168.1.251", "hostname": "floor-heating-eg"},
@@ -420,6 +497,10 @@ class Handler(BaseHTTPRequestHandler):
                             z[feld] = wert_
                     neu.append(z)
                 CFG["circuits"] = sorted(neu, key=lambda c: c["id"])
+            elif k == "probes" and isinstance(v, list):
+                # Ebenso die Fühler, je ROM
+                alt = {f["rom"].upper(): f for f in CFG.get("probes", [])}
+                CFG["probes"] = [{**alt.get(str(e.get("rom", "")).upper(), {}), **e} for e in v]
             elif isinstance(v, dict) and isinstance(CFG.get(k), dict):
                 CFG[k].update(v)
             else:
@@ -430,6 +511,26 @@ class Handler(BaseHTTPRequestHandler):
         pfad = urlparse(self.path).path
         if pfad.startswith("/api/boilerpump/"):
             STATE_BP["mode"] = pfad.rsplit("/", 1)[-1]
+            return self._send({"ok": True})
+        if pfad == "/api/config/restore":
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                sicherung = json.loads(self.rfile.read(length))
+            except Exception:
+                return self._send({"ok": False, "error": "Sicherung nicht lesbar"}, 400)
+            app = (sicherung.get("backup") or {}).get("app")
+            if app is None:
+                return self._send({"ok": False, "error": "Das ist keine Sicherung dieses Geraets"}, 400)
+            if app != "heat-source-ctrl":
+                return self._send({"ok": False, "error": "Diese Sicherung stammt von einem anderen Geraetetyp"}, 400)
+            wlan = dict(CFG["wifi"])
+            for k, v in sicherung.items():
+                if k not in ("backup", "wifi"):
+                    CFG[k] = v
+            CFG["wifi"] = wlan
+            return self._send({"ok": True})
+        if pfad == "/api/system/clear-logs":
+            PROTOKOLLE_GELOESCHT[0] = True
             return self._send({"ok": True})
         if pfad.startswith("/api/record/"):
             aktion = pfad.rsplit("/", 1)[-1]
@@ -468,8 +569,12 @@ if __name__ == "__main__":
         ROMS[rolle] = f"28FF{i:02X}1E8016{ord(rolle[0]):02X}4A"
     if args.kessel:
         CFG["site"] = "Kessel"
+    # Wie die Firmware: die Kesselkreispumpe gibt es nur mit eigenem Kesselvor- und -ruecklauf.
+    CFG["boiler_pump"]["enabled"] = args.kessel and not args.leer
     CFG["probes"] = [{"rom": ROMS[r], "role": r, "name": LABEL[r], "offset_k":
                       3.0 if r == "puffer" else 0.0} for r in vorhanden]
+    # Die vorhandene Aufzeichnung umfasst die eigenen Fühler.
+    REC.update(cols=len(vorhanden), bytes=REC["samples"] * len(vorhanden) * 2)
     if not args.kessel:
         CFG["circuits"] = [
             {"id": k["id"], "name": k["name"], "enabled": True, "peers": k["peers"],

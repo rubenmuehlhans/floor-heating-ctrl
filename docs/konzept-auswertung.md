@@ -1,30 +1,41 @@
 # Konzept: Auswertung der Anlage mit statistischen Verfahren
 
-Die Anlage misst inzwischen an vier Geräten: Raumtemperaturen, Außentemperatur, Abgas, Kessel
+Die Anlage misst inzwischen an fünf Geräten: Raumtemperaturen, Außentemperatur, Abgas, Kessel
 vor und zurück, Speicher, Vor- und Rücklauf je Heizkreis, dazu Brennerzustand, Ventilstellungen
 und Pumpenzustände. Dieses Papier beschreibt, was sich daraus ableiten lässt — Anomalien,
 Wirkungsgrad, Zustand der Bauteile — und in welcher Reihenfolge das umzusetzen wäre.
 
 ## Ausgangslage
 
+Dieser Abschnitt beschreibt den Stand vor Stufe 0 und begründet damit die Reihenfolge. Stufe 0
+und Teile von Stufe 1 sind inzwischen umgesetzt; den Stand je Stufe nennt der Abschnitt
+**Reihenfolge**, den heutigen Datenbestand die folgende Tabelle.
+
 ### Was heute vorliegt
 
 | Größe | Auflösung | Vorrat |
 |---|---|---|
-| Alle Rollen der Heizungsgeräte | 1 min | 24 h, im Arbeitsspeicher |
+| Alle Rollen der Heizungsgeräte | 2 min | 24 h, im Arbeitsspeicher |
 | Alle Rollen bei scharfer Aufzeichnung | 5 s | 2 h 13 min, im Arbeitsspeicher |
-| Laufzeit und Starts des Brenners | Tageswerte | heute und gestern, im NVS |
+| Ladungsprotokoll | je Ladung | 64 Ladungen, im NVS |
+| Tagesprotokoll: Laufzeit, Starts, Ölschätzung, Heizgradtage, Außentemperatur | Tageswerte | 365 Tage, im NVS |
 | Alles Übrige | Momentwert | keiner |
 
-### Was daran im Weg steht
+Vor Stufe 0 gab es nur Verlauf und Aufzeichnung, den Verlauf damals im Ein-Minuten-Raster, dazu
+Laufzeit und Starts des Brenners für heute und gestern im NVS.
 
-**Nach einem Stromausfall bleiben je Heizungsgerät achtzehn Byte.** Laufzeit und Starts von
+### Was daran im Weg stand
+
+**Nach einem Stromausfall blieben je Heizungsgerät achtzehn Byte.** Laufzeit und Starts von
 heute und gestern — sonst nichts. Der Vierundzwanzigstundenverlauf und die Ladungsaufzeichnung
-liegen im Arbeitsspeicher und sind weg. Es gibt kein Dateisystem, keinen PSRAM, und die
-NVS-Partition fasst 61 440 Byte, von denen die Konfiguration schon einen Teil belegt.
+lagen im Arbeitsspeicher und waren weg. Es gibt kein Dateisystem, keinen PSRAM, und die
+NVS-Partition fasst 61 440 Byte, von denen die Konfiguration schon einen Teil belegt. Seit
+Stufe 0 überstehen Ladungs- und Tagesprotokoll einen Stromausfall; Verlauf und Aufzeichnung
+liegen weiterhin im Arbeitsspeicher.
 
-**Eine Ladung hinterlässt keine Spur**, solange niemand vorher die Aufzeichnung scharf schaltet.
-Die eine Aufzeichnung, die das Gerät hält, wird von der nächsten überschrieben.
+**Eine Ladung hinterließ keine Spur**, solange niemand vorher die Aufzeichnung scharf schaltete.
+Die eine Aufzeichnung, die das Gerät hält, wird von der nächsten überschrieben. Seit Stufe 0
+hält das Ladungsprotokoll jede Ladung fest.
 
 **Der Ölverbrauch ist keine Messung.** Der Vorgabewert von 2,2 l/h stammt nicht von der Anlage.
  `litres_today` ist Düsendurchsatz mal Laufzeit — ein
@@ -74,8 +85,9 @@ unmittelbar: Zum ersten Mal existiert eine Reihe statt eines Momentwerts.
 ### Tagesprotokoll
 
 Je Tag rund 20 Byte, 365 Tage im Ring, also gut 7 kB: Laufzeit, Starts, Ölschätzung,
-Heizgradtage (Summe der Stundenwerte von 20 °C minus Außentemperatur, nur positive Anteile),
-kälteste und wärmste Außentemperatur, Pumpenlaufzeit je Kreis.
+Heizgradtage (je Stunde der positive Anteil von 20 °C minus Außentemperatur, gemittelt über die
+Stunden mit gültigem Außenwert), kälteste und wärmste Außentemperatur. Die ebenfalls
+vorgesehene Pumpenlaufzeit je Kreis ist nicht umgesetzt.
 
 Heizgradtage sind die Bezugsgröße für alles Folgende: Ohne sie ist Verbrauch nicht vergleichbar,
 weil ein kalter Januar mehr braucht als ein milder.

@@ -62,7 +62,8 @@ class Handler(BaseHTTPRequestHandler):
         wert = teile[1] if len(teile) > 1 else None
         zeit = time.strftime("%H:%M:%S")
 
-        if befehl.lower().startswith("power"):
+        # „PowerOnState“ beginnt auch mit „Power“; gemeint sind hier nur Power und Power<n>.
+        if befehl.lower().startswith("power") and (befehl[5:] == "" or befehl[5:].isdigit()):
             nummer = int(befehl[5:] or "1")
             if nummer < 1 or nummer > ARGS.relais:
                 return self._send({"WARNING": "Invalid Index"})
@@ -80,6 +81,23 @@ class Handler(BaseHTTPRequestHandler):
             schluessel = "POWER" if ARGS.relais == 1 else f"POWER{nummer}"
             return self._send({schluessel: "ON" if ZUSTAND[nummer] else "OFF"})
 
+        # Fuer die Pruefung der Ausfallregel aus dem Handbuch
+        if befehl.lower() == "poweronstate":
+            if wert is not None:
+                EINSCHALT[0] = int(wert)
+            return self._send({"PowerOnState": EINSCHALT[0]})
+        if befehl.lower() == "rule1":
+            if wert is not None:
+                if wert.upper() in ("0", "1", "ON", "OFF"):
+                    REGEL["State"] = "ON" if wert.upper() in ("1", "ON") else "OFF"
+                else:
+                    REGEL["Rules"] = wert
+                PROTOKOLL.append(f"{zeit}  Rule1 {wert}")
+                print(PROTOKOLL[-1], flush=True)
+            return self._send({"Rule1": {"State": REGEL["State"], "Once": "OFF", "StopOnError": "OFF",
+                                         "Length": len(REGEL["Rules"]), "Free": 511 - len(REGEL["Rules"]),
+                                         "Rules": REGEL["Rules"]}})
+
         if befehl.lower().startswith("var"):
             name = "Var" + befehl[3:]
             if wert is not None:
@@ -89,6 +107,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({name: VARS.get(name, "")})
 
         return self._send({"WARNING": "Unknown command"})
+
+
+# Werksvorgabe von Tasmota: PowerOnState 3, keine Regel
+EINSCHALT = [3]
+REGEL = {"State": "OFF", "Rules": ""}
 
 
 if __name__ == "__main__":

@@ -7,6 +7,16 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ### Verteilerplatine
 
+- **Verschlüsselte BTHome-Thermometer.** Der Verteiler empfängt BTHome in Fassung 2, offen und
+  mit AES-128-CCM verschlüsselt, etwa vom Climate-Sat von camperSense. Den Schlüssel je Gerät,
+  32 Hexadezimalziffern aus der camperSense-App, nimmt die Oberfläche unter **Sensoren**
+  entgegen, die Schnittstelle unter `POST /api/ble/key`. Bis zu 16 Schlüssel liegen in einem
+  eigenen Eintrag im NVS, nicht in der Konfiguration; `GET /api/ble` nennt den Stand je Gerät
+  („fehlt", „falsch", „passt") und die Adressen mit Schlüssel. Die Sicherung trägt die Schlüssel
+  im Klartext, das Zurückspielen übernimmt sie, die Werksvorgabe löscht sie. Ein Rahmen mit
+  einem nicht höheren Zähler als der zuletzt angenommene bleibt ohne Wirkung, nach zehn Minuten
+  ohne gültigen Rahmen gilt er wieder. Werte, die ein Gerät auf mehrere Rahmen verteilt, werden
+  feldweise übernommen.
 - **Bluetooth gibt dem WLAN Funkzeit zurück.** WLAN und Bluetooth teilen sich ein Funkteil, und
   die Suche nach Thermometern belegte es durchgehend. Die Anmeldung am Einrichtungs-Zugangspunkt
   einer frischen Platine gelang deshalb erst nach mehreren Versuchen. Die Suche belegt das
@@ -87,7 +97,11 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 - **Handbuch.** Jede Einstellung beider Gerätetypen mit Schlüssel, Vorgabe, zulässigem Bereich
   und Bedeutung; Befunde mit ihren Kennungen und Auslösebedingungen; Proportionalband richtig
   beschrieben (am Sollwert halb offen).
-- **Prüfungen:** 524 (v0.3.0: 483).
+- **Attrappe des Verteilers** mit einem verschlüsselten Climate-Sat, der erst mit dem
+  Testschlüssel der Prüfungen Werte liefert, samt `POST /api/ble/key` und Schlüsseln in der
+  Sicherung.
+- **Prüfungen:** 578 (v0.3.0: 483), darunter AES-128 nach FIPS-197 und BTHome-Rahmen aus dem
+  Rahmenbau der Satelliten-Firmware.
 
 ## v0.3.0 — 17. August 2026
 

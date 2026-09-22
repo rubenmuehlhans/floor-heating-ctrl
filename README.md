@@ -454,8 +454,11 @@ einmal je Minute in den NVS geschrieben und beim Start wiederhergestellt.
 ### Raumtemperatur
 
 Der ESP32 hört die Raumthermometer selbst mit: Xiaomi-Thermometer mit ATC- oder
-pvvx-Firmware senden ihre Messwerte offen als Rundruf. Es wird keine Verbindung
-aufgebaut und nichts gesendet. Damit hängt die Regelung nicht am Netzwerk.
+pvvx-Firmware, RuuviTags und Thermometer mit BTHome senden ihre Messwerte als
+Rundruf. Es wird keine Verbindung aufgebaut und nichts gesendet. Damit hängt die
+Regelung nicht am Netzwerk. Verschlüsseltes BTHome, etwa vom Climate-Sat von
+camperSense, liest der Verteiler mit dem Schlüssel des jeweiligen Geräts, den die
+Oberfläche unter **Sensoren** entgegennimmt.
 
 Bleibt ein Messwert länger als eingestellt aus (Vorgabe 900 s), setzt die
 Regelung für diesen Raum aus und die Ventile bleiben stehen, statt mit einem
@@ -530,8 +533,9 @@ components/       von allen Anwendungen gemeinsam genutzt
   roomctrl/       Regelgesetz (frei von IDF-Abhängigkeiten)
   schedule/       wöchentlicher Termin an der Uhr, für die Schutzfahrt
   config_store/   Konfiguration als JSON im NVS
-  atc_ble/        NimBLE-Observer; die Dekoder (ATC, pvvx, Ruuvi) liegen als
-                  atc_decode.c ohne IDF-Bezug daneben und sind geprüft
+  atc_ble/        NimBLE-Observer; die Dekoder (ATC, pvvx, Ruuvi, BTHome) und
+                  AES-128-CCM liegen als atc_decode.c und atc_crypto.c ohne
+                  IDF-Bezug daneben und sind geprüft
   ssd1327/        Anzeigetreiber mit Bitmap-Schrift
   sensors_local/  DS18B20 und HDC1080
   onewire_temp/   mehrere DS18B20 an bis zu zwei Bussen, Sammelwandlung
@@ -595,9 +599,11 @@ ohne Hardware:
 make -C test/host
 ```
 
-Der Lauf umfasst 524 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
+Der Lauf umfasst 578 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
 Pumpensteuerung, Bedarfsauswertung, Brennererkennung, Ladezustand und Kalibrierung des
-Nullpunkts, Auslöser der Aufzeichnung, Dekodierung der Funkpakete, Wochentermin,
+Nullpunkts, Auslöser der Aufzeichnung, Dekodierung und Entschlüsselung der Funkpakete
+(AES-128 gegen FIPS-197, BTHome gegen Rahmen aus dem Rahmenbau der Satelliten-Firmware),
+Wochentermin,
 Plausibilität der Fühler, Rückströmung, Warmwasserzapfung, Kesselkreispumpe, Verbrauchslinie
 und Abgas-Vorlauf-Abstand.
 

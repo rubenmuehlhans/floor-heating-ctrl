@@ -25,7 +25,8 @@ SRC := test_logic.c \
        $(ROOT)/components/heatlogic/flue.c \
        $(ROOT)/components/heatlogic/zapfung.c \
        $(ROOT)/components/schedule/schedule.c \
-       $(ROOT)/components/atc_ble/atc_decode.c
+       $(ROOT)/components/atc_ble/atc_decode.c \
+       $(ROOT)/components/atc_ble/atc_crypto.c
 
 all: run
 

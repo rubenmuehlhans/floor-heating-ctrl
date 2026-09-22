@@ -19,6 +19,7 @@
 #include "plausi.h"
 #include "hw_map.h"
 #include "roomctrl.h"
+#include "atc_crypto.h"
 #include "atc_decode.h"
 #include "schedule.h"
 #include "valve.h"
@@ -1587,6 +1588,185 @@ static void test_decode_xiaomi(void)
     CHECK(dev.format == ATC_FMT_PVVX, "Format ist pvvx");
 }
 
+
+static void test_aes128(void)
+{
+    printf("AES-128 nach FIPS-197\n");
+
+    uint8_t key[16], klar[16], soll[16], ist[16], rk[176];
+
+    /* Anhang C.1 */
+    hex2bin("000102030405060708090a0b0c0d0e0f", key, 16);
+    hex2bin("00112233445566778899aabbccddeeff", klar, 16);
+    hex2bin("69c4e0d86a7b0430d8cdb78070b4c55a", soll, 16);
+    atc_aes128_expand(key, rk);
+    atc_aes128_encrypt(rk, klar, ist);
+    CHECK(memcmp(ist, soll, 16) == 0, "Pruefwert aus Anhang C.1");
+
+    /* Anhang A.1 und B: Schluesselerweiterung bis zum letzten Rundenschluessel
+     * und ein zweiter Block. */
+    hex2bin("2b7e151628aed2a6abf7158809cf4f3c", key, 16);
+    atc_aes128_expand(key, rk);
+    hex2bin("d014f9a8c9ee2589e13f0cc8b6630ca6", soll, 16);
+    CHECK(memcmp(rk + 160, soll, 16) == 0, "letzter Rundenschluessel aus Anhang A.1");
+    hex2bin("3243f6a8885a308d313198a2e0370734", klar, 16);
+    hex2bin("3925841d02dc09fbdc118597196a0b32", soll, 16);
+    atc_aes128_encrypt(rk, klar, ist);
+    CHECK(memcmp(ist, soll, 16) == 0, "Pruefwert aus Anhang B");
+
+    /* CCM ueber zwei Bloecke. Erzeugt mit der unabhaengigen CCM-Fassung des
+     * camperSense-Satelliten (satellite-climate/firmware/src/ccm_ecb.c), die
+     * dort gegen mbedtls geprueft ist; die Satellitenrahmen im naechsten Test
+     * fuellen nur einen Block. */
+    uint8_t nonce[13], ct[24], mic[4], aus[24], erwartet[24];
+    hex2bin("101112131415161718191a1b1c1d1e1f", key, 16);
+    hex2bin("a0a1a2a3a4a5a6a7a8a9aaabac", nonce, 13);
+    hex2bin("3534c045edec732290d3d559410dd2f0f90de1adae722eab", ct, 24);
+    hex2bin("5688e048", mic, 4);
+    for (int i = 0; i < 24; i++) {
+        erwartet[i] = (uint8_t)i;
+    }
+    CHECK(atc_ccm_decrypt(key, nonce, ct, 24, mic, aus) && memcmp(aus, erwartet, 24) == 0,
+          "CCM ueber zwei Bloecke");
+    ct[20] ^= 0x01;
+    CHECK(!atc_ccm_decrypt(key, nonce, ct, 24, mic, aus), "CCM erkennt ein veraendertes Byte im zweiten Block");
+}
+
+static void test_decode_bthome(void)
+{
+    printf("Funkpakete: BTHome v2, verschluesselt und offen\n");
+
+    /*
+     * Zwei Rahmen des Klima-Satelliten von camperSense, ab dem Laengenbyte des
+     * AD-Felds: Laenge, 0x16, D2 FC, Geraeteinformation 0x41, Geheimtext,
+     * Zaehler, Pruefsumme. Erzeugt mit dem Rahmenbau der Satelliten-Firmware
+     * (satellite-climate/firmware/src/bthome_adv.c), aber mit Testschluessel und
+     * Testadresse: Mit dem Schluessel der Geraete ergibt derselbe Bau die dort
+     * aufgezeichneten Rahmen Byte fuer Byte, und dieser Schluessel gehoert nicht
+     * in ein oeffentliches Repository.
+     */
+    uint8_t mac[6], key[16], k2[16], adv[32];
+    atc_bthome_t b;
+    hex2bin("c0ffee123456", mac, 6);
+    CHECK(atc_parse_key("00112233445566778899aabbccddeeff", key), "Schluessel wird gelesen");
+
+    /* Satz A: Batterie, Temperatur, Feuchte, Spannung, Batterie schwach */
+    const char *satz_a = "1916d2fc418dfb4963e9addfa88fc2a49a8c0302010068c93aaf";
+    hex2bin(satz_a, adv, 26);
+    CHECK(atc_decode_bthome(adv + 4, 22, mac, key, &b) == ATC_BTHOME_OK, "Satz A wird entschluesselt");
+    CHECK(b.encrypted, "als verschluesselt erkannt");
+    CHECK(b.counter == 66051, "Zaehler 66051, nicht %u", (unsigned)b.counter);
+    CHECK(b.has_temp && CLOSE(b.temp_c, 21.37f, 0.001f), "21,37 C, nicht %.2f", b.temp_c);
+    CHECK(b.has_humidity && CLOSE(b.humidity, 45.5f, 0.001f), "45,5 %%, nicht %.2f", b.humidity);
+    CHECK(b.has_battery && b.battery == 87, "Batterie 87 %%, nicht %u", b.battery);
+    CHECK(b.has_voltage && b.battery_mv == 2950, "2950 mV, nicht %u", b.battery_mv);
+    CHECK(b.battery_low == 0, "Batterie nicht schwach");
+    CHECK(!b.has_pressure, "ohne Luftdruck");
+
+    /* Satz B: Batterie, Erschuetterung, Roll, Nick -- keine Temperatur.
+     * Er darf einen vorhandenen Messwert nicht loeschen; das regelt der
+     * Empfaenger, hier nur: er meldet keinen. */
+    hex2bin("1616d2fc414006aba0a6224b7f27a3040201009cc4945d", adv, 23);
+    CHECK(atc_decode_bthome(adv + 4, 19, mac, key, &b) == ATC_BTHOME_OK, "Satz B wird entschluesselt");
+    CHECK(b.counter == 66052, "Zaehler 66052, nicht %u", (unsigned)b.counter);
+    CHECK(!b.has_temp && !b.has_humidity, "Satz B traegt keine Temperatur");
+    CHECK(b.has_battery && b.battery == 87, "Batterie 87 %% auch in Satz B");
+
+    /* Ohne Schluessel: erkannt, aber nicht lesbar */
+    hex2bin(satz_a, adv, 26);
+    CHECK(atc_decode_bthome(adv + 4, 22, mac, NULL, &b) == ATC_BTHOME_KEY_MISSING,
+          "ohne Schluessel: fehlt");
+    CHECK(b.encrypted && !b.has_temp, "verschluesselt, ohne Werte");
+
+    /* Falscher Schluessel, fremde Adresse, veraendertes Byte: die Pruefsumme
+     * passt nicht, und es kommt kein Wert heraus. */
+    memcpy(k2, key, 16);
+    k2[15] ^= 0x01;
+    CHECK(atc_decode_bthome(adv + 4, 22, mac, k2, &b) == ATC_BTHOME_KEY_WRONG, "falscher Schluessel");
+    CHECK(!b.has_temp && !b.has_battery, "falscher Schluessel liefert nichts");
+    uint8_t mac2[6];
+    memcpy(mac2, mac, 6);
+    mac2[5] ^= 0x01;
+    CHECK(atc_decode_bthome(adv + 4, 22, mac2, key, &b) == ATC_BTHOME_KEY_WRONG,
+          "andere Sendeadresse, andere Nonce");
+    adv[9] ^= 0x10;
+    CHECK(atc_decode_bthome(adv + 4, 22, mac, key, &b) == ATC_BTHOME_KEY_WRONG,
+          "veraenderter Geheimtext");
+    hex2bin(satz_a, adv, 26);
+    adv[18] ^= 0x01; /* Zaehler um eins verschoben */
+    CHECK(atc_decode_bthome(adv + 4, 22, mac, key, &b) == ATC_BTHOME_KEY_WRONG,
+          "ein neu gesetzter Zaehler faellt auf");
+    hex2bin(satz_a, adv, 26);
+    CHECK(atc_decode_bthome(adv + 4, 9, mac, key, &b) == ATC_BTHOME_INVALID, "ohne Inhalt zu kurz");
+
+    /* Offen gesendet, Beispiel aus bthome.io: 25,06 C und 50,55 % */
+    uint8_t offen[16];
+    hex2bin("4002ca0903bf13", offen, 7);
+    CHECK(atc_decode_bthome(offen, 7, mac, NULL, &b) == ATC_BTHOME_OK, "offenes BTHome");
+    CHECK(!b.encrypted, "offen erkannt");
+    CHECK(b.has_temp && CLOSE(b.temp_c, 25.06f, 0.001f), "25,06 C, nicht %.2f", b.temp_c);
+    CHECK(b.has_humidity && CLOSE(b.humidity, 50.55f, 0.001f), "50,55 %%, nicht %.2f", b.humidity);
+
+    /* Eine unbekannte Kennung beendet die Auswertung, was davor stand, gilt. */
+    hex2bin("4002ca09ff0303bf13", offen, 9);
+    CHECK(atc_decode_bthome(offen, 9, mac, NULL, &b) == ATC_BTHOME_OK, "mit unbekannter Kennung");
+    CHECK(b.has_temp && !b.has_humidity, "nur die Temperatur vor der unbekannten Kennung");
+
+    /* Bekannte, hier bedeutungslose Kennungen werden uebersprungen: Paketnummer,
+     * Beleuchtung (3 Byte), Tuer (1 Byte), dann Temperatur in Zehntelgrad. */
+    hex2bin("40000905102700110145e100", offen, 12);
+    CHECK(atc_decode_bthome(offen, 12, mac, NULL, &b) == ATC_BTHOME_OK, "mit fremden Objekten");
+    CHECK(b.has_temp && CLOSE(b.temp_c, 22.5f, 0.001f), "22,5 C aus 0x45, nicht %.2f", b.temp_c);
+
+    /* MAC im Inhalt (Bit 1): wird uebersprungen */
+    hex2bin("42c0ffee12345602ca09", offen, 10);
+    CHECK(atc_decode_bthome(offen, 10, mac, NULL, &b) == ATC_BTHOME_OK && b.has_temp &&
+              CLOSE(b.temp_c, 25.06f, 0.001f),
+          "MAC im Inhalt wird uebersprungen");
+
+    /* Fassung 1 und fremde Bytes werden abgewiesen */
+    offen[0] = 0x20;
+    CHECK(atc_decode_bthome(offen, 10, mac, NULL, &b) == ATC_BTHOME_INVALID, "Fassung 1 abgewiesen");
+
+    /* Platzhalter fuer einen fehlenden Fuehler (unter dem absoluten Nullpunkt) */
+    hex2bin("400080", offen, 3);
+    offen[1] = 0x02;
+    offen[2] = 0x00;
+    offen[3] = 0x80;
+    CHECK(atc_decode_bthome(offen, 4, mac, NULL, &b) == ATC_BTHOME_OK && !b.has_temp,
+          "-327,68 C gilt als fehlender Fuehler");
+}
+
+static void test_bthome_zaehler(void)
+{
+    printf("Funkpakete: Wiederholungsschutz und Schluesseltext\n");
+
+    CHECK(atc_bthome_counter_fresh(false, 0, 0, 5, 1000), "der erste Rahmen gilt");
+    CHECK(atc_bthome_counter_fresh(true, 5, 1000, 6, 3000), "ein groesserer Zaehler gilt");
+    CHECK(!atc_bthome_counter_fresh(true, 6, 3000, 6, 3100), "derselbe Rahmen zweimal gilt nicht");
+    CHECK(!atc_bthome_counter_fresh(true, 6, 3000, 3, 4000), "ein aelterer Rahmen gilt nicht");
+    CHECK(!atc_bthome_counter_fresh(true, 66051, 1000, 12, 1000 + ATC_BTHOME_RESYNC_MS - 1),
+          "vor Ablauf der Frist bleibt der alte Zaehler");
+    CHECK(atc_bthome_counter_fresh(true, 66051, 1000, 12, 1000 + ATC_BTHOME_RESYNC_MS),
+          "nach der Pause wird neu angesetzt");
+    CHECK(!atc_bthome_counter_fresh(true, 9, 0xFFFFFF00u, 8, 0x100u),
+          "auch ueber den Ueberlauf der Millisekunden hinweg");
+
+    uint8_t key[16], k2[16], mac[6];
+    CHECK(atc_parse_key("00112233445566778899aabbccddeeff", key), "32 Ziffern");
+    CHECK(atc_parse_key("00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff", k2) &&
+              memcmp(key, k2, 16) == 0,
+          "gruppiert geschrieben");
+    CHECK(atc_parse_key("00112233-44556677-8899AABB-CCDDEEFF", k2) && memcmp(key, k2, 16) == 0,
+          "gross und mit Bindestrichen");
+    CHECK(!atc_parse_key("00112233445566778899aabbccddeef", k2), "31 Ziffern abgewiesen");
+    CHECK(!atc_parse_key("00112233445566778899aabbccddeeff00", k2), "34 Ziffern abgewiesen");
+    CHECK(!atc_parse_key("00112233445566778899aabbccddeexx", k2), "fremde Zeichen abgewiesen");
+    CHECK(!atc_parse_key("", k2), "leerer Text abgewiesen");
+    CHECK(atc_parse_mac("C0:FF:EE:12:34:56", mac) && mac[0] == 0xC0 && mac[5] == 0x56, "MAC-Adresse");
+    CHECK(!atc_parse_mac("C0:FF:EE:12:34", mac), "zu kurze MAC-Adresse abgewiesen");
+}
+
 /* ------------------------------------------------------------------ */
 /* Plausibilitaet der Messstellen                                      */
 /* ------------------------------------------------------------------ */
@@ -2266,6 +2446,9 @@ int main(void)
     test_sched_days_left();
     test_decode_ruuvi();
     test_decode_xiaomi();
+    test_aes128();
+    test_decode_bthome();
+    test_bthome_zaehler();
     test_plausi_flow();
     test_plausi_buffer();
     test_plausi_probe();

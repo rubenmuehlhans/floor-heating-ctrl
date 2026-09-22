@@ -16,6 +16,7 @@ Zusaetzlich zur Geraeteschnittstelle:
 """
 
 import argparse
+import copy
 import json
 import math
 import sys
@@ -32,6 +33,45 @@ ROOT = Path(__file__).resolve().parent.parent
 PORTS = {"manifold": 8321, "heatsource": 8322}
 APP = "manifold"
 T0 = time.time()
+
+# Stand beim Start; dient beim Einspielen einer Sicherung als Werksvorgabe.
+WERKSVORGABE: dict = {}
+
+# Thermometerschluessel wie in der Firmware: je Sendeadresse, getrennt von der
+# Konfiguration, in /api/ble nur als Adressliste. Der Climate-Sat von camperSense
+# sendet verschluesselt; seine Werte erscheinen erst mit dem richtigen Schluessel,
+# hier dem Testschluessel der Pruefungen in test/host.
+KLIMASAT_MAC = "C0:FF:EE:12:34:56"
+KLIMASAT_SCHLUESSEL = "00112233445566778899aabbccddeeff"
+SCHLUESSEL: dict = {}
+
+
+def hex_normal(text, ziffern):
+    """Hexadezimalziffern ohne Leerzeichen, Doppelpunkte und Bindestriche, oder None."""
+    if not isinstance(text, str):
+        return None
+    t = "".join(c for c in text if c not in " :-").lower()
+    return t if len(t) == ziffern and all(c in "0123456789abcdef" for c in t) else None
+
+
+def mac_normal(text):
+    t = hex_normal(text, 12)
+    return ":".join(t[i:i + 2] for i in range(0, 12, 2)).upper() if t else None
+
+
+def klimasat():
+    """Der Climate-Sat, wie ihn /api/ble zeigt: ohne passenden Schluessel ohne Werte."""
+    d = {"mac": KLIMASAT_MAC, "name": "", "rssi": -67, "battery": 0, "battery_mv": 0,
+         "packets": 1520 + int(time.time() - T0) // 2, "format": "bthome", "encrypted": True}
+    k = SCHLUESSEL.get(KLIMASAT_MAC)
+    if k is None:
+        d["key"] = "missing"
+    elif k != KLIMASAT_SCHLUESSEL:
+        d["key"] = "wrong"
+    else:
+        d.update(key="ok", temp_c=round(21.2 + 0.4 * math.sin(time.time() / 900), 2),
+                 humidity=47.5, battery=87, battery_mv=2950)
+    return d
 
 CFG = {
     "cfg_version": 1,
@@ -74,6 +114,7 @@ POSITIONS = [0.3, 0.3, 0.3, 0.7, 0.7, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0]
 TEMPS = {1: 20.6, 2: 20.2, 4: 21.4}
 
 AP_MODE = [False]   # ueber /mock/ap?on=1 umschaltbar
+VERBINDET_AB = [0.0]  # Zeitpunkt, ab dem das Geraet nach neuen WLAN-Daten im Heimnetz ist
 MANUAL = set()      # Kreise im Handbetrieb (Notstellung)
 
 # Aenderungszaehler wie im Geraet: er steigt nur bei Ereignissen, nicht
@@ -138,6 +179,11 @@ def state():
         rid = r["id"]
         has = rid in TEMPS
         temp = TEMPS.get(rid, 0) + math.sin(t / 30 + rid) * 0.15
+        if (r.get("sensor_mac") or "").upper() == KLIMASAT_MAC:
+            # Ohne passenden Schluessel kommt vom Climate-Sat kein Messwert an.
+            ks = klimasat()
+            has = "temp_c" in ks
+            temp = ks.get("temp_c", 0.0)
         diff = r["target_c"] - temp
         pos = min(1.0, max(0.0, round(((diff + 1) / 2) / 0.1) * 0.1)) if r["mode"] == "heat" else 0.0
         rooms.append({
@@ -169,8 +215,13 @@ def state():
 
     return {
         "revision": REV[0], "uptime_s": int(t) + 7321, "heap": 148000 + int(random.uniform(0, 4000)),
+        "device": {"id": "fbh_a1b2c3", "mac": "A0:B7:65:A1:B2:C3", "site": CFG["site"],
+                   "model": "ESP32 Ventilsteuerung, 11 Heizkreise", "channels": 11},
         "version": "1.0.0",
-        "net": ({"connected": False, "ip": "", "ap_active": True, "ap_ip": "192.168.4.1",
+        "net": ({"connected": True, "ip": "192.168.1.241", "ap_active": True, "ap_ip": "192.168.4.1",
+                 "rssi": -60, "time_valid": True}
+                if AP_MODE[0] and VERBINDET_AB[0] and time.time() >= VERBINDET_AB[0] else
+                {"connected": False, "ip": "", "ap_active": True, "ap_ip": "192.168.4.1",
                  "rssi": 0, "time_valid": False} if AP_MODE[0] else
                 {"connected": True, "ip": "192.168.1.241", "ap_active": False, "ap_ip": "",
                  "rssi": -58 - int(random.uniform(0, 6)), "time_valid": True}),
@@ -251,6 +302,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"site": CFG["site"], "rooms": 0})
         elif u.path == "/mock/ap":
             AP_MODE[0] = parse_qs(u.query).get("on", ["1"])[0] == "1"
+            VERBINDET_AB[0] = 0.0
             if AP_MODE[0]:
                 CFG["wifi"]["ssid"] = ""
                 CFG["wifi"]["pass_set"] = False
@@ -277,6 +329,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(dict(STATS, revision=REV[0], busy=moving_now()))
         elif u.path == "/api/config":
             self._send(CFG)
+        elif u.path == "/api/config/backup":
+            # Wie die Firmware: vollstaendige Einstellungen samt Kopf
+            self._send(dict(CFG, ble_keys=[{"mac": m, "bindkey": k} for m, k in sorted(SCHLUESSEL.items())],
+                            backup={
+                "app": "floor-heating-ctrl", "device_id": "fbh_a1b2c3", "site": CFG["site"],
+                "version": "1.0.0", "epoch": int(time.time())}))
         elif u.path == "/api/calib":
             frm = int(parse_qs(u.query).get("from", ["0"])[0])
             self._send({"calib": calib_status(), "from": frm,
@@ -300,11 +358,12 @@ class Handler(BaseHTTPRequestHandler):
                  "temp_c": round(11.4 + 3.5 * math.sin(time.time() / 3600), 2),
                  "humidity": 72.5, "battery": 0, "battery_mv": 2996,
                  "pressure_hpa": 1013.4, "packets": 8820, "format": "ruuvi"},
-            ]})
+                klimasat(),
+            ], "keys": sorted(SCHLUESSEL)})
         elif u.path == "/api/peers":
             # Die uebrigen Platinen im Haus, wie sie ueber mDNS gefunden werden.
             self._send({"peers": [
-                {"id": "fbh_c2e55c", "site": "Keller", "role": "manifold",
+                {"id": "fbh_3a91c4", "site": "Keller", "role": "manifold",
                  "host": "192.168.1.240", "hostname": "floor-heating-keller"},
                 {"id": "fbh_d4e5f6", "site": "Obergeschoss", "role": "manifold",
                  "host": "192.168.1.242", "hostname": "floor-heating-og"},
@@ -354,12 +413,56 @@ class Handler(BaseHTTPRequestHandler):
             body = {}
         p = self.path
 
+        if p == "/api/config/restore":
+            # Wie die Firmware: nur eine Sicherung dieses Geraetetyps, aufgebaut von der
+            # Werksvorgabe aus; der Netzzugang bleibt.
+            app = (body.get("backup") or {}).get("app")
+            if app is None:
+                return self._send({"ok": False, "error": "Das ist keine Sicherung dieses Geraets"}, 400)
+            if app != "floor-heating-ctrl":
+                return self._send({"ok": False, "error": "Diese Sicherung stammt von einem anderen Geraetetyp"}, 400)
+            # Thermometerschluessel: aeltere Sicherungen haben keine, dann bleiben die vorhandenen.
+            neue = None
+            if isinstance(body.get("ble_keys"), list):
+                neue = {}
+                for e in body["ble_keys"]:
+                    m, k = mac_normal((e or {}).get("mac")), hex_normal((e or {}).get("bindkey"), 32)
+                    if not m or not k:
+                        return self._send({"ok": False, "error": "Ein Thermometerschluessel in der Sicherung ist ungueltig"}, 400)
+                    neue[m] = k
+            wlan = copy.deepcopy(CFG["wifi"])
+            CFG.clear()
+            CFG.update(copy.deepcopy(WERKSVORGABE))
+            zusammenfuehren({k: v for k, v in body.items() if k not in ("backup", "wifi", "ble_keys")})
+            CFG["wifi"] = wlan
+            if neue is not None:
+                SCHLUESSEL.clear()
+                SCHLUESSEL.update(neue)
+            bump()
+            return self._send({"ok": True})
+        if p == "/api/ble/key":
+            m = mac_normal(body.get("mac"))
+            if not m:
+                return self._send({"ok": False, "error": "Die MAC-Adresse ist ungueltig"}, 400)
+            roh = body.get("bindkey")
+            if roh in (None, ""):
+                SCHLUESSEL.pop(m, None)
+            else:
+                k = hex_normal(roh, 32)
+                if not k:
+                    return self._send({"ok": False, "error": "Der Schluessel muss aus 32 Hexadezimalziffern (0-9, a-f) bestehen"}, 400)
+                if m not in SCHLUESSEL and len(SCHLUESSEL) >= 16:
+                    return self._send({"ok": False, "error": "Kein Platz fuer weitere Schluessel; hoechstens 16 lassen sich hinterlegen"}, 400)
+                SCHLUESSEL[m] = k
+            bump()
+            return self._send({"ok": True})
         if p.startswith("/api/room/"):
             parts = p.split("/")
             rid, action = int(parts[3]), parts[4]
             for r in CFG["rooms"]:
                 if r["id"] == rid:
-                    if action == "target":
+                    # Ausserhalb 5-35 Grad quittiert die Firmware, ohne zu uebernehmen.
+                    if action == "target" and 5 <= float(body.get("target_c", 0)) <= 35:
                         r["target_c"] = round(float(body["target_c"]), 1)
                     elif action == "mode":
                         r["mode"] = body["mode"]
@@ -418,10 +521,36 @@ class Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         length = int(self.headers.get("Content-Length") or 0)
         try:
-            CFG.update(json.loads(self.rfile.read(length)))
+            teil = json.loads(self.rfile.read(length))
+            zusammenfuehren(teil)
+            # Im Einrichtungsbetrieb verbindet sich das Geraet nach neuen WLAN-Daten mit dem
+            # Heimnetz; der Zugangspunkt bleibt, solange noch jemand daran haengt.
+            if AP_MODE[0] and (teil.get("wifi") or {}).get("ssid"):
+                VERBINDET_AB[0] = time.time() + 3
         except Exception:
             pass
+        bump()
         self._send({"ok": True})
+
+
+def zusammenfuehren(teil: dict) -> None:
+    """Wie cfg_from_json() der Firmware: `rooms` ersetzt die Liste, `channels` wird je
+    Kennung zusammengefuehrt, Gruppen nur in den genannten Schluesseln geaendert.
+    Kennwoerter erscheinen danach nur als `*_set`."""
+    for k, v in teil.items():
+        if k == "channels" and isinstance(v, list):
+            for e in v:
+                for ch in CFG["channels"]:
+                    if ch["id"] == e.get("id"):
+                        ch.update({f: w for f, w in e.items() if f != "id"})
+        elif isinstance(v, dict) and isinstance(CFG.get(k), dict):
+            for f, w in v.items():
+                if f in ("pass", "ap_pass"):
+                    CFG[k][f + "_set"] = bool(w)
+                else:
+                    CFG[k][f] = w
+        elif k != "backup":
+            CFG[k] = copy.deepcopy(v)
 
 
 if __name__ == "__main__":
@@ -433,6 +562,7 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     APP = args.app
+    WERKSVORGABE.update(copy.deepcopy(CFG))
     port = args.port or PORTS[args.app]
     print(f"Attrappe {args.app} auf http://localhost:{port}")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

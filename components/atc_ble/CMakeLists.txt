@@ -1,3 +1,4 @@
-idf_component_register(SRCS "atc_ble.c" "atc_decode.c"
+idf_component_register(SRCS "atc_ble.c" "atc_decode.c" "atc_crypto.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES bt esp_timer)
+                       REQUIRES bt esp_timer
+                       PRIV_REQUIRES nvs_flash)
