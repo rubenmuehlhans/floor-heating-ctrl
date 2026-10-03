@@ -292,6 +292,32 @@ warten.
 > durchgehend unter den zuvor fest eingestellten Werten — die Kreise waren damit systematisch
 > anders eingestellt, als angenommen.
 
+### Abstand zum Anschlag auf
+
+Gewöhnliche Fahrten öffnen höchstens bis 92 % des Hubs; Ziele darüber werden auf 92 % begrenzt.
+Ein ganz geöffneter Kreis steht deshalb bei 92 %. Die Fahrzeit auf aus der Messfahrt reicht bis
+zum Anschlag auf. Dort fängt ein Steg am Zahnrad den Nippel des Stößels ab, und das
+Blockiermoment des Getriebes geht in die Stößelführung — beim HmIP-VDMOT das Teil, das am
+häufigsten bricht. Das Ventil steht vor dem Anschlag bereits ganz offen.
+
+In den Anschlag auf fahren nur noch die Notfahrt (**Motor auf** in der Handsteuerung, **Auf** in
+der Kreistabelle, **Alle auf**, MQTT `OPEN`) und die Messfahrt. In Richtung zu nimmt der
+Ventilsitz den Druck auf.
+
+### Entlastung nach dem Schließen
+
+Zu fährt ein Kreis, bis der Motor am Ventilsitz blockiert. Die Spindel des Antriebs ist
+selbsthemmend; nach dem Abschalten bliebe die volle Blockierkraft deshalb auf Ventilstift und
+Dichtung stehen, im Sommer über Monate. Nach jeder Fahrt zu, die an der Endlage oder an der
+Maximallaufzeit endet, fährt der Antrieb daher eine Sekunde wieder auf. Das sind bei rund 40 s
+für den ganzen Hub etwa 0,1 mm, von denen das Spiel im Getriebe einen Teil aufnimmt. Die Kraft
+ist danach weitgehend abgebaut, das Ventil bleibt geschlossen; die Feder des Ventils hält den
+Stift am Stößel. Die Stellung bleibt bei 0 %, als Grund der letzten Fahrt bleibt „Endlage
+erkannt“ beziehungsweise „Maximallaufzeit abgelaufen“ stehen.
+
+Folgt auf eine Referenzfahrt unmittelbar eine Fahrt auf, entfällt die Entlastung. Bleibt ein
+Raum nach dem Schließen spürbar warm, ist die Entlastung für dieses Ventil zu lang.
+
 ## Fühler des Heizungsgeräts zuordnen
 
 Ein DS18B20 meldet sich mit seiner Werkskennung, nicht mit seiner Einbaulage. Unter **Fühler**
@@ -693,10 +719,12 @@ Der Termin steht auf beiden Gerätearten unter **System** und ist ab Werk **Sams
 eine Stunde nach dem täglichen Neustart der Verteilerplatinen, damit sich beides nicht in die
 Quere kommt. Wochentag auf „kein Termin" schaltet ihn ab.
 
-**An der Verteilerplatine.** Jeder Kreis fährt einmal auf Anschlag auf, wieder zu und danach auf
-seine vorherige Stellung zurück. Gefahren wird auf Anschlag, nicht auf eine Stellung: Die Fahrt
-soll den ganzen Weg abdecken, und die Stellung ist danach wieder gesichert statt geschätzt. Die
-Kreise fahren nacheinander, je Messgruppe einer; für alle elf dauert das rund zwanzig Minuten.
+**An der Verteilerplatine.** Jeder Kreis fährt einmal auf, auf Anschlag wieder zu und danach auf
+seine vorherige Stellung zurück. Zu wird auf Anschlag gefahren, nicht auf eine Stellung: Das
+Ventil schließt ganz, und die Stellung ist danach wieder gesichert statt geschätzt. Auf endet die
+Fahrt wie jede gewöhnliche Fahrt bei 92 % des Hubs (siehe
+[Abstand zum Anschlag auf](#abstand-zum-anschlag-auf)). Die Kreise fahren nacheinander, je
+Messgruppe einer; für alle elf dauert das rund zwanzig Minuten.
 
 | Übergangen wird | Grund |
 |---|---|

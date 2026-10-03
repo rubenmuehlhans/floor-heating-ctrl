@@ -3,6 +3,21 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
+## Unveröffentlicht, seit v0.4.0
+
+### Verteilerplatine
+
+- **Abstand zum Anschlag auf.** Gewöhnliche Fahrten öffnen höchstens bis 92 % des Hubs. Die
+  Fahrzeit auf aus der Messfahrt reicht bis zum Anschlag; jede Fahrt auf 100 % endete deshalb
+  dort, wo ein Steg am Zahnrad den Nippel des Stößels abfängt. Das Blockiermoment ging dabei in
+  die Stößelführung des HmIP-VDMOT, das Teil, das an diesen Antrieben bricht. Die Schutzfahrt
+  öffnet ebenfalls nur bis 92 % und fährt allein zu auf Anschlag. Notfahrt und Messfahrt fahren
+  weiterhin in den Anschlag.
+- **Entlastung nach dem Schließen.** Nach einer Fahrt zu, die an der Endlage oder an der
+  Maximallaufzeit endet, fährt der Antrieb eine Sekunde wieder auf, etwa 0,1 mm. Die Spindel ist
+  selbsthemmend; bisher blieb die volle Blockierkraft danach auf Ventilstift und Dichtung stehen.
+  Das Ventil bleibt geschlossen, die Stellung bei 0 %.
+
 ## v0.4.0 — 22. September 2026
 
 ### Verteilerplatine

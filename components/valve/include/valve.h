@@ -31,6 +31,14 @@ typedef struct {
     uint32_t blank_ms; /* Sperrzeit nach dem Anlauf, in der die Endlagenmeldung
                         * ignoriert wird - der Einschaltstrom sieht sonst wie
                         * ein Blockieren aus */
+    float open_limit;  /* Hoechste Stellung gewoehnlicher Fahrten. Am Anschlag
+                        * auf faengt ein Steg am Zahnrad den Stoessel ab, und
+                        * das volle Blockiermoment geht in die Stoesselfuehrung -
+                        * dorthin faehrt nur die Notfahrt. 0 = bis 1,0 */
+    uint32_t relief_ms; /* Entlastung: so lange faehrt der Antrieb nach der
+                         * Endlage zu wieder auf. Die Spindel ist selbsthemmend
+                         * und hielte die Blockierkraft sonst im Ventil fest.
+                         * 0 = keine Entlastung */
 } valve_cfg_t;
 
 typedef struct {
@@ -45,6 +53,7 @@ typedef struct {
     bool referencing;     /* Referenzfahrt gegen die untere Endlage laeuft */
     bool pending_valid;
     bool forcing;         /* Notfahrt: faehrt bis zum Anschlag durch */
+    bool relieving;       /* Entlastung nach der Endlage zu laeuft */
 
     uint32_t move_start_ms;
     uint32_t last_ms;
@@ -70,7 +79,8 @@ void valve_restore(valve_t *v, float position);
 
 /*
  * Faehrt auf die Zielposition. min_delta ist die Mindestabweichung, ab der
- * ueberhaupt gefahren wird. Liefert true, wenn eine Fahrt beginnt.
+ * ueberhaupt gefahren wird. Liefert true, wenn eine Fahrt beginnt. Ziele ueber
+ * open_limit werden auf open_limit begrenzt.
  *
  * Ist die Position unbekannt, laeuft zuerst eine Referenzfahrt gegen die
  * untere Endlage; das eigentliche Ziel wird danach automatisch angefahren.
@@ -81,7 +91,8 @@ void valve_open(valve_t *v, uint32_t now_ms);
 void valve_close(valve_t *v, uint32_t now_ms);
 
 /*
- * Notfahrt bis zum Anschlag, unabhaengig von der geschaetzten Stellung.
+ * Notfahrt bis zum Anschlag, unabhaengig von der geschaetzten Stellung und
+ * ueber open_limit hinaus.
  *
  * Anders als valve_goto prueft sie weder die aktuelle Stellung noch braucht
  * sie eine Referenzfahrt: haelt die Zustandsmaschine das Ventil faelschlich

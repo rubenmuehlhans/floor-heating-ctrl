@@ -20,6 +20,20 @@ static const char *TAG = "ctl";
 #define POSITION_SAVE_MS   60000
 #define FIRST_CHECK_DELAY_MS 50000 /* nach dem Start erst einlaufen lassen */
 
+/* Gewoehnliche Fahrten enden 8 % vor dem Anschlag auf. Die Fahrzeit auf
+ * stammt aus der Messfahrt und reicht genau bis dorthin; ohne Abstand liefe
+ * jede Fahrt auf 100 % in den Steg am Zahnrad, der den Stoessel abfaengt, und
+ * das Blockiermoment ginge in die Stoesselfuehrung. Die ist beim VDMOT das
+ * Teil, das bricht. Das Ventil steht lange vorher ganz offen. */
+#define VALVE_OPEN_LIMIT 0.92f
+
+/* Nach der Endlage zu faehrt der Antrieb so lange wieder auf. Die Spindel ist
+ * selbsthemmend; ohne Rueckhub bliebe die volle Blockierkraft auf Ventilstift
+ * und Dichtung stehen. Bei rund 40 s fuer 4,3 mm Hub ist 1 s etwa 0,1 mm, und
+ * einen Teil davon nimmt das Spiel im Getriebe - genug, um die Kraft zu loesen,
+ * zu wenig, um das Ventil zu oeffnen. */
+#define VALVE_CLOSE_RELIEF_MS 1000
+
 typedef struct {
     valve_t valve;
     bool reserved;
@@ -30,7 +44,7 @@ typedef struct {
     bool manual_hold;  /* die Regelung laesst diesen Kreis in Ruhe */
 
     /*
-     * Schutzfahrt: 0 = keine, 1 = auf Anschlag auf, 2 = auf Anschlag zu,
+     * Schutzfahrt: 0 = keine, 1 = auf bis open_limit, 2 = auf Anschlag zu,
      * 3 = zurueck auf die vorherige Stellung.
      */
     uint8_t seize_step;
@@ -175,6 +189,8 @@ static void load_config_locked(void)
             .close_ms = c->close_ms,
             .max_ms = c->max_ms,
             .blank_ms = c->blank_ms,
+            .open_limit = VALVE_OPEN_LIMIT,
+            .relief_ms = VALVE_CLOSE_RELIEF_MS,
         };
         valve_set_cfg(&s_ch[i].valve, &vc);
     }
@@ -308,6 +324,11 @@ static void room_run_check(int ri, uint32_t t)
         }
         target = roomctrl_target_position(r->target_c, rt->sensor.temp_c, r->p_band_k, r->step);
     }
+    /* Weiter auf faehrt das Ventil ohnehin nicht. Ohne die Grenze stuende ein
+     * ganz offener Kreis bei jedem Durchlauf als faellig da und fuehre nicht. */
+    if (target > VALVE_OPEN_LIMIT) {
+        target = VALVE_OPEN_LIMIT;
+    }
     rt->target_position = target;
 
     uint16_t pending = 0;
@@ -342,12 +363,14 @@ static void room_run_check(int ri, uint32_t t)
 
 /*
  * Im Sommer stehen die Ventile ueber Monate geschlossen. Damit sie nicht
- * festsitzen, faehrt jeder Kanal einmal in der Woche auf Anschlag auf, wieder
+ * festsitzen, faehrt jeder Kanal einmal in der Woche auf, auf Anschlag wieder
  * zu und danach auf seine vorherige Stellung zurueck.
  *
- * Gefahren wird auf Anschlag, nicht auf eine Stellung: die Schutzfahrt soll
- * den ganzen Weg abdecken, und nebenbei ist die Stellung danach wieder
- * gesichert statt geschaetzt.
+ * Zu geht es auf Anschlag, nicht auf eine Stellung: das Ventil wird ganz
+ * geschlossen, und die Stellung ist danach wieder gesichert statt geschaetzt.
+ * Den Druck nimmt dort der Ventilsitz auf. Auf geht es nur bis open_limit:
+ * am Anschlag auf faengt der Steg am Zahnrad den Stoessel ab, und das haelt
+ * die Stoesselfuehrung nicht auf Dauer aus. Das Ventil steht vorher ganz offen.
  *
  * Uebergangen wird, wer in der Zwischenzeit ohnehin gefahren ist -- ein Kanal,
  * der taeglich regelt, sitzt nicht fest, und die Fahrt kaeme dem Raum in die
@@ -417,7 +440,7 @@ static void seize_serve(uint32_t t)
         }
         switch (ch->seize_step) {
         case 1:
-            valve_force(&ch->valve, true, t);
+            valve_goto(&ch->valve, 1.0f, 0.0f, t); /* endet bei open_limit */
             ch->seize_step = 2;
             ESP_LOGI(TAG, "CH%d Schutzfahrt: auf", i + 1);
             break;
@@ -601,7 +624,8 @@ esp_err_t control_start(void)
     s_positions_saved_ms = s_boot_ms;
     sched_weekly_init(&s_seize_sched);
 
-    valve_cfg_t vc = {.open_ms = 39000, .close_ms = 40000, .max_ms = 45000, .blank_ms = 2000};
+    valve_cfg_t vc = {.open_ms = 39000, .close_ms = 40000, .max_ms = 45000, .blank_ms = 2000,
+                      .open_limit = VALVE_OPEN_LIMIT, .relief_ms = VALVE_CLOSE_RELIEF_MS};
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         valve_init(&s_ch[i].valve, &vc);
     }

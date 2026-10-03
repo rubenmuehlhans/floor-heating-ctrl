@@ -115,9 +115,10 @@ void control_cmd_all_auto(void);
 
 /*
  * Startet die Schutzfahrt von Hand: jeder Kanal, der seit der letzten
- * Schutzfahrt stillstand, faehrt einmal auf Anschlag auf, wieder zu und danach
- * auf seine vorherige Stellung zurueck. Liefert die Zahl der vorgemerkten
- * Kanaele; 0 heisst, dass alle in der Zwischenzeit ohnehin gefahren sind.
+ * Schutzfahrt stillstand, faehrt einmal auf (bis open_limit, nicht in den
+ * Anschlag), auf Anschlag wieder zu und danach auf seine vorherige Stellung
+ * zurueck. Liefert die Zahl der vorgemerkten Kanaele; 0 heisst, dass alle in
+ * der Zwischenzeit ohnehin gefahren sind.
  *
  * alle = true nimmt jeden Kanal mit, auch die zwischenzeitlich gefahrenen --
  * fuer die Erprobung.

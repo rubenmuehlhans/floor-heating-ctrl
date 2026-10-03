@@ -273,6 +273,137 @@ static void test_valve_force(void)
     CHECK(!v.forcing, "die Notfahrt darf danach nicht weiterlaufen");
 }
 
+/* Gewoehnliche Fahrten enden an open_limit, nur die Notfahrt geht in den
+ * Anschlag auf. Dort faengt der Steg am Zahnrad den Stoessel ab. */
+static void test_valve_open_limit(void)
+{
+    printf("Abstand zum Anschlag auf\n");
+
+    valve_cfg_t cfg = {.open_ms = 10000, .close_ms = 10000, .max_ms = 12000, .blank_ms = 1000,
+                       .open_limit = 0.92f};
+    valve_t v;
+    valve_init(&v, &cfg);
+    valve_restore(&v, 0.0f);
+
+    CHECK(valve_goto(&v, 1.0f, 0.01f, 0), "Fahrt auf muss starten");
+    CHECK(CLOSE(v.target, 0.92f, 0.0001f), "Ziel muss auf open_limit begrenzt sein: %.3f",
+          v.target);
+    uint32_t took = run_until_idle(&v, 0, 20000);
+    CHECK(CLOSE((float)took, 9200.0f, 100.0f), "Fahrt endet nach 92 %% der Fahrzeit: %u ms", took);
+    CHECK(v.last_stop_reason == VALVE_STOP_TARGET, "Grund muss die Zielstellung sein");
+    CHECK(CLOSE(v.position, 0.92f, 0.001f), "Stellung danach: %.3f", v.position);
+    CHECK(!valve_goto(&v, 1.0f, 0.0f, 20000), "ueber open_limit hinaus darf nicht gefahren werden");
+
+    /* Die Notfahrt endet nicht an open_limit, sondern erst an der Endlage. */
+    valve_force(&v, true, 30000);
+    uint32_t t = run_until_idle(&v, 30000, 2000) + 30000;
+    CHECK(valve_is_moving(&v), "Notfahrt darf nicht an open_limit enden");
+    CHECK(valve_endstop(&v, t), "Endlage muss die Notfahrt beenden");
+    CHECK(CLOSE(v.position, 1.0f, 0.0001f), "Stellung am Anschlag: %.3f", v.position);
+
+    /* Die naechste gewoehnliche Fahrt auf 100 % nimmt den Stoessel wieder vom
+     * Anschlag zurueck. */
+    CHECK(valve_goto(&v, 1.0f, 0.01f, t), "Fahrt zurueck auf open_limit muss starten");
+    CHECK(v.op == VALVE_CLOSING, "dazu muss geschlossen werden");
+    run_until_idle(&v, t, 20000);
+    CHECK(CLOSE(v.position, 0.92f, 0.001f), "Stellung danach: %.3f", v.position);
+
+    /* Auch das Ziel hinter einer Referenzfahrt wird begrenzt. */
+    valve_init(&v, &cfg);
+    CHECK(valve_goto(&v, 1.0f, 0.01f, 0), "Referenzfahrt muss starten");
+    CHECK(v.referencing && v.op == VALVE_CLOSING, "erst geht es zu");
+    CHECK(CLOSE(v.pending_target, 0.92f, 0.0001f), "gemerktes Ziel: %.3f", v.pending_target);
+
+    /* Ohne Angabe bleibt der ganze Hub erreichbar. */
+    valve_cfg_t ganz = {.open_ms = 10000, .close_ms = 10000, .max_ms = 12000, .blank_ms = 1000};
+    valve_init(&v, &ganz);
+    valve_restore(&v, 0.0f);
+    valve_goto(&v, 1.0f, 0.01f, 0);
+    CHECK(CLOSE(v.target, 1.0f, 0.0001f), "ohne open_limit muss 1,0 erreichbar sein");
+}
+
+/* Laesst die Zeit bis until_ms laufen, ohne auf das Ende der Fahrt zu warten. */
+static uint32_t run_to(valve_t *v, uint32_t from_ms, uint32_t until_ms)
+{
+    uint32_t t = from_ms;
+    while (t < until_ms) {
+        t += 50;
+        valve_tick(v, t);
+    }
+    return t;
+}
+
+/* Nach der Endlage zu faehrt der Antrieb kurz wieder auf, damit die
+ * Blockierkraft nicht auf Ventilstift und Dichtung stehen bleibt. */
+static void test_valve_close_relief(void)
+{
+    printf("Entlastung nach der Endlage zu\n");
+
+    valve_cfg_t cfg = {.open_ms = 10000, .close_ms = 10000, .max_ms = 12000, .blank_ms = 1000,
+                       .relief_ms = 500};
+    valve_t v;
+    valve_init(&v, &cfg);
+    valve_restore(&v, 0.5f);
+
+    valve_goto(&v, 0.0f, 0.01f, 0);
+    uint32_t t = run_to(&v, 0, 3000);
+    CHECK(valve_endstop(&v, t), "Endlage zu muss zaehlen");
+    CHECK(v.relieving && v.op == VALVE_OPENING, "danach muss die Entlastung laufen");
+    CHECK(valve_drive(&v) == HW_DRIVE_OPEN, "Ausgang muss dazu auf oeffnen stehen");
+    CHECK(!valve_endstop(&v, t + 100), "Meldungen waehrend der Entlastung zaehlen nicht");
+    uint32_t took = run_until_idle(&v, t, 5000);
+    CHECK(CLOSE((float)took, 500.0f, 60.0f), "Entlastung dauert %u ms", took);
+    CHECK(valve_drive(&v) == HW_DRIVE_OFF, "danach muss abgeschaltet sein");
+    CHECK(CLOSE(v.position, 0.0f, 0.0001f), "Stellung bleibt 0: %.3f", v.position);
+    CHECK(v.last_stop_reason == VALVE_STOP_ENDSTOP, "Grund bleibt die Endlage");
+    CHECK(!valve_goto(&v, 0.0f, 0.0f, t + 1000), "danach entsteht keine neue Fahrt zu");
+
+    /* Nach der Endlage auf gibt es nichts zu entlasten. */
+    valve_init(&v, &cfg);
+    valve_restore(&v, 0.5f);
+    valve_force(&v, true, 0);
+    t = run_to(&v, 0, 3000);
+    CHECK(valve_endstop(&v, t), "Endlage auf muss zaehlen");
+    CHECK(!valve_is_moving(&v), "nach der Endlage auf steht der Antrieb");
+
+    /* Eine Fahrt zu, die an der Maximallaufzeit endet, wird ebenfalls entlastet:
+     * der Motor stand dann womoeglich lange blockiert. */
+    valve_init(&v, &cfg);
+    valve_restore(&v, 1.0f);
+    valve_force(&v, false, 0);
+    took = run_until_idle(&v, 0, 30000);
+    CHECK(CLOSE((float)took, 12500.0f, 100.0f), "Maximallaufzeit und Entlastung: %u ms", took);
+    CHECK(v.last_stop_reason == VALVE_STOP_TIMEOUT, "Grund muss die Maximallaufzeit sein");
+    CHECK(CLOSE(v.position, 0.0f, 0.0001f), "Stellung danach: %.3f", v.position);
+
+    /* Steht hinter einer Referenzfahrt ein Ziel auf, faehrt das an - ohne
+     * Entlastung, die Fahrt nimmt die Kraft ohnehin weg. */
+    valve_init(&v, &cfg);
+    valve_goto(&v, 0.5f, 0.01f, 0);
+    t = run_to(&v, 0, 3000);
+    CHECK(valve_endstop(&v, t), "Endlage der Referenzfahrt muss zaehlen");
+    CHECK(!v.relieving && v.op == VALVE_OPENING, "danach faehrt das Ziel an");
+    CHECK(CLOSE(v.target, 0.5f, 0.0001f), "Ziel nach der Referenzfahrt: %.3f", v.target);
+
+    /* Ist das Ziel selbst zu, wird entlastet; ein Halt beendet die Entlastung. */
+    valve_init(&v, &cfg);
+    valve_goto(&v, 0.0f, 0.01f, 0);
+    t = run_to(&v, 0, 3000);
+    CHECK(valve_endstop(&v, t), "Endlage der Referenzfahrt muss zaehlen");
+    CHECK(v.relieving, "Ziel zu: es muss entlastet werden");
+    valve_stop(&v, t + 100);
+    CHECK(!valve_is_moving(&v) && !v.relieving, "Halt muss die Entlastung beenden");
+
+    /* Ohne relief_ms bleibt alles wie bisher. */
+    valve_cfg_t ohne = {.open_ms = 10000, .close_ms = 10000, .max_ms = 12000, .blank_ms = 1000};
+    valve_init(&v, &ohne);
+    valve_restore(&v, 0.5f);
+    valve_goto(&v, 0.0f, 0.01f, 0);
+    t = run_to(&v, 0, 3000);
+    CHECK(valve_endstop(&v, t), "Endlage zu muss zaehlen");
+    CHECK(!valve_is_moving(&v), "ohne relief_ms keine Entlastung");
+}
+
 /* ------------------------------------------------------------------ */
 
 static void test_hw_map(void)
@@ -2416,6 +2547,8 @@ int main(void)
     test_valve_timeout();
     test_valve_reference_run();
     test_valve_force();
+    test_valve_open_limit();
+    test_valve_close_relief();
     test_hw_map();
     test_pump_basic();
     test_pump_min_times();
