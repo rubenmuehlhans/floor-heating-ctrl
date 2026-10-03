@@ -3,7 +3,7 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
-## Unveröffentlicht, seit v0.4.0
+## v0.5.0 — 3. Oktober 2026
 
 ### Leitstand
 
@@ -156,6 +156,9 @@ Ab Build 11 (24. September, TestFlight):
   Maximallaufzeit endet, fährt der Antrieb eine Sekunde wieder auf, etwa 0,1 mm. Die Spindel ist
   selbsthemmend; bisher blieb die volle Blockierkraft danach auf Ventilstift und Dichtung stehen.
   Das Ventil bleibt geschlossen, die Stellung bei 0 %.
+- **1-Wire-Treiber 1.1.2.** Die Bauteilverwaltung von Espressif löst `onewire_bus` jetzt zu 1.1.2
+  auf. Die ROM-Suche zählt die Bits nach AN187 ab 1, die Ruhezeit nach dem Rücksetzen beträgt 480 µs
+  wie in der Spezifikation.
 
 ### Heizungsgerät
 
