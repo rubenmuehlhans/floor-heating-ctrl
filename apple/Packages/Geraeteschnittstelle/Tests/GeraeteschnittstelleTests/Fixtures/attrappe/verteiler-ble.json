@@ -1,0 +1,74 @@
+{
+ "devices": [
+  {
+   "mac": "A4:C1:38:11:22:33",
+   "name": "ATC_Kueche",
+   "rssi": -62,
+   "temp_c": 20.61,
+   "humidity": 44.2,
+   "battery": 87,
+   "battery_mv": 2914,
+   "packets": 4210,
+   "format": "pvvx"
+  },
+  {
+   "mac": "A4:C1:38:44:55:66",
+   "name": "ATC_Wohn",
+   "rssi": -71,
+   "temp_c": 21.38,
+   "humidity": 41.0,
+   "battery": 78,
+   "battery_mv": 2861,
+   "packets": 3980,
+   "format": "pvvx"
+  },
+  {
+   "mac": "A4:C1:38:77:88:99",
+   "name": "ATC_Kind",
+   "rssi": -80,
+   "temp_c": 20.14,
+   "humidity": 46.7,
+   "battery": 64,
+   "battery_mv": 2790,
+   "packets": 2210,
+   "format": "atc1441"
+  },
+  {
+   "mac": "A4:C1:38:AA:BB:CC",
+   "name": "ATC_Garage",
+   "rssi": -88,
+   "temp_c": 6.9,
+   "humidity": 71.3,
+   "battery": 55,
+   "battery_mv": 2733,
+   "packets": 640,
+   "format": "pvvx"
+  },
+  {
+   "mac": "E5:2B:9C:41:07:AA",
+   "name": "Ruuvi Aussen",
+   "rssi": -76,
+   "temp_c": 10.83,
+   "humidity": 72.5,
+   "battery": 0,
+   "battery_mv": 2996,
+   "pressure_hpa": 1013.4,
+   "packets": 8820,
+   "format": "ruuvi"
+  },
+  {
+   "mac": "C0:FF:EE:12:34:56",
+   "name": "",
+   "rssi": -67,
+   "battery": 0,
+   "battery_mv": 0,
+   "packets": 1520,
+   "format": "bthome",
+   "encrypted": true,
+   "key": "missing"
+  }
+ ],
+ "keys": [
+  "C0:FF:EE:65:43:21"
+ ]
+}

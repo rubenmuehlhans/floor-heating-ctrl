@@ -1,0 +1,180 @@
+{
+ "device": {
+  "id": "heiz_19c8a2",
+  "mac": "A0:B7:65:19:C8:A2",
+  "site": "Kessel",
+  "model": "Waermeerzeuger",
+  "role": "heat"
+ },
+ "version": "v0.3.0-8-g34bcec6-dirty",
+ "uptime_s": 1727,
+ "heap": 64304,
+ "setup_open": false,
+ "net": {
+  "sta": true,
+  "ap": false,
+  "ip": "192.168.0.179",
+  "rssi": -63,
+  "time_valid": true
+ },
+ "onewire": {
+  "pins": [
+   13,
+   -1
+  ],
+  "found": 3,
+  "assigned": 3,
+  "round_ms": 39,
+  "rounds": 173,
+  "poll_s": 10
+ },
+ "probes": [
+  {
+   "rom": "228A393C1CDBAF28",
+   "name": "228A393C1CDBAF28",
+   "role": "kessel_vl",
+   "role_label": "Kessel Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 69,
+   "raw_c": 69,
+   "delta30_c": 0.125,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 173,
+   "errors": 0
+  },
+  {
+   "rom": "8BB4CBA5B0A60928",
+   "name": "8BB4CBA5B0A60928",
+   "role": "kessel_rl",
+   "role_label": "Kessel Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 60.9375,
+   "raw_c": 60.9375,
+   "delta30_c": 0.125,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 173,
+   "errors": 0
+  },
+  {
+   "rom": "23186DB5F3A4A328",
+   "name": "23186DB5F3A4A328",
+   "role": "abgas",
+   "role_label": "Abgas",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 83.6875,
+   "raw_c": 83.6875,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 173,
+   "errors": 0
+  }
+ ],
+ "derived": {
+  "kessel_spreizung_k": 8.0625
+ },
+ "circuits": [],
+ "demand_sources": [],
+ "mqtt_connected": false,
+ "burner": {
+  "remote": false,
+  "known": true,
+  "running": true,
+  "abgas_c": 83.6875,
+  "baseline_c": 44.25,
+  "since_s": 1424,
+  "runtime_today_s": 1424,
+  "starts_today": 1,
+  "runtime_yesterday_s": 2739,
+  "starts_yesterday": 1,
+  "litres_today": 0.870222270488739,
+  "short_cycling": false
+ },
+ "charge": {
+  "phase": "geladen",
+  "limited": false,
+  "warn_dhw": false,
+  "kessel_remote": false,
+  "puffer_remote": true,
+  "since_s": 144,
+  "level": 0.4321427047252655,
+  "spread_k": 8.0625
+ },
+ "remote_probes": {
+  "puffer": 56.0374984741211,
+  "hk1_vl": 28.8125,
+  "hk1_rl": 34.5,
+  "hk2_vl": 33.5,
+  "hk2_rl": 33.6875,
+  "aussen": 14.609999656677246
+ },
+ "outdoor": {
+  "source": "Erdgeschoss",
+  "age_s": 134,
+  "temp_c": 14.609999656677246
+ },
+ "heat_peers": [
+  {
+   "id": "heiz_6e03b5",
+   "site": "Pufferspeicher",
+   "host": "192.168.0.51",
+   "seen": true,
+   "age_s": 5,
+   "roles": 5,
+   "errors": 1
+  }
+ ],
+ "record": {
+  "state": "aus",
+  "auto": false,
+  "source": "brenner",
+  "wait_off": false,
+  "tail": false,
+  "tail_left_s": 0,
+  "samples": 0,
+  "period_s": 5,
+  "started_epoch": 0,
+  "cols": 0,
+  "bytes": 0
+ },
+ "history_len": 14,
+ "findings": [],
+ "trend": {
+  "valid": false,
+  "days": 6,
+  "skipped": 1,
+  "last_day": {
+   "gradtage": 0,
+   "hours": 0.744166672229767
+  }
+ },
+ "flue": {
+  "charges": 4,
+  "skipped": 0,
+  "wartung_epoch": 1786966055
+ },
+ "boiler_pump": {
+  "enabled": true,
+  "on": true,
+  "mode": "auto",
+  "reason": "Kessel gibt Waerme ab",
+  "reason_key": "transfer",
+  "since_s": 1252,
+  "path": "http",
+  "relay": {
+   "known": true,
+   "on": true,
+   "online": true,
+   "status": 200
+  }
+ },
+ "log": {
+  "charges": 4,
+  "days": 7
+ }
+}

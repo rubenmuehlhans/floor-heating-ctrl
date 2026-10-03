@@ -1,0 +1,165 @@
+{
+ "revision": 6642,
+ "uptime_s": 48751,
+ "heap": 47796,
+ "version": "v0.4.0",
+ "device": {
+  "id": "fbh_00000b",
+  "mac": "00:00:5E:00:53:01",
+  "site": "Erdgeschoss",
+  "model": "ESP32 Ventilsteuerung, 11 Heizkreise",
+  "channels": 11
+ },
+ "net": {
+  "connected": true,
+  "ip": "192.0.2.10",
+  "ap_active": false,
+  "ap_ip": "",
+  "rssi": -45,
+  "time_valid": true
+ },
+ "rooms": [
+  {
+   "id": 1,
+   "name": "Küche",
+   "channels": [
+    1,
+    2,
+    3
+   ],
+   "mode": "heat",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 21.399999618530273,
+   "humidity": 52,
+   "battery": 67,
+   "temp_age_s": 13,
+   "target_position": 0,
+   "next_check_s": 26
+  },
+  {
+   "id": 2,
+   "name": "Wohnzimmer",
+   "channels": [
+    8,
+    9,
+    10
+   ],
+   "mode": "heat",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 21.399999618530273,
+   "humidity": 53,
+   "battery": 72,
+   "temp_age_s": 47,
+   "target_position": 0,
+   "next_check_s": 26
+  },
+  {
+   "id": 3,
+   "name": "Kinderzimmer EG",
+   "channels": [
+    4,
+    5
+   ],
+   "mode": "heat",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 20.670000076293945,
+   "humidity": 56.130001068115234,
+   "battery": 67,
+   "temp_age_s": 5,
+   "target_position": 0.20000000298023224,
+   "next_check_s": 5
+  }
+ ],
+ "channels": [
+  {
+   "id": 1,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 1,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 2,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 1,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 3,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 2,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 4,
+   "position": 0.20000000298023224,
+   "known": true,
+   "op": "idle",
+   "group": 2,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "Zielstellung erreicht",
+   "last_move_ms": 2850,
+   "seize_step": 0,
+   "moved_since_seize": true
+  }
+ ],
+ "seize": {
+  "running": false,
+  "pending": 0,
+  "done": 0,
+  "days_left": 3,
+  "weekday": 6,
+  "hour": 11
+ },
+ "outdoor": {
+  "set": true,
+  "valid": false
+ },
+ "local_sensors": {
+  "ds18b20": [],
+  "hdc1080": {
+   "valid": true,
+   "temp_c": 27.86712646484375,
+   "humidity": 42.498779296875
+  }
+ }
+}

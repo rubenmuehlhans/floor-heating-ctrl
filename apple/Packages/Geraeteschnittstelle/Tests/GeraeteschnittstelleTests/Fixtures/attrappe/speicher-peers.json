@@ -1,0 +1,32 @@
+{
+ "peers": [
+  {
+   "id": "fbh_3a91c4",
+   "site": "Keller",
+   "role": "manifold",
+   "host": "192.168.1.250",
+   "hostname": "floor-heating-keller"
+  },
+  {
+   "id": "fbh_a1b2c3",
+   "site": "Erdgeschoss",
+   "role": "manifold",
+   "host": "192.168.1.251",
+   "hostname": "floor-heating-eg"
+  },
+  {
+   "id": "fbh_d4e5f6",
+   "site": "Obergeschoss",
+   "role": "manifold",
+   "host": "192.168.1.252",
+   "hostname": "floor-heating-og"
+  },
+  {
+   "id": "heiz_9a1b2c",
+   "site": "Kessel",
+   "role": "heat",
+   "host": "192.168.1.52",
+   "hostname": "heizung-kessel"
+  }
+ ]
+}

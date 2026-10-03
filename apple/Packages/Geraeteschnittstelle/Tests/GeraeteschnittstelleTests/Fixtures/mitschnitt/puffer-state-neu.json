@@ -1,0 +1,307 @@
+{
+ "device": {
+  "id": "heiz_6e03b5",
+  "mac": "A0:B7:65:6E:03:B5",
+  "site": "Pufferspeicher",
+  "model": "Waermeerzeuger",
+  "role": "heat"
+ },
+ "version": "v0.3.0-12-gd4827b4-dirty",
+ "uptime_s": 103745,
+ "heap": 62068,
+ "setup_open": false,
+ "net": {
+  "sta": true,
+  "ap": false,
+  "ip": "192.168.0.51",
+  "rssi": -45,
+  "time_valid": true
+ },
+ "onewire": {
+  "pins": [
+   13,
+   -1
+  ],
+  "found": 5,
+  "assigned": 5,
+  "round_ms": 66,
+  "rounds": 10375,
+  "poll_s": 10
+ },
+ "probes": [
+  {
+   "rom": "EBF164C12627A128",
+   "name": "Heizkreis 2 Vorlauf",
+   "role": "hk2_vl",
+   "role_label": "Heizkreis 2 Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 31.125,
+   "raw_c": 31.125,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 10375,
+   "errors": 0
+  },
+  {
+   "rom": "320109EA0B965928",
+   "name": "Pufferspeicher",
+   "role": "puffer",
+   "role_label": "Pufferspeicher",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 53.0374984741211,
+   "raw_c": 50.4375,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 2.5999999046325684,
+   "reads": 10375,
+   "errors": 0
+  },
+  {
+   "rom": "2BD88730A01DD028",
+   "name": "Heizkreis 1 Vorlauf",
+   "role": "hk1_vl",
+   "role_label": "Heizkreis 1 Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 29.4375,
+   "raw_c": 29.4375,
+   "delta30_c": -0.0625,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 10375,
+   "errors": 0
+  },
+  {
+   "rom": "0C01AACC65D37E28",
+   "name": "Heizkreis 2 Rücklauf",
+   "role": "hk2_rl",
+   "role_label": "Heizkreis 2 Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 26.5,
+   "raw_c": 26.5,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 10375,
+   "errors": 0
+  },
+  {
+   "rom": "41BA7C1D6EA3BA28",
+   "name": "Heizkreis 1 Rücklauf",
+   "role": "hk1_rl",
+   "role_label": "Heizkreis 1 Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 34.0625,
+   "raw_c": 34.0625,
+   "delta30_c": -0.0625,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 10375,
+   "errors": 0
+  }
+ ],
+ "derived": {},
+ "circuits": [
+  {
+   "id": 1,
+   "name": "Heizkreis 1",
+   "enabled": true,
+   "mode": "auto",
+   "on": false,
+   "reason": "kein Abnehmer",
+   "since_s": 103745,
+   "demand": false,
+   "stale": false,
+   "any_seen": true,
+   "path": "http",
+   "vl_c": 29.4375,
+   "rl_c": 34.0625,
+   "spread_k": -4.625,
+   "relay": {
+    "known": false,
+    "on": false,
+    "online": false,
+    "age_s": 0,
+    "mismatch": false,
+    "status": -1
+   }
+  },
+  {
+   "id": 2,
+   "name": "Heizkreis 2",
+   "enabled": true,
+   "mode": "auto",
+   "on": false,
+   "reason": "kein Abnehmer",
+   "since_s": 103745,
+   "demand": false,
+   "stale": false,
+   "any_seen": true,
+   "path": "http",
+   "vl_c": 31.125,
+   "rl_c": 26.5,
+   "spread_k": 4.625,
+   "relay": {
+    "known": true,
+    "on": false,
+    "online": false,
+    "age_s": 21325,
+    "mismatch": false,
+    "status": -1
+   }
+  }
+ ],
+ "demand_sources": [
+  {
+   "id": "fbh_3a91c4",
+   "site": "Keller",
+   "host": "192.168.0.250",
+   "seen": true,
+   "demand": false,
+   "max_target": 0,
+   "open_channels": 0,
+   "unregulated": 0,
+   "rooms_calling": 0,
+   "age_s": 4,
+   "errors": 20
+  },
+  {
+   "id": "fbh_5d20e7",
+   "site": "Erdgeschoss",
+   "host": "192.168.0.213",
+   "seen": true,
+   "demand": false,
+   "max_target": 0,
+   "open_channels": 0,
+   "unregulated": 0,
+   "rooms_calling": 0,
+   "age_s": 4,
+   "errors": 18
+  },
+  {
+   "id": "fbh_7b44f1",
+   "site": "Obergeschoss",
+   "host": "192.168.0.46",
+   "seen": true,
+   "demand": false,
+   "max_target": 0,
+   "open_channels": 0,
+   "unregulated": 0,
+   "rooms_calling": 0,
+   "age_s": 4,
+   "errors": 11
+  }
+ ],
+ "mqtt_connected": false,
+ "burner": {
+  "remote": true,
+  "known": true,
+  "running": false,
+  "runtime_today_s": 0,
+  "starts_today": 0,
+  "runtime_yesterday_s": 0,
+  "starts_yesterday": 0,
+  "litres_today": 0,
+  "short_cycling": false
+ },
+ "charge": {
+  "phase": "keine Ladung",
+  "limited": false,
+  "warn_dhw": false,
+  "kessel_remote": true,
+  "puffer_remote": false,
+  "kalibrierung": {
+   "punkte": 0,
+   "peak_c": 68.9124984741211
+  },
+  "since_s": 103729,
+  "level": 0.07499992847442627,
+  "spread_k": -1.75
+ },
+ "remote_probes": {
+  "abgas": 27.4375,
+  "kessel_vl": 27.9375,
+  "kessel_rl": 29.6875,
+  "aussen": 21.064998626708984
+ },
+ "outdoor": {
+  "source": "Erdgeschoss",
+  "age_s": 86,
+  "temp_c": 21.064998626708984
+ },
+ "heat_peers": [
+  {
+   "id": "heiz_19c8a2",
+   "site": "Kessel",
+   "host": "192.168.0.179",
+   "seen": true,
+   "age_s": 5,
+   "roles": 3,
+   "errors": 12
+  }
+ ],
+ "record": {
+  "state": "aus",
+  "auto": false,
+  "source": "brenner",
+  "wait_off": false,
+  "tail": false,
+  "tail_left_s": 0,
+  "samples": 0,
+  "period_s": 5,
+  "started_epoch": 0,
+  "cols": 0,
+  "bytes": 0
+ },
+ "history_len": 720,
+ "findings": [],
+ "trend": {
+  "valid": false,
+  "days": 9,
+  "skipped": 1,
+  "last_day": {
+   "gradtage": 0,
+   "hours": 0
+  }
+ },
+ "flue": {
+  "charges": 5,
+  "skipped": 0,
+  "wartung_epoch": 0
+ },
+ "zapfung": {
+  "active": false,
+  "count": 0,
+  "sum_k": 0,
+  "last_k": 0,
+  "sum_kwh": 0
+ },
+ "rueckstroemung": {
+  "events": 0,
+  "last_k": 0,
+  "active": false
+ },
+ "boiler_pump": {
+  "enabled": false,
+  "on": false,
+  "mode": "auto",
+  "reason": "keine Kesselkreispumpe eingerichtet",
+  "reason_key": "disabled",
+  "since_s": 103745,
+  "path": "keiner",
+  "relay": {
+   "known": false,
+   "on": false,
+   "online": false
+  }
+ },
+ "log": {
+  "charges": 5,
+  "days": 10
+ }
+}

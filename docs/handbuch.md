@@ -23,6 +23,7 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Auswertung](#auswertung)
 - [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
 - [Verlauf und Aufzeichnung](#verlauf-und-aufzeichnung)
+- [Leitstand](#leitstand)
 - [Home Assistant](#home-assistant)
 - [Wartung](#wartung)
 - [Fehlersuche](#fehlersuche)
@@ -53,6 +54,7 @@ unangetastet. Die Firmware misst mit und schaltet ausschließlich die beiden Umw
 | Verteilerplatine (je Etage eine) | Ventile fahren, Räume regeln | Übersicht, Räume, Kreise, Sensoren, System |
 | Gerät am Kessel | Abgas sowie Vor- und Rücklauf messen, Brennerlauf erkennen | Übersicht, Fühler, Verlauf, System |
 | Gerät am Pufferspeicher | Speicher und Heizkreise messen, Pumpen schalten | zusätzlich Heizkreise |
+| Leitstand (M5Stack Core), wahlweise | Anlage anzeigen, Funkthermometer empfangen, Außentemperatur liefern; regelt nichts | Übersicht, Funk, Einstellungen, System |
 
 Alle Geräte melden sich im Netz gegenseitig an und erscheinen in der Kopfzeile als Verweise. Ein
 Klick öffnet die Oberfläche des anderen Geräts; bedient wird stets nur das gerade geöffnete.
@@ -515,27 +517,53 @@ Trinkwasser im Durchlauf erwärmt wird, ist das der praktisch spürbare Grenzfal
 
 ### Außenfühler
 
-Ein RuuviTag kann als Außenfühler dienen. Er gehört zu keinem Raum: Seine Temperatur geht in
-keine Ventilstellung ein, sondern wird aufgezeichnet und an die Heizungsgeräte weitergereicht,
-damit sich Verbrauch und Wetterlage später gegenüberstellen lassen.
+Ein RuuviTag oder ein Thermometer mit BTHome, etwa der Climate-Sat von camperSense, kann als
+Außenfühler dienen. Er gehört zu keinem Raum: Seine Temperatur geht in keine Ventilstellung ein,
+sondern wird aufgezeichnet und an die Heizungsgeräte weitergereicht, damit sich Verbrauch und
+Wetterlage später gegenüberstellen lassen.
 
-Zugeordnet wird er an einer Verteilerplatine unter **Sensoren → Außenfühler**. Die Temperatur
-steht danach in der Kopfzeile, in Home Assistant und im Verlauf der Heizungsgeräte. Ein RuuviTag
-liefert zusätzlich Luftfeuchtigkeit und Luftdruck.
+Zugeordnet wird er an einer Verteilerplatine unter **Sensoren → Außenfühler** oder am
+[Leitstand](#leitstand) unter **Funk**. Die Temperatur steht danach in der Kopfzeile, in Home
+Assistant und im Verlauf der Heizungsgeräte. Ein RuuviTag liefert zusätzlich Luftfeuchtigkeit und
+Luftdruck.
 
 Warum an der Verteilerplatine und nicht am Heizungsgerät: Die Heizungsgeräte haben kein
 Bluetooth — dort sitzen die Fühler am 1-Wire-Bus. Die Verteilerplatinen hören ohnehin mit, weil
 sie die Raumthermometer empfangen.
 
-Jedes Heizungsgerät holt sich den Wert einmal je Minute selbst, bei der ersten Verteilerplatine,
-die einen liefert. Es genügt also **eine** Platine im Haus mit Außenfühler, und sie muss keinem
-Heizkreis zugeordnet sein. Unter **Anlage** steht, von welcher der Wert kommt. Eine
-Außentemperatur ist eine Größe des Hauses, keine eines Heizkreises.
+Jedes Heizungsgerät holt sich den Wert einmal je Minute selbst: zuerst beim Leitstand, sonst bei
+der ersten Verteilerplatine, die einen liefert. Es genügt also **ein** Gerät im Haus mit
+Außenfühler, und eine Verteilerplatine muss dafür keinem Heizkreis zugeordnet sein. Unter
+**Anlage** steht, von welchem Gerät der Wert kommt. Eine Außentemperatur ist eine Größe des
+Hauses, keine eines Heizkreises. Heizungsgeräte bis 0.4.0 kennen den Leitstand noch nicht und
+fragen nur die Verteilerplatinen.
 
-Bleibt der RuuviTag länger als eine Viertelstunde stumm, gilt sein Wert als veraltet und wird
+Bleibt das Thermometer länger als eine Viertelstunde stumm, gilt sein Wert als veraltet und wird
 nicht mehr weitergegeben — sonst schriebe eine leere Batterie eine eingefrorene Temperatur in
 die Heizgradtage, ohne dass es auffiele. Die Verteilerplatine zeigt dann **kein Messwert** statt
 des letzten Werts.
+
+Unter den Verteilerplatinen sollte **nur eine** einen Außenfühler tragen. Melden zwei einen Wert,
+nimmt das Heizungsgerät den zuletzt eingegangenen; die Temperatur wechselte dann zwischen zwei
+Quellen. Ein Leitstand geht den Verteilerplatinen vor, solange sein Wert frisch ist; eine
+Verteilerplatine mit Außenfühler bleibt dann Ersatz für den Fall, dass er ausfällt.
+
+#### Funkbrücke: eine Platine nur für den Empfang
+
+Steht das Thermometer außerhalb der Reichweite aller Verteilerplatinen, etwa am Kessel, genügt
+eine weitere Platine mit der Verteiler-Firmware in seiner Nähe. Mit einem [Leitstand](#leitstand)
+entfällt sie: Er empfängt die Thermometer selbst. Sie braucht keine Ventile, keine
+Räume und keinen Heizkreis: Ein handelsüblicher ESP32 reicht, die Firmware kommt über den
+Web-Flasher darauf.
+
+1. Firmware aufspielen, das Gerät über seinen Einrichtungs-Zugangspunkt ins WLAN bringen und ihm
+   einen Ort geben, etwa „Funkbrücke Kessel“.
+2. Unter **Sensoren** den Schlüssel des Thermometers hinterlegen, falls es verschlüsselt sendet,
+   und es unter **Außenfühler** auswählen.
+3. Den Außenfühler an der bisherigen Platine abmelden, damit nur eine Quelle meldet.
+
+Die Heizungsgeräte finden die Brücke über mDNS und holen den Wert wie von jeder anderen Platine.
+Ohne Räume meldet sie keinen Wärmebedarf, und die App führt sie nicht unter den Räumen.
 
 ### Brennerzustand am Pufferspeicher
 
@@ -606,7 +634,8 @@ geht gegen null, und ein Kessel mit Restwärme bliebe stehen, obwohl der Speiche
 Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
 Speicher abkühlen. Sie springt an, sobald der Kesselvorlauf den Speicher um den Einschaltabstand
 übersteigt — das ist zugleich die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung
-erspart.
+erspart. Spätestens schaltet sie ein, wenn die Brennererkennung den Brenner meldet; das
+geschieht je nach Abgasrohr eine bis mehrere Minuten nach dem Zünden.
 
 | Einstellung | Vorgabe | Bedeutung |
 |---|---|---|
@@ -616,13 +645,28 @@ erspart.
 | Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
 | Notgrenze | 85 °C | darüber läuft sie in jedem Fall |
 
-Zwei Regeln gehen der Spreizung vor. **Ohne gültige Messwerte läuft die Pumpe** — eine laufende
-Pumpe ohne Not ist verschwenderisch, ein heißer Kessel ohne Abfuhr ist es nicht. Und
-**überschreitet der Kesselvorlauf die Notgrenze, läuft sie ebenfalls**, gleich was die Spreizung
-sagt; ein klemmender Fühler darf die Wärmeabfuhr nicht verhindern.
+Drei Regeln gehen der Spreizung vor. **Solange der Brenner läuft, läuft die Pumpe** — ohne
+Haltezeit und auch in einer Mindestpause. Aus geht sie erst, wenn die Brennererkennung den
+Brenner als aus meldet, und dann wie sonst nach Spreizung und Haltezeit; sie läuft also
+mindestens die Haltezeit nach. Die Spreizung allein reicht dafür nicht aus: Am 23. September lag
+der Kesselvorlauf während eines Brennerlaufs nur 0,9 K über dem Speicherfühler, die Pumpe stand,
+und der Kessel schaltete den Brenner nach gut zwölf Minuten selbst ab. Ein Lauf dauert sonst rund
+eine Dreiviertelstunde. **Ohne gültige Messwerte läuft die Pumpe** — eine laufende Pumpe ohne Not
+ist verschwenderisch, ein heißer Kessel ohne Abfuhr ist es nicht. Und **überschreitet der
+Kesselvorlauf die Notgrenze, läuft sie ebenfalls**, gleich was die Spreizung sagt; ein
+klemmender Fühler darf die Wärmeabfuhr nicht verhindern. Bei stehender Pumpe erreicht die Wärme
+des Kesselkörpers die Fühler am Rohr allerdings nur verzögert; die Notgrenze ersetzt deshalb die
+Kopplung an den Brenner nicht.
+
+**Nach einem Neustart** des Geräts beginnt die Regel bei laufender Pumpe, und aus geht sie
+frühestens nach der Haltezeit. Die Brennererkennung setzt mit dem zuletzt gesicherten Zustand
+fort: Lief der Brenner beim letzten Sichern und ist das Abgasrohr noch warm, gilt er weiter als
+laufend, ohne dass ein zweiter Start gezählt wird. Gesichert wird bei jedem Wechsel und während
+eines Laufs alle fünf Minuten.
 
 Ein Klick auf das Pumpensymbol im Anlagenschema schaltet die Betriebsart weiter: Automatik,
-Hand ein, Hand aus.
+Hand ein, Hand aus. **Hand aus** gilt auch bei laufendem Brenner und über der Notgrenze; die
+Betriebsart ist für Arbeiten an der Pumpe gedacht, nicht für den Betrieb.
 
 **Warum nur am Kessel.** Die Regelung braucht Kesselvor- und -rücklauf am selben Gerät. Mit
 Werten vom Nachbargerät zu schalten wäre eine Entscheidung ohne eigene Grundlage — und schlimmer:
@@ -654,6 +698,34 @@ Es braucht mindestens vierzehn Tage und eine Außenlage, die weit genug auseinan
 Sommer ist beides nicht gegeben — alle Tage stehen bei null Gradtagen, und durch eine senkrechte
 Punktwolke führt keine sinnvolle Gerade. Die Karte nennt dann den Grund, statt eine Linie zu
 zeigen, die keine ist. Tage ohne Außentemperatur bleiben außen vor und werden gezählt.
+
+### Wärmepumpen-Check
+
+Unter **Heizung › Auswertung › Wärmepumpen-Check** stellt die App zusammen, was die Planung einer
+Wärmepumpe aus dem Betrieb der Ölheizung ablesen kann. Das ersetzt keine raumweise
+Heizlastberechnung, ist aber ein Gegencheck aus dem tatsächlichen Verbrauch.
+
+- **Heizlast:** Steigung der Verbrauchslinie mal Kesselleistung ergibt die Heizwärme je
+  Heizgradtag; verlängert bis zur Normaußentemperatur des Orts (einstellbar, Vorgabe −12 °C) und
+  durch 24 Stunden geteilt, die Heizlast in kW. Die Kesselleistung ist Düsendurchsatz mal Heizwert
+  (10 kWh/l) mal Wirkungsgrad (einstellbar, Vorgabe 88 %). Dazu der Wärmeverlust des Hauses in W/K
+  und die Brennerstunden, die der Auslegungstag bräuchte.
+- **Warmwasser:** der Achsenabschnitt der Verbrauchslinie in kWh je Tag.
+- **Tankablesungen:** Zwei Ablesungen des Tankinhalts im Abstand einiger Wochen, samt nachgetankter
+  Liter, ergeben mit den aufgezeichneten Brennerstunden den tatsächlichen Düsendurchsatz. Er
+  ersetzt die Annahme, sobald mindestens 20 Brennerstunden und 90 % der Zeit dazwischen
+  aufgezeichnet sind.
+- **Vorlauftemperatur je Heizkreis:** die Heizkurve der letzten 90 Tage, verlängert bis zur
+  Normaußentemperatur, und der höchste Vorlauf in der kältesten Zeit. Bewertet wird der Wert erst,
+  wenn die Heizkurve mindestens die Hälfte der Unterschiede erklärt und die Messungen bis 15 K an
+  die Normaußentemperatur heranreichen; Richtwerte bis 35 °C sehr günstig, bis 45 °C günstig, bis
+  55 °C möglich.
+- **Räume bei Kälte:** im kältesten Viertel der Stunden die Räume, die bei mindestens 90 % offenen
+  Ventilen mehr als 0,5 K unter dem Sollwert blieben, danach die mit den am weitesten geöffneten
+  Ventilen. Sie begrenzen, wie weit sich der Vorlauf senken lässt.
+
+Die App nennt, was die Werte schwächt: angenommener Durchsatz, eine weit verlängerte Gerade, eine
+Verbrauchslinie mit geringer Bestimmtheit oder einen Auslegungstag mit mehr als 24 Brennerstunden.
 
 ### Abgas-Vorlauf-Abstand
 
@@ -802,6 +874,235 @@ die Hälfte, die an einem Gerät hängt.
 
 Aus diesen Kurven werden die Schwellwerte für den Ladezustand abgeleitet — gemessen statt
 geschätzt, wie schon bei der Messfahrt der Verteilerplatine.
+
+## Leitstand
+
+Der Leitstand ist ein zusätzliches Gerät, ein M5Stack Core mit eigener Firmware
+(`apps/station`). Er regelt nichts und schaltet nichts. Er zeigt den Zustand der Anlage auf
+seinem Bildschirm, empfängt Funkthermometer, liefert die Außentemperatur an die Heizungsgeräte und
+zeichnet alle Geräte auf seiner SD-Karte auf. HomeKit und der Abgleich des Verlaufs mit der App
+folgen in späteren Etappen; Plan und Begründung stehen im [Konzept Leitstand](konzept-leitstand.md).
+
+### Einrichten
+
+1. Firmware aufspielen. Beim ersten Mal über USB, im Verzeichnis `apps/station` mit
+   `idf.py -p <Port> flash`; danach über `POST /api/ota` wie bei den anderen Geräten. Das Öffnen
+   der seriellen Schnittstelle startet das Gerät neu; geprüft wird deshalb über das Netz.
+2. Ohne WLAN-Zugang öffnet der Leitstand einen Zugangspunkt `leitstand-XXXX`, ab Werk ohne
+   Kennwort. Der Bildschirm nennt Netz und Adresse. Eingerichtet wird entweder in der App unter
+   **Einrichtung › Neues Gerät** mit der Auswahl **Leitstand** oder im Browser: verbinden,
+   `http://192.168.4.1` öffnen und unter **Einstellungen** das Heimnetz wählen. Die App schreibt
+   Ort und WLAN-Zugang und nimmt den Leitstand danach selbst auf; den Gerätenamen `leitstand`
+   ändert sie nicht, weil die Regelgeräte ihn unter diesem Namen suchen.
+3. Im Heimnetz meldet er sich per mDNS mit der Rolle `station` und einer Kennung `lst_…` an. Er
+   findet die Verteilerplatinen und Heizungsgeräte selbst; einzutragen ist nichts.
+
+In der App erscheint er in der Einrichtung mit einem eigenen Symbol und wird dort aufgenommen.
+Die App führt ihn unter **Geräte → Leitstand**, getrennt von den Regelgeräten: Er hat keine
+Parameter, keine Sicherung und gehört zu keiner Etage.
+
+### Bildschirm und Tasten
+
+Am Core2 gibt es sechs Seiten, am Core Basic nur Anlage und Leitstand: Verlauf und Ereignisse
+brauchen Speicher, den der Core Basic nicht hat.
+
+| Seite | Inhalt | Mittlere Taste |
+|---|---|---|
+| Anlage | Kessel mit Vorlauf, Rücklauf und Abgas, Brenner an oder aus mit Laufzeit und Starts des Tages, Speicher mit Füllstand, Außentemperatur | – |
+| Räume (Core2) | alle Räume aller Verteiler mit Ist, Soll, Ventilstellung und Feuchte, nach Etage; ein Raum unter seinem Sollwert steht in Blau, ein ausgeschalteter mit „aus“ | nächste Seite der Liste |
+| Verlauf (Core2) | 24 Stunden: Speicher, Kesselvorlauf (gestrichelt), Außen, darunter der Brennerlauf als Balken | Raumwerte: die Temperatur jedes Raums |
+| Meldungen (Core2) | offene Befunde der Heizungsgeräte, darunter die Ereignisse des Tages mit Uhrzeit, neueste zuerst | ältere Ereignisse |
+| Geräte (Core2) | je Gerät Erreichbarkeit, WLAN, Laufzeit seit dem Neustart (unter einem Tag hervorgehoben), freier Speicher, Fassung; darunter der Außenfühler mit Schlüsselzustand | Funkthermometer in Reichweite |
+| Leitstand | Uhrzeit, WLAN, freier Speicher, erreichbare Geräte, Außenfühler, Protokoll, HomeKit, Firmware, Gerät mit Versorgung (Core2: Netz oder Akku mit Ladestand) | HomeKit-Code mit QR-Code |
+
+- **Linke und rechte Taste** blättern zwischen den Seiten. Der erste Druck auf einen dunklen
+  Bildschirm weckt ihn nur.
+- **Mittlere Taste**, anderthalb Sekunden gehalten, schaltet den Bildschirm aus und wieder an;
+  kurz gedrückt schaltet sie innerhalb der Seite um (Tabelle). Was sie tut, steht in der Mitte
+  des Fußes.
+- **Berührung (Core2):** Die drei Tasten sind die Felder unter dem Bildschirm. Auf dem Bildschirm
+  blättert Wischen nach links oder rechts zur nächsten oder vorigen Seite; Wischen nach oben oder
+  unten wirkt wie die mittlere Taste; Tippen auf den Fuß wie die Taste darunter.
+- Kommt ein neuer Befund hinzu, schaltet sich die Anzeige am Core2 ein und zeigt die Seite
+  Meldungen.
+- Nach `dim_after_min` Minuten ohne Bedienung wird er auf ein Sechstel der Helligkeit
+  abgedunkelt, in der Nacht zwischen `night_from_h` und `night_to_h` nach einer Minute ganz
+  ausgeschaltet.
+
+Den Verlauf hält der Leitstand im PSRAM; nach einem Neustart liest er die letzten 24 Stunden aus
+den Fünfminutendateien der Karte. Die Seite lässt sich auch aus der App umschalten, und die App zeigt ein Abbild des Bildschirms
+(`GET /api/screen`). Das Bild wird zeilenweise gelesen; währenddessen steht der Bildschirm für
+einen Augenblick still.
+
+### Funkthermometer und Außenfühler
+
+Der Leitstand empfängt dieselben Thermometer wie die Verteilerplatinen: BTHome offen und
+verschlüsselt, etwa den Climate-Sat von camperSense, dazu RuuviTag sowie Xiaomi- und
+ATC-Thermometer. Der
+Schlüssel eines verschlüsselten Thermometers, 32 Hexadezimalziffern aus der Hersteller-App, wird
+unter **Funk** oder in der App unter **Leitstand → Funkthermometer** hinterlegt. Dort steht auch,
+ob er passt.
+
+Eines der Thermometer wird dort **als Außenfühler** zugeordnet. `GET /api/demand` liefert seinen
+Wert als `outdoor_c` mit dem Alter `outdoor_age_s`, solange er nicht älter als eine Viertelstunde
+ist. Heizungsgeräte ab der Fassung nach 0.4.0 fragen den Leitstand zuerst und weichen erst dann
+auf eine Verteilerplatine aus (siehe [Außenfühler](#außenfühler)). Der Leitstand selbst meldet
+keinen Wärmebedarf.
+
+### Protokoll auf der SD-Karte
+
+Der Leitstand fragt jedes Gerät alle 30 Sekunden ab und schreibt, was es liefert, auf die Karte.
+Je Tag, gezählt in UTC, entsteht ein Verzeichnis `protokoll/<jahr>/<tag>/`:
+
+| Datei | Inhalt |
+|---|---|
+| `geraete.json` | Kennung, Ort, Art und Firmware je Gerät |
+| `<kennung>.csv` | Messwerte im Takt der Abfrage |
+| `<kennung>.5min.csv` | Mittelwerte je fünf Minuten, im Raster der App |
+| `ereignisse.jsonl` | Neustart mit Grund, Erreichbarkeit, Firmware, Brenner und Pumpen mit Dauer, Sollwerte, Betriebsarten, Befunde |
+| `zustaende.jsonl` | vollständiger Zustand jedes Geräts alle 15 Minuten und bei neuer Firmware |
+| `protokolle/<kennung>.ladungen.csv`, `.tage.csv` | Ladungs- und Tagesprotokoll der Heizungsgeräte, einmal am Tag vollständig übernommen |
+
+Welche Spalten eine Datei hat und was sie bedeuten, steht im
+[Katalog der Messgrößen](katalog-messgroessen.md). Kommt im Laufe des Tages eine Spalte hinzu,
+etwa durch einen neuen Raum, beginnt eine neue Datei `<kennung>.2.csv`.
+
+- **Karte:** FAT32. Vorgesehen ist eine Ausführung für Dauerbetrieb mit 16 GB; der Leitstand
+  schreibt rund 4 MB am Tag. Ohne Karte läuft er weiter und versucht es jede Minute erneut. Wird
+  die Karte im Betrieb gezogen oder getauscht, merkt er das binnen zehn Sekunden an ihrem Status,
+  gibt die Einbindung auf und bindet die neue ein; beides steht als Ereignis `leitstand` im
+  Protokoll. Sicherer bleibt es, ihn für den Tausch vom Strom zu nehmen. Eine Karte mit anderem
+  Dateisystem oder mehreren Partitionen, etwa von einem Raspberry Pi, formatiert der Leitstand unter
+  **Protokoll → Karte formatieren** als eine FAT32-Partition über die ganze Karte; alles darauf
+  geht dabei verloren. Eine Karte mit 64 GB braucht dafür rund 15 Sekunden.
+- **Schreiben:** Jede Zeile geht sofort auf die Karte: Datei öffnen, anhängen, schließen. Ein
+  Stromausfall kostet höchstens die Zeile, die gerade geschrieben wird. Das Konzept sah vor, eine
+  Minute im Arbeitsspeicher zu sammeln; dafür ist auf dem Core ohne PSRAM kein Platz.
+- **Uhrzeit:** Ohne gestellte Uhr wird nichts geschrieben. Wie viele Abfragen bis dahin
+  verworfen wurden, steht im Ereignis `leitstand` beim Start.
+- **Platz:** Unterschreitet der freie Platz 10 Prozent, löscht der Leitstand stündlich die
+  ältesten Zustände und Messwerte im Takt der Abfrage. Fünfminutenmittel und Ereignisse bleiben.
+- **Abruf:** Die Weboberfläche zeigt unter **Protokoll** den Stand der Karte und die Tage mit
+  ihren Dateien zum Herunterladen. `GET /log/<tag>/<datei>` liefert eine Datei, mit
+  `Range: bytes=N-` ab Stelle N; alle Dateien wachsen nur.
+- **Auswertung am Gerät:** `GET /api/log/series` liefert ausgewählte Messgrößen eines Geräts in
+  wählbarem Raster, `GET /api/log/events` die Ereignisse eines Zeitraums, beides als JSON.
+- **Prüfen:** `python3 tools/protokoll_pruefen.py leitstand.local [tag]` holt die Dateien eines
+  Tages und prüft Spaltenzahl, Zeitfolge und JSON-Zeilen, zählt die Abtastungen je Gerät und
+  meldet Lücken über vier Takte, die kein Ereignis belegt.
+
+Der Bildschirm nennt auf der Seite Leitstand unter **Protokoll** den freien Platz, die seit dem
+Start geschriebene Menge und Schreibfehler.
+
+**In der App.** Die App übernimmt die Fünfminutenmittel des Leitstands in ihren Verlauf, beim
+Verbinden und danach alle fünf Minuten. Vom laufenden Tag holt sie mit `Range` nur die Zeilen, die
+seit dem letzten Abgleich hinzukamen; eine Zeile ohne Zeilenende bleibt für den nächsten Abgleich
+stehen. Ein Tag gilt zehn Minuten nach Mitternacht (UTC) als abgeschlossen und wird danach nicht
+mehr abgefragt. Die Werte des Leitstands haben Vorrang vor der eigenen Aufzeichnung der App, weil
+sie den ganzen Zeitraum abdecken; ein zweiter Abgleich desselben Tages überschreibt, statt doppelt
+zu zählen. Wie weit der Abgleich ist, steht je Leitstand in `Abgleich-<kennung>.json` neben dem
+Verlauf und wird nach jeder Datei gesichert, sodass ein abgebrochener Abgleich an derselben Stelle
+fortsetzt. Den Stand zeigt **Geräte › Leitstand › Verlauf**.
+
+Heizung › Verlauf zeigt jede Gruppe in einem eigenen Diagramm mit eigener Skala; die Heizkreise
+teilen eine Skala und zeigen die Außentemperatur auf einer festen rechten Achse (−10 bis 20 °C).
+Über die Karte eines Heizkreises führt **Verlauf und Heizkurve** zum Vorlauf über der
+Außentemperatur mit Ausgleichsgerade: Ihre Steigung ist die Heizkurve, wie sie sich einstellt.
+
+Der Assistent liest die Ereignisse über das Werkzeug `ereignisse`, etwa für „Wie oft ist der
+Brenner gestern angesprungen?“. Mit `feinverlauf` holt er Messwerte im Takt der Abfrage vom
+Leitstand, bis 24 Stunden, auch freien Speicher und WLAN-Empfang eines Geräts; das geht nur im
+Heimnetz. `verlauf` reicht bis ein Jahr, über 30 Tage in Tagesmitteln.
+
+**Analysepaket.** Unter **Einstellungen › Daten › Analysepaket erstellen** entsteht ein ZIP mit
+dem Verlauf eines Zeitraums (7 Tage bis 1 Jahr) im gewählten Raster (5 Minuten bis 1 Tag): je
+Gerät eine CSV-Datei mit den Spalten des Katalogs, Zeiten in UTC, dazu `ereignisse.csv`,
+`anlage.json` mit Geräten, Räumen und Heizkreisen, der Katalog der Messgrößen und `LIESMICH.txt`.
+Es enthält Gerätekennungen, Orts- und Raumnamen, aber keine Adressen und keine Zugangsdaten. Die
+App gibt es nur über **Teilen** weiter.
+
+Ebenso übernimmt die App `ereignisse.jsonl`. **Heizung › Verlauf** markiert im Diagramm Neustarts
+(rot nach Absturz, Wächter oder Unterspannung), neue Firmware und neue Befunde der gezeigten Geräte
+und legt einen grauen Streifen über die Zeit, in der ein Gerät nicht erreichbar war; darunter stehen
+dieselben Ereignisse als Liste mit Grund und Dauer. Der Verlauf eines Raums markiert, wann er ein-
+oder ausgeschaltet wurde, und Neustarts seines Verteilers. Ist eine Datei auf dem Leitstand kürzer
+als das bereits Übernommene, wurde die Karte getauscht oder formatiert; die App liest den Tag dann
+von vorn. Nach **Einstellungen › Verlauf löschen** übernimmt sie alles, was auf der Karte liegt,
+erneut.
+
+### HomeKit
+
+Auf dem Core2 (mit PSRAM) ist der Leitstand eine HomeKit-Brücke. Am Core Basic bleibt HomeKit
+aus; die Seite Leitstand sagt dann „aus · braucht PSRAM“.
+
+- **Je Raum ein Thermostat:** Isttemperatur, Sollwert von 5 bis 35 °C in Schritten von 0,5 K,
+  Betriebsart aus oder heizen, Heizzustand (Ventile offen) und Luftfeuchte, sofern das
+  Raumthermometer sie liefert.
+- **Fühler:** Außen (Temperatur und Feuchte), Pufferspeicher und Kesselvorlauf, sobald die
+  Anlage sie liefert.
+- **Schreiben:** Sollwert und Betriebsart gehen nach 900 ms Sammelzeit an den zuständigen
+  Verteiler, über dieselben Endpunkte wie die App; das Verschieben eines Reglers in Home löst so
+  nur einen Befehl aus. Scheitert er, versucht es der Leitstand dreimal im Abstand von zwei
+  Sekunden. Bis die Abfrage den neuen Wert zeigt, höchstens eine Minute, behält Home den
+  eingestellten Wert.
+- **Nicht erreichbar:** Antwortet ein Verteiler nicht, zeigen seine Räume in Home „Keine Antwort“
+  statt veralteter Werte.
+- **Nicht über HomeKit:** Pumpen und Einstellungen der Anlage.
+- **Hinzufügen:** Den Code erzeugt der Leitstand beim ersten Start und behält ihn. Er steht nur
+  auf der Anzeige (Seite Leitstand, mittlere Taste kurz), als Zahl und als QR-Code; weder die App
+  noch die Weboberfläche zeigen ihn. In der Home-App: Gerät hinzufügen, Code scannen.
+- **Neue Räume** erscheinen in Home ohne neue Kopplung. Die Zuordnung eines Raums zu einem Zimmer
+  in Home bleibt über Neustarts erhalten.
+- **Kopplungen löschen:** in der App unter Geräte › Leitstand › HomeKit oder mit
+  `POST /api/homekit/reset` und `{"bestaetigung":"KOPPLUNGEN LOESCHEN"}`. Der Code bleibt.
+- Für Automationen und den Zugriff von unterwegs braucht Home eine Steuerzentrale (Apple TV oder
+  HomePod).
+
+**Echtzeituhr und Versorgung (Core2):** Nach einem Stromausfall stellt der Leitstand die Zeit aus
+seiner Echtzeituhr, bevor das Netz sie liefert, und protokolliert ohne Lücke weiter; stündlich
+stellt er die Uhr nach der Netzzeit nach. Fällt die Versorgung aus, läuft er auf dem Akku weiter
+und schreibt ein Ereignis `leitstand` mit `versorgung_aus` samt Ladestand, bei Rückkehr
+`versorgung_wieder`.
+
+### Einstellungen
+
+| Schlüssel | Vorgabe | Bedeutung |
+|---|---|---|
+| `site` | Leitstand | Name in der Kopfzeile und in der App |
+| `outdoor.mac` | leer | Adresse des Außenfühlers; leer heißt keiner |
+| `poll.heat_s` | 30 s | Abfragetakt der Heizungsgeräte |
+| `poll.manifold_s` | 30 s | Abfragetakt der Verteilerplatinen |
+| `display.brightness` | 160 | Helligkeit, 10 bis 255 |
+| `display.dim_after_min` | 2 | Abdunkeln nach so vielen Minuten ohne Bedienung; 0 heißt nie |
+| `display.night_from_h`, `display.night_to_h` | 23, 6 | Bildschirm nachts aus, zur vollen Stunde; −1 heißt nie |
+| `wifi.ssid`, `wifi.pass`, `wifi.hostname`, `wifi.ap_pass`, `wifi.timezone` | —, —, `leitstand`, —, Mitteleuropa | wie bei den anderen Geräten |
+
+Einen täglichen Neustart gibt es am Leitstand nicht. Die Heizungsgeräte werden alle 30 statt alle
+10 Sekunden abgefragt, bis geklärt ist, ob ihre Neustarts am 23. September mit der häufigeren
+Abfrage zusammenhingen.
+
+### Schnittstelle
+
+| Aufruf | Zweck |
+|---|---|
+| `GET /api/state` | Gerät, Netz, Speicher, Neustartgrund (`reset_reason`), Außenfühler, Funk, erreichbare Geräte, Anzeige, Protokoll (`log`) |
+| `GET /api/plant` | zusammengefasster Zustand der abgefragten Geräte |
+| `GET`/`PUT /api/config` | Einstellungen, ohne Kennwörter |
+| `GET /api/ble`, `POST /api/ble/key` | empfangene Thermometer, Schlüssel setzen oder löschen |
+| `GET /api/demand` | Außentemperatur für die Heizungsgeräte |
+| `GET /api/peers` | gefundene Geräte |
+| `GET /api/screen` | Abbild des Bildschirms als BMP |
+| `POST /api/display` | Seite wählen, Bildschirm an oder aus |
+| `POST /api/system/restart`, `/api/system/factory` | Neustart, Werksvorgabe |
+| `POST /api/ota` | Firmware aktualisieren; während der Übertragung ruht die Abfrage der Anlage |
+| `GET /api/log/days` | Tage mit Protokoll; mit `?tag=JJJJ-MM-TT` dessen Dateien samt Größe |
+| `GET /log/<tag>/<datei>` | eine Datei des Protokolls, mit `Range: bytes=N-` ab Stelle N; die übernommenen Protokolle unter `protokolle/` |
+| `GET /api/log/series?geraet=&schluessel=a,b&von=&bis=&raster=` | Mittel von bis zu acht Messgrößen je Raster; ab 300 s aus den Fünfminutenmitteln, höchstens 31 Tage, darunter aus den Rohwerten, höchstens 2 Tage; Zeiten in Sekunden seit 1970 |
+| `GET /api/log/events?von=&bis=[&geraet=][&art=]` | Ereignisse eines Zeitraums, höchstens 31 Tage und 2000 Einträge |
+| `POST /api/homekit/reset` | alle Kopplungen mit Home löschen; nur mit `{"bestaetigung":"KOPPLUNGEN LOESCHEN"}`. Den Stand (`active`, `reason`, `controllers`, `accessories`) liefert `GET /api/state` unter `homekit`, den Code nicht |
+| `POST /api/log/lasttest`, `GET /api/log/lasttest` | Dauerlastprüfung: `{"mb":1024}` schreibt ein Muster auf die Karte, liest es zurück und vergleicht; der Betrieb läuft dabei weiter |
+| `POST /api/log/format` | ganze Karte als FAT32 formatieren; nur mit `{"bestaetigung":"KARTE LOESCHEN"}` |
+| `GET /api/coredump`, `POST /api/coredump/erase` | letzter Absturz: Task, Programmzähler, Ursache, Rücksprungadressen und Prüfsumme des ELF; löschen |
 
 ## Home Assistant
 
@@ -1242,7 +1543,7 @@ Erdgeschoss und im Obergeschoss sowie je ein Gerät an Kessel und Pufferspeicher
 | Gegenseitiges Auffinden der Geräte | im Betrieb |
 | Fühler an Kessel und Pufferspeicher | im Betrieb |
 | Bedarfsabfrage und Pumpenlogik | im Betrieb |
-| Kesselkreispumpe mit Relais | im Betrieb; Schwellen an der Anlage gemessen |
+| Kesselkreispumpe mit Relais | im Betrieb; Schwellen an der Anlage gemessen. Kopplung an die Brennererkennung und Fortsetzung nach einem Neustart seit 23. September am Kessel aufgespielt; die Pumpe steht dort noch auf Hand ein, im Automatikbetrieb noch nicht erprobt |
 | Brennerlauf, Ladeerkennung, Aufzeichnung | im Betrieb seit Mitte August, 23 Ladungen |
 | Nullpunkt des Füllstands nachmessen | im Betrieb; erster Messpunkt am 5. September |
 | Warmwasserzapfung, Rückströmung | im Betrieb; beide an der Anlage beobachtet |
@@ -1252,9 +1553,15 @@ Erdgeschoss und im Obergeschoss sowie je ein Gerät an Kessel und Pufferspeicher
 | Abgas-Vorlauf-Abstand | rechnet aus 23 Ladungen, 7 K |
 | Raumregelung unter Heizlast | nicht erprobt, bisher fast nur Warmwasserbereitung |
 | MQTT-Discovery | nicht erprobt, kein Broker eingerichtet |
+| Leitstand: Anzeige, Abfrage der Geräte, Funkempfang | im Betrieb seit 23. September auf einem M5Stack Core ohne PSRAM; tiefster freier Speicher rund 35 kB, 24-Stunden-Messung offen |
+| Leitstand als Quelle der Außentemperatur | Das Gerät am Kessel fragt ihn seit 23. September zuerst; Schlüssel des Climate-Sat und Zuordnung sind noch nicht eingetragen, der Wert kommt deshalb weiter vom Verteiler. Das Gerät am Pufferspeicher trägt noch 0.4.0 |
+| Leitstand in der App | ab Build 6 der App; gegen die Attrappe erprobt, am echten Gerät noch nicht aufgenommen |
+| Protokoll auf der SD-Karte | seit 23. September am Leitstand, seit 10:22 Uhr auf einer Karte mit 64 GB; vorher auf der 56-MB-Startpartition dieser Karte. Acht Neustarts während des Schreibens, drei davon als Absturz, ohne einen Formatfehler (`tools/protokoll_pruefen.py`). Dauerlast bestanden: 1 GB bei laufender Anzeige geschrieben und zurückgelesen, ohne Fehler. Drei Stromunterbrechungen während des Schreibens ohne Schaden; die Sieben-Tage-Prüfung steht aus |
+| Neustartgrund `reset_reason`, Neustart ohne Absturz | seit 23. September auf allen Geräten der Anlage und am Leitstand |
 
 Die Rechenmodule hinter Regelung, Ventilen, Pumpen, Brenner, Ladezustand, Plausibilität,
-Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 578 Prüfungen (`make -C test/host`),
+Kesselkreispumpe und Auswertung laufen ohne Hardware gegen 611 Prüfungen, das Protokoll des
+Leitstands gegen weitere 137 (`make -C test/host`),
 ebenso die Dekodierung und Entschlüsselung der Funkpakete.
 Dass Einstellungsablage, Rechenmodule und Oberfläche dieselben Vorgaben führen, prüft
 `python3 tools/check_defaults.py`.

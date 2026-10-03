@@ -214,7 +214,7 @@ def state():
         })
 
     return {
-        "revision": REV[0], "uptime_s": int(t) + 7321, "heap": 148000 + int(random.uniform(0, 4000)),
+        "revision": REV[0], "uptime_s": int(t) + 7321, "reset_reason": "power_on", "heap": 148000 + int(random.uniform(0, 4000)),
         "device": {"id": "fbh_a1b2c3", "mac": "A0:B7:65:A1:B2:C3", "site": CFG["site"],
                    "model": "ESP32 Ventilsteuerung, 11 Heizkreise", "channels": 11},
         "version": "1.0.0",

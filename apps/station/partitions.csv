@@ -1,0 +1,10 @@
+# Name,     Type, SubType,  Offset,   Size,     Flags
+# 16 MB wie am Core Basic und am Core2. Zwei Programmplaetze zu 3 MB lassen
+# Raum fuer die HomeKit-Schicht; der Absturzspeicher haelt die letzte
+# Ausnahme fest, damit ein Neustart eine Ursache behaelt.
+nvs,        data, nvs,      0x9000,   0xF000,
+otadata,    data, ota,      0x18000,  0x2000,
+phy_init,   data, phy,      0x1A000,  0x1000,
+ota_0,      app,  ota_0,    0x20000,  0x300000,
+ota_1,      app,  ota_1,    0x320000, 0x300000,
+coredump,   data, coredump, 0x620000, 0x10000,

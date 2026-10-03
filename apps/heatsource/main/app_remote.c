@@ -161,6 +161,9 @@ static bool fetch(const char *host, remote_peer_t *p)
 
 static char s_aussen_quelle[CFG_NAME_LEN];
 static uint32_t s_aussen_alter_s;
+/* Letzter Aussenwert vom Leitstand, siehe remote_outdoor_from_station */
+static bool s_aussen_leitstand;
+static uint32_t s_aussen_ms;
 
 static bool fetch_outdoor(const char *host, float *out_c, uint32_t *out_age_s)
 {
@@ -201,11 +204,11 @@ static bool fetch_outdoor(const char *host, float *out_c, uint32_t *out_age_s)
     return ok;
 }
 
-/* Rueckgabe: true, sobald ein Verteiler geliefert hat. */
-static bool aussen_holen(const peer_t *gefunden, size_t n)
+/* Wie aussen_holen, beschraenkt auf eine Geraeteart. */
+static bool aussen_holen_von(const peer_t *gefunden, size_t n, const char *rolle)
 {
     for (size_t i = 0; i < n; i++) {
-        if (strcmp(gefunden[i].role, PEERS_ROLE_MANIFOLD) != 0) {
+        if (strcmp(gefunden[i].role, rolle) != 0) {
             continue;
         }
         float c = 0.0f;
@@ -224,8 +227,40 @@ static bool aussen_holen(const peer_t *gefunden, size_t n)
                  (int)sizeof(s_aussen_quelle) - 1,
                  gefunden[i].site[0] ? gefunden[i].site : gefunden[i].id);
         s_aussen_alter_s = alter;
+        s_aussen_leitstand = strcmp(rolle, PEERS_ROLE_STATION) == 0;
+        s_aussen_ms = now_ms();
         xSemaphoreGive(s_mtx);
         return true;
+    }
+    return false;
+}
+
+bool remote_outdoor_from_station(void)
+{
+    if (s_mtx == NULL) {
+        return false;
+    }
+    xSemaphoreTake(s_mtx, portMAX_DELAY);
+    bool ja = s_aussen_leitstand && now_ms() - s_aussen_ms < AUSSEN_STALE_S * 1000u;
+    xSemaphoreGive(s_mtx);
+    return ja;
+}
+
+/*
+ * Rueckgabe: true, sobald ein Geraet geliefert hat.
+ *
+ * Zuerst der Leitstand, danach die Verteiler: Der Leitstand steht mit seinem
+ * Funkempfang in Kesselnaehe und ist fuer den Aussenfuehler gedacht; ein
+ * Verteiler mit Aussenfuehler bleibt der Ersatz, falls er ausfaellt. Siehe
+ * docs/konzept-leitstand.md.
+ */
+static bool aussen_holen(const peer_t *gefunden, size_t n)
+{
+    static const char *const rollen[] = {PEERS_ROLE_STATION, PEERS_ROLE_MANIFOLD};
+    for (size_t r = 0; r < sizeof(rollen) / sizeof(rollen[0]); r++) {
+        if (aussen_holen_von(gefunden, n, rollen[r])) {
+            return true;
+        }
     }
     return false;
 }

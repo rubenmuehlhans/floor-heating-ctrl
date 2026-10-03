@@ -237,6 +237,26 @@ void burner_init(burner_state_t *st)
     memset(st, 0, sizeof(*st));
 }
 
+void burner_resume(burner_state_t *st, bool running, float baseline_c)
+{
+    st->resume = true;
+    st->resume_running = running;
+    st->resume_baseline_c = baseline_c;
+}
+
+/* Erster Messwert nach einem Neustart mit gesichertem Zustand, siehe
+ * burner_resume. */
+static void fortsetzen(burner_state_t *st, const burner_cfg_t *cfg, float abgas_c)
+{
+    st->resume = false;
+    if (st->resume_baseline_c < abgas_c) {
+        st->baseline_c = st->resume_baseline_c;
+    }
+    if (st->resume_running && abgas_c >= st->baseline_c + cfg->delta_off_k) {
+        st->running = true;
+    }
+}
+
 void burner_new_day(burner_state_t *st)
 {
     st->runtime_today_s = 0;
@@ -272,6 +292,9 @@ void burner_tick(burner_state_t *st, const burner_cfg_t *cfg, const burner_input
         st->since_ms = now_ms;
         st->cond_since_ms = now_ms;
         st->last_ms = now_ms;
+        if (st->resume) {
+            fortsetzen(st, cfg, abgas_c);
+        }
     }
 
     uint32_t dt = now_ms - st->last_ms;

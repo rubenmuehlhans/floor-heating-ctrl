@@ -366,10 +366,11 @@ a.btn:hover{filter:none}
           <button data-m="aus">Aus</button>
         </div>
       </div>
-      <p class="lede">Die Pumpe zwischen Kessel und Pufferspeicher. Sie läuft, solange der
-         Kesselvorlauf wärmer ist als der Rücklauf aus dem Speicher — nur dann gibt der Kessel
-         Wärme ab. Kehrt sich das um, fördert sie Wärme aus dem Speicher in den Kessel und von
-         dort in den Schornstein; deshalb wird sie dann abgeschaltet.</p>
+      <p class="lede">Die Pumpe zwischen Kessel und Pufferspeicher. Solange der Brenner läuft,
+         läuft sie. Danach entscheidet der Abstand zwischen Kesselvorlauf und Speicher: Sie
+         läuft, solange der Kessel wärmer ist als der Speicher — nur dann gibt er Wärme ab.
+         Kehrt sich das um, fördert sie Wärme aus dem Speicher in den Kessel und von dort in den
+         Schornstein; deshalb wird sie dann abgeschaltet.</p>
       <div class="pump-state">
         <i class="pump-dot" id="bp-dot"></i>
         <div id="bp-state"></div>
@@ -396,10 +397,11 @@ a.btn:hover{filter:none}
 
       <h3 class="sub">Schaltpunkte</h3>
       <p class="lede">Zwischen Ein- und Ausschaltschwelle bleibt es, wie es war — sonst
-         schaltete die Pumpe im Minutentakt, sobald die Spreizung um null pendelt. Über der
-         Notgrenze läuft sie in jedem Fall, auch gegen die Schwellen: Ein klemmender Fühler
-         darf die Wärmeabfuhr nicht verhindern. Fehlen die Kesselwerte ganz, läuft sie
-         ebenfalls.</p>
+         schaltete die Pumpe im Minutentakt, sobald die Spreizung um null pendelt. Die
+         Schwellen gelten nur bei ausgeschaltetem Brenner: Meldet die Brennererkennung ihn als
+         laufend, läuft die Pumpe ohne Haltezeit. Über der Notgrenze läuft sie in jedem Fall,
+         auch gegen die Schwellen: Ein klemmender Fühler darf die Wärmeabfuhr nicht verhindern.
+         Fehlen die Kesselwerte ganz, läuft sie ebenfalls.</p>
       <div class="fields">
         <label>Ein ab Spreizung (K)<input type="number" id="bp-onk" step="0.1" min="0.1"
                max="20" style="width:6rem"></label>
@@ -1292,6 +1294,7 @@ const freieKennung = () => {
    Zeichenketten auch ins Protokoll gehen und deshalb ohne Umlaute bleiben. */
 const BP_GRUND = {
   transfer: "der Kessel gibt Wärme ab",
+  burner: "der Brenner läuft",
   no_transfer: "Kessel kaum wärmer als der Speicher — Fördern brächte keine Wärme in den Speicher",
   emergency: "Notabfuhr, Kesselvorlauf über der Grenze",
   no_reading: "keine Kesselwerte, sie läuft sicherheitshalber",

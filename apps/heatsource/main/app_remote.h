@@ -55,6 +55,14 @@ void remote_set_value(probe_role_t role, float value_c);
  */
 bool remote_outdoor_source(char *out, size_t len, uint32_t *age_s);
 
+/*
+ * Ob die Aussentemperatur gerade vom Leitstand kommt und frisch ist. Solange
+ * das gilt, uebernimmt die Pumpensteuerung keinen Aussenwert aus den
+ * Bedarfsantworten der Verteiler -- sonst wechselte die Quelle alle paar
+ * Sekunden.
+ */
+bool remote_outdoor_from_station(void);
+
 /* Brennerzustand des Nachbargeraets. */
 bool remote_burner(bool *running);
 

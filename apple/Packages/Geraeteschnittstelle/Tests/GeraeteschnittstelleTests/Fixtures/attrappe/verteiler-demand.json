@@ -1,0 +1,11 @@
+{
+ "id": "fbh_a1b2c3",
+ "site": "Erdgeschoss",
+ "demand": true,
+ "max_target": 0.7,
+ "open_channels": 5,
+ "unregulated": 2,
+ "rooms_calling": 3,
+ "min_room_c": 20.1,
+ "sensor_ok": true
+}

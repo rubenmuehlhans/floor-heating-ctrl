@@ -24,9 +24,10 @@ deutlich über einer gleitenden Bezugslinie liegt und um einen festen Ausschlag
 Ausschlag unter den Höchstwert der Fahrt fällt. Der Ausschlag greift auch bei
 warmem Kessel, bei dem die Bezugslinie nicht mehr unterscheidet. Daraus
 führt es Laufzeit, Startzahl und eine Verbrauchsschätzung. Es schaltet die
-Kesselkreispumpe nach dem Abstand zwischen Kesselvorlauf und Speicher: Sie
-läuft, solange der Kessel Wärme abgibt, und steht, sobald sie nur noch Wärme aus
-dem Speicher in den Kessel tragen würde.
+Kesselkreispumpe: Solange der Brenner läuft, läuft sie; danach entscheidet der
+Abstand zwischen Kesselvorlauf und Speicher. Sie läuft, solange der Kessel
+Wärme abgibt, und steht, sobald sie nur noch Wärme aus dem Speicher in den
+Kessel tragen würde.
 
 **Gerät am Pufferspeicher.** Es misst die Speichertemperatur und Vor- und
 Rücklauf der Heizkreise, beurteilt daraus Ladezustand und Füllstand — dessen
@@ -35,6 +36,13 @@ Umwälzpumpen über Tasmota-Relais — ab, wenn kein Raum Wärme abruft, und
 wöchentlich kurz an, damit sie nicht festsitzen. Ob ein Abnehmer da ist, fragt
 es bei den Verteilerplatinen ab; den Brennerzustand holt es sich vom Gerät am
 Kessel.
+
+**Leitstand**, wahlweise. Ein M5Stack Core mit eigener Firmware
+([`apps/station`](apps/station/)) zeigt den Zustand der Anlage auf seinem
+Bildschirm, empfängt Funkthermometer und liefert die Außentemperatur an die
+Heizungsgeräte; diese fragen ihn zuerst und erst danach die Verteilerplatinen.
+Er regelt nichts. Aufzeichnung auf SD-Karte und HomeKit sind geplant, siehe
+[Konzept Leitstand](docs/konzept-leitstand.md).
 
 Welche Aufgabe ein Heizungsgerät übernimmt, ergibt sich allein aus den
 zugeordneten Fühlerrollen. Beide Aufgaben sind dabei an eigene Messwerte
@@ -228,7 +236,9 @@ Rechnern nach.
 Zum Selbstübersetzen: Vorausgesetzt wird ESP-IDF v6.0.2. Das Repositorium enthält mehrere
 Anwendungen, die sich `components/` teilen; gebaut wird deshalb mit `-C` aus
 dem Verzeichnis der jeweiligen Anwendung. Die Verteiler-Firmware liegt unter
-`apps/manifold`.
+`apps/manifold`. Der Leitstand (`apps/station`) braucht zusätzlich das esp-homekit-sdk, das als
+Untermodul unter `third_party/` eingebunden ist; nach dem Klonen einmal
+`git submodule update --init`.
 
 ```bash
 . ~/esp/esp-idf-6.0.2/export.sh && idf.py -C apps/manifold set-target esp32 && idf.py -C apps/manifold build
@@ -599,7 +609,7 @@ ohne Hardware:
 make -C test/host
 ```
 
-Der Lauf umfasst 578 Prüfungen: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
+Der Lauf umfasst 611 Prüfungen, dazu 137 für das Protokoll des Leitstands: Regelgesetz, Ventil-Zustandsmaschine, Hardwarezuordnung,
 Pumpensteuerung, Bedarfsauswertung, Brennererkennung, Ladezustand und Kalibrierung des
 Nullpunkts, Auslöser der Aufzeichnung, Dekodierung und Entschlüsselung der Funkpakete
 (AES-128 gegen FIPS-197, BTHome gegen Rahmen aus dem Rahmenbau der Satelliten-Firmware),
@@ -693,7 +703,11 @@ kalt waren und dicht beieinanderlagen; verlangt wird seitdem zusätzlich ein hei
 **Kesselkreispumpe.** Die Ausschaltschwelle von 2 K stammt aus einer Messung: Der Speicher
 erreichte seinen Höchststand in dem Augenblick, in dem der Abstand zwischen Kesselvorlauf und
 Speicher auf 2 K gefallen war. Mit der vorherigen Schwelle von 0,5 K lief die Pumpe nach dem
-Brennerende noch rund fünf Stunden weiter.
+Brennerende noch rund fünf Stunden weiter. Während eines Brennerlaufs gilt die Schwelle nicht:
+Am 23. September startete das Gerät am Kessel mitten in einem Lauf neu, die Pumpe blieb bei
+0,9 bis 2,5 K Abstand stehen, und der Kessel schaltete den Brenner nach gut zwölf Minuten selbst
+ab. Seitdem läuft die Pumpe, solange der Brenner läuft, und ein Neustart beginnt bei laufender
+Pumpe.
 
 **Füllstand und Warmwasser.** Das Gerät am Kessel hat den Nullpunkt des Füllstands am
 5. September zum ersten Mal an einem Brennerstart nachgemessen, von 51,5 auf 51,8 °C; das Gerät

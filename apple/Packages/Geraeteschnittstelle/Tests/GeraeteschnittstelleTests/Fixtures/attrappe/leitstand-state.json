@@ -1,0 +1,49 @@
+{
+ "device": {
+  "id": "lst_c0ffee",
+  "mac": "C0:FF:EE:00:00:01",
+  "site": "Leitstand",
+  "model": "Leitstand",
+  "role": "station",
+  "board": "M5Stack Core"
+ },
+ "version": "attrappe",
+ "uptime_s": 29,
+ "heap": 50940,
+ "heap_min": 35364,
+ "heap_block": 38912,
+ "psram_free": 0,
+ "setup_open": false,
+ "net": {
+  "sta": true,
+  "ap": false,
+  "ip": "127.0.0.1",
+  "rssi": -58,
+  "time_valid": true
+ },
+ "outdoor": {
+  "assigned": true,
+  "valid": true,
+  "mac": "C0:FF:EE:12:34:56",
+  "temp_c": 8.84,
+  "battery": 100,
+  "rssi": -71,
+  "age_s": 12,
+  "name": "campersense-climate-0fe",
+  "humidity": 81.0
+ },
+ "ble": {
+  "running": true,
+  "devices": 3,
+  "keys": 1
+ },
+ "plant": {
+  "heat": 2,
+  "manifolds": 3,
+  "reachable": 5
+ },
+ "display": {
+  "page": "anlage",
+  "on": true
+ }
+}

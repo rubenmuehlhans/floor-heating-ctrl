@@ -203,6 +203,11 @@ typedef struct {
     float min_seen_c;       /* kleinster Wert im laufenden Fenster */
     uint32_t window_ms;     /* Beginn des Fensters */
     uint32_t runtime_rest_ms; /* angebrochene Sekunde der Laufzeit */
+
+    /* Fortsetzung nach einem Neustart, siehe burner_resume. */
+    bool resume;
+    bool resume_running;
+    float resume_baseline_c;
 } burner_state_t;
 
 /* Vorgabe: 12 K ueber der Bezugslinie ein, 6 K aus, 6 K Ausschlag gegen den
@@ -210,6 +215,26 @@ typedef struct {
 void burner_defaults(burner_cfg_t *cfg);
 
 void burner_init(burner_state_t *st);
+
+/*
+ * Setzt die Erkennung nach einem Neustart fort. Aufzurufen nach burner_init
+ * und vor dem ersten Schritt, mit dem zuletzt gesicherten Zustand.
+ *
+ * Ohne Fortsetzung beginnt die Bezugslinie beim ersten Messwert. Startet das
+ * Geraet mitten in einem Brennerlauf, ist das ein heisses Rohr, und der
+ * laufende Brenner gilt erst als erkannt, wenn das Abgas noch einmal um
+ * delta_on_k steigt -- gegen Ende eines Laufs gar nicht mehr. Am 23. September
+ * vergingen so gut vier Minuten; die Kesselkreispumpe haengt an dieser
+ * Meldung.
+ *
+ * Uebernommen wird die gesicherte Bezugslinie, sofern sie unter dem ersten
+ * Messwert liegt. Lief der Brenner beim letzten Sichern und liegt das Abgas
+ * noch mindestens delta_off_k ueber der Bezugslinie, laeuft er weiter. Ein
+ * Start wird dafuer nicht gezaehlt, der ist vor dem Neustart gezaehlt worden.
+ * War er inzwischen aus, faellt das Abgas, und die gewohnte Ausschaltregel
+ * beendet den Lauf.
+ */
+void burner_resume(burner_state_t *st, bool running, float baseline_c);
 
 /*
  * Ein Rechenschritt. Ohne gueltigen Abgaswert bleibt der Zustand stehen und

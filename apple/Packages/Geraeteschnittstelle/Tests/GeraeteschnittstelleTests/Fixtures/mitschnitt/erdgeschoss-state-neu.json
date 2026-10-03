@@ -1,0 +1,347 @@
+{
+ "revision": 4351,
+ "uptime_s": 28989,
+ "heap": 53044,
+ "version": "v0.3.0-9-g3bbec6f-dirty",
+ "device": {
+  "id": "fbh_5d20e7",
+  "mac": "A0:B7:65:5D:20:E7",
+  "site": "Erdgeschoss",
+  "model": "ESP32 Ventilsteuerung, 11 Heizkreise",
+  "channels": 11
+ },
+ "net": {
+  "connected": true,
+  "ip": "192.168.0.213",
+  "ap_active": false,
+  "ap_ip": "",
+  "rssi": -42,
+  "time_valid": true
+ },
+ "rooms": [
+  {
+   "id": 1,
+   "name": "Küche",
+   "channels": [
+    1,
+    2,
+    3
+   ],
+   "mode": "off",
+   "target_c": 23.5,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 23.600000381469727,
+   "humidity": 61,
+   "battery": 84,
+   "temp_age_s": 3,
+   "target_position": 0,
+   "next_check_s": 14
+  },
+  {
+   "id": 2,
+   "name": "Wohnzimmer",
+   "channels": [
+    8,
+    9,
+    10
+   ],
+   "mode": "off",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 24.100000381469727,
+   "humidity": 61,
+   "battery": 0,
+   "temp_age_s": 6,
+   "target_position": 0,
+   "next_check_s": 14
+  },
+  {
+   "id": 3,
+   "name": "Kinderzimmer EG",
+   "channels": [
+    4,
+    5
+   ],
+   "mode": "off",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 23.100000381469727,
+   "humidity": 63.41999816894531,
+   "battery": 74,
+   "temp_age_s": 96,
+   "target_position": 0,
+   "next_check_s": 14
+  },
+  {
+   "id": 4,
+   "name": "Flur",
+   "channels": [
+    6
+   ],
+   "mode": "off",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 23.399999618530273,
+   "humidity": 62,
+   "battery": 57,
+   "temp_age_s": 16,
+   "target_position": 0,
+   "next_check_s": 14
+  },
+  {
+   "id": 5,
+   "name": "WC",
+   "channels": [
+    7
+   ],
+   "mode": "heat",
+   "target_c": 20,
+   "sensor_set": true,
+   "temp_valid": true,
+   "temp_c": 23.09000015258789,
+   "humidity": 63.4900016784668,
+   "battery": 85,
+   "temp_age_s": 24,
+   "target_position": 0,
+   "next_check_s": 14
+  }
+ ],
+ "channels": [
+  {
+   "id": 1,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 1,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 2,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 1,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 3,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 2,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 4,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 2,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": false,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 5,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 3,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 6,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 3,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": false,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 7,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 4,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 8,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 4,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": false,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 9,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 5,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": true,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 10,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 5,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": false,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  },
+  {
+   "id": 11,
+   "position": 0,
+   "known": true,
+   "op": "idle",
+   "group": 6,
+   "reserved": false,
+   "manual": false,
+   "pending": false,
+   "bemf_mv": 107,
+   "calibrated": false,
+   "last_stop": "",
+   "last_move_ms": 0,
+   "seize_step": 0,
+   "moved_since_seize": false
+  }
+ ],
+ "seize": {
+  "running": false,
+  "pending": 0,
+  "done": 0,
+  "days_left": 1,
+  "weekday": 6,
+  "hour": 11
+ },
+ "outdoor": {
+  "set": true,
+  "valid": true,
+  "temp_c": 21.064998626708984,
+  "humidity": 74.53250122070312,
+  "battery_mv": 2394,
+  "age_s": 121
+ },
+ "bemf_mv": [
+  107,
+  107,
+  107,
+  107,
+  107,
+  107
+ ],
+ "touch_raw": [
+  168,
+  138,
+  175
+ ],
+ "local_sensors": {
+  "ds18b20": [],
+  "hdc1080": {
+   "valid": true,
+   "temp_c": 30.616455078125,
+   "humidity": 48.150634765625
+  }
+ },
+ "calib": {
+  "state": "idle",
+  "channel": 0,
+  "group": 1,
+  "phase": 0,
+  "sample_count": 0,
+  "sample_period_ms": 0,
+  "message": "",
+  "marks": {
+   "close_from": 0,
+   "close_to": 0,
+   "open_from": 0,
+   "open_to": 0,
+   "baseline_close_mv": 0,
+   "stall_close_mv": 0,
+   "baseline_open_mv": 0,
+   "stall_open_mv": 0
+  }
+ }
+}

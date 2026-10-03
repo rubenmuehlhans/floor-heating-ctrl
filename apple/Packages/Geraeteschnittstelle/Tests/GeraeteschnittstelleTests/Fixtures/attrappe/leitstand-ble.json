@@ -1,0 +1,44 @@
+{
+ "running": true,
+ "outdoor": "C0:FF:EE:12:34:56",
+ "devices": [
+  {
+   "mac": "C0:FF:EE:12:34:56",
+   "name": "campersense-climate-0fe",
+   "rssi": -71,
+   "battery": 100,
+   "battery_mv": 3010,
+   "packets": 314,
+   "format": "bthome",
+   "encrypted": true,
+   "key": "ok",
+   "temp_c": 8.84,
+   "humidity": 81.0
+  },
+  {
+   "mac": "A4:C1:38:77:88:99",
+   "name": "ATC_Wohn",
+   "rssi": -84,
+   "temp_c": 21.4,
+   "humidity": 50.0,
+   "battery": 77,
+   "battery_mv": 2890,
+   "packets": 929,
+   "format": "atc1441"
+  },
+  {
+   "mac": "A4:C1:38:AA:BB:CC",
+   "name": "ATC_Garage",
+   "rssi": -90,
+   "temp_c": 12.8,
+   "humidity": 63.0,
+   "battery": 54,
+   "battery_mv": 2710,
+   "packets": 459,
+   "format": "atc1441"
+  }
+ ],
+ "keys": [
+  "C0:FF:EE:12:34:56"
+ ]
+}

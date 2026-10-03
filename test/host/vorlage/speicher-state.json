@@ -1,0 +1,224 @@
+{
+ "device": {
+  "id": "heiz_00000a",
+  "mac": "00:00:5E:00:53:01",
+  "site": "Pufferspeicher",
+  "model": "Waermeerzeuger",
+  "role": "heat"
+ },
+ "version": "v0.4.0",
+ "uptime_s": 9629,
+ "heap": 61384,
+ "setup_open": false,
+ "net": {
+  "sta": true,
+  "ap": false,
+  "ip": "192.0.2.10",
+  "rssi": -49,
+  "time_valid": true
+ },
+ "onewire": {
+  "pins": [
+   13,
+   -1
+  ],
+  "found": 5,
+  "assigned": 5,
+  "round_ms": 66,
+  "rounds": 963,
+  "poll_s": 10
+ },
+ "probes": [
+  {
+   "rom": "28AA000000000001",
+   "name": "Heizkreis 2 Vorlauf",
+   "role": "hk2_vl",
+   "role_label": "Heizkreis 2 Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 26.6875,
+   "raw_c": 26.6875,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 963,
+   "errors": 0
+  },
+  {
+   "rom": "28AA000000000001",
+   "name": "Pufferspeicher",
+   "role": "puffer",
+   "role_label": "Pufferspeicher",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 70.0999984741211,
+   "raw_c": 67.5,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 2.5999999046325684,
+   "reads": 963,
+   "errors": 0
+  },
+  {
+   "rom": "28AA000000000001",
+   "name": "Heizkreis 1 Vorlauf",
+   "role": "hk1_vl",
+   "role_label": "Heizkreis 1 Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 25.25,
+   "raw_c": 25.25,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 963,
+   "errors": 0
+  },
+  {
+   "rom": "28AA000000000001",
+   "name": "Heizkreis 2 Rücklauf",
+   "role": "hk2_rl",
+   "role_label": "Heizkreis 2 Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 25.75,
+   "raw_c": 25.75,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 963,
+   "errors": 0
+  },
+  {
+   "rom": "28AA000000000001",
+   "name": "Heizkreis 1 Rücklauf",
+   "role": "hk1_rl",
+   "role_label": "Heizkreis 1 Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 24.5,
+   "raw_c": 24.5,
+   "delta30_c": 0,
+   "age_s": 0,
+   "offset_k": 0,
+   "reads": 963,
+   "errors": 0
+  }
+ ],
+ "derived": {},
+ "circuits": [
+  {
+   "id": 1,
+   "name": "Heizkreis 1",
+   "enabled": true,
+   "mode": "auto",
+   "on": true,
+   "reason": "Abnehmer vorhanden",
+   "since_s": 9611,
+   "demand": true,
+   "stale": false,
+   "any_seen": true,
+   "path": "http",
+   "vl_c": 25.25,
+   "rl_c": 24.5,
+   "spread_k": 0.75,
+   "relay": {
+    "known": true,
+    "on": true,
+    "online": true,
+    "age_s": 16,
+    "mismatch": false,
+    "status": 200
+   }
+  },
+  {
+   "id": 2,
+   "name": "Heizkreis 2",
+   "enabled": true,
+   "mode": "auto",
+   "on": true,
+   "reason": "Abnehmer vorhanden",
+   "since_s": 9611,
+   "demand": true,
+   "stale": false,
+   "any_seen": true,
+   "path": "http",
+   "vl_c": 26.6875,
+   "rl_c": 25.75,
+   "spread_k": 0.9375,
+   "relay": {
+    "known": true,
+    "on": true,
+    "online": true,
+    "age_s": 57,
+    "mismatch": false,
+    "status": 200
+   }
+  }
+ ],
+ "mqtt_connected": false,
+ "burner": {
+  "remote": true,
+  "known": true,
+  "running": false,
+  "runtime_today_s": 0,
+  "starts_today": 0,
+  "runtime_yesterday_s": 0,
+  "starts_yesterday": 0,
+  "litres_today": 0,
+  "short_cycling": false
+ },
+ "charge": {
+  "phase": "keine Ladung",
+  "limited": false,
+  "warn_dhw": false,
+  "kessel_remote": true,
+  "puffer_remote": false,
+  "kalibrierung": {
+   "punkte": 0,
+   "peak_c": 70.0999984741211
+  },
+  "since_s": 1440,
+  "level": 0.9073169827461243,
+  "spread_k": -0.125
+ },
+ "remote_probes": {
+  "abgas": 38.8125,
+  "kessel_vl": 73.9375,
+  "kessel_rl": 74.0625,
+  "aussen": 7.099999904632568
+ },
+ "outdoor": {
+  "source": "BLE Repeater",
+  "age_s": 399,
+  "temp_c": 7.099999904632568
+ },
+ "history_len": 80,
+ "findings": [],
+ "zapfung": {
+  "active": false,
+  "count": 0,
+  "sum_k": 0,
+  "last_k": 0,
+  "sum_kwh": 0
+ },
+ "rueckstroemung": {
+  "events": 0,
+  "last_k": 0,
+  "active": false
+ },
+ "boiler_pump": {
+  "enabled": false,
+  "on": false,
+  "mode": "auto",
+  "reason": "keine Kesselkreispumpe eingerichtet",
+  "reason_key": "disabled",
+  "since_s": 9628,
+  "path": "keiner",
+  "relay": {
+   "known": false,
+   "on": false,
+   "online": false
+  }
+ }
+}

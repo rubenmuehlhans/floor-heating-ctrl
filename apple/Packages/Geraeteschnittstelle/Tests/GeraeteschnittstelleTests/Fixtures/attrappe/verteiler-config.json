@@ -1,0 +1,219 @@
+{
+ "cfg_version": 1,
+ "site": "Erdgeschoss",
+ "rooms": [
+  {
+   "id": 1,
+   "name": "Küche",
+   "channels": [
+    1,
+    2,
+    3
+   ],
+   "sensor_mac": "A4:C1:38:11:22:33",
+   "mode": "heat",
+   "target_c": 20.0,
+   "p_band_k": 1.0,
+   "interval_s": 30,
+   "min_delta": 0.01,
+   "step": 0.1
+  },
+  {
+   "id": 2,
+   "name": "Kinderzimmer unten",
+   "channels": [
+    4,
+    5
+   ],
+   "sensor_mac": "A4:C1:38:44:55:66",
+   "mode": "heat",
+   "target_c": 21.0,
+   "p_band_k": 1.0,
+   "interval_s": 30,
+   "min_delta": 0.01,
+   "step": 0.1
+  },
+  {
+   "id": 3,
+   "name": "Flur/WC",
+   "channels": [
+    6,
+    7
+   ],
+   "sensor_mac": null,
+   "mode": "heat",
+   "target_c": 19.0,
+   "p_band_k": 1.0,
+   "interval_s": 30,
+   "min_delta": 0.01,
+   "step": 0.1
+  },
+  {
+   "id": 4,
+   "name": "Wohnzimmer",
+   "channels": [
+    8,
+    9,
+    10
+   ],
+   "sensor_mac": "A4:C1:38:77:88:99",
+   "mode": "off",
+   "target_c": 20.5,
+   "p_band_k": 1.0,
+   "interval_s": 30,
+   "min_delta": 0.01,
+   "step": 0.1
+  }
+ ],
+ "channels": [
+  {
+   "id": 1,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": true,
+   "bemf_group": 1
+  },
+  {
+   "id": 2,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": true,
+   "bemf_group": 1
+  },
+  {
+   "id": 3,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 2
+  },
+  {
+   "id": 4,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 2
+  },
+  {
+   "id": 5,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 3
+  },
+  {
+   "id": 6,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 3
+  },
+  {
+   "id": 7,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 4
+  },
+  {
+   "id": 8,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 4
+  },
+  {
+   "id": 9,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 5
+  },
+  {
+   "id": 10,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 5
+  },
+  {
+   "id": 11,
+   "open_ms": 39000,
+   "close_ms": 40000,
+   "max_ms": 45000,
+   "blank_ms": 2000,
+   "bemf_mv": 190,
+   "bemf_hyst_mv": 30,
+   "calibrated": false,
+   "bemf_group": 6
+  }
+ ],
+ "touch": {
+  "enabled": true,
+  "thresholds": [
+   1000,
+   870,
+   1000
+  ]
+ },
+ "display_brightness": 2,
+ "sensor_timeout_s": 900,
+ "reboot_hour": 10,
+ "reboot_minute": 0,
+ "seize_weekday": 6,
+ "seize_hour": 11,
+ "outdoor_mac": "E5:2B:9C:41:07:AA",
+ "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
+ "wifi": {
+  "ssid": "Heimnetz",
+  "hostname": "floor-heating",
+  "pass_set": true
+ },
+ "mqtt": {
+  "enabled": true,
+  "uri": "mqtt://192.168.1.10:1883",
+  "user": "esp",
+  "prefix": "fbh",
+  "pass_set": true
+ }
+}

@@ -27,6 +27,9 @@ extern "C" {
  * Heizungsgeraete getrennt auffuehren koennen. */
 #define PEERS_ROLE_MANIFOLD "manifold"
 #define PEERS_ROLE_HEAT     "heat"
+/* Leitstand: empfaengt Funkthermometer, protokolliert und zeigt an, regelt
+ * nichts. Siehe docs/konzept-leitstand.md. */
+#define PEERS_ROLE_STATION  "station"
 
 typedef struct {
     char id[24];       /* Geraetekennung, etwa fbh_c2e55c */

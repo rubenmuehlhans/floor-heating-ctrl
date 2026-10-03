@@ -1,0 +1,24 @@
+{
+ "networks": [
+  {
+   "ssid": "Heimnetz",
+   "rssi": -54,
+   "secure": true
+  },
+  {
+   "ssid": "Heimnetz-Gast",
+   "rssi": -61,
+   "secure": true
+  },
+  {
+   "ssid": "Nachbar-WLAN",
+   "rssi": -79,
+   "secure": true
+  },
+  {
+   "ssid": "FreeWifi",
+   "rssi": -88,
+   "secure": false
+  }
+ ]
+}

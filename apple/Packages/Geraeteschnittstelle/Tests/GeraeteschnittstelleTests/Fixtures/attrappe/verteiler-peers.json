@@ -1,0 +1,25 @@
+{
+ "peers": [
+  {
+   "id": "fbh_3a91c4",
+   "site": "Keller",
+   "role": "manifold",
+   "host": "192.168.1.240",
+   "hostname": "floor-heating-keller"
+  },
+  {
+   "id": "fbh_d4e5f6",
+   "site": "Obergeschoss",
+   "role": "manifold",
+   "host": "192.168.1.242",
+   "hostname": "floor-heating-og"
+  },
+  {
+   "id": "heiz_3f21ac",
+   "site": "Pufferspeicher",
+   "role": "heat",
+   "host": "192.168.1.51",
+   "hostname": "heizung-speicher"
+  }
+ ]
+}

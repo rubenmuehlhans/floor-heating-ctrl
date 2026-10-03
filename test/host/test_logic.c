@@ -2539,6 +2539,216 @@ static void test_boilerpump_takten(void)
     CHECK(wechsel <= 1, "hoechstens ein Wechsel bei pendelnder Spreizung, nicht %d", wechsel);
 }
 
+/* Kesselwerte mit Speicher und Brennermeldung. */
+static bp_input_t kessel_lauf(float vl, float rl, float speicher, bool brenner)
+{
+    bp_input_t in = kessel(vl, rl);
+    in.buffer_valid = true;
+    in.buffer_c = speicher;
+    in.burner_running = brenner;
+    return in;
+}
+
+/*
+ * Der Lauf vom 23. September am Kesselgeraet, Zweiminutenwerte von 05:55 bis
+ * 06:01: Vorlauf, Ruecklauf, Speicher. Der Brenner brannte durchgehend, das
+ * Abgas stieg bis 06:01 auf 74,8 Grad.
+ */
+static const float LAUF_0923[][3] = {
+    {57.7f, 54.4f, 55.2f},
+    {58.3f, 54.9f, 55.8f},
+    {57.3f, 54.6f, 56.4f},
+    {56.3f, 54.3f, 56.9f},
+};
+#define LAUF_0923_N (sizeof(LAUF_0923) / sizeof(LAUF_0923[0]))
+
+static void test_boilerpump_brenner(void)
+{
+    printf("Kesselkreispumpe: solange der Brenner laeuft, laeuft sie\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+
+    /*
+     * Zuerst ohne Brennermeldung, wie bis 0.4.0: Bei 0,9 K Abstand zum
+     * Speicher liest die Regel "nichts abzugeben", und nach der Haltezeit
+     * steht die Pumpe -- mitten im Lauf.
+     */
+    bp_state_t alt;
+    bp_init(&alt, BP_MODE_AUTO);
+    uint32_t t = 1000;
+    for (size_t i = 0; i < LAUF_0923_N; i++) {
+        t = bp_laufen(&alt, &cfg, kessel_lauf(LAUF_0923[i][0], LAUF_0923[i][1],
+                                              LAUF_0923[i][2], false), t, 120);
+    }
+    CHECK(!alt.on, "ohne Brennermeldung geht sie im Lauf aus -- das war der Fehler");
+
+    /* Mit der Meldung laeuft sie durch. */
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    t = 1000;
+    for (size_t i = 0; i < LAUF_0923_N; i++) {
+        t = bp_laufen(&st, &cfg, kessel_lauf(LAUF_0923[i][0], LAUF_0923[i][1],
+                                             LAUF_0923[i][2], true), t, 120);
+        CHECK(st.on, "bei %.1f K Abstand zum Speicher laeuft sie, solange der Brenner brennt",
+              LAUF_0923[i][0] - LAUF_0923[i][2]);
+    }
+    CHECK(st.reason == BP_REASON_BURNER, "Grund ist der Brenner, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    CHECK(strcmp(bp_reason_key(st.reason), "burner") == 0, "Schluessel \"burner\", nicht \"%s\"",
+          bp_reason_key(st.reason));
+
+    /*
+     * Die Erkennung meldet den Brenner als aus. Jetzt zaehlt wieder die
+     * Spreizung, und die Haltezeit beginnt erst in diesem Augenblick.
+     */
+    bp_input_t danach = kessel_lauf(55.3f, 54.2f, 57.2f, false);
+    t = bp_laufen(&st, &cfg, danach, t, cfg.hold_s - 10);
+    CHECK(st.on, "nach dem Brennerende laeuft sie noch die Haltezeit");
+    CHECK(st.reason == BP_REASON_HOLD, "und nennt die Haltezeit, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    t = bp_laufen(&st, &cfg, danach, t, 20);
+    CHECK(!st.on, "danach steht sie, der Kessel liegt unter dem Speicher");
+    CHECK(st.reason == BP_REASON_NO_TRANSFER, "und die Spreizung ist der Grund");
+
+    /*
+     * Naechster Start aus dem kalten Kessel: Die Pumpe steht, das ist die
+     * Ruecklaufanhebung, und die Mindestpause laeuft noch. Die Brennermeldung
+     * schaltet sie trotzdem sofort ein.
+     */
+    t = bp_laufen(&st, &cfg, kessel_lauf(50.0f, 49.0f, 55.0f, false), t, 60);
+    CHECK(!st.on, "beim kalten Anlauf steht sie");
+    t += 1000;
+    bp_input_t meldung = kessel_lauf(52.0f, 49.5f, 55.0f, true);
+    bp_tick(&st, &cfg, &meldung, t);
+    CHECK(st.on, "mit der Brennermeldung laeuft sie sofort, auch in der Mindestpause");
+
+    /* Handbetrieb aus bleibt aus -- etwa waehrend eines Pumpentauschs. */
+    bp_set_mode(&st, BP_MODE_OFF, t);
+    t = bp_laufen(&st, &cfg, meldung, t, 10);
+    CHECK(!st.on && st.reason == BP_REASON_MANUAL, "Hand aus gilt auch bei laufendem Brenner");
+}
+
+static void test_boilerpump_neustart(void)
+{
+    printf("Kesselkreispumpe: ein Neustart schaltet sie nicht ab\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /*
+     * Neustart mitten in einer Ladung, 2,5 K ueber dem Speicher -- zwischen
+     * Aus- und Einschaltschwelle. Bisher galt beim ersten Schritt die
+     * Einschaltschwelle, und die laufende Pumpe ging mit dem Neustart aus.
+     */
+    bp_input_t in = kessel_lauf(LAUF_0923[0][0], LAUF_0923[0][1], LAUF_0923[0][2], false);
+    t += 1000;
+    bp_tick(&st, &cfg, &in, t);
+    CHECK(st.on, "nach dem Neustart laeuft sie weiter");
+    CHECK(st.reason == BP_REASON_TRANSFER, "Grund: der Kessel gibt ab, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    t = bp_laufen(&st, &cfg, in, t, 600);
+    CHECK(st.on, "und bleibt an, solange der Abstand ueber der Ausschaltschwelle liegt");
+
+    /* Liegt der Kessel unter dem Speicher, geht sie aus, aber erst nach der
+     * Haltezeit und nicht mit dem ersten Schritt. */
+    bp_init(&st, BP_MODE_AUTO);
+    in = kessel_lauf(50.4f, 49.3f, 55.0f, false);
+    t += 1000;
+    bp_tick(&st, &cfg, &in, t);
+    CHECK(st.on && st.reason == BP_REASON_HOLD, "erst laeuft die Haltezeit, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    t = bp_laufen(&st, &cfg, in, t, cfg.hold_s);
+    CHECK(!st.on, "danach steht sie");
+
+    /* Laeuft der Brenner beim Neustart, laeuft sie vom ersten Schritt an. */
+    bp_init(&st, BP_MODE_AUTO);
+    in.burner_running = true;
+    t += 1000;
+    bp_tick(&st, &cfg, &in, t);
+    CHECK(st.on && st.reason == BP_REASON_BURNER, "mit laufendem Brenner sofort");
+}
+
+static void test_burner_fortsetzen(void)
+{
+    printf("Brenner: Fortsetzung nach einem Neustart\n");
+
+    burner_cfg_t cfg;
+    burner_defaults(&cfg);
+    burner_state_t st;
+
+    /*
+     * Neustart gegen Ende eines Laufs: Das Abgas steht bei 80 Grad und steigt
+     * nicht mehr. Ohne Fortsetzung bleibt der Brenner in diesem Lauf
+     * unerkannt.
+     */
+    burner_init(&st);
+    brenner_laufen(&st, &cfg, 80.0f, 1000, 600);
+    CHECK(!st.running, "ohne Fortsetzung bleibt der laufende Brenner unerkannt");
+
+    /* Mit dem gesicherten Zustand laeuft er vom ersten Messwert an weiter. */
+    burner_init(&st);
+    st.starts_today = 1;
+    burner_resume(&st, true, 33.8f);
+    uint32_t t = brenner_laufen(&st, &cfg, 80.0f, 1000, 1);
+    CHECK(st.running, "mit gesichertem Zustand laeuft er weiter");
+    CHECK(st.starts_today == 1, "ohne einen zweiten Start zu zaehlen, nicht %u",
+          (unsigned)st.starts_today);
+    CHECK(CLOSE(st.baseline_c, 33.8f, 0.01f), "Bezugslinie aus der Sicherung, nicht %.1f",
+          st.baseline_c);
+    t = brenner_laufen(&st, &cfg, 80.0f, t, 600);
+    CHECK(st.running, "und laeuft, solange das Abgas steht");
+    CHECK(st.runtime_today_s >= 600, "die Laufzeit zaehlt weiter, %u s",
+          (unsigned)st.runtime_today_s);
+
+    /* Geht er aus, faellt das Abgas, und der Lauf endet wie sonst. */
+    t = brenner_laufen(&st, &cfg, 80.0f - cfg.swing_k - 1.0f, t, cfg.off_hold_s + 10);
+    CHECK(!st.running, "am Abfall ist er aus");
+
+    /* Lief er beim Sichern, ist das Rohr aber kalt -- das Geraet war lange ohne
+     * Strom --, setzt nichts fort. */
+    burner_init(&st);
+    burner_resume(&st, true, 33.8f);
+    brenner_laufen(&st, &cfg, 33.8f + cfg.delta_off_k - 1.0f, 1000, 10);
+    CHECK(!st.running, "am kalten Rohr setzt kein Lauf fort");
+
+    /* Liegt die gesicherte Bezugslinie ueber dem ersten Messwert, gilt der
+     * Messwert: Das Rohr ist kaelter als damals. */
+    burner_init(&st);
+    burner_resume(&st, false, 40.0f);
+    brenner_laufen(&st, &cfg, 30.0f, 1000, 10);
+    CHECK(CLOSE(st.baseline_c, 30.0f, 0.01f), "Bezugslinie 30, nicht %.1f", st.baseline_c);
+
+    /*
+     * Der Fall vom 23. September: Neustart kurz nach dem Zuenden, der Brenner
+     * war noch nicht erkannt. Das Abgas steigt um 4 K je Minute. Ohne
+     * Sicherung beginnt die Bezugslinie beim heissen Rohr, und die Erkennung
+     * wartet auf 12 K Anstieg; mit ihr genuegt der Ausschlag von 6 K.
+     */
+    uint32_t sekunden[2] = {0, 0};
+    for (int mit = 0; mit < 2; mit++) {
+        burner_init(&st);
+        if (mit) {
+            burner_resume(&st, false, 33.8f);
+        }
+        t = 1000;
+        for (uint32_t s = 1; s <= 900 && !st.running; s++) {
+            burner_input_t in = {.abgas_valid = true, .abgas_c = 47.0f + (float)s / 15.0f};
+            t += 1000;
+            burner_tick(&st, &cfg, &in, t);
+            sekunden[mit] = s;
+        }
+        CHECK(st.running, "der Anstieg wird erkannt (%s Sicherung)", mit ? "mit" : "ohne");
+    }
+    CHECK(sekunden[1] + 60 < sekunden[0], "mit Sicherung nach %u s statt nach %u s erkannt",
+          (unsigned)sekunden[1], (unsigned)sekunden[0]);
+}
+
 int main(void)
 {
     test_control_law();
@@ -2592,6 +2802,9 @@ int main(void)
     test_boilerpump_takten();
     test_boilerpump_nachlauf();
     test_boilerpump_speicher();
+    test_boilerpump_brenner();
+    test_boilerpump_neustart();
+    test_burner_fortsetzen();
     test_trend_gerade();
     test_trend_ausreisser();
     test_trend_grenzen();

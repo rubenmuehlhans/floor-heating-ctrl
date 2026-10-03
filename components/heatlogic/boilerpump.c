@@ -92,6 +92,20 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
     }
 
     /*
+     * Solange der Brenner laeuft, laeuft die Pumpe -- sofort, ohne Haltezeit
+     * und ohne Mindestpause: Ein Brenner, der Waerme erzeugt, braucht Abfuhr.
+     * Die Bedingung der Spreizung beginnt dabei jedes Mal neu. Meldet die
+     * Erkennung den Brenner als aus, zaehlt die Haltezeit also von diesem
+     * Augenblick an, und die Pumpe laeuft mindestens so lange nach.
+     */
+    if (in->burner_running) {
+        st->cond_transfer = true;
+        st->cond_since_ms = now_ms;
+        schalten(st, true, BP_REASON_BURNER, now_ms);
+        return;
+    }
+
+    /*
      * Zweipunktverhalten mit Haltezeit: Der Kessel gilt als abgebend, wenn der
      * Vorlauf den Bezug um on_k uebersteigt, und als aufnehmend, wenn er
      * darunter faellt. Dazwischen bleibt es, wie es war -- sonst schaltete die
@@ -101,10 +115,17 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
      * stehender Pumpe fliesst nichts: Vor- und Ruecklauf gleichen sich der
      * Kesseltemperatur an, ihre Differenz geht gegen null, und ein Kessel mit
      * Restwaerme bliebe stehen, obwohl der Speicher kaelter ist.
+     *
+     * Nach einem Neustart beginnt die Regel bei laufender Pumpe. Wie sie
+     * vorher stand, weiss das Geraet nicht mehr. Bisher galt beim ersten
+     * Schritt die Einschaltschwelle, und eine Pumpe, die mitten in einer
+     * Ladung lief, ging mit dem Neustart sofort aus. Jetzt geht sie wie sonst
+     * erst aus, wenn die Spreizung ueber die Haltezeit darunter liegt.
      */
+    bool lief = st->started ? st->on : true;
     float bezug = in->buffer_valid ? in->buffer_c : in->rl_c;
     float spreizung = in->vl_c - bezug;
-    bool transfer = st->on ? spreizung > cfg->off_k : spreizung >= cfg->on_k;
+    bool transfer = lief ? spreizung > cfg->off_k : spreizung >= cfg->on_k;
 
     if (transfer != st->cond_transfer || !st->started) {
         st->cond_transfer = transfer;
@@ -112,10 +133,7 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
     }
     bool gehalten = verstrichen(now_ms, st->cond_since_ms) >= cfg->hold_s * 1000UL;
 
-    bool soll = st->started ? st->on : transfer;
-    if (gehalten) {
-        soll = transfer;
-    }
+    bool soll = gehalten ? transfer : lief;
 
     /* Mindestzeiten, aber erst nachdem wirklich einmal geschaltet wurde. */
     if (st->switched && soll != st->on) {
@@ -147,6 +165,7 @@ const char *bp_reason_text(bp_reason_t r)
 {
     switch (r) {
     case BP_REASON_TRANSFER:     return "Kessel gibt Waerme ab";
+    case BP_REASON_BURNER:       return "Brenner laeuft";
     case BP_REASON_NO_TRANSFER:  return "Kessel kaum waermer als der Speicher";
     case BP_REASON_EMERGENCY:    return "Notabfuhr, Kessel ueber der Grenze";
     case BP_REASON_NO_READING:   return "keine Kesselwerte, Pumpe laeuft sicherheitshalber";
@@ -163,6 +182,7 @@ const char *bp_reason_key(bp_reason_t r)
 {
     switch (r) {
     case BP_REASON_TRANSFER:     return "transfer";
+    case BP_REASON_BURNER:       return "burner";
     case BP_REASON_NO_TRANSFER:  return "no_transfer";
     case BP_REASON_EMERGENCY:    return "emergency";
     case BP_REASON_NO_READING:   return "no_reading";

@@ -45,7 +45,28 @@ typedef struct {
      * nur das Scharfsein, und es wird beim Start neu aufgesetzt.
      */
     bool rec_armed;
+    /*
+     * Brennerzustand beim letzten Sichern und Bezugslinie der Erkennung. Nach
+     * einem Neustart setzt die Erkennung damit fort, siehe burner_resume --
+     * die Kesselkreispumpe haengt an ihr. Gesichert wird ohnehin bei jedem
+     * Wechsel und alle fuenf Minuten waehrend des Laufs.
+     */
+    bool running;
+    int16_t baseline_dc;   /* Zehntelgrad, STATS_NONE ohne Wert */
 } stats_t;
+
+/* Aufbau bis 0.4.0. Ein solcher Eintrag wird weiter gelesen; die beiden neuen
+ * Felder gelten dann als unbekannt. */
+typedef struct {
+    uint32_t runtime_today_s;
+    uint32_t starts_today;
+    uint32_t runtime_yesterday_s;
+    uint32_t starts_yesterday;
+    int16_t tag;
+    bool rec_armed;
+} stats_v1_t;
+
+#define STATS_NONE INT16_MIN
 
 static burner_cfg_t s_cfg;
 static burner_state_t s_st;
@@ -118,9 +139,14 @@ static void stats_load(void)
         return;
     }
     size_t len = sizeof(s_stats);
-    if (nvs_get_blob(h, NVS_KEY_STATS, &s_stats, &len) != ESP_OK || len != sizeof(s_stats)) {
+    esp_err_t rc = nvs_get_blob(h, NVS_KEY_STATS, &s_stats, &len);
+    if (rc != ESP_OK || (len != sizeof(s_stats) && len != sizeof(stats_v1_t))) {
         memset(&s_stats, 0, sizeof(s_stats));
         s_stats.tag = -1;
+        s_stats.baseline_dc = STATS_NONE;
+    } else if (len == sizeof(stats_v1_t)) {
+        s_stats.running = false;
+        s_stats.baseline_dc = STATS_NONE;
     }
     nvs_close(h);
 }
@@ -544,6 +570,12 @@ static void burner_task(void *arg)
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     s_st.runtime_today_s = s_stats.runtime_today_s;
     s_st.starts_today = s_stats.starts_today;
+    /* Die Erkennung setzt dort fort, wo sie vor dem Neustart stand. */
+    if (s_stats.baseline_dc != STATS_NONE) {
+        burner_resume(&s_st, s_stats.running, s_stats.baseline_dc / 10.0f);
+        ESP_LOGI(TAG, "Brennererkennung setzt fort: %s, Bezugslinie %.1f",
+                 s_stats.running ? "lief" : "aus", s_stats.baseline_dc / 10.0f);
+    }
     xSemaphoreGive(s_mtx);
 
     /*
@@ -733,6 +765,10 @@ static void burner_task(void *arg)
             xSemaphoreTake(s_mtx, portMAX_DELAY);
             s_stats.runtime_today_s = s_st.runtime_today_s;
             s_stats.starts_today = s_st.starts_today;
+            s_stats.running = s_st.running;
+            if (s_st.started) {
+                s_stats.baseline_dc = (int16_t)lroundf(s_st.baseline_c * 10.0f);
+            }
             xSemaphoreGive(s_mtx);
             stats_store();
         }
@@ -789,6 +825,7 @@ esp_err_t burner_start(void)
     }
     charge_init(&s_cst);
     s_stats.tag = -1;
+    s_stats.baseline_dc = STATS_NONE;
 
     if (xTaskCreate(burner_task, "burner", 4096, NULL, 3, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;

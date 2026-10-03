@@ -1,0 +1,752 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04DB2BDF58CD047DE6C6BA04 /* Verlauf in Frameworks */ = {isa = PBXBuildFile; productRef = 5F4E7BDDCFF74DAD372B0E73 /* Verlauf */; };
+		10C7BC346882DBBC7F647CF7 /* Gestaltung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A34FB3CB4C98B3FE8861E37 /* Gestaltung.swift */; };
+		13C6C54AAB578E7056F02EFA /* WartungAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0737345FADDF32A5C80D6DFB /* WartungAnsichten.swift */; };
+		1420F41AC8F2D68DA64F8ED6 /* handbuch.md in Resources */ = {isa = PBXBuildFile; fileRef = 118C93BB65B23931EA7CD6A0 /* handbuch.md */; };
+		14A30F95855BB32DC63D876B /* GeraeteAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9669F438D5DCC82FC1BD6694 /* GeraeteAnsicht.swift */; };
+		184FAC8E458D6AB5D92A5478 /* Geraetesuche in Frameworks */ = {isa = PBXBuildFile; productRef = 291B293ED361B618FA68CFB2 /* Geraetesuche */; };
+		1860BDE887DC8F1601FC50A0 /* Menueleiste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881707C1F335FE111D8B3D6E /* Menueleiste.swift */; };
+		1996A01EDC970B1018AF2771 /* Adressnachfuehrung.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F7B5526D3507855D1D5E99 /* Adressnachfuehrung.swift */; };
+		1C64F5F6747EBDA765CACD5A /* Mitteilungen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE23CDBB9E7412393163FFC /* Mitteilungen.swift */; };
+		1F0BE23E9A67557D96F4E198 /* HeizungAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */; };
+		25EA68C348D6545D78A78D56 /* Anlagenschema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264CF3F756FA5D3DC4A4C184 /* Anlagenschema.swift */; };
+		37CEC2078FF85A27E4EDAE27 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 525D9206D8125B514A525BF2 /* Assets.xcassets */; };
+		3821287EDCF30F0CE6C9AB65 /* VerlaufAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */; };
+		392EACE46FEABBCDFEF2C8BB /* Anlage in Frameworks */ = {isa = PBXBuildFile; productRef = 04DD00B2E5AC2745CD461461 /* Anlage */; };
+		3948E4E5CAE4BDF07BF0738C /* Leitstandabgleich.swift in Sources */ = {isa = PBXBuildFile; fileRef = A905B306C50D3A95E1844447 /* Leitstandabgleich.swift */; };
+		451278FCE8F6B8243C59996A /* Verlaufstafeln.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */; };
+		48FB4B76FD7E8C5842E4F712 /* Diagnose in Frameworks */ = {isa = PBXBuildFile; productRef = DB0C56AD8F2221EEE75EDC69 /* Diagnose */; };
+		4AE5B281784737698A29BABA /* ClaudeZustimmung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034866260339563010A3A262 /* ClaudeZustimmung.swift */; };
+		50FFE3038A3F332FD18C8D59 /* Hauptansicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F3D37A01FFD46483C9E7D /* Hauptansicht.swift */; };
+		64B0ED60F7B723A902F251EA /* AssistentAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BAA87F46732D56EBC388FDD /* AssistentAnsicht.swift */; };
+		6712BCD7867FCB1F34803608 /* EinrichtungsAssistent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6599950B9C36E2BEFDB955D /* EinrichtungsAssistent.swift */; };
+		697F8CD0C123FB43EB631A2D /* Schluesselbund.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48954AF714DAE13C1195D5C2 /* Schluesselbund.swift */; };
+		6C74B3E72CB16C0A5043BFF1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5FE560CBDA7CDAA91B172940 /* PrivacyInfo.xcprivacy */; };
+		6FBB2C0A0FD7E382AC0BFEF2 /* Stellrad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A20BAFCA96A820D6CFB2BB /* Stellrad.swift */; };
+		717944602EF2491AC7A3F76F /* Ereignismarken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3B3F99194A2B70720F0293 /* Ereignismarken.swift */; };
+		773D23435C0EEF71E64BD12B /* Funkschluessel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66C8117CAD6FD6386CB596E /* Funkschluessel.swift */; };
+		7AF8EFC79707B2BB24C117EE /* Verlaufszeitraum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2C16ACB620075686773D81 /* Verlaufszeitraum.swift */; };
+		82DAFB5B47F809A99A50E82E /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50747252F464C70E79FCF40 /* Format.swift */; };
+		93EC333A55EC35241B269454 /* UebersichtAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = F418B824924C2A66001509A1 /* UebersichtAnsicht.swift */; };
+		979476CDBFCB9FF5C6D4AC7E /* Leitstandbetrieb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3477EA02784967090358F0 /* Leitstandbetrieb.swift */; };
+		9AEC0E79D140B5370D476D18 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 32D503F84BF4878CA173E732 /* AppIcon.icon */; };
+		9AF7892986D9A987A14D7516 /* Assistenzdienst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73687811049CF267C3CBD540 /* Assistenzdienst.swift */; };
+		9E61F825248DF94225554B4D /* Assistent in Frameworks */ = {isa = PBXBuildFile; productRef = 11310E56050774E650E321FF /* Assistent */; };
+		A7ADA85C0564853A304234EC /* konzept-waermeerzeuger.md in Resources */ = {isa = PBXBuildFile; fileRef = F946CA02906649FCD88FEB9F /* konzept-waermeerzeuger.md */; };
+		BF269445302DFF3EF96EA410 /* konzept-auswertung.md in Resources */ = {isa = PBXBuildFile; fileRef = B317AC4F46F18EE7E54B572D /* konzept-auswertung.md */; };
+		C1FBDCD05A77ECF4011A88CB /* Anlagenanbindung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6718DE03AF5A762784FD3A18 /* Anlagenanbindung.swift */; };
+		C8C36B6825AB340A37EF1989 /* RaeumeAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D407A62D1ED471483691B4B /* RaeumeAnsicht.swift */; };
+		C94AB2870A4F0E1E3D3B635C /* AppModell+Assistent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDA3F26077EF49DA2B211C3 /* AppModell+Assistent.swift */; };
+		CEA54B1F64BDDD83BE2B4DBC /* AppModell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 346551750D02DF77B7048826 /* AppModell.swift */; };
+		CF8A234BAE1311C23E5F1A02 /* Bausteine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6EF3382BEAEBBBAC08C44DA /* Bausteine.swift */; };
+		D24037B19B1C09EAE2FB1013 /* Geraeteschnittstelle in Frameworks */ = {isa = PBXBuildFile; productRef = 16D4634F732BF828005985F5 /* Geraeteschnittstelle */; };
+		D8B7912C9D021648E0379ACC /* Einrichtungsablauf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D7FDAD127593F52E81A109 /* Einrichtungsablauf.swift */; };
+		DB21D0FAB4296AC88BA896D9 /* LeitstandAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1F684E2BF110C570B296D4 /* LeitstandAnsicht.swift */; };
+		DE4D132B58101632C48E22D9 /* AuswertungAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 985226BEA539E68A4938A875 /* AuswertungAnsichten.swift */; };
+		DFB7FA61B4074EC065FC1866 /* katalog-messgroessen.md in Resources */ = {isa = PBXBuildFile; fileRef = 483EC28C72AE904D05EFFA09 /* katalog-messgroessen.md */; };
+		E13EB0896D2A2505992A6171 /* Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 327E15982488086CE34ACBB1 /* Navigation.swift */; };
+		E3AA6D1129BC4E9C2D23E1B9 /* HeizungApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D165BE3A4DB30172765E2CD6 /* HeizungApp.swift */; };
+		EA2E2E1F8C30791B9A35CF78 /* Sprachmodelle in Frameworks */ = {isa = PBXBuildFile; productRef = 99B2BEB748F408BEDAE94625 /* Sprachmodelle */; };
+		EE5A8F90F4FBAE04C557140D /* WaermepumpencheckAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732BA319362C0F74A32EAD3C /* WaermepumpencheckAnsicht.swift */; };
+		F34A820AD1B105CDA62546AB /* EinstellungenAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611052E90F7FF74AED866E7E /* EinstellungenAnsichten.swift */; };
+		F9464C9E2F827BF2696527D7 /* AnalysepaketAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90200A7BB3770AD4CF06877A /* AnalysepaketAnsicht.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		034866260339563010A3A262 /* ClaudeZustimmung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeZustimmung.swift; sourceTree = "<group>"; };
+		0737345FADDF32A5C80D6DFB /* WartungAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WartungAnsichten.swift; sourceTree = "<group>"; };
+		0755C8BF372BF2C430F3FFB4 /* Anlage */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Anlage; path = Packages/Anlage; sourceTree = SOURCE_ROOT; };
+		0D1F684E2BF110C570B296D4 /* LeitstandAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeitstandAnsicht.swift; sourceTree = "<group>"; };
+		118C93BB65B23931EA7CD6A0 /* handbuch.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = handbuch.md; path = ../docs/handbuch.md; sourceTree = "<group>"; };
+		20A20BAFCA96A820D6CFB2BB /* Stellrad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stellrad.swift; sourceTree = "<group>"; };
+		264CF3F756FA5D3DC4A4C184 /* Anlagenschema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anlagenschema.swift; sourceTree = "<group>"; };
+		2D407A62D1ED471483691B4B /* RaeumeAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaeumeAnsicht.swift; sourceTree = "<group>"; };
+		327E15982488086CE34ACBB1 /* Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Navigation.swift; sourceTree = "<group>"; };
+		32D503F84BF4878CA173E732 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		346551750D02DF77B7048826 /* AppModell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModell.swift; sourceTree = "<group>"; };
+		3A3B3F99194A2B70720F0293 /* Ereignismarken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ereignismarken.swift; sourceTree = "<group>"; };
+		3E9F3D37A01FFD46483C9E7D /* Hauptansicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hauptansicht.swift; sourceTree = "<group>"; };
+		44D7FDAD127593F52E81A109 /* Einrichtungsablauf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Einrichtungsablauf.swift; sourceTree = "<group>"; };
+		483EC28C72AE904D05EFFA09 /* katalog-messgroessen.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "katalog-messgroessen.md"; path = "../docs/katalog-messgroessen.md"; sourceTree = "<group>"; };
+		487AE3A6300C4C6A13CAA07F /* Heizung-iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Heizung-iOS.entitlements"; sourceTree = "<group>"; };
+		48954AF714DAE13C1195D5C2 /* Schluesselbund.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Schluesselbund.swift; sourceTree = "<group>"; };
+		4BAA87F46732D56EBC388FDD /* AssistentAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistentAnsicht.swift; sourceTree = "<group>"; };
+		4CE23CDBB9E7412393163FFC /* Mitteilungen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mitteilungen.swift; sourceTree = "<group>"; };
+		525D9206D8125B514A525BF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		547D9671BA2620527B52625D /* Diagnose */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Diagnose; path = Packages/Diagnose; sourceTree = SOURCE_ROOT; };
+		5A34FB3CB4C98B3FE8861E37 /* Gestaltung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gestaltung.swift; sourceTree = "<group>"; };
+		5E1FA86A4F4B606F13DADDFF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5FE560CBDA7CDAA91B172940 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		611052E90F7FF74AED866E7E /* EinstellungenAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EinstellungenAnsichten.swift; sourceTree = "<group>"; };
+		6718DE03AF5A762784FD3A18 /* Anlagenanbindung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anlagenanbindung.swift; sourceTree = "<group>"; };
+		6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Verlaufstafeln.swift; sourceTree = "<group>"; };
+		732BA319362C0F74A32EAD3C /* WaermepumpencheckAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaermepumpencheckAnsicht.swift; sourceTree = "<group>"; };
+		73687811049CF267C3CBD540 /* Assistenzdienst.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Assistenzdienst.swift; sourceTree = "<group>"; };
+		739D165BC0E6FD0A885EFBAC /* Sprachmodelle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Sprachmodelle; path = Packages/Sprachmodelle; sourceTree = SOURCE_ROOT; };
+		7CDA3F26077EF49DA2B211C3 /* AppModell+Assistent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModell+Assistent.swift"; sourceTree = "<group>"; };
+		7E12D517D5536AACC4FF2A14 /* Geraetesuche */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Geraetesuche; path = Packages/Geraetesuche; sourceTree = SOURCE_ROOT; };
+		881707C1F335FE111D8B3D6E /* Menueleiste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menueleiste.swift; sourceTree = "<group>"; };
+		8F2C16ACB620075686773D81 /* Verlaufszeitraum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Verlaufszeitraum.swift; sourceTree = "<group>"; };
+		90200A7BB3770AD4CF06877A /* AnalysepaketAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysepaketAnsicht.swift; sourceTree = "<group>"; };
+		9669F438D5DCC82FC1BD6694 /* GeraeteAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeraeteAnsicht.swift; sourceTree = "<group>"; };
+		985226BEA539E68A4938A875 /* AuswertungAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuswertungAnsichten.swift; sourceTree = "<group>"; };
+		A905B306C50D3A95E1844447 /* Leitstandabgleich.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Leitstandabgleich.swift; sourceTree = "<group>"; };
+		B317AC4F46F18EE7E54B572D /* konzept-auswertung.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "konzept-auswertung.md"; path = "../docs/konzept-auswertung.md"; sourceTree = "<group>"; };
+		B6EF3382BEAEBBBAC08C44DA /* Bausteine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bausteine.swift; sourceTree = "<group>"; };
+		C0F7B5526D3507855D1D5E99 /* Adressnachfuehrung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Adressnachfuehrung.swift; sourceTree = "<group>"; };
+		C413D5D56EA7D41BAFCD41F3 /* Geraeteschnittstelle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Geraeteschnittstelle; path = Packages/Geraeteschnittstelle; sourceTree = SOURCE_ROOT; };
+		CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeizungAnsicht.swift; sourceTree = "<group>"; };
+		D165BE3A4DB30172765E2CD6 /* HeizungApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeizungApp.swift; sourceTree = "<group>"; };
+		D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerlaufAnsichten.swift; sourceTree = "<group>"; };
+		D66C8117CAD6FD6386CB596E /* Funkschluessel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Funkschluessel.swift; sourceTree = "<group>"; };
+		DA550E0404BFA5CA2BDA29FB /* Assistent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Assistent; path = Packages/Assistent; sourceTree = SOURCE_ROOT; };
+		E50747252F464C70E79FCF40 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
+		EBC391A727D56124DE64A910 /* Verlauf */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Verlauf; path = Packages/Verlauf; sourceTree = SOURCE_ROOT; };
+		F418B824924C2A66001509A1 /* UebersichtAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UebersichtAnsicht.swift; sourceTree = "<group>"; };
+		F6599950B9C36E2BEFDB955D /* EinrichtungsAssistent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EinrichtungsAssistent.swift; sourceTree = "<group>"; };
+		F8E2A0FA59320302EFB0DB8E /* Heizung.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Heizung.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F946CA02906649FCD88FEB9F /* konzept-waermeerzeuger.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "konzept-waermeerzeuger.md"; path = "../docs/konzept-waermeerzeuger.md"; sourceTree = "<group>"; };
+		FF3477EA02784967090358F0 /* Leitstandbetrieb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Leitstandbetrieb.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		85151C9E36D15AAEC657E122 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				392EACE46FEABBCDFEF2C8BB /* Anlage in Frameworks */,
+				9E61F825248DF94225554B4D /* Assistent in Frameworks */,
+				48FB4B76FD7E8C5842E4F712 /* Diagnose in Frameworks */,
+				D24037B19B1C09EAE2FB1013 /* Geraeteschnittstelle in Frameworks */,
+				184FAC8E458D6AB5D92A5478 /* Geraetesuche in Frameworks */,
+				EA2E2E1F8C30791B9A35CF78 /* Sprachmodelle in Frameworks */,
+				04DB2BDF58CD047DE6C6BA04 /* Verlauf in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		028EDCCAF749C221AC8E9FEC /* Mac */ = {
+			isa = PBXGroup;
+			children = (
+				881707C1F335FE111D8B3D6E /* Menueleiste.swift */,
+			);
+			path = Mac;
+			sourceTree = "<group>";
+		};
+		0DB4BC2A25408F826FC73F0F /* Raeume */ = {
+			isa = PBXGroup;
+			children = (
+				2D407A62D1ED471483691B4B /* RaeumeAnsicht.swift */,
+			);
+			path = Raeume;
+			sourceTree = "<group>";
+		};
+		3637201C8FCFB740C32503C6 /* Wissen */ = {
+			isa = PBXGroup;
+			children = (
+				118C93BB65B23931EA7CD6A0 /* handbuch.md */,
+				483EC28C72AE904D05EFFA09 /* katalog-messgroessen.md */,
+				B317AC4F46F18EE7E54B572D /* konzept-auswertung.md */,
+				F946CA02906649FCD88FEB9F /* konzept-waermeerzeuger.md */,
+			);
+			name = Wissen;
+			sourceTree = "<group>";
+		};
+		370DAB0883F3E6E227359621 /* Modell */ = {
+			isa = PBXGroup;
+			children = (
+				C0F7B5526D3507855D1D5E99 /* Adressnachfuehrung.swift */,
+				6718DE03AF5A762784FD3A18 /* Anlagenanbindung.swift */,
+				346551750D02DF77B7048826 /* AppModell.swift */,
+				7CDA3F26077EF49DA2B211C3 /* AppModell+Assistent.swift */,
+				73687811049CF267C3CBD540 /* Assistenzdienst.swift */,
+				44D7FDAD127593F52E81A109 /* Einrichtungsablauf.swift */,
+				A905B306C50D3A95E1844447 /* Leitstandabgleich.swift */,
+				FF3477EA02784967090358F0 /* Leitstandbetrieb.swift */,
+				4CE23CDBB9E7412393163FFC /* Mitteilungen.swift */,
+				48954AF714DAE13C1195D5C2 /* Schluesselbund.swift */,
+				8F2C16ACB620075686773D81 /* Verlaufszeitraum.swift */,
+			);
+			path = Modell;
+			sourceTree = "<group>";
+		};
+		3FAE561206879984C5D041B2 /* Ressourcen */ = {
+			isa = PBXGroup;
+			children = (
+				32D503F84BF4878CA173E732 /* AppIcon.icon */,
+				525D9206D8125B514A525BF2 /* Assets.xcassets */,
+			);
+			path = Ressourcen;
+			sourceTree = "<group>";
+		};
+		5F5E399ADAEA52E7EE4ADC2B = {
+			isa = PBXGroup;
+			children = (
+				6C84D670FC79777AAE509ECF /* App */,
+				C665FB93F68C837A59FC5848 /* Packages */,
+				3637201C8FCFB740C32503C6 /* Wissen */,
+				87EB321DA82A587187BDB9C0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6C84D670FC79777AAE509ECF /* App */ = {
+			isa = PBXGroup;
+			children = (
+				487AE3A6300C4C6A13CAA07F /* Heizung-iOS.entitlements */,
+				D165BE3A4DB30172765E2CD6 /* HeizungApp.swift */,
+				5E1FA86A4F4B606F13DADDFF /* Info.plist */,
+				5FE560CBDA7CDAA91B172940 /* PrivacyInfo.xcprivacy */,
+				9863C54945D2932AF1C698E1 /* Ansichten */,
+				370DAB0883F3E6E227359621 /* Modell */,
+				3FAE561206879984C5D041B2 /* Ressourcen */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		82D8BFB85C4CB71A8DADED9A /* Assistent */ = {
+			isa = PBXGroup;
+			children = (
+				4BAA87F46732D56EBC388FDD /* AssistentAnsicht.swift */,
+				034866260339563010A3A262 /* ClaudeZustimmung.swift */,
+			);
+			path = Assistent;
+			sourceTree = "<group>";
+		};
+		87EB321DA82A587187BDB9C0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F8E2A0FA59320302EFB0DB8E /* Heizung.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		92CB8C904C8E47C939B9D348 /* Gemeinsam */ = {
+			isa = PBXGroup;
+			children = (
+				B6EF3382BEAEBBBAC08C44DA /* Bausteine.swift */,
+				E50747252F464C70E79FCF40 /* Format.swift */,
+				5A34FB3CB4C98B3FE8861E37 /* Gestaltung.swift */,
+				327E15982488086CE34ACBB1 /* Navigation.swift */,
+				20A20BAFCA96A820D6CFB2BB /* Stellrad.swift */,
+			);
+			path = Gemeinsam;
+			sourceTree = "<group>";
+		};
+		9863C54945D2932AF1C698E1 /* Ansichten */ = {
+			isa = PBXGroup;
+			children = (
+				3E9F3D37A01FFD46483C9E7D /* Hauptansicht.swift */,
+				82D8BFB85C4CB71A8DADED9A /* Assistent */,
+				A0E83AF5CF61B3F07C78A6DD /* Einrichtung */,
+				92CB8C904C8E47C939B9D348 /* Gemeinsam */,
+				ED0B4CC60C2075271E03A540 /* Geraete */,
+				DD5FF7B7FA3DBB8BF70D8E0C /* Heizung */,
+				028EDCCAF749C221AC8E9FEC /* Mac */,
+				0DB4BC2A25408F826FC73F0F /* Raeume */,
+				A13FCE634B4C5C041B57856C /* Uebersicht */,
+			);
+			path = Ansichten;
+			sourceTree = "<group>";
+		};
+		A0E83AF5CF61B3F07C78A6DD /* Einrichtung */ = {
+			isa = PBXGroup;
+			children = (
+				F6599950B9C36E2BEFDB955D /* EinrichtungsAssistent.swift */,
+			);
+			path = Einrichtung;
+			sourceTree = "<group>";
+		};
+		A13FCE634B4C5C041B57856C /* Uebersicht */ = {
+			isa = PBXGroup;
+			children = (
+				F418B824924C2A66001509A1 /* UebersichtAnsicht.swift */,
+			);
+			path = Uebersicht;
+			sourceTree = "<group>";
+		};
+		C665FB93F68C837A59FC5848 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				0755C8BF372BF2C430F3FFB4 /* Anlage */,
+				DA550E0404BFA5CA2BDA29FB /* Assistent */,
+				547D9671BA2620527B52625D /* Diagnose */,
+				C413D5D56EA7D41BAFCD41F3 /* Geraeteschnittstelle */,
+				7E12D517D5536AACC4FF2A14 /* Geraetesuche */,
+				739D165BC0E6FD0A885EFBAC /* Sprachmodelle */,
+				EBC391A727D56124DE64A910 /* Verlauf */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		DD5FF7B7FA3DBB8BF70D8E0C /* Heizung */ = {
+			isa = PBXGroup;
+			children = (
+				264CF3F756FA5D3DC4A4C184 /* Anlagenschema.swift */,
+				985226BEA539E68A4938A875 /* AuswertungAnsichten.swift */,
+				3A3B3F99194A2B70720F0293 /* Ereignismarken.swift */,
+				CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */,
+				D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */,
+				6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */,
+				732BA319362C0F74A32EAD3C /* WaermepumpencheckAnsicht.swift */,
+			);
+			path = Heizung;
+			sourceTree = "<group>";
+		};
+		ED0B4CC60C2075271E03A540 /* Geraete */ = {
+			isa = PBXGroup;
+			children = (
+				90200A7BB3770AD4CF06877A /* AnalysepaketAnsicht.swift */,
+				611052E90F7FF74AED866E7E /* EinstellungenAnsichten.swift */,
+				D66C8117CAD6FD6386CB596E /* Funkschluessel.swift */,
+				9669F438D5DCC82FC1BD6694 /* GeraeteAnsicht.swift */,
+				0D1F684E2BF110C570B296D4 /* LeitstandAnsicht.swift */,
+				0737345FADDF32A5C80D6DFB /* WartungAnsichten.swift */,
+			);
+			path = Geraete;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8711A9D73A9DE52B7244339D /* Heizung */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B6D0DA96080BA6B0A011531F /* Build configuration list for PBXNativeTarget "Heizung" */;
+			buildPhases = (
+				61567391BFFC7ED9E4FAE9A4 /* Sources */,
+				2F0A94A74DA6BD5E842DD072 /* Resources */,
+				85151C9E36D15AAEC657E122 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Heizung;
+			packageProductDependencies = (
+				04DD00B2E5AC2745CD461461 /* Anlage */,
+				11310E56050774E650E321FF /* Assistent */,
+				DB0C56AD8F2221EEE75EDC69 /* Diagnose */,
+				16D4634F732BF828005985F5 /* Geraeteschnittstelle */,
+				291B293ED361B618FA68CFB2 /* Geraetesuche */,
+				99B2BEB748F408BEDAE94625 /* Sprachmodelle */,
+				5F4E7BDDCFF74DAD372B0E73 /* Verlauf */,
+			);
+			productName = Heizung;
+			productReference = F8E2A0FA59320302EFB0DB8E /* Heizung.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		35F3E8868B4259857A2D184C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					8711A9D73A9DE52B7244339D = {
+						DevelopmentTeam = 5B3P837UYQ;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 87AB519D8B6BE3C8E1E3F748 /* Build configuration list for PBXProject "Heizung" */;
+			developmentRegion = de;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				de,
+			);
+			mainGroup = 5F5E399ADAEA52E7EE4ADC2B;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D304FD265D5DB4D697EA63B3 /* XCLocalSwiftPackageReference "Packages/Anlage" */,
+				E24325F653113FEF24B4108D /* XCLocalSwiftPackageReference "Packages/Assistent" */,
+				48949E69F90F8EBC9EDAC2A3 /* XCLocalSwiftPackageReference "Packages/Diagnose" */,
+				038DA2CF923CCC9A9EA203BA /* XCLocalSwiftPackageReference "Packages/Geraeteschnittstelle" */,
+				6E5773E7C5D66CA2D2135899 /* XCLocalSwiftPackageReference "Packages/Geraetesuche" */,
+				1D8AA896515E63EC830F81AC /* XCLocalSwiftPackageReference "Packages/Sprachmodelle" */,
+				19B5ED5D29C2993C73ABF973 /* XCLocalSwiftPackageReference "Packages/Verlauf" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 87EB321DA82A587187BDB9C0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8711A9D73A9DE52B7244339D /* Heizung */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		2F0A94A74DA6BD5E842DD072 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9AEC0E79D140B5370D476D18 /* AppIcon.icon in Resources */,
+				37CEC2078FF85A27E4EDAE27 /* Assets.xcassets in Resources */,
+				6C74B3E72CB16C0A5043BFF1 /* PrivacyInfo.xcprivacy in Resources */,
+				1420F41AC8F2D68DA64F8ED6 /* handbuch.md in Resources */,
+				DFB7FA61B4074EC065FC1866 /* katalog-messgroessen.md in Resources */,
+				BF269445302DFF3EF96EA410 /* konzept-auswertung.md in Resources */,
+				A7ADA85C0564853A304234EC /* konzept-waermeerzeuger.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		61567391BFFC7ED9E4FAE9A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1996A01EDC970B1018AF2771 /* Adressnachfuehrung.swift in Sources */,
+				F9464C9E2F827BF2696527D7 /* AnalysepaketAnsicht.swift in Sources */,
+				C1FBDCD05A77ECF4011A88CB /* Anlagenanbindung.swift in Sources */,
+				25EA68C348D6545D78A78D56 /* Anlagenschema.swift in Sources */,
+				C94AB2870A4F0E1E3D3B635C /* AppModell+Assistent.swift in Sources */,
+				CEA54B1F64BDDD83BE2B4DBC /* AppModell.swift in Sources */,
+				64B0ED60F7B723A902F251EA /* AssistentAnsicht.swift in Sources */,
+				9AF7892986D9A987A14D7516 /* Assistenzdienst.swift in Sources */,
+				DE4D132B58101632C48E22D9 /* AuswertungAnsichten.swift in Sources */,
+				CF8A234BAE1311C23E5F1A02 /* Bausteine.swift in Sources */,
+				4AE5B281784737698A29BABA /* ClaudeZustimmung.swift in Sources */,
+				6712BCD7867FCB1F34803608 /* EinrichtungsAssistent.swift in Sources */,
+				D8B7912C9D021648E0379ACC /* Einrichtungsablauf.swift in Sources */,
+				F34A820AD1B105CDA62546AB /* EinstellungenAnsichten.swift in Sources */,
+				717944602EF2491AC7A3F76F /* Ereignismarken.swift in Sources */,
+				82DAFB5B47F809A99A50E82E /* Format.swift in Sources */,
+				773D23435C0EEF71E64BD12B /* Funkschluessel.swift in Sources */,
+				14A30F95855BB32DC63D876B /* GeraeteAnsicht.swift in Sources */,
+				10C7BC346882DBBC7F647CF7 /* Gestaltung.swift in Sources */,
+				50FFE3038A3F332FD18C8D59 /* Hauptansicht.swift in Sources */,
+				1F0BE23E9A67557D96F4E198 /* HeizungAnsicht.swift in Sources */,
+				E3AA6D1129BC4E9C2D23E1B9 /* HeizungApp.swift in Sources */,
+				DB21D0FAB4296AC88BA896D9 /* LeitstandAnsicht.swift in Sources */,
+				3948E4E5CAE4BDF07BF0738C /* Leitstandabgleich.swift in Sources */,
+				979476CDBFCB9FF5C6D4AC7E /* Leitstandbetrieb.swift in Sources */,
+				1860BDE887DC8F1601FC50A0 /* Menueleiste.swift in Sources */,
+				1C64F5F6747EBDA765CACD5A /* Mitteilungen.swift in Sources */,
+				E13EB0896D2A2505992A6171 /* Navigation.swift in Sources */,
+				C8C36B6825AB340A37EF1989 /* RaeumeAnsicht.swift in Sources */,
+				697F8CD0C123FB43EB631A2D /* Schluesselbund.swift in Sources */,
+				6FBB2C0A0FD7E382AC0BFEF2 /* Stellrad.swift in Sources */,
+				93EC333A55EC35241B269454 /* UebersichtAnsicht.swift in Sources */,
+				3821287EDCF30F0CE6C9AB65 /* VerlaufAnsichten.swift in Sources */,
+				451278FCE8F6B8243C59996A /* Verlaufstafeln.swift in Sources */,
+				7AF8EFC79707B2BB24C117EE /* Verlaufszeitraum.swift in Sources */,
+				EE5A8F90F4FBAE04C557140D /* WaermepumpencheckAnsicht.swift in Sources */,
+				13C6C54AAB578E7056F02EFA /* WartungAnsichten.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		09F79EA826335987D3D8250A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = "App/Heizung-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = 5B3P837UYQ;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				"ENABLE_OUTGOING_NETWORK_CONNECTIONS[sdk=macosx*]" = YES;
+				"ENABLE_USER_SELECTED_FILES[sdk=macosx*]" = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEIZUNG_PCC = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Heizung;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Privates Projekt";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Die App verbindet sich mit den Heizungsgeräten in Ihrem Heimnetz.";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphone*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*]" = YES;
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad[sdk=iphone*]" = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone[sdk=iphone*]" = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.simplytech.heizung;
+				PRODUCT_NAME = Heizung;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		321DDC6ED97CD6BAEF1081BD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C5C41FCA83A0D38B24B765D8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		EB9A197171D7A4DE41126260 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_ENTITLEMENTS[sdk=iphone*]" = "App/Heizung-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = 5B3P837UYQ;
+				"ENABLE_APP_SANDBOX[sdk=macosx*]" = YES;
+				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+				"ENABLE_OUTGOING_NETWORK_CONNECTIONS[sdk=macosx*]" = YES;
+				"ENABLE_USER_SELECTED_FILES[sdk=macosx*]" = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEIZUNG_PCC = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Heizung;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Privates Projekt";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Die App verbindet sich mit den Heizungsgeräten in Ihrem Heimnetz.";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphone*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*]" = YES;
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad[sdk=iphone*]" = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone[sdk=iphone*]" = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.simplytech.heizung;
+				PRODUCT_NAME = Heizung;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		87AB519D8B6BE3C8E1E3F748 /* Build configuration list for PBXProject "Heizung" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				321DDC6ED97CD6BAEF1081BD /* Debug */,
+				C5C41FCA83A0D38B24B765D8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B6D0DA96080BA6B0A011531F /* Build configuration list for PBXNativeTarget "Heizung" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EB9A197171D7A4DE41126260 /* Debug */,
+				09F79EA826335987D3D8250A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		038DA2CF923CCC9A9EA203BA /* XCLocalSwiftPackageReference "Packages/Geraeteschnittstelle" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Geraeteschnittstelle;
+		};
+		19B5ED5D29C2993C73ABF973 /* XCLocalSwiftPackageReference "Packages/Verlauf" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Verlauf;
+		};
+		1D8AA896515E63EC830F81AC /* XCLocalSwiftPackageReference "Packages/Sprachmodelle" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Sprachmodelle;
+		};
+		48949E69F90F8EBC9EDAC2A3 /* XCLocalSwiftPackageReference "Packages/Diagnose" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Diagnose;
+		};
+		6E5773E7C5D66CA2D2135899 /* XCLocalSwiftPackageReference "Packages/Geraetesuche" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Geraetesuche;
+		};
+		D304FD265D5DB4D697EA63B3 /* XCLocalSwiftPackageReference "Packages/Anlage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Anlage;
+		};
+		E24325F653113FEF24B4108D /* XCLocalSwiftPackageReference "Packages/Assistent" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/Assistent;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		04DD00B2E5AC2745CD461461 /* Anlage */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Anlage;
+		};
+		11310E56050774E650E321FF /* Assistent */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Assistent;
+		};
+		16D4634F732BF828005985F5 /* Geraeteschnittstelle */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Geraeteschnittstelle;
+		};
+		291B293ED361B618FA68CFB2 /* Geraetesuche */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Geraetesuche;
+		};
+		5F4E7BDDCFF74DAD372B0E73 /* Verlauf */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Verlauf;
+		};
+		99B2BEB748F408BEDAE94625 /* Sprachmodelle */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Sprachmodelle;
+		};
+		DB0C56AD8F2221EEE75EDC69 /* Diagnose */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Diagnose;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 35F3E8868B4259857A2D184C /* Project object */;
+}

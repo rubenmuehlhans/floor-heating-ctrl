@@ -1,0 +1,129 @@
+{
+  "cfg_version": 1,
+  "site": "Pufferspeicher",
+  "onewire_pin": [
+    13,
+    -1
+  ],
+  "poll_s": 10,
+  "probes": [
+    {
+      "rom": "28FF001E8016704A",
+      "role": "puffer",
+      "name": "Pufferspeicher",
+      "offset_k": 3.0
+    },
+    {
+      "rom": "28FF011E8016704A",
+      "role": "puffer_unten",
+      "name": "Pufferspeicher unten",
+      "offset_k": 0.0
+    },
+    {
+      "rom": "28FF021E8016684A",
+      "role": "hk1_vl",
+      "name": "Heizkreis 1 Vorlauf",
+      "offset_k": 0.0
+    },
+    {
+      "rom": "28FF031E8016684A",
+      "role": "hk1_rl",
+      "name": "Heizkreis 1 Ruecklauf",
+      "offset_k": 0.0
+    },
+    {
+      "rom": "28FF041E8016684A",
+      "role": "hk2_vl",
+      "name": "Heizkreis 2 Vorlauf",
+      "offset_k": 0.0
+    },
+    {
+      "rom": "28FF051E8016684A",
+      "role": "hk2_rl",
+      "name": "Heizkreis 2 Ruecklauf",
+      "offset_k": 0.0
+    }
+  ],
+  "reboot_hour": -1,
+  "seize_weekday": 6,
+  "seize_hour": 11,
+  "reboot_minute": 0,
+  "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
+  "boiler_pump": {
+    "enabled": false,
+    "topic": "",
+    "host": "192.168.1.204",
+    "user": "",
+    "pass_set": false,
+    "relay": 1,
+    "mode": "auto",
+    "on_k": 1.0,
+    "off_k": 0.5,
+    "hold_s": 120,
+    "min_run_s": 180,
+    "min_pause_s": 180,
+    "emergency_c": 85.0
+  },
+  "wifi": {
+    "ssid": "Heimnetz",
+    "hostname": "heizung",
+    "pass_set": true,
+    "ap_pass_set": true
+  },
+  "mqtt": {
+    "enabled": false,
+    "uri": "",
+    "user": "",
+    "prefix": "heiz",
+    "pass_set": false
+  },
+  "circuits": [
+    {
+      "id": 1,
+      "name": "Keller und Erdgeschoss",
+      "enabled": true,
+      "peers": [
+        "fbh_3a91c4",
+        "fbh_a1b2c3"
+      ],
+      "vl_role": "hk1_vl",
+      "rl_role": "hk1_rl",
+      "pump": {
+        "topic": "pumpe_hk1",
+        "host": "",
+        "user": "",
+        "relay": 1,
+        "pass_set": false
+      },
+      "mode": "auto",
+      "overrun_s": 300,
+      "min_run_s": 180,
+      "min_pause_s": 180,
+      "min_buffer_c": 40.0,
+      "frost_c": 6.0
+    },
+    {
+      "id": 2,
+      "name": "Obergeschoss",
+      "enabled": true,
+      "peers": [
+        "fbh_d4e5f6"
+      ],
+      "vl_role": "hk2_vl",
+      "rl_role": "hk2_rl",
+      "pump": {
+        "topic": "pumpe_hk2",
+        "host": "",
+        "user": "",
+        "relay": 2,
+        "pass_set": false
+      },
+      "mode": "auto",
+      "overrun_s": 300,
+      "min_run_s": 180,
+      "min_pause_s": 180,
+      "min_buffer_c": 40.0,
+      "frost_c": 6.0
+    }
+  ]
+}

@@ -1,0 +1,300 @@
+{
+  "device": {
+    "id": "heiz_3f21ac",
+    "mac": "A0:B7:65:3F:21:AC",
+    "site": "Pufferspeicher",
+    "model": "Waermeerzeuger",
+    "role": "heat"
+  },
+  "version": "attrappe",
+  "uptime_s": 107,
+  "heap": 198000,
+  "setup_open": false,
+  "net": {
+    "sta": true,
+    "ap": false,
+    "ip": "127.0.0.1",
+    "rssi": -58,
+    "time_valid": true
+  },
+  "onewire": {
+    "pins": [
+      13,
+      -1
+    ],
+    "found": 6,
+    "assigned": 6,
+    "round_ms": 812,
+    "rounds": 10,
+    "poll_s": 10
+  },
+  "probes": [
+    {
+      "rom": "28FF001E8016704A",
+      "name": "Pufferspeicher",
+      "role": "puffer",
+      "role_label": "Pufferspeicher",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 65.54,
+      "raw_c": 62.54,
+      "delta30_c": 0.2,
+      "age_s": 3,
+      "offset_k": 3.0,
+      "reads": 10,
+      "errors": 0
+    },
+    {
+      "rom": "28FF011E8016704A",
+      "name": "Pufferspeicher unten",
+      "role": "puffer_unten",
+      "role_label": "Pufferspeicher unten",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 45.61,
+      "raw_c": 45.61,
+      "delta30_c": 0.16,
+      "age_s": 3,
+      "offset_k": 0.0,
+      "reads": 10,
+      "errors": 0
+    },
+    {
+      "rom": "28FF021E8016684A",
+      "name": "Heizkreis 1 Vorlauf",
+      "role": "hk1_vl",
+      "role_label": "Heizkreis 1 Vorlauf",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 31.5,
+      "raw_c": 31.5,
+      "delta30_c": -0.13,
+      "age_s": 3,
+      "offset_k": 0.0,
+      "reads": 10,
+      "errors": 0
+    },
+    {
+      "rom": "28FF031E8016684A",
+      "name": "Heizkreis 1 Ruecklauf",
+      "role": "hk1_rl",
+      "role_label": "Heizkreis 1 Ruecklauf",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 27.0,
+      "raw_c": 27.0,
+      "delta30_c": -0.1,
+      "age_s": 3,
+      "offset_k": 0.0,
+      "reads": 10,
+      "errors": 0
+    },
+    {
+      "rom": "28FF041E8016684A",
+      "name": "Heizkreis 2 Vorlauf",
+      "role": "hk2_vl",
+      "role_label": "Heizkreis 2 Vorlauf",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 32.85,
+      "raw_c": 32.85,
+      "delta30_c": 0.51,
+      "age_s": 3,
+      "offset_k": 0.0,
+      "reads": 10,
+      "errors": 0
+    },
+    {
+      "rom": "28FF051E8016684A",
+      "name": "Heizkreis 2 Ruecklauf",
+      "role": "hk2_rl",
+      "role_label": "Heizkreis 2 Ruecklauf",
+      "bus": 0,
+      "assigned": true,
+      "temp_c": 28.68,
+      "raw_c": 28.68,
+      "delta30_c": 0.41,
+      "age_s": 3,
+      "offset_k": 0.0,
+      "reads": 10,
+      "errors": 0
+    }
+  ],
+  "derived": {},
+  "circuits": [
+    {
+      "id": 1,
+      "name": "Keller und Erdgeschoss",
+      "enabled": true,
+      "mode": "auto",
+      "on": true,
+      "reason": "Abnehmer vorhanden",
+      "since_s": 1820,
+      "demand": true,
+      "stale": false,
+      "any_seen": true,
+      "vl_c": 31.5,
+      "rl_c": 27.0,
+      "spread_k": 4.5,
+      "path": "mqtt",
+      "relay": {
+        "known": true,
+        "on": true,
+        "online": true,
+        "age_s": 4,
+        "mismatch": false
+      }
+    },
+    {
+      "id": 2,
+      "name": "Obergeschoss",
+      "enabled": true,
+      "mode": "auto",
+      "on": false,
+      "reason": "kein Abnehmer",
+      "since_s": 640,
+      "demand": false,
+      "stale": false,
+      "any_seen": true,
+      "vl_c": 32.85,
+      "rl_c": 28.68,
+      "spread_k": 4.17,
+      "path": "mqtt",
+      "relay": {
+        "known": true,
+        "on": false,
+        "online": true,
+        "age_s": 4,
+        "mismatch": false
+      }
+    }
+  ],
+  "demand_sources": [
+    {
+      "id": "fbh_3a91c4",
+      "site": "Keller",
+      "host": "192.168.1.250",
+      "seen": true,
+      "demand": true,
+      "max_target": 1.0,
+      "open_channels": 2,
+      "rooms_calling": 1,
+      "age_s": 3,
+      "errors": 0
+    },
+    {
+      "id": "fbh_a1b2c3",
+      "site": "Erdgeschoss",
+      "host": "192.168.1.251",
+      "seen": true,
+      "demand": false,
+      "max_target": 0.0,
+      "open_channels": 0,
+      "rooms_calling": 0,
+      "age_s": 3,
+      "errors": 0
+    },
+    {
+      "id": "fbh_d4e5f6",
+      "site": "Obergeschoss",
+      "host": "192.168.1.250",
+      "seen": true,
+      "demand": false,
+      "max_target": 0.0,
+      "open_channels": 0,
+      "rooms_calling": 0,
+      "age_s": 3,
+      "errors": 0
+    }
+  ],
+  "mqtt_connected": true,
+  "remote_probes": {
+    "abgas": 88.86,
+    "kessel_vl": 60.17,
+    "kessel_rl": 41.56,
+    "aussen": 9.24
+  },
+  "burner": {
+    "remote": true,
+    "known": true,
+    "running": false,
+    "abgas_c": 88.86,
+    "baseline_c": 21.4,
+    "since_s": 1240,
+    "runtime_today_s": 16048,
+    "starts_today": 6,
+    "runtime_yesterday_s": 18720,
+    "starts_yesterday": 7,
+    "litres_today": 9.81,
+    "short_cycling": false
+  },
+  "charge": {
+    "phase": "geladen",
+    "limited": false,
+    "warn_dhw": false,
+    "kessel_remote": true,
+    "since_s": 2400,
+    "level": 1.0,
+    "spread_k": 18.61
+  },
+  "record": {
+    "state": "fertig",
+    "samples": 1043,
+    "period_s": 5,
+    "started_epoch": 1790020726,
+    "cols": 6,
+    "bytes": 19200,
+    "auto": false,
+    "wait_off": false,
+    "tail": false,
+    "tail_left_s": 0,
+    "source": "speicher"
+  },
+  "log": {
+    "charges": 37,
+    "days": 112
+  },
+  "boiler_pump": {
+    "enabled": false,
+    "mode": "auto",
+    "on": false,
+    "reason": "Kessel kaum waermer als der Speicher",
+    "reason_key": "no_transfer",
+    "since_s": 940,
+    "path": "http",
+    "relay": {
+      "known": true,
+      "on": false,
+      "online": true,
+      "status": 200,
+      "mismatch": false
+    }
+  },
+  "findings": [
+    {
+      "code": "flow_swapped",
+      "where": "Keller und Erdgeschoss",
+      "text": "Vorlauf und Ruecklauf sind vermutlich vertauscht",
+      "held_s": 5400
+    },
+    {
+      "code": "probe_errors",
+      "where": "Heizkreis 2 Ruecklauf",
+      "text": "Ein Fuehler verwirft auffaellig viele Messungen",
+      "reads": 820,
+      "errors": 96
+    }
+  ],
+  "heat_peers": [
+    {
+      "id": "heiz_9a1b2c",
+      "site": "Kessel",
+      "host": "192.168.1.52",
+      "seen": true,
+      "age_s": 4,
+      "roles": 3,
+      "errors": 0
+    }
+  ],
+  "history_len": 1440
+}

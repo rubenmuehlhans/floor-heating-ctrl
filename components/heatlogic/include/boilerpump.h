@@ -25,13 +25,22 @@
  *
  * Beim Anlaufen des Brenners steht die Pumpe zunaechst: Der kalte Kessel
  * wuerde sonst den warmen Speicher abkuehlen. Sie springt an, sobald der
- * Vorlauf den Ruecklauf ueberholt -- das ist zugleich die Ruecklaufanhebung,
- * die dem Kessel die Taupunktunterschreitung erspart.
+ * Vorlauf den Speicher um on_k ueberholt -- das ist zugleich die
+ * Ruecklaufanhebung, die dem Kessel die Taupunktunterschreitung erspart.
  *
- * Ob der Brenner laeuft, geht deshalb bewusst nicht ein. Die Spreizung sagt
- * dasselbe, nur eine Stufe spaeter und dafuer richtig: Ein Brenner, der eben
- * erst gezuendet hat, hat noch keine Waerme abzugeben. Nach oben sichert die
- * Notgrenze ab.
+ * Solange der Brenner laeuft, laeuft sie in jedem Fall. Die Spreizung allein
+ * sagt nicht, ob der Kessel Waerme abgibt: Am 23. September lag der
+ * Kesselvorlauf mitten in einem Brennerlauf nur 0,9 K ueber dem
+ * Speicherfuehler, die Regel las daraus "nichts abzugeben", und der Kessel
+ * schaltete den Brenner nach gut zwoelf Minuten selbst ab -- sonst brennt er
+ * eine Dreiviertelstunde. Auf die Notgrenze ist dabei kein Verlass: Steht die
+ * Pumpe, sehen die Fuehler am Rohr den Kesselkoerper nicht.
+ *
+ * Die Brennererkennung meldet einen Start erst eine bis mehrere Minuten nach
+ * dem Zuenden. Die Ruecklaufanhebung bleibt damit erhalten; ist die Pumpe bis
+ * dahin nicht angesprungen, schaltet die Meldung sie ein. Aus geht sie erst,
+ * wenn die Erkennung den Brenner als aus meldet, und dann wie sonst nach
+ * Spreizung und Haltezeit.
  */
 #pragma once
 
@@ -46,6 +55,7 @@ extern "C" {
 typedef enum {
     BP_REASON_NONE = 0,
     BP_REASON_TRANSFER,     /* der Kessel gibt Waerme ab */
+    BP_REASON_BURNER,       /* der Brenner laeuft */
     BP_REASON_NO_TRANSFER,  /* Kessel kaum waermer als der Speicher (ersatzweise der Ruecklauf) */
     BP_REASON_EMERGENCY,    /* Notgrenze des Kesselvorlaufs ueberschritten */
     BP_REASON_NO_READING,   /* ohne Messwerte laeuft sie */
@@ -87,6 +97,9 @@ typedef struct {
      */
     bool buffer_valid;
     float buffer_c;
+    /* Die Brennererkennung meldet den Brenner als laufend. Unbekannt zaehlt
+     * als aus; dann entscheidet die Spreizung wie ohne diese Angabe. */
+    bool burner_running;
 } bp_input_t;
 
 typedef struct {

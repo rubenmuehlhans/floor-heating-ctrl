@@ -5,6 +5,8 @@
 | [Benutzerhandbuch](handbuch.md) | Bedienung, Einrichtung, Wartung und Fehlersuche beider Gerätearten |
 | [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Kesselkreispumpe, Schnittstellen |
 | [Konzept: Auswertung der Anlage](konzept-auswertung.md) | Protokolle, Verbrauchslinie, Abgas-Vorlauf-Abstand, Plausibilität, Rückströmung, Warmwasserzapfung, Reihenfolge der Umsetzung |
+| [Konzept: Leitstand](konzept-leitstand.md) | Funkempfang in Kesselnähe, lückenloses Protokoll auf SD-Karte, Abgleich des Verlaufs mit den Apps, Anzeige, HomeKit, Etappen mit Prüfschritten |
+| [Katalog der Messgrößen](katalog-messgroessen.md) | Spalten des Protokolls und des Verlaufs der App, Kennzahlen, Fünfminutenmittel, Ereignisse |
 | [Umbau auf zwei Anwendungen](umbau-projektstruktur.md) | Aufteilung des Projekts, gemeinsame Komponenten, Nachweis der Unverändertheit |
 | [Änderungen](../CHANGELOG.md) | was sich seit welcher Fassung geändert hat |
 

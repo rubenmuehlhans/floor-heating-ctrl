@@ -256,6 +256,7 @@ def state() -> dict:
                    "site": CFG["site"], "model": "Waermeerzeuger", "role": "heat"},
         "version": "attrappe",
         "uptime_s": int(time.time() - T0),
+        "reset_reason": "power_on",
         "heap": 198000,
         "setup_open": CFG["site"] == "",
         "net": {"sta": True, "ap": False, "ip": "127.0.0.1", "rssi": -58, "time_valid": True},
@@ -292,14 +293,17 @@ def state() -> dict:
             "level": None if fuell is None else round(fuell, 3),
             "spread_k": None if kvl is None or krl is None else round(kvl - krl, 2),
         },
+        "trend": {"days": 111, "valid": True, "skipped": 0, "slope_h_per_gt": 0.45, "base_h": 1.5,
+                  "sigma_h": 0.21, "r2": 0.86,
+                  "last_day": {"gradtage": 6.9, "hours": 4.6, "expected_h": 4.6, "sigma_off": 0.1}},
         "record": REC,
         "log": {"charges": 0, "days": 1} if PROTOKOLLE_GELOESCHT[0] else {"charges": 37, "days": 112},
         "boiler_pump": {
             "enabled": CFG["boiler_pump"]["enabled"], "mode": STATE_BP["mode"],
             "on": brenner_laeuft if STATE_BP["mode"] == "auto" else STATE_BP["mode"] == "ein",
-            "reason": "Kessel gibt Waerme ab" if brenner_laeuft
+            "reason": "Brenner laeuft" if brenner_laeuft
                       else "Kessel kaum waermer als der Speicher",
-            "reason_key": "transfer" if brenner_laeuft else "no_transfer",
+            "reason_key": "burner" if brenner_laeuft else "no_transfer",
             "since_s": 940, "path": "http",
             "relay": {"known": True, "on": brenner_laeuft, "online": True, "status": 200,
                       "mismatch": False},
@@ -351,8 +355,10 @@ def tage_csv() -> str:
     heute = time.time()
     for i in range(1 if PROTOKOLLE_GELOESCHT[0] else 112):
         tag = time.localtime(heute - 86400 * i)
-        laufzeit = 0 if i == 0 else (3300 if i % 3 == 1 else 0)
-        gradtage = max(0.0, 3.5 - i * 0.05) if i % 2 else 0.0
+        # Vom Sommer zum Herbst: Heizgradtage steigen, die Laufzeit folgt der Verbrauchslinie
+        # des Zustands (1,5 h Warmwasser plus 0,45 h je Heizgradtag) mit etwas Streuung.
+        gradtage = max(0.0, 7.0 - i * 0.09 + 1.5 * math.sin(i * 1.7))
+        laufzeit = 0 if i == 0 else int((1.5 + 0.45 * gradtage + 0.3 * math.sin(i * 2.3)) * 3600)
         zeilen.append("%04d-%02d-%02d,%d,%d,%.3f,%.1f,%.1f,%.1f" % (
             tag.tm_year, tag.tm_mon, tag.tm_mday, laufzeit, 2 if laufzeit else 0,
             laufzeit / 3600 * 2.2, gradtage, 9.0 + (i % 5), 19.0 + (i % 7)))

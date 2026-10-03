@@ -1,0 +1,5 @@
+# Reihenfolge, in der die Oberflaeche zusammengesetzt wird.
+# Gelesen von cmake/embed_www.cmake und den Werkzeugen unter tools/.
+www/kopf.html
+../../../www/stil.css
+www/rumpf.html

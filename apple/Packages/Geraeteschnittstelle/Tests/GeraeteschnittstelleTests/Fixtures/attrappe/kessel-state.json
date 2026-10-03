@@ -1,0 +1,176 @@
+{
+ "device": {
+  "id": "heiz_9a1b2c",
+  "mac": "A0:B7:65:9A:1B:2C",
+  "site": "Kessel",
+  "model": "Waermeerzeuger",
+  "role": "heat"
+ },
+ "version": "attrappe",
+ "uptime_s": 107,
+ "heap": 198000,
+ "setup_open": false,
+ "net": {
+  "sta": true,
+  "ap": false,
+  "ip": "127.0.0.1",
+  "rssi": -58,
+  "time_valid": true
+ },
+ "onewire": {
+  "pins": [
+   13,
+   -1
+  ],
+  "found": 3,
+  "assigned": 3,
+  "round_ms": 812,
+  "rounds": 10,
+  "poll_s": 10
+ },
+ "probes": [
+  {
+   "rom": "28FF001E8016614A",
+   "name": "Abgas",
+   "role": "abgas",
+   "role_label": "Abgas",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 88.86,
+   "raw_c": 88.86,
+   "delta30_c": 3.76,
+   "age_s": 3,
+   "offset_k": 0.0,
+   "reads": 10,
+   "errors": 0
+  },
+  {
+   "rom": "28FF011E80166B4A",
+   "name": "Kessel Vorlauf",
+   "role": "kessel_vl",
+   "role_label": "Kessel Vorlauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 60.17,
+   "raw_c": 60.17,
+   "delta30_c": 0.75,
+   "age_s": 3,
+   "offset_k": 0.0,
+   "reads": 10,
+   "errors": 0
+  },
+  {
+   "rom": "28FF021E80166B4A",
+   "name": "Kessel Ruecklauf",
+   "role": "kessel_rl",
+   "role_label": "Kessel Ruecklauf",
+   "bus": 0,
+   "assigned": true,
+   "temp_c": 41.56,
+   "raw_c": 41.56,
+   "delta30_c": 1.0,
+   "age_s": 3,
+   "offset_k": 0.0,
+   "reads": 10,
+   "errors": 0
+  }
+ ],
+ "derived": {
+  "kessel_spreizung_k": 18.61
+ },
+ "circuits": [],
+ "demand_sources": [],
+ "mqtt_connected": true,
+ "remote_probes": {
+  "puffer": 62.54,
+  "puffer_unten": 45.61,
+  "hk1_vl": 31.5,
+  "hk1_rl": 27.0,
+  "hk2_vl": 32.85,
+  "hk2_rl": 28.68,
+  "aussen": 9.24
+ },
+ "burner": {
+  "remote": false,
+  "known": true,
+  "running": false,
+  "abgas_c": 88.86,
+  "baseline_c": 21.4,
+  "since_s": 1240,
+  "runtime_today_s": 16048,
+  "starts_today": 6,
+  "runtime_yesterday_s": 18720,
+  "starts_yesterday": 7,
+  "litres_today": 9.81,
+  "short_cycling": false
+ },
+ "charge": {
+  "phase": "geladen",
+  "limited": false,
+  "warn_dhw": false,
+  "kessel_remote": false,
+  "since_s": 2400,
+  "level": 1.0,
+  "spread_k": 18.61
+ },
+ "record": {
+  "state": "fertig",
+  "samples": 1043,
+  "period_s": 5,
+  "started_epoch": 1790020726,
+  "cols": 6,
+  "bytes": 19200,
+  "auto": false,
+  "wait_off": false,
+  "tail": false,
+  "tail_left_s": 0,
+  "source": "brenner"
+ },
+ "log": {
+  "charges": 37,
+  "days": 112
+ },
+ "boiler_pump": {
+  "enabled": true,
+  "mode": "auto",
+  "on": false,
+  "reason": "Kessel kaum waermer als der Speicher",
+  "reason_key": "no_transfer",
+  "since_s": 940,
+  "path": "http",
+  "relay": {
+   "known": true,
+   "on": false,
+   "online": true,
+   "status": 200,
+   "mismatch": false
+  }
+ },
+ "findings": [
+  {
+   "code": "flow_swapped",
+   "where": "Keller und Erdgeschoss",
+   "text": "Vorlauf und Ruecklauf sind vermutlich vertauscht",
+   "held_s": 5400
+  },
+  {
+   "code": "probe_errors",
+   "where": "Heizkreis 2 Ruecklauf",
+   "text": "Ein Fuehler verwirft auffaellig viele Messungen",
+   "reads": 820,
+   "errors": 96
+  }
+ ],
+ "heat_peers": [
+  {
+   "id": "heiz_3f21ac",
+   "site": "Pufferspeicher",
+   "host": "192.168.1.52",
+   "seen": true,
+   "age_s": 4,
+   "roles": 6,
+   "errors": 0
+  }
+ ],
+ "history_len": 1440
+}

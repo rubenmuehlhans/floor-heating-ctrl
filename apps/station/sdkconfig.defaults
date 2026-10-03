@@ -1,0 +1,102 @@
+CONFIG_IDF_TARGET="esp32"
+
+# Flash: 16 MB am Core Basic und am Core2
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_40M=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Beide Geraete tragen einen ESP32 der Revision 3; der Umweg um den
+# PSRAM-Cachefehler frueherer Revisionen entfaellt damit.
+CONFIG_ESP32_REV_MIN_3=y
+
+# PSRAM: der Core2 hat 8 MB, der Core Basic keinen. Ohne Fund geht es ohne
+# weiter; mit Fund wandern WLAN- und Netzpuffer dorthin.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# Gewoehnliche Anforderungen jeder Groesse zuerst in den PSRAM. Mit der
+# Vorgabe 16384 landete alles Kleine intern -- HomeKit, cJSON, TLS --, und der
+# Core2 lief nach dem Anlegen der Zubehoere mit unter 7 KB intern leer; dann
+# fehlten Puffer der Karte und Sperren, abort() in fopen. Was intern sein muss
+# (DMA, Sperren, FreeRTOS), fordert das ausdruecklich an. Ohne PSRAM (Core
+# Basic) bleibt alles wie bisher intern.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=0
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=49152
+# TLS (HomeKit-Kopplung) und NimBLE ueber malloc statt fest intern: mit PSRAM
+# dorthin, ohne PSRAM intern wie zuvor.
+CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC=y
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_DEFAULT=y
+
+# Geschwindigkeit statt Groesse: Mit Groessenoptimierung bricht ESP-IDF 5.3.6
+# in ble_hs_pvcy.c an einer als Fehler behandelten Warnung ab.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+CONFIG_FREERTOS_HZ=1000
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=15
+
+# Absturzspeicher im Flash, siehe partitions.csv
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+
+# WLAN; weniger Puffer als in den Regelgeraeten, der Core Basic hat keinen PSRAM
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_TX_BUFFER_TYPE=1
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=10
+
+# Bluetooth: nur mithoeren, wie im Verteiler. Ohne Sicherheitsfunktionen und
+# Adressschutz; mit Adressschutz fehlt unter ESP-IDF 5.3.6 beim Binden
+# ble_sm_alg_encrypt.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=n
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_NVS_PERSIST=n
+CONFIG_BT_NIMBLE_SECURITY_ENABLE=n
+CONFIG_BT_NIMBLE_HS_PVCY=n
+CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY=n
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
+CONFIG_BTDM_CTRL_MODE_BTDM=n
+CONFIG_ESP_COEX_ENABLED=y
+CONFIG_ESP_COEX_SW_COEXIST_ENABLE=y
+
+# Drei Zeitserver, wie in den anderen Anwendungen
+CONFIG_LWIP_SNTP_MAX_SERVERS=3
+
+# HTTP-Server
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
+CONFIG_HTTPD_MAX_URI_LEN=512
+CONFIG_HTTPD_ERR_RESP_NO_DELAY=y
+
+# Neue Firmware erst auf Probe
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Kurzlebige HTTP-Verbindungen, Begruendung in apps/manifold/sdkconfig.defaults
+CONFIG_LWIP_MAX_ACTIVE_TCP=32
+CONFIG_LWIP_TCP_MSL=5000
+
+# SD-Karte fuer das Protokoll: lange Dateinamen ("heiz_2370ec.5min.csv"),
+# Puffer dafuer auf dem Heap statt auf dem Stapel jeder Aufgabe
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=64
+CONFIG_FATFS_VOLUME_COUNT=1
+# Kein eigener Sektorpuffer je Datei; der des Laufwerks genuegt, es ist
+# ohnehin immer nur eine Datei zum Schreiben offen.
+CONFIG_FATFS_PER_FILE_CACHE=n
+
+# HomeKit (nur mit PSRAM, siehe main/st_hap.c): eigener Port neben der
+# Weboberflaeche auf 80; mehr Sockets fuer iPhone, iPad, Mac und
+# Steuerzentrale neben den eigenen Verbindungen.
+CONFIG_HAP_HTTP_SERVER_PORT=5556
+CONFIG_HAP_HTTP_MAX_OPEN_SOCKETS=6
+CONFIG_LWIP_MAX_SOCKETS=20

@@ -5,6 +5,145 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ## Unveröffentlicht, seit v0.4.0
 
+### Leitstand
+
+- **HomeKit-Brücke (Core2).** Je Raum ein Thermostat mit Ist, Soll (5 bis 35 °C in 0,5 K),
+  Betriebsart, Heizzustand und Feuchte; Fühler für Außen, Pufferspeicher und Kesselvorlauf.
+  Änderungen aus Home gehen nach 900 ms Sammelzeit an den Verteiler; ein nicht erreichbarer
+  Verteiler zeigt in Home „Keine Antwort“. Code und QR-Code nur auf der Anzeige (Seite
+  Leitstand, mittlere Taste kurz), erzeugt beim ersten Start. `POST /api/homekit/reset` löscht
+  die Kopplungen; `GET /api/state` meldet den Stand unter `homekit`. Grundlage ist das
+  esp-homekit-sdk von Espressif unter `third_party/`. Ohne PSRAM (Core Basic) bleibt HomeKit aus
+  und belegt dort nur die rund 3 KB festen Speicher des SDK.
+- **Sechs Seiten und Berührung (Core2).** Zu Anlage und Leitstand kommen Räume (Ist, Soll,
+  Ventile, Feuchte), Verlauf (24 Stunden Speicher, Kessel, Außen, Brenner; mittlere Taste:
+  Raumwerte), Meldungen (Befunde und Ereignisse des Tages) und Geräte (Erreichbarkeit, WLAN,
+  Laufzeit, Speicher, Fassung, Außenfühler; mittlere Taste: Funkthermometer). Wischen blättert,
+  Tippen auf den Fuß wirkt wie die Tasten. Der Verlauf liegt im PSRAM und wird nach einem Neustart
+  von der Karte gefüllt. Ein neuer Befund schaltet die Anzeige ein und zeigt die Meldungen. Am
+  Core Basic bleibt es bei zwei Seiten.
+- **Echtzeituhr und Versorgung (Core2).** Die Zeit kommt nach einem Stromausfall aus der
+  Echtzeituhr, das Protokoll schreibt ohne Lücke weiter. Ereignisse `versorgung_aus` und
+  `versorgung_wieder` mit Ladestand; die Seite Leitstand zeigt Netz oder Akku.
+
+- **Neues Gerät, `apps/station`.** Ein M5Stack Core zeigt den Zustand der Anlage auf zwei Seiten
+  (Anlage, Leitstand), fragt Heizungsgeräte und Verteilerplatinen alle 30 s ab, empfängt
+  Funkthermometer samt verschlüsselter BTHome-Geräte und liefert die Außentemperatur unter
+  `GET /api/demand`. mDNS-Rolle `station`, Kennung `lst_…`. Einrichtung über den Zugangspunkt
+  `leitstand-XXXX`, Oberfläche mit Übersicht, Funk, Einstellungen und System, Abbild des
+  Bildschirms unter `GET /api/screen`. Aufzeichnung auf SD-Karte und HomeKit folgen; siehe
+  `docs/konzept-leitstand.md`.
+- **Protokoll auf der SD-Karte.** Je Tag in UTC ein Verzeichnis `protokoll/<jahr>/<tag>/` mit
+  Messwerten je Gerät im Takt der Abfrage, Fünfminutenmitteln, Ereignissen (Neustart mit Grund,
+  Erreichbarkeit, Firmware, Brenner und Pumpen mit Dauer, Sollwerte, Betriebsarten, Befunde),
+  vollständigen Zuständen alle 15 Minuten und `geraete.json`. Spalten nach
+  `docs/katalog-messgroessen.md`; eine neue Spalte beginnt eine Datei `<kennung>.2.csv`. Ohne
+  gestellte Uhr wird nichts geschrieben. Unter 10 Prozent freiem Platz gehen die ältesten
+  Zustände und Rohwerte. Abruf unter `GET /api/log/days` und `GET /log/<tag>/<datei>` mit
+  `Range`, Reiter **Protokoll** in der Oberfläche, Kartenstand auf dem Bildschirm.
+- **Protokolle der Heizungsgeräte** werden einmal am Tag vollständig nach
+  `protokolle/<kennung>.ladungen.csv` und `.tage.csv` übernommen, über eine Zwischendatei.
+- **Funkereignisse:** Thermometer verloren, wieder empfangen, Schlüssel falsch.
+- **Auswertung am Gerät:** `GET /api/log/series` (Mittel ausgewählter Messgrößen in wählbarem
+  Raster) und `GET /api/log/events` (Ereignisse eines Zeitraums).
+- **Absturzspeicher über das Netz:** `GET /api/coredump` mit Task, Programmzähler, Ursache und
+  Rücksprungadressen.
+- **Kartenwechsel im Betrieb.** Alle zehn Sekunden und nach jedem Schreibfehler fragt der
+  Leitstand den Status der Karte ab. Antwortet sie nicht, gibt er die Einbindung auf, statt mit der
+  Belegungstabelle der alten Karte auf eine neue zu schreiben, und bindet neu ein.
+- **Karte formatieren.** `POST /api/log/format` mit Bestätigung und ein Knopf unter **Protokoll**
+  formatieren die ganze Karte als eine FAT32-Partition, etwa eine Karte von einem Raspberry Pi, von
+  der vorher nur die kleine Startpartition lesbar war.
+- **Verklemmung von Anzeige und Protokoll behoben.** Die Anzeige hielt beim Zeichnen die Sperre des
+  Busses und fragte den Stand des Protokolls ab; die Kartenprüfung hielt die Sperre des Protokolls
+  und wollte den Bus. Unter Last blieben Anzeige, Protokoll und Abfrage stehen, die Oberfläche
+  antwortete leer. Unter der Sperre des Protokolls wird der Bus nicht mehr gesperrt.
+- **Lautsprecher still.** Der Verstärker des Core Basic hängt an GPIO 25 und ist immer versorgt;
+  offen gelassen, pfiff und knisterte er unter Last auf der Karte. Der Pin liegt jetzt fest auf null.
+- **Dauerlastprüfung.** `POST /api/log/lasttest {"mb":1024}` schreibt ein Muster auf die Karte,
+  während Anzeige und Protokoll weiterlaufen, liest es zurück und vergleicht; `GET` liefert den Stand.
+- **Bildschirmabzug unter der Speichersperre**, damit er nicht mit dem Auswerten eines
+  Gerätezustands zusammenfällt.
+- **Update ohne Abfrage.** Während einer Firmware-Übertragung ruht die Abfrage der Anlage. Beides
+  zusammen brauchte mehr Arbeitsspeicher, als der Core Basic hat: Übertragungen brachen ab, der
+  freie Speicher fiel auf 376 Byte.
+- **Core2 ohne Neustartschleife.** Mit Heimnetz und HomeKit lief der interne Arbeitsspeicher des
+  Core2 nach dem Anlegen der Zubehöre auf unter 7 KB; dann fehlten Puffer der Karte und Sperren,
+  und `fopen` brach mit `abort()` ab, etwa alle 20 Sekunden. Gewöhnliche Anforderungen, TLS und
+  NimBLE gehen jetzt zuerst in den PSRAM (`SPIRAM_MALLOC_ALWAYSINTERNAL=0`); intern bleiben rund
+  39 KB frei. Der Core Basic ohne PSRAM ist davon nicht berührt.
+
+### App
+
+Ab Build 7 der App (23. September, TestFlight).
+
+- **Abgleich mit dem Leitstand.** Die App übernimmt die Fünfminutenmittel aus dem Protokoll des
+  Leitstands in ihren Verlauf, beim Verbinden und danach alle fünf Minuten; vom laufenden Tag nur
+  die neuen Zeilen über `Range`. Die Werte des Leitstands haben Vorrang vor der eigenen
+  Aufzeichnung. Der Stand je Leitstand liegt in `Abgleich-<kennung>.json` und wird nach jeder Datei
+  gesichert. Anzeige unter Geräte › Leitstand › Verlauf.
+- **Ereignisse im Verlauf.** Die Ereignisse des Leitstands liegen je Tag in der Verlaufsablage.
+  Heizung › Verlauf markiert Neustarts, Firmwarewechsel, neue Befunde und Ausfälle im Diagramm und
+  listet sie darunter mit Grund und Dauer; der Verlauf eines Raums markiert Ein- und Ausschalten.
+  Ist eine Datei auf dem Leitstand kürzer als das Übernommene, liest die App den Tag neu. Nach
+  **Verlauf löschen** beginnt der Abgleich von vorn und übernimmt die Karte erneut.
+
+Ab Build 8 (23. September, TestFlight):
+
+- **Verlauf in Tafeln.** Heizung › Verlauf zeigt je Gruppe ein eigenes Diagramm mit eigener
+  Skala: Kessel und Speicher, Abgas, Brenner und Speicher, jeder Heizkreis, Räume, Vorlauf an den
+  Verteilern. Ein Heizkreis zeigt Vor- und Rücklauf, dazwischen die Spreizung als Fläche, grau
+  hinterlegt den Pumpenlauf und zuschaltbar die Außentemperatur auf einer festen rechten Achse von
+  −10 bis 20 °C; alle Heizkreise teilen eine Skala. Tippen oder Ziehen wählt eine Zeit, die in allen
+  Tafeln stehen bleibt; die Legende blendet Reihen aus und ein.
+- **Heizkurve je Heizkreis.** Die Karte des Heizkreises führt zu Verlauf und Heizkurve: Vor- und
+  Rücklauf über der Außentemperatur, je Platz ein Punkt, nur solange die Pumpe lief, mit
+  Ausgleichsgerade, Steigung in K je K, Vorlauf bei 0 °C außen und Bestimmtheit.
+
+Ab Build 9 (23. September, TestFlight):
+
+- **Werkzeuge des Assistenten.** `ereignisse` liest die Ereignisse bis 90 Tage mit
+  Zusammenfassung je Art und Gerät (Starts und Laufzeiten, Neustartgründe, Ausfalldauer).
+  `feinverlauf` holt Messwerte im Takt der Abfrage vom Leitstand, bis 24 Stunden, auch freien
+  Speicher und WLAN-Empfang. `verlauf` reicht bis ein Jahr, über 30 Tage in Tagesmitteln.
+- **Analysepaket.** Einstellungen › Daten erzeugt ein ZIP mit je Gerät einer CSV-Datei im
+  gewählten Raster, den Ereignissen, dem Katalog der Messgrößen und einer Beschreibung der Anlage,
+  zum Teilen; ohne Adressen und Zugangsdaten.
+
+Ab Build 10 (24. September, TestFlight):
+
+- **Wärmepumpen-Check** unter Heizung › Auswertung: Heizlast bei der Normaußentemperatur aus der
+  Verbrauchslinie, Wärmeverlust in W/K, Warmwasseranteil, Kalibrierung des Düsendurchsatzes über
+  Tankablesungen, nötige Vorlauftemperatur je Heizkreis mit Bewertung nur bei belastbarer
+  Heizkurve, Räume, die bei Kälte trotz offener Ventile unter dem Sollwert bleiben.
+
+
+Ab Build 11 (24. September, TestFlight):
+
+- **Seite der Anzeige** am Core2 aus allen sechs wählbar (Menü), am Core Basic wie bisher Anlage
+  oder Leitstand.
+- **HomeKit im Leitstand:** Geräte › Leitstand zeigt gekoppelte Geräte und Zubehör und löscht
+  die Kopplungen nach Rückfrage. Den Code zeigt die App bewusst nicht.
+- Ereignisse `versorgung_aus` und `versorgung_wieder` und die Kartenereignisse des Leitstands in
+  Worten.
+- **Leitstand über seinen Zugangspunkt einbinden:** Einrichtung › Neues Gerät bietet neben Verteiler
+  und Heizungsgerät den Leitstand an. Die App tritt dem offenen Netz `leitstand-XXXX` bei, schreibt
+  Ort und WLAN-Zugang und nimmt den Leitstand danach in die eigene Liste auf.
+### Alle Geräte
+
+- **Falsche WLAN-Zugangsdaten lassen sich berichtigen.** Scheiterte die Verbindung, versuchte das
+  Gerät es alle fünf Sekunden erneut. Jeder Versuch zieht den Einrichtungs-Zugangspunkt auf den
+  Kanal des Heimnetzes; verbundene Telefone flogen hinaus, eine Berichtigung war kaum möglich.
+  Bei offenem Zugangspunkt jetzt alle 30 Sekunden, solange jemand daran hängt alle fünf Minuten.
+  Erst mit dem nächsten Update in Verteiler und Heizungsgerät.
+- **Neustart ohne Absturz.** Der Neustart nach einem Update oder über die Oberfläche lief in einer
+  Aufgabe mit 2 KB Stapel. `esp_restart()` ruft dort die Abschaltroutinen von WLAN und Bluetooth
+  auf; am Leitstand lief der Stapel über, der Absturzspeicher zeigte „Stack overflow“ in
+  `restart`, und der Neustart geschah als Absturz. Jetzt 4 KB, in allen drei Firmwares.
+- **Neustartgrund.** `GET /api/state` nennt `reset_reason`: `power_on`, `software`, `panic`,
+  `task_wdt`, `brownout` und weitere. Am 23. September starteten Kessel und Speicher ohne
+  erkennbaren Grund neu; solche Fälle lassen sich damit einordnen.
+
 ### Verteilerplatine
 
 - **Abstand zum Anschlag auf.** Gewöhnliche Fahrten öffnen höchstens bis 92 % des Hubs. Die
@@ -17,6 +156,47 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   Maximallaufzeit endet, fährt der Antrieb eine Sekunde wieder auf, etwa 0,1 mm. Die Spindel ist
   selbsthemmend; bisher blieb die volle Blockierkraft danach auf Ventilstift und Dichtung stehen.
   Das Ventil bleibt geschlossen, die Stellung bei 0 %.
+
+### Heizungsgerät
+
+- **Außentemperatur vom Leitstand.** Das Heizungsgerät fragt zuerst einen Leitstand und erst
+  danach die Verteilerplatinen. Solange der Wert des Leitstands frisch ist, übernimmt die
+  Pumpensteuerung keinen Außenwert aus den Bedarfsantworten der Verteiler; die Quelle wechselte
+  sonst alle paar Sekunden.
+- **Kesselkreispumpe läuft, solange der Brenner läuft.** Sie schaltet ein, sobald die
+  Brennererkennung den Brenner meldet, ohne Haltezeit und auch in einer Mindestpause, und geht
+  erst aus, wenn die Erkennung ihn als aus meldet und danach die Spreizung über die Haltezeit
+  darunter liegt. Bisher entschied allein der Abstand zwischen Kesselvorlauf und Speicher. Am
+  23. September lag er während eines Brennerlaufs bei 0,9 bis 2,5 K, die Pumpe stand, und der
+  Kessel schaltete den Brenner nach gut zwölf Minuten selbst ab; der Speicher stieg um 2,3 K,
+  bei den Ladungen zuvor um 12 bis 19 K. Neuer Grund `burner`.
+- **Neustart schaltet die Kesselkreispumpe nicht mehr ab.** Beim ersten Rechenschritt nach einem
+  Neustart galt die Einschaltschwelle von 3 K; eine Pumpe, die bei 2,5 K Abstand lief, ging mit
+  dem Neustart sofort aus. Die Regel beginnt jetzt bei laufender Pumpe und schaltet frühestens
+  nach der Haltezeit ab.
+- **Brennererkennung über einen Neustart.** Brennerzustand und Bezugslinie werden mit den
+  Tageswerten gesichert. Lief der Brenner beim letzten Sichern und ist das Abgasrohr noch warm,
+  gilt er nach dem Neustart weiter als laufend, ohne zweiten Start. Bisher begann die
+  Bezugslinie am heißen Rohr, und ein laufender Brenner wurde erst nach weiteren 12 K Anstieg
+  erkannt, gegen Ende eines Laufs gar nicht; am 23. September vergingen gut vier Minuten. Ein
+  Eintrag der Tageswerte aus 0.4.0 wird weiter gelesen.
+
+### Werkzeuge und Dokumentation
+
+- **Attrappe des Leitstands**, `tools/mock_station.py`, mit einem verschlüsselten Climate-Sat und
+  zwei offenen Thermometern; `apple/Werkzeuge/attrappen.sh` startet sie auf Port 8325. Sie liefert
+  Brennerläufe im Zweistundentakt und Ereignisse mit Neustart, Ausfall, Firmwarewechsel und
+  Befund, damit Abgleich und Markierungen im Simulator prüfbar sind.
+- `tools/mock_heatsource.py` meldet eine Verbrauchslinie (`trend`), und das Tagesprotokoll folgt ihr;
+  damit lässt sich der Wärmepumpen-Check im Simulator prüfen.
+- **Handbuch:** Kapitel Leitstand; Kesselkreispumpe mit Brennerregel und Neustart.
+- **Prüfungen:** 649 (v0.4.0: 578), darunter der Brennerlauf vom 23. September mit den gemessenen
+  Werten; dazu 137 für das Protokoll des Leitstands (`test/host/test_protokoll.c`) gegen
+  anonymisierte Zustände der Anlage.
+- **Katalog der Messgrößen**, `docs/katalog-messgroessen.md`, für Leitstand und App.
+- **`tools/protokoll_pruefen.py`** prüft das Protokoll eines Tages auf der Karte: Spalten,
+  Zeitfolge, JSON, Abtastungen je Gerät, unbelegte Lücken.
+- **Prüfungen des Protokolls:** 137, dazu das Lesen der eigenen Dateien.
 
 ## v0.4.0 — 22. September 2026
 

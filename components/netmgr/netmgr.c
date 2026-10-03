@@ -11,6 +11,7 @@
 #include "esp_mac.h"
 #include "esp_netif.h"
 #include "esp_netif_sntp.h"
+#include "esp_system.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -21,6 +22,13 @@ static const char *TAG = "net";
 
 #define STA_FALLBACK_AFTER_MS 30000
 #define STA_RETRY_DELAY_MS    5000
+/* Laeuft der Zugangspunkt, seltener: Jeder Versuch zieht ihn auf den Kanal des
+ * Heimnetzes, verbundene Geraete fliegen hinaus. Mit falschen Zugangsdaten kam
+ * so niemand mehr auf den Zugangspunkt, um sie zu berichtigen. */
+#define STA_RETRY_AP_MS       30000
+/* Haengt jemand am Zugangspunkt, richtet er gerade ein: dann nur noch selten,
+ * damit ein vergessenes Telefon am Zugangspunkt die Rueckkehr nicht verhindert. */
+#define STA_RETRY_AP_BELEGT_MS 300000
 
 static esp_netif_t *s_netif_sta;
 static esp_netif_t *s_netif_ap;
@@ -305,6 +313,7 @@ static void supervisor_task(void *arg)
     netmgr_cfg_t *cfg = arg;
     TickType_t start = xTaskGetTickCount();
     int32_t retry_countdown = STA_RETRY_DELAY_MS;
+    int32_t letzter_abstand = STA_RETRY_DELAY_MS;
 
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -335,9 +344,20 @@ static void supervisor_task(void *arg)
         }
 
         /* Erneut verbinden, mit Abstand zwischen den Versuchen. */
+        int32_t abstand = STA_RETRY_DELAY_MS;
+        if (s_status.ap_active) {
+            wifi_sta_list_t clients;
+            bool belegt = esp_wifi_ap_get_sta_list(&clients) == ESP_OK && clients.num > 0;
+            abstand = belegt ? STA_RETRY_AP_BELEGT_MS : STA_RETRY_AP_MS;
+        }
+        if (abstand != letzter_abstand) {
+            /* Zugangspunkt geoeffnet, belegt oder wieder frei: neu zaehlen */
+            retry_countdown = abstand;
+            letzter_abstand = abstand;
+        }
         retry_countdown -= 2000;
         if (retry_countdown <= 0 && cfg->ssid[0] != '\0') {
-            retry_countdown = STA_RETRY_DELAY_MS;
+            retry_countdown = abstand;
             esp_wifi_connect();
         }
 
@@ -561,4 +581,26 @@ size_t netmgr_scan_result(netmgr_ap_t *out, size_t max)
     size_t n = s_scan_count < max ? s_scan_count : max;
     memcpy(out, s_scan, n * sizeof(netmgr_ap_t));
     return n;
+}
+
+const char *netmgr_reset_reason(void)
+{
+    switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:    return "power_on";
+    case ESP_RST_EXT:        return "ext";
+    case ESP_RST_SW:         return "software";
+    case ESP_RST_PANIC:      return "panic";
+    case ESP_RST_INT_WDT:    return "int_wdt";
+    case ESP_RST_TASK_WDT:   return "task_wdt";
+    case ESP_RST_WDT:        return "wdt";
+    case ESP_RST_DEEPSLEEP:  return "deepsleep";
+    case ESP_RST_BROWNOUT:   return "brownout";
+    case ESP_RST_SDIO:       return "sdio";
+    case ESP_RST_USB:        return "usb";
+    case ESP_RST_JTAG:       return "jtag";
+    case ESP_RST_EFUSE:      return "efuse";
+    case ESP_RST_PWR_GLITCH: return "pwr_glitch";
+    case ESP_RST_CPU_LOCKUP: return "cpu_lockup";
+    default:                 return "unknown";
+    }
 }

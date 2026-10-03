@@ -1,0 +1,13 @@
+{
+ "id": "fbh_5d20e7",
+ "site": "Erdgeschoss",
+ "demand": false,
+ "max_target": 0,
+ "open_channels": 0,
+ "unregulated": 0,
+ "rooms_calling": 0,
+ "min_room_c": 21.950000762939453,
+ "outdoor_c": 14.609999656677246,
+ "outdoor_age_s": 139,
+ "sensor_ok": true
+}

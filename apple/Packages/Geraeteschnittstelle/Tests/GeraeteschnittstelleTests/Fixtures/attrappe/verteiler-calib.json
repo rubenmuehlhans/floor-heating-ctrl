@@ -1,0 +1,23 @@
+{
+ "calib": {
+  "state": "idle",
+  "channel": 0,
+  "group": 1,
+  "phase": 0,
+  "sample_count": 0,
+  "sample_period_ms": 50,
+  "message": "",
+  "marks": {
+   "close_from": 0,
+   "close_to": 0,
+   "open_from": 0,
+   "open_to": 0,
+   "baseline_close_mv": 0,
+   "stall_close_mv": 0,
+   "baseline_open_mv": 0,
+   "stall_open_mv": 0
+  }
+ },
+ "from": 0,
+ "samples": []
+}

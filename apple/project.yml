@@ -1,0 +1,124 @@
+name: Heizung
+options:
+  bundleIdPrefix: de.simplytech
+  developmentLanguage: de
+  deploymentTarget:
+    iOS: "27.0"
+    macOS: "27.0"
+  xcodeVersion: "27.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settingGroups:
+  base:
+    DEVELOPMENT_TEAM: 5B3P837UYQ
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    IPHONEOS_DEPLOYMENT_TARGET: "27.0"
+    MACOSX_DEPLOYMENT_TARGET: "27.0"
+
+packages:
+  Anlage:               { path: Packages/Anlage }
+  Diagnose:             { path: Packages/Diagnose }
+  Assistent:            { path: Packages/Assistent }
+  Geraeteschnittstelle: { path: Packages/Geraeteschnittstelle }
+  Geraetesuche:         { path: Packages/Geraetesuche }
+  Sprachmodelle:        { path: Packages/Sprachmodelle }
+  Verlauf:              { path: Packages/Verlauf }
+
+targets:
+  Heizung:
+    type: application
+    platform: auto
+    # Eine App fuer iPhone, iPad und Mac. Der Mac bekommt eine eigene
+    # macOS-Fassung, nicht die iPad-App im Mac-Gewand.
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: App
+      # Das Wissen der KI: Handbuch und Konzepte, aus dem Repository übernommen, nicht kopiert
+      - path: ../docs/handbuch.md
+        buildPhase: resources
+        group: Wissen
+      - path: ../docs/konzept-waermeerzeuger.md
+        buildPhase: resources
+        group: Wissen
+      - path: ../docs/konzept-auswertung.md
+        buildPhase: resources
+        group: Wissen
+      # Für das Analysepaket, nicht für das Wissen der KI
+      - path: ../docs/katalog-messgroessen.md
+        buildPhase: resources
+        group: Wissen
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: de
+        NSBonjourServices: [_fbhctrl._tcp]
+        # Die Geraete sprechen HTTP ohne TLS, und zwar nur im Heimnetz.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Nur iOS: gelegentlicher Abruf im Hintergrund für Verlauf und Befunde
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [de.simplytech.heizung.abruf]
+        # YES erst, wenn Apple die Berechtigung für Private Cloud Compute erteilt hat und sie in
+        # den Entitlements steht; ohne sie beendet FoundationModels die App bei einer Anfrage.
+        HeizungPrivateCloudCompute: $(HEIZUNG_PCC)
+        # Exportkontrolle: Die App verschlüsselt nur mit den Mitteln des Systems (TLS über
+        # URLSession, AES-GCM aus CryptoKit für die Sicherungen). Das ist von der Pflicht zu
+        # Exportunterlagen ausgenommen; App Store Connect fragt deshalb bei neuen Builds nicht nach.
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_NAME: Heizung
+        PRODUCT_BUNDLE_IDENTIFIER: de.simplytech.heizung
+        GENERATE_INFOPLIST_FILE: YES
+        HEIZUNG_PCC: "NO"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "11"
+        INFOPLIST_KEY_CFBundleDisplayName: Heizung
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Die App verbindet sich mit den Heizungsgeräten in Ihrem Heimnetz."
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Privates Projekt"
+        "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphone*]": YES
+        "INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphone*]": YES
+        "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone[sdk=iphone*]": "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad[sdk=iphone*]": "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        "ENABLE_APP_SANDBOX[sdk=macosx*]": YES
+        "ENABLE_OUTGOING_NETWORK_CONNECTIONS[sdk=macosx*]": YES
+        "ENABLE_USER_SELECTED_FILES[sdk=macosx*]": readwrite
+        "ENABLE_HARDENED_RUNTIME[sdk=macosx*]": YES
+        # Nur iOS: Beitritt zum Zugangspunkt neuer Geraete. Der Mac bekommt seine
+        # Berechtigungen aus den ENABLE_*-Einstellungen oben.
+        "CODE_SIGN_ENTITLEMENTS[sdk=iphone*]": App/Heizung-iOS.entitlements
+      groups: [base]
+    dependencies:
+      - package: Anlage
+      - package: Assistent
+      - package: Diagnose
+      - package: Geraeteschnittstelle
+      - package: Geraetesuche
+      - package: Sprachmodelle
+      - package: Verlauf
+
+schemes:
+  Heizung:
+    build:
+      targets:
+        Heizung: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - package: Anlage/AnlageTests
+        - package: Diagnose/DiagnoseTests
+        - package: Assistent/AssistentTests
+        - package: Geraeteschnittstelle/GeraeteschnittstelleTests
+        - package: Geraetesuche/GeraetesucheTests
+        - package: Sprachmodelle/SprachmodelleTests
+        - package: Verlauf/VerlaufTests

@@ -1,0 +1,23 @@
+{
+ "site": "Leitstand",
+ "wifi": {
+  "ssid": "Heimnetz",
+  "pass_set": true,
+  "hostname": "leitstand",
+  "ap_pass_set": false,
+  "timezone": "CET-1CEST,M3.5.0,M10.5.0/3"
+ },
+ "outdoor": {
+  "mac": "C0:FF:EE:12:34:56"
+ },
+ "poll": {
+  "heat_s": 30,
+  "manifold_s": 30
+ },
+ "display": {
+  "brightness": 160,
+  "dim_after_min": 2,
+  "night_from_h": 23,
+  "night_to_h": 6
+ }
+}

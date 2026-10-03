@@ -268,7 +268,7 @@ static bool fetch_demand(const char *host, peer_demand_t *out)
                  * aufgezeichnet.
                  */
                 v = cJSON_GetObjectItemCaseSensitive(root, "outdoor_c");
-                if (cJSON_IsNumber(v)) {
+                if (cJSON_IsNumber(v) && !remote_outdoor_from_station()) {
                     remote_set_value(ROLE_AUSSEN, (float)v->valuedouble);
                 }
                 cJSON_Delete(root);
@@ -642,10 +642,13 @@ static void evaluate(uint32_t t)
         push_relay(&z->rel, z->st.on, t);
     }
     /*
-     * Kesselkreispumpe. Sie haengt nicht am Bedarf der Raeume, sondern allein
-     * daran, ob der Kessel gerade Waerme abgibt oder aufnimmt.
+     * Kesselkreispumpe. Sie haengt nicht am Bedarf der Raeume, sondern daran,
+     * ob der Brenner laeuft und ob der Kessel Waerme abgibt oder aufnimmt.
      */
     bp_input_t bin = {0};
+    burner_status_t brenner;
+    burner_get(&brenner);
+    bin.burner_running = brenner.known && brenner.running;
     float bvl = 0.0f, brl = 0.0f;
     bin.valid = sensors_role_value(ROLE_KESSEL_VL, &bvl, NULL) &&
                 sensors_role_value(ROLE_KESSEL_RL, &brl, NULL);

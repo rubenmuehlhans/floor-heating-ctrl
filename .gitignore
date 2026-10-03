@@ -6,7 +6,13 @@ managed_components/
 
 # Prüfstand
 test/host/test_logic
+test/host/test_protokoll
 test/host/*.dSYM/
+
+# Xcode und Swift Package Manager
+.build/
+xcuserdata/
+DerivedData/
 
 # Betriebssystem
 .DS_Store

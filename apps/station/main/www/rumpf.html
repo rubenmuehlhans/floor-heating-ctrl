@@ -1,0 +1,510 @@
+/* ---------------- Zustandsmarken ---------------- */
+
+.chip{display:inline-flex; align-items:center; gap:.32rem; font-size:.72rem; font-weight:500;
+  padding:.16rem .5rem; border-radius:99px; border:1px solid var(--line); color:var(--muted);
+  white-space:nowrap}
+.chip::before{content:""; width:5px; height:5px; border-radius:50%; background:currentColor}
+.chip.ok{color:var(--ok); border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.chip.warn{color:var(--warn); border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.chip.bad{color:var(--bad); border-color:color-mix(in srgb,var(--bad) 38%,transparent)}
+.chip.heat{color:var(--heat); border-color:color-mix(in srgb,var(--heat) 35%,transparent);
+  background:var(--heat-soft)}
+
+/* ---------------- Bedienelemente ---------------- */
+
+button.btn{font:inherit; font-size:.85rem; padding:.4rem .8rem; border-radius:var(--r-sm);
+  border:1px solid transparent; background:var(--accent); color:var(--accent-ink);
+  cursor:pointer; transition:filter .15s, border-color .15s, background .15s}
+button.btn:hover{filter:brightness(1.08)}
+button.btn.quiet{background:var(--surface); color:var(--accent); border-color:var(--line-strong)}
+button.btn.quiet:hover{background:var(--accent-soft); border-color:var(--accent); filter:none}
+button.btn.risky{background:var(--surface); color:var(--bad);
+  border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+button.btn:disabled{opacity:.4; cursor:not-allowed; filter:none}
+.row{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap}
+.actions{display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem;
+  padding-top:.9rem; border-top:1px solid var(--line)}
+input,select{font:inherit; font-size:.9rem; color:var(--ink); background:var(--sunken);
+  border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:.4rem .55rem;
+  max-width:100%; transition:border-color .15s}
+input:hover,select:hover{border-color:var(--accent)}
+input[type=number]{font-family:var(--data); width:6.5rem}
+label.f{display:flex; flex-direction:column; gap:.22rem; margin:.6rem 0}
+label.f>span{font-size:.72rem; font-weight:500; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--faint)}
+.fields{display:flex; gap:.5rem 1.1rem; flex-wrap:wrap}
+.msg{font-size:.85rem; margin:.6rem 0 0; min-height:1.2em; color:var(--muted)}
+.msg.ok{color:var(--ok)} .msg.bad{color:var(--bad)}
+.hint{font-size:.8rem; color:var(--muted); margin:.35rem 0 0; max-width:62ch}
+
+/* ---------------- Tabellen ---------------- */
+
+.scroll{overflow-x:auto; margin:0 -.35rem}
+table{width:100%; border-collapse:collapse; font-size:.88rem}
+th{text-align:left; padding:.35rem .55rem .5rem; font-size:.68rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.09em; color:var(--faint);
+  border-bottom:1px solid var(--line-strong); white-space:nowrap}
+td{padding:.5rem .55rem; border-bottom:1px solid var(--line); vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+td.num,th.num{font-family:var(--data); text-align:right}
+td.mono{font-family:var(--data); font-size:.82rem}
+td.empty{color:var(--muted); text-align:center; padding:1.4rem}
+
+/* ---------------- Werte ---------------- */
+
+.big{font:600 2.2rem/1 var(--data); letter-spacing:-.02em}
+.kv{display:grid; grid-template-columns:max-content 1fr; gap:.3rem 1rem; font-size:.9rem; margin:0}
+.kv dt{color:var(--muted)} .kv dd{margin:0; font-family:var(--data)}
+.screen{max-width:100%; width:480px; image-rendering:pixelated; border-radius:var(--r-sm);
+  border:1px solid var(--line); display:block}
+.setup{border-color:var(--accent)}
+@media (max-width:560px){ main{padding:.9rem .7rem 3rem} .card{padding:.9rem} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Leitstand</h1>
+    <span class="place" id="place"></span>
+  </div>
+  <div class="status" id="status">verbindet …</div>
+</header>
+
+<nav><div class="tabs">
+  <button data-tab="ov" class="on">Übersicht</button>
+  <button data-tab="radio">Funk</button>
+  <button data-tab="log">Protokoll</button>
+  <button data-tab="cfg">Einstellungen</button>
+  <button data-tab="sys">System</button>
+</div></nav>
+
+<main>
+  <div class="card setup" id="setup" hidden>
+    <h2>Gerät einrichten</h2>
+    <p class="lede">Der Leitstand ist noch nicht mit Ihrem WLAN verbunden und hat dafür einen
+      eigenen Zugangspunkt geöffnet. Wählen Sie Ihr Netz, tragen Sie das Kennwort ein und
+      speichern Sie. Der Leitstand verbindet sich danach selbst; die Anzeige am Gerät nennt
+      anschließend seine Adresse im Heimnetz.</p>
+    <div class="row">
+      <select id="su-ssid"><option value="">Netz wählen …</option></select>
+      <button class="btn quiet" id="su-scan">Netze suchen</button>
+    </div>
+    <label class="f"><span>Kennwort des WLAN</span><input id="su-pass" type="password" autocomplete="off"></label>
+    <div class="actions"><button class="btn" id="su-save">Speichern und verbinden</button></div>
+    <p class="msg" id="su-msg"></p>
+  </div>
+
+  <section id="ov" class="on">
+    <div class="card">
+      <h2>Anlage</h2>
+      <p class="lede">Geräte, die der Leitstand im Heimnetz gefunden hat und abfragt. Er liest nur;
+        gesteuert wird weiterhin an den Geräten selbst.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Gerät</th><th>Art</th><th>Adresse</th><th>Zustand</th><th class="num">Laufzeit</th><th class="num">frei</th><th>Fassung</th></tr></thead>
+        <tbody id="plant"><tr><td class="empty" colspan="7">noch keine Geräte gefunden</td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h2>Außenfühler</h2>
+      <p class="lede" id="out-lede">Der Leitstand gibt die Außentemperatur an Kessel und Speicher weiter.</p>
+      <div class="row"><span class="big" id="out-temp">–</span><span id="out-meta" class="hint"></span></div>
+    </div>
+    <div class="card">
+      <h2>Anzeige am Gerät</h2>
+      <p class="lede">Der aktuelle Inhalt des Bildschirms, aus dem Gerät gelesen.</p>
+      <img class="screen" id="screen" alt="Bildschirm des Leitstands">
+      <div class="actions"><button class="btn quiet" id="screen-reload">Neu laden</button></div>
+    </div>
+  </section>
+
+  <section id="radio">
+    <div class="card">
+      <h2>Funkthermometer in Reichweite</h2>
+      <p class="lede">Thermometer, deren Rundrufe der Leitstand empfängt. Eines davon lässt sich als
+        Außenfühler zuordnen. Verschlüsselt sendende Geräte, etwa der Climate-Sat von camperSense,
+        brauchen dafür ihren Schlüssel.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Name</th><th>Adresse</th><th>Format</th><th class="num">Temperatur</th><th class="num">Feuchte</th><th class="num">Batterie</th><th class="num">Signal</th><th>Schlüssel</th><th></th></tr></thead>
+        <tbody id="ble"><tr><td class="empty" colspan="9">noch nichts empfangen</td></tr></tbody>
+      </table></div>
+      <p class="msg" id="ble-msg"></p>
+    </div>
+    <div class="card">
+      <h2>Schlüssel hinterlegen</h2>
+      <p class="lede">Den Schlüssel zeigt die camperSense-App beim jeweiligen Gerät an. Er wird nur auf
+        dem Leitstand gespeichert und nie wieder ausgegeben.</p>
+      <div class="fields">
+        <label class="f"><span>Gerät</span><select id="key-mac"></select></label>
+        <label class="f" id="key-man-row" hidden><span>Adresse</span><input id="key-man" placeholder="C0:FF:EE:12:34:56"></label>
+        <label class="f"><span>Schlüssel</span><input id="key-val" size="36" autocomplete="off" placeholder="32 Hexadezimalziffern"></label>
+      </div>
+      <div class="actions">
+        <button class="btn" id="key-save">Speichern</button>
+        <button class="btn risky" id="key-del">Entfernen</button>
+      </div>
+      <p class="msg" id="key-msg"></p>
+      <p class="hint" id="key-list"></p>
+    </div>
+  </section>
+
+  <section id="cfg">
+    <div class="card">
+      <h2>Gerät</h2>
+      <div class="fields">
+        <label class="f"><span>Ort</span><input id="c-site" maxlength="31"></label>
+        <label class="f"><span>Gerätename im Netz</span><input id="c-host" maxlength="31"></label>
+      </div>
+      <p class="hint">Der Gerätename erscheint als <span class="mono" id="c-host-show"></span>.local und im Namen
+        des Einrichtungszugangs.</p>
+    </div>
+    <div class="card">
+      <h2>WLAN</h2>
+      <div class="row">
+        <select id="c-ssid"><option value="">Netz wählen …</option></select>
+        <button class="btn quiet" id="c-scan">Netze suchen</button>
+      </div>
+      <label class="f"><span>Kennwort</span><input id="c-pass" type="password" autocomplete="off" placeholder="unverändert lassen"></label>
+      <label class="f"><span>Kennwort des Einrichtungszugangs</span><input id="c-appass" type="password" autocomplete="off" placeholder="ohne Kennwort"></label>
+    </div>
+    <div class="card">
+      <h2>Außenfühler</h2>
+      <label class="f"><span>Adresse</span><input id="c-outdoor" placeholder="keiner"></label>
+      <p class="hint">Am einfachsten unter Funk mit „Als Außenfühler“ zuordnen.</p>
+    </div>
+    <div class="card">
+      <h2>Abfrage und Anzeige</h2>
+      <div class="fields">
+        <label class="f"><span>Heizungsgeräte, s</span><input id="c-heat" type="number" min="5" max="300"></label>
+        <label class="f"><span>Verteiler, s</span><input id="c-man" type="number" min="10" max="600"></label>
+        <label class="f"><span>Helligkeit</span><input id="c-bright" type="number" min="10" max="255"></label>
+        <label class="f"><span>Abdunkeln nach, min</span><input id="c-dim" type="number" min="0" max="120"></label>
+        <label class="f"><span>Nachts aus ab, Uhr</span><input id="c-nf" type="number" min="-1" max="23"></label>
+        <label class="f"><span>bis, Uhr</span><input id="c-nt" type="number" min="0" max="23"></label>
+      </div>
+      <p class="hint">Abdunkeln 0 heißt nie; „Nachts aus ab“ −1 heißt nie. Jede Taste schaltet die Anzeige wieder ein.</p>
+      <div class="actions"><button class="btn" id="c-save">Speichern</button></div>
+      <p class="msg" id="c-msg"></p>
+    </div>
+  </section>
+
+  <section id="log">
+    <div class="card">
+      <h2>Protokoll auf der SD-Karte</h2>
+      <p class="lede">Der Leitstand schreibt alle 30 Sekunden die Messwerte jedes Geräts, dazu
+        Fünfminutenmittel, Ereignisse und alle 15 Minuten den vollständigen Zustand. Je Tag, gezählt
+        in UTC, entsteht ein Verzeichnis. Die Dateien sind CSV und JSON Lines und lassen sich ohne
+        eigenes Programm lesen.</p>
+      <dl class="kv" id="log-kv"></dl>
+      <div class="actions"><button class="btn risky" id="log-format">Karte formatieren</button></div>
+      <p class="hint">Formatiert die ganze Karte als FAT32 und löscht dabei alles, was darauf liegt,
+        auch das Protokoll. Während des Formatierens ruht die Abfrage der Anlage.</p>
+      <p class="msg" id="log-msg"></p>
+    </div>
+    <div class="card">
+      <h2>Tage</h2>
+      <p class="lede">Ein Klick auf einen Tag zeigt seine Dateien zum Herunterladen.</p>
+      <div class="row" id="log-days"><span class="hint">noch keine Tage</span></div>
+      <div class="scroll"><table>
+        <thead><tr><th>Datei</th><th class="num">Größe</th></tr></thead>
+        <tbody id="log-files"><tr><td class="empty" colspan="2">keinen Tag gewählt</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section id="sys">
+    <div class="card">
+      <h2>Leitstand</h2>
+      <dl class="kv" id="sys-kv"></dl>
+    </div>
+    <div class="card">
+      <h2>Firmware aktualisieren</h2>
+      <p class="lede">Die Datei <span class="mono">station.bin</span> aus dem Bauverzeichnis. Der Leitstand
+        startet danach neu.</p>
+      <input type="file" id="ota-file" accept=".bin">
+      <div class="actions"><button class="btn" id="ota-go">Hochladen</button></div>
+      <p class="msg" id="ota-msg"></p>
+    </div>
+    <div class="card">
+      <h2>Neustart und Werksvorgabe</h2>
+      <div class="actions">
+        <button class="btn quiet" id="restart">Neu starten</button>
+        <button class="btn risky" id="factory">Auf Werksvorgabe zurücksetzen</button>
+      </div>
+      <p class="hint">Die Werksvorgabe löscht WLAN-Zugang, Außenfühler und alle Schlüssel.</p>
+      <p class="msg" id="sys-msg"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = (v, d = 1) => v == null || isNaN(v) ? "–"
+  : Number(v).toFixed(d).replace(".", ",").replace("-", "−");
+const dauer = s => s == null ? "–" : s >= 86400 ? Math.floor(s / 86400) + " T " + Math.floor(s % 86400 / 3600) + " h"
+  : s >= 3600 ? Math.floor(s / 3600) + " h " + Math.floor(s % 3600 / 60) + " min" : Math.floor(s / 60) + " min";
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const t = await r.text();
+  let j = {};
+  try { j = t ? JSON.parse(t) : {}; } catch (e) { j = {}; }
+  if (!r.ok) throw new Error(j.error || ("Fehler " + r.status));
+  return j;
+}
+const put = (path, body) => api(path, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+const post = (path, body) => api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: body ? JSON.stringify(body) : "{}"});
+function meldung(id, text, art) { const e = $(id); e.textContent = text; e.className = "msg" + (art ? " " + art : ""); }
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === b.dataset.tab));
+  if (b.dataset.tab === "ov") bildLaden();
+  if (b.dataset.tab === "log") tageLaden();
+});
+
+let zustand = {}, einst = null, funk = {devices: [], keys: []};
+
+function kopf() {
+  const s = zustand, n = s.net || {};
+  $("#place").textContent = s.device ? s.device.site : "";
+  const teile = [];
+  teile.push(n.sta ? `WLAN <b>${esc(n.ip)}</b> · ${n.rssi} dBm` : n.ap ? "Einrichtungszugang offen" : "ohne WLAN");
+  teile.push(`Laufzeit <b>${dauer(s.uptime_s)}</b>`);
+  teile.push(`frei <b>${Math.round((s.heap || 0) / 1024)} KB</b> (Tiefstwert ${Math.round((s.heap_min || 0) / 1024)} KB)`);
+  teile.push(esc(s.version || ""));
+  $("#status").innerHTML = teile.join(" · ");
+  $("#setup").hidden = !s.setup_open;
+  const o = s.outdoor || {};
+  $("#out-temp").textContent = o.valid && o.age_s <= 900 ? num(o.temp_c) + " °C" : "–";
+  $("#out-meta").textContent = !o.assigned ? "Kein Außenfühler zugeordnet – unter Funk auswählen."
+    : !o.valid ? `${o.mac}: noch kein Messwert empfangen.`
+    : `${o.name || o.mac}${o.humidity != null ? " · " + num(o.humidity, 0) + " % rF" : ""} · vor ${o.age_s} s · ${o.rssi} dBm`;
+  const kv = [["Gerät", s.device ? s.device.board : ""], ["Kennung", s.device ? s.device.id : ""],
+    ["Fassung", s.version], ["Speicher frei", `${Math.round((s.heap || 0) / 1024)} KB, größter Block ${Math.round((s.heap_block || 0) / 1024)} KB`],
+    ["PSRAM frei", s.psram_free ? Math.round(s.psram_free / 1024) + " KB" : "keiner"],
+    ["Zeit", n.time_valid ? "gestellt" : "noch nicht gestellt"],
+    ["Funk", s.ble ? `${s.ble.running ? "empfängt" : "angehalten"} · ${s.ble.devices} Geräte · ${s.ble.keys} Schlüssel` : ""]];
+  $("#sys-kv").innerHTML = kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+}
+
+function anlage(p) {
+  const zeilen = [];
+  const zeile = (d, art) => {
+    const chip = d.reachable ? '<span class="chip ok">erreichbar</span>' : '<span class="chip bad">keine Antwort</span>';
+    zeilen.push(`<tr><td>${esc(d.site || d.id)}</td><td>${art}</td><td class="mono">${esc(d.host)}</td><td>${chip}</td>`
+      + `<td class="num">${dauer(d.uptime_s)}</td><td class="num">${Math.round((d.heap || 0) / 1024)} KB</td><td class="mono">${esc(d.version)}</td></tr>`);
+  };
+  (p.heat || []).forEach(d => zeile(d, "Heizungsgerät"));
+  (p.manifolds || []).forEach(d => zeile(d, "Verteiler"));
+  $("#plant").innerHTML = zeilen.length ? zeilen.join("") : '<tr><td class="empty" colspan="7">noch keine Geräte gefunden</td></tr>';
+}
+
+function funkZeigen() {
+  const aussen = funk.outdoor || "";
+  const zeilen = funk.devices.map(d => {
+    let schl = "";
+    if (d.encrypted) {
+      schl = d.key === "ok" ? '<span class="chip ok">gültig</span>'
+        : d.key === "wrong" ? '<span class="chip bad">passt nicht</span>' : '<span class="chip warn">fehlt</span>';
+    }
+    const ist = d.mac === aussen;
+    const knopf = ist ? '<span class="chip heat">Außenfühler</span>'
+      : `<button class="btn quiet" data-aussen="${esc(d.mac)}">Als Außenfühler</button>`;
+    return `<tr><td>${esc(d.name) || "–"}</td><td class="mono">${esc(d.mac)}</td><td>${esc(d.format)}</td>`
+      + `<td class="num">${d.temp_c != null ? num(d.temp_c) + " °C" : "–"}</td>`
+      + `<td class="num">${d.humidity != null ? num(d.humidity, 0) + " %" : "–"}</td>`
+      + `<td class="num">${d.battery ? d.battery + " %" : "–"}</td><td class="num">${d.rssi} dBm</td>`
+      + `<td>${schl}</td><td>${knopf}</td></tr>`;
+  });
+  $("#ble").innerHTML = zeilen.length ? zeilen.join("") : '<tr><td class="empty" colspan="9">noch nichts empfangen</td></tr>';
+  document.querySelectorAll("[data-aussen]").forEach(b => b.onclick = async () => {
+    try {
+      await put("/api/config", {outdoor: {mac: b.dataset.aussen}});
+      meldung("#ble-msg", "Als Außenfühler zugeordnet.", "ok");
+      einst = null;
+      laden();
+    } catch (e) { meldung("#ble-msg", e.message, "bad"); }
+  });
+
+  const sel = $("#key-mac"), alt = sel.value;
+  const optionen = funk.devices.filter(d => d.encrypted).map(d => `<option value="${esc(d.mac)}">${esc(d.name || d.mac)} · ${esc(d.mac)}</option>`);
+  optionen.push('<option value="">Adresse von Hand eingeben …</option>');
+  sel.innerHTML = optionen.join("");
+  if ([...sel.options].some(o => o.value === alt)) sel.value = alt;
+  $("#key-man-row").hidden = sel.value !== "";
+  $("#key-list").textContent = funk.keys.length ? "Schlüssel hinterlegt für: " + funk.keys.join(", ") : "Noch kein Schlüssel hinterlegt.";
+}
+$("#key-mac").onchange = () => { $("#key-man-row").hidden = $("#key-mac").value !== ""; };
+const schluesselMac = () => $("#key-mac").value || $("#key-man").value.trim();
+$("#key-save").onclick = async () => {
+  const mac = schluesselMac(), key = $("#key-val").value.replace(/[\s:-]/g, "");
+  if (!mac) return meldung("#key-msg", "Wählen Sie ein Gerät oder geben Sie eine Adresse ein.", "bad");
+  try {
+    await post("/api/ble/key", {mac, bindkey: key});
+    $("#key-val").value = "";
+    meldung("#key-msg", "Gespeichert. Ob der Schlüssel passt, zeigt die Liste nach dem nächsten Rundruf.", "ok");
+    setTimeout(laden, 4000);
+  } catch (e) { meldung("#key-msg", e.message, "bad"); }
+};
+$("#key-del").onclick = async () => {
+  const mac = schluesselMac();
+  if (!mac || !confirm(`Schlüssel für ${mac} entfernen?`)) return;
+  try { await post("/api/ble/key", {mac, bindkey: ""}); meldung("#key-msg", "Entfernt.", "ok"); laden(); }
+  catch (e) { meldung("#key-msg", e.message, "bad"); }
+};
+
+function einstellungenZeigen(c) {
+  $("#c-site").value = c.site; $("#c-host").value = c.wifi.hostname; $("#c-host-show").textContent = c.wifi.hostname;
+  netzOption($("#c-ssid"), c.wifi.ssid); netzOption($("#su-ssid"), c.wifi.ssid);
+  $("#c-pass").placeholder = c.wifi.pass_set ? "unverändert lassen" : "kein Kennwort hinterlegt";
+  $("#c-appass").placeholder = c.wifi.ap_pass_set ? "unverändert lassen" : "ohne Kennwort";
+  $("#c-outdoor").value = c.outdoor.mac;
+  $("#c-heat").value = c.poll.heat_s; $("#c-man").value = c.poll.manifold_s;
+  $("#c-bright").value = c.display.brightness; $("#c-dim").value = c.display.dim_after_min;
+  $("#c-nf").value = c.display.night_from_h; $("#c-nt").value = c.display.night_to_h;
+}
+function netzOption(sel, ssid) {
+  if (ssid && ![...sel.options].some(o => o.value === ssid)) sel.insertAdjacentHTML("beforeend", `<option>${esc(ssid)}</option>`);
+  if (ssid) sel.value = ssid;
+}
+$("#c-save").onclick = async () => {
+  const body = {
+    site: $("#c-site").value.trim(),
+    wifi: {ssid: $("#c-ssid").value, hostname: $("#c-host").value.trim(), pass: $("#c-pass").value, ap_pass: $("#c-appass").value},
+    outdoor: {mac: $("#c-outdoor").value.trim()},
+    poll: {heat_s: +$("#c-heat").value, manifold_s: +$("#c-man").value},
+    display: {brightness: +$("#c-bright").value, dim_after_min: +$("#c-dim").value,
+      night_from_h: +$("#c-nf").value, night_to_h: +$("#c-nt").value}};
+  try {
+    await put("/api/config", body);
+    $("#c-pass").value = ""; $("#c-appass").value = "";
+    meldung("#c-msg", "Gespeichert.", "ok");
+    einst = null; laden();
+  } catch (e) { meldung("#c-msg", e.message, "bad"); }
+};
+
+async function netzeSuchen(sel, knopf) {
+  knopf.disabled = true; knopf.textContent = "sucht …";
+  try {
+    await post("/api/wifi/scan");
+    let r;
+    for (let i = 0; i < 20; i++) {
+      await new Promise(ok => setTimeout(ok, 1000));
+      r = await api("/api/wifi/scan");
+      if (!r.running) break;
+    }
+    const alt = sel.value;
+    sel.innerHTML = '<option value="">Netz wählen …</option>' + (r.networks || [])
+      .filter(n => n.ssid).map(n => `<option value="${esc(n.ssid)}">${esc(n.ssid)} (${n.rssi} dBm)</option>`).join("");
+    if (alt) netzOption(sel, alt);
+  } catch (e) { /* Suchlauf scheitert im Zugangspunkt-Betrieb gelegentlich; erneut versuchen */ }
+  knopf.disabled = false; knopf.textContent = "Netze suchen";
+}
+$("#c-scan").onclick = () => netzeSuchen($("#c-ssid"), $("#c-scan"));
+$("#su-scan").onclick = () => netzeSuchen($("#su-ssid"), $("#su-scan"));
+$("#su-save").onclick = async () => {
+  const ssid = $("#su-ssid").value;
+  if (!ssid) return meldung("#su-msg", "Wählen Sie zuerst Ihr Netz.", "bad");
+  try {
+    await put("/api/config", {wifi: {ssid, pass: $("#su-pass").value}});
+    meldung("#su-msg", "Gespeichert. Der Leitstand verbindet sich jetzt mit Ihrem WLAN; dieser Zugang schließt sich danach.", "ok");
+  } catch (e) { meldung("#su-msg", e.message, "bad"); }
+};
+
+$("#restart").onclick = async () => {
+  if (!confirm("Leitstand neu starten?")) return;
+  try { await post("/api/system/restart"); meldung("#sys-msg", "Startet neu …", "ok"); } catch (e) { meldung("#sys-msg", e.message, "bad"); }
+};
+$("#factory").onclick = async () => {
+  if (!confirm("Alle Einstellungen und Schlüssel löschen und neu starten?")) return;
+  try { await post("/api/system/factory"); meldung("#sys-msg", "Zurückgesetzt, startet neu …", "ok"); } catch (e) { meldung("#sys-msg", e.message, "bad"); }
+};
+$("#ota-go").onclick = () => {
+  const f = $("#ota-file").files[0];
+  if (!f) return meldung("#ota-msg", "Wählen Sie zuerst die Datei.", "bad");
+  const x = new XMLHttpRequest();
+  x.open("POST", "/api/ota");
+  x.upload.onprogress = e => meldung("#ota-msg", `Übertragen ${Math.round(e.loaded / e.total * 100)} %`);
+  x.onload = () => meldung("#ota-msg", x.status === 200 ? "Übernommen, startet neu …" : "Fehlgeschlagen: " + x.responseText, x.status === 200 ? "ok" : "bad");
+  x.onerror = () => meldung("#ota-msg", "Die Übertragung brach ab.", "bad");
+  x.send(f);
+};
+
+function groesse(b) {
+  return b == null || b < 0 ? "–" : b >= 1048576 ? num(b / 1048576, 1) + " MB"
+    : b >= 1024 ? num(b / 1024, 0) + " KB" : b + " Byte";
+}
+
+function protokollZeigen() {
+  const l = zustand.log || {};
+  const zeit = l.last_write ? new Date(l.last_write * 1000).toLocaleString("de-DE") : "–";
+  const kv = [
+    ["Karte", l.card ? `eingehängt, ${num(l.free_mb / 1024, 1)} von ${num(l.size_mb / 1024, 1)} GB frei` : (l.message || "keine Karte")],
+    ["Geschrieben", groesse(l.today_bytes) + " seit dem Start, höchstens seit Mitternacht (UTC)"],
+    ["Zuletzt geschrieben", zeit],
+    ["Uhrzeit", l.time_valid ? "gestellt" : "noch nicht gestellt – bis dahin wird nichts geschrieben"],
+    ["Schreibfehler", l.errors ? `${l.errors}, zuletzt: ${l.message}` : "keine"],
+  ];
+  if (l.discarded) kv.push(["Vor der Zeit verworfen", `${l.discarded} Abfragen`]);
+  $("#log-kv").innerHTML = kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+}
+
+$("#log-format").onclick = async () => {
+  if (!confirm("Die ganze Karte wird formatiert. Alles darauf geht verloren, auch das Protokoll. Fortfahren?")) return;
+  try {
+    await post("/api/log/format", {bestaetigung: "KARTE LOESCHEN"});
+    meldung("#log-msg", "Wird formatiert – das dauert je nach Karte eine Minute oder länger.", "ok");
+  } catch (e) {
+    meldung("#log-msg", e.message, "bad");
+  }
+};
+
+async function tageLaden() {
+  try {
+    const t = (await api("/api/log/days")).tage || [];
+    t.sort().reverse();
+    $("#log-days").innerHTML = t.length ? t.map(d => `<button class="btn quiet" data-tag="${esc(d)}">${esc(d)}</button>`).join("")
+      : `<span class="hint">noch keine Tage</span>`;
+    $("#log-days").querySelectorAll("button").forEach(b => b.onclick = () => dateienLaden(b.dataset.tag));
+  } catch (e) {
+    $("#log-days").innerHTML = `<span class="hint">${esc(e.message)}</span>`;
+  }
+}
+
+async function dateienLaden(tag) {
+  try {
+    const d = (await api("/api/log/days?tag=" + encodeURIComponent(tag))).dateien || [];
+    d.sort((a, b) => a.name.localeCompare(b.name));
+    $("#log-files").innerHTML = d.length ? d.map(f =>
+      `<tr><td><a href="/log/${esc(tag)}/${esc(f.name)}" download="${esc(tag)}_${esc(f.name)}">${esc(f.name)}</a></td><td class="num">${groesse(f.byte)}</td></tr>`).join("")
+      : `<tr><td class="empty" colspan="2">keine Dateien</td></tr>`;
+  } catch (e) {
+    $("#log-files").innerHTML = `<tr><td class="empty" colspan="2">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function bildLaden() { $("#screen").src = "/api/screen?t=" + Date.now(); }
+$("#screen-reload").onclick = bildLaden;
+
+async function laden() {
+  try {
+    zustand = await api("/api/state");
+    kopf();
+    protokollZeigen();
+    if (!einst) { einst = await api("/api/config"); einstellungenZeigen(einst); }
+    if (!zustand.setup_open) anlage(await api("/api/plant"));
+    funk = await api("/api/ble");
+    funkZeigen();
+  } catch (e) {
+    $("#status").textContent = "keine Verbindung zum Leitstand";
+  }
+}
+laden();
+bildLaden();
+setInterval(laden, 5000);
+</script>
+</body>
+</html>

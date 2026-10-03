@@ -1,0 +1,4 @@
+beginn,dauer_s,brenner_s,starts,puffer_start,puffer_ende,kessel_vl_max,abgas_max,aussen_mittel,liter
+1787834100,5820,3420,2,52.0,72.3,78.5,88.1,14.2,2.090
+1787112600,4260,2880,1,51.4,68.5,74.0,81.6,,1.760
+1768468200,3900,2700,3,38.9,66.0,71.2,79.4,-2.5,1.650

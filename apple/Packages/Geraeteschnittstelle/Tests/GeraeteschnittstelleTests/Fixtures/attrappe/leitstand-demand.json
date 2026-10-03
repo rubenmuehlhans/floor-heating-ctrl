@@ -1,0 +1,9 @@
+{
+ "id": "lst_c0ffee",
+ "site": "Leitstand",
+ "role": "station",
+ "demand": false,
+ "outdoor_c": 8.84,
+ "outdoor_age_s": 12,
+ "outdoor_humidity": 81.0
+}

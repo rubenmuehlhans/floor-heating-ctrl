@@ -280,6 +280,7 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "revision", control_revision());
     cJSON_AddNumberToObject(root, "uptime_s", snap.uptime_s);
+    cJSON_AddStringToObject(root, "reset_reason", netmgr_reset_reason());
     cJSON_AddNumberToObject(root, "heap", esp_get_free_heap_size());
 
     const esp_app_desc_t *desc = esp_app_get_description();
@@ -1181,6 +1182,14 @@ static esp_err_t wifi_scan_get(httpd_req_t *req)
 /* System                                                              */
 /* ------------------------------------------------------------------ */
 
+/*
+ * esp_restart() ruft die Abschaltroutinen von WLAN, Bluetooth und Dateisystem
+ * im Stapel dieser Aufgabe auf. Mit 2 KB lief er am Leitstand ueber: Nach
+ * einem Update meldete der Absturzspeicher "Stack overflow" in "restart",
+ * der Neustart geschah als Absturz.
+ */
+#define RESTART_STACK 4096
+
 static void restart_task(void *arg)
 {
     (void)arg;
@@ -1193,7 +1202,7 @@ static esp_err_t system_post(httpd_req_t *req)
     const char *action = last_segment(req->uri);
 
     if (strcmp(action, "restart") == 0) {
-        xTaskCreate(restart_task, "restart", 2048, NULL, 5, NULL);
+        xTaskCreate(restart_task, "restart", RESTART_STACK, NULL, 5, NULL);
         return send_ok(req);
     }
     if (strcmp(action, "seize") == 0 || strcmp(action, "seize-all") == 0) {
@@ -1268,7 +1277,7 @@ static esp_err_t ota_post(httpd_req_t *req)
     }
 
     ESP_LOGW(TAG, "Neue Firmware uebernommen, Neustart folgt");
-    xTaskCreate(restart_task, "restart", 2048, NULL, 5, NULL);
+    xTaskCreate(restart_task, "restart", RESTART_STACK, NULL, 5, NULL);
     return send_ok(req);
 }
 

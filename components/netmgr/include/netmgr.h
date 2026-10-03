@@ -95,6 +95,15 @@ size_t netmgr_scan_result(netmgr_ap_t *out, size_t max);
 /* Zeitzone setzen und SNTP starten. Wird von netmgr_start miterledigt. */
 void netmgr_set_timezone(const char *tz);
 
+/*
+ * Grund des letzten Neustarts als Kurzschluessel fuer /api/state: power_on,
+ * software, panic, int_wdt, task_wdt, wdt, brownout, deepsleep, ext, sdio,
+ * usb, jtag, efuse, pwr_glitch, cpu_lockup, unknown. Ein Neustart ohne
+ * bekannten Grund laesst sich damit einordnen -- Absturz, Waechter oder
+ * Spannungseinbruch.
+ */
+const char *netmgr_reset_reason(void);
+
 #ifdef __cplusplus
 }
 #endif
