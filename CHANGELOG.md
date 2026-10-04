@@ -21,6 +21,10 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   Damit erscheint die Außentemperatur auch dann in HomeKit und auf der Anzeige.
 - **HomeKit entfernt verwaiste Räume.** Führt ein erreichbarer Verteiler einen Raum nicht mehr,
   verschwindet das Thermostat aus Home.
+- **Eigene Zeile im Protokoll auch bei vielen Funkthermometern.** Ab zehn Thermometern in
+  Reichweite passte der Kopf der eigenen Zeile nicht mehr in den Puffer von 1280 Byte; die Zeile
+  fehlte, das Protokoll meldete „Kopf zu lang“. Der Puffer fasst jetzt den Kopf für alle zwölf
+  erfassten Thermometer, die Leser verwenden dieselbe Grenze.
 
 ### Gerät am Pufferspeicher
 

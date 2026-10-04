@@ -264,7 +264,7 @@ void sv_wiederherstellen(const st_plant_t *p)
         return;
     }
     s_wiederhergestellt = true;
-    char *zeile = heap_caps_malloc(1536, MALLOC_CAP_SPIRAM);
+    char *zeile = heap_caps_malloc(ST_LOG_ZEILE_MAX, MALLOC_CAP_SPIRAM);
     if (zeile == NULL) {
         return;
     }
@@ -278,7 +278,7 @@ void sv_wiederherstellen(const st_plant_t *p)
         static const char *const heiz[] = {"fuehler.puffer", "fuehler.kessel_vl", "brenner"};
         static const int heiz_ziel[] = {SV_SPEICHER, SV_KESSEL, SV_BRENNER};
         for (int i = 0; i < p->heat_count; i++) {
-            datei_lesen(tage[t], p->heat[i].dev.id, heiz, heiz_ziel, 3, erster, zeile, 1536);
+            datei_lesen(tage[t], p->heat[i].dev.id, heiz, heiz_ziel, 3, erster, zeile, ST_LOG_ZEILE_MAX);
         }
         /* Verteiler: Raumtemperaturen */
         for (int m = 0; m < p->manifold_count; m++) {
@@ -294,7 +294,7 @@ void sv_wiederherstellen(const st_plant_t *p)
                 zeiger[k] = schl[k];
                 ziel[k] = raum_reihe(mf->dev.id, mf->rooms[k].id, mf->rooms[k].name);
             }
-            datei_lesen(tage[t], mf->dev.id, zeiger, ziel, mf->room_count, erster, zeile, 1536);
+            datei_lesen(tage[t], mf->dev.id, zeiger, ziel, mf->room_count, erster, zeile, ST_LOG_ZEILE_MAX);
         }
         /* Aussen: die eigene Zeile des Leitstands fuehrt jedes Funkthermometer */
         if (p->outdoor.assigned && p->outdoor.mac[0]) {
@@ -308,7 +308,7 @@ void sv_wiederherstellen(const st_plant_t *p)
             }
             const char *zeiger[] = {schl};
             const int ziel[] = {SV_AUSSEN};
-            datei_lesen(tage[t], id, zeiger, ziel, 1, erster, zeile, 1536);
+            datei_lesen(tage[t], id, zeiger, ziel, 1, erster, zeile, ST_LOG_ZEILE_MAX);
         }
     }
     free(zeile);

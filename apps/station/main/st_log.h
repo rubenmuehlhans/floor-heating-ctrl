@@ -33,6 +33,14 @@ extern "C" {
 
 #define ST_LOG_WURZEL "/sd/protokoll"
 
+/*
+ * Laengste Zeile einer Messwertdatei, Kopf eingeschlossen, mit Zeilenende und
+ * Nullbyte. Schreiber und Leser halten sich beide daran: Liest ein Leser mit
+ * kuerzerem Puffer, zerfaellt eine lange Kopfzeile in zwei, und keine Spalte
+ * passt mehr zu ihrem Namen.
+ */
+#define ST_LOG_ZEILE_MAX 1536
+
 /* Haengt die Karte ein und startet die eigene Aufgabe: Zeile des Leitstands,
  * Platzverwaltung, erneuter Versuch, falls die Karte fehlt. Nach der Anzeige
  * aufzurufen, weil die Karte am Bus der Anzeige haengt. */

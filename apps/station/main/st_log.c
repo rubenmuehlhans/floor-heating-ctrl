@@ -43,6 +43,18 @@ static const char *TAG = "log";
  * eine neue Datei. */
 #define EIGEN_ANLAUF_S 300
 #define FUNK_MAX 12
+/*
+ * Kopf der eigenen Zeile im unguenstigsten Fall: je Thermometer vier Spalten
+ * ",funk.<Adresse>.<Groesse>", dazu die drei Spalten des Geraets. Bei zwoelf
+ * Thermometern sind das gut 1470 Byte. Bis 0.5.0 war der Puffer 1280 Byte
+ * gross; ab zehn Thermometern in Reichweite fehlte die eigene Zeile dann
+ * ganz, mit der Meldung "Kopf zu lang".
+ */
+#define FUNK_SPALTE(groesse) (sizeof(",funk.00:00:00:00:00:00.") - 1 + sizeof(groesse) - 1)
+#define FUNK_KOPF                                                                                  \
+    (FUNK_SPALTE("temp") + FUNK_SPALTE("feuchte") + FUNK_SPALTE("batterie") + FUNK_SPALTE("rssi"))
+#define EIGEN_KOPF_MAX                                                                             \
+    (sizeof("zeit") - 1 + FUNK_MAX * FUNK_KOPF + sizeof(",geraet.heap,geraet.rssi,geraet.laufzeit") - 1 + 2)
 /* Freier Platz, unter dem die aeltesten Dateien geloescht werden */
 #define FREI_PROZENT 10
 
@@ -74,8 +86,10 @@ static st_log_status_t s_status;
 static uint32_t s_heute_tag;
 
 /* Eine Zeile, ein Kopf oder die erste Zeile einer Datei. Nur unter s_mtx.
- * Der laengste Kopf, am Verteiler Erdgeschoss mit elf Raeumen, hat 700 Byte. */
-static char s_zeile[1280];
+ * Der laengste Kopf ist der der eigenen Zeile, siehe EIGEN_KOPF_MAX; am
+ * Verteiler Erdgeschoss mit elf Raeumen sind es 700 Byte. */
+static char s_zeile[ST_LOG_ZEILE_MAX];
+_Static_assert(EIGEN_KOPF_MAX <= sizeof(s_zeile), "Kopf der eigenen Zeile passt nicht in s_zeile");
 static char s_ereignis[320];
 static char s_pfad[128];
 

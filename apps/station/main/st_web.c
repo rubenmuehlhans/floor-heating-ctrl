@@ -533,16 +533,16 @@ static esp_err_t log_series_inner(httpd_req_t *req)
         return send_error(req, "400 Bad Request", "mindestens ein Schluessel");
     }
 
-    char *zeile = malloc(1536);
+    char *zeile = malloc(ST_LOG_ZEILE_MAX);
     if (zeile == NULL) {
         return send_error(req, "500 Internal Server Error", "Kein Speicher");
     }
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    snprintf(zeile, 1536, "{\"geraet\":\"%s\",\"raster_s\":%lu,\"spalten\":[", geraet, (unsigned long)raster);
+    snprintf(zeile, ST_LOG_ZEILE_MAX, "{\"geraet\":\"%s\",\"raster_s\":%lu,\"spalten\":[", geraet, (unsigned long)raster);
     httpd_resp_sendstr_chunk(req, zeile);
     for (int i = 0; i < n; i++) {
-        snprintf(zeile, 1536, "%s\"%.39s\"", i ? "," : "", schluessel[i]);
+        snprintf(zeile, ST_LOG_ZEILE_MAX, "%s\"%.39s\"", i ? "," : "", schluessel[i]);
         httpd_resp_sendstr_chunk(req, zeile);
     }
     httpd_resp_sendstr_chunk(req, "],\"zeilen\":[");
@@ -561,9 +561,9 @@ static esp_err_t log_series_inner(httpd_req_t *req)
             if (f == NULL) {
                 break;
             }
-            bool kopf = fgets(zeile, 1536, f) != NULL && pk_spalten_waehlen(zeile, schluessel, n, spalte);
+            bool kopf = fgets(zeile, ST_LOG_ZEILE_MAX, f) != NULL && pk_spalten_waehlen(zeile, schluessel, n, spalte);
             uint32_t zeit;
-            while (kopf && fgets(zeile, 1536, f) != NULL) {
+            while (kopf && fgets(zeile, ST_LOG_ZEILE_MAX, f) != NULL) {
                 if (!pk_zeile_lesen(zeile, spalte, n, &zeit, werte) || zeit < von || zeit >= bis) {
                     continue;
                 }
