@@ -103,6 +103,7 @@ CFG = {
     "reboot_minute": 0,
     "seize_weekday": 6,
     "seize_hour": 11,
+    "outdoor_only": False,
     "outdoor_mac": "E5:2B:9C:41:07:AA",
     "timezone": "CET-1CEST,M3.5.0,M10.5.0/3",
     "wifi": {"ssid": "Heimnetz", "hostname": "floor-heating", "pass_set": True},
@@ -216,7 +217,10 @@ def state():
     return {
         "revision": REV[0], "uptime_s": int(t) + 7321, "reset_reason": "power_on", "heap": 148000 + int(random.uniform(0, 4000)),
         "device": {"id": "fbh_a1b2c3", "mac": "A0:B7:65:A1:B2:C3", "site": CFG["site"],
-                   "model": "ESP32 Ventilsteuerung, 11 Heizkreise", "channels": 11},
+                   "model": ("ESP32 Empfang Aussenfuehler" if CFG.get("outdoor_only")
+                             else "ESP32 Ventilsteuerung, 11 Heizkreise"),
+                   "function": "outdoor" if CFG.get("outdoor_only") else "valves",
+                   "channels": 11},
         "version": "1.0.0",
         "net": ({"connected": True, "ip": "192.168.1.241", "ap_active": True, "ap_ip": "192.168.4.1",
                  "rssi": -60, "time_valid": True}

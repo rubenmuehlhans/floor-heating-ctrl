@@ -211,6 +211,17 @@ static void load_config_locked(void)
 
     s_cfg = *fresh;
     free(fresh);
+
+    /* Wird das Geraet zum reinen Aussenfuehler, verfallen offene Auftraege
+     * und eine vorgemerkte Schutzfahrt. Was gerade faehrt, faehrt zu Ende. */
+    if (s_cfg.outdoor_only) {
+        for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
+            s_ch[i].req_valid = false;
+            if (!valve_is_moving(&s_ch[i].valve)) {
+                s_ch[i].seize_step = 0;
+            }
+        }
+    }
     s_revision++;
 }
 
@@ -380,6 +391,9 @@ static void room_run_check(int ri, uint32_t t)
 static uint8_t seize_arm_locked(bool alle)
 {
     uint8_t n = 0;
+    if (s_cfg.outdoor_only) {
+        return 0; /* keine Antriebe, nichts festzusitzen */
+    }
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         channel_rt_t *ch = &s_ch[i];
         if (ch->reserved || ch->manual_hold || ch->seize_step != 0) {
@@ -585,7 +599,8 @@ static void control_task(void *arg)
             }
         }
 
-        if (t - s_boot_ms >= FIRST_CHECK_DELAY_MS &&
+        /* Ohne Antriebe gibt es keine verwaisten Kanaele zu schliessen. */
+        if (!s_cfg.outdoor_only && t - s_boot_ms >= FIRST_CHECK_DELAY_MS &&
             (s_waise_last_ms == 0 || t - s_waise_last_ms >= WAISE_CHECK_MS)) {
             waise_check(t);
         }
@@ -666,7 +681,7 @@ static void request(uint8_t channel, float target, float min_delta, bool force)
     }
     lock();
     channel_rt_t *ch = &s_ch[channel - 1];
-    if (!ch->reserved) {
+    if (!ch->reserved && !s_cfg.outdoor_only) {
         ch->req_valid = true;
         ch->req_target = target;
         ch->req_min_delta = min_delta;
@@ -908,7 +923,8 @@ bool control_reserve(uint8_t channel)
     bool ok = false;
     lock();
     channel_rt_t *ch = &s_ch[channel - 1];
-    if (!ch->reserved && !valve_is_moving(&ch->valve) && !group_busy(channel)) {
+    if (!s_cfg.outdoor_only && !ch->reserved && !valve_is_moving(&ch->valve) &&
+        !group_busy(channel)) {
         ch->reserved = true;
         ch->req_valid = false;
         ok = true;
@@ -969,6 +985,7 @@ void control_snapshot(ctl_snapshot_t *out)
     memset(out, 0, sizeof(*out));
     lock();
     uint32_t t = now_ms();
+    out->outdoor_only = s_cfg.outdoor_only;
 
     for (int i = 0; i < HW_CHANNEL_COUNT; i++) {
         const channel_rt_t *rt = &s_ch[i];
@@ -1010,7 +1027,7 @@ void control_snapshot(ctl_snapshot_t *out)
 
     out->seize.days_left = -1;
     time_t jetzt = time(NULL);
-    if (jetzt >= 1700000000) {
+    if (jetzt >= 1700000000 && !s_cfg.outdoor_only) {
         struct tm tm;
         localtime_r(&jetzt, &tm);
         out->seize.days_left =

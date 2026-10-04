@@ -72,6 +72,14 @@ typedef struct {
      * Einrichtungsassistenten. */
     char site[CFG_NAME_LEN];
 
+    /*
+     * Nur Aussenfuehler: Die Platine empfaengt den Aussenfuehler und reicht
+     * ihn weiter, an ihr haengen keine Stellantriebe. Raeume sind dann nicht
+     * vorgesehen, und die Kanaele bleiben unberuehrt -- keine Schutzfahrt,
+     * kein Anfahren unbekannter Stellungen, keine Messfahrt.
+     */
+    bool outdoor_only;
+
     uint8_t room_count;
     cfg_room_t rooms[CFG_MAX_ROOMS];
     cfg_channel_t channels[HW_CHANNEL_COUNT];

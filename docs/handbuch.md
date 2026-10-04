@@ -105,7 +105,9 @@ vergeben Sie unter **System → Netzwerk** unterschiedliche Namen.
 Beim ersten Aufruf führt ein Assistent durch die Grundeinrichtung. Er erscheint, solange keine
 Bezeichnung eingetragen ist, und lässt sich später über **System** erneut öffnen.
 
-Bei der Verteilerplatine: Etage benennen, Räume anlegen, je Raum ein Thermometer wählen.
+Bei der Verteilerplatine: Aufgabe wählen, Etage benennen, Räume anlegen, je Raum ein Thermometer
+wählen. Mit der Aufgabe **Nur Außenfühler** entfallen Räume und Thermometer; stattdessen wird der
+Außenfühler gewählt (siehe [Funkbrücke](#funkbrücke-eine-platine-nur-für-den-empfang)).
 Beim Heizungsgerät: Gerät benennen, Fühler zuordnen.
 
 ## Die Oberfläche
@@ -556,14 +558,23 @@ entfällt sie: Er empfängt die Thermometer selbst. Sie braucht keine Ventile, k
 Räume und keinen Heizkreis: Ein handelsüblicher ESP32 reicht, die Firmware kommt über den
 Web-Flasher darauf.
 
-1. Firmware aufspielen, das Gerät über seinen Einrichtungs-Zugangspunkt ins WLAN bringen und ihm
-   einen Ort geben, etwa „Funkbrücke Kessel“.
-2. Unter **Sensoren** den Schlüssel des Thermometers hinterlegen, falls es verschlüsselt sendet,
-   und es unter **Außenfühler** auswählen.
-3. Den Außenfühler an der bisherigen Platine abmelden, damit nur eine Quelle meldet.
+1. Firmware aufspielen, das Gerät über seinen Einrichtungs-Zugangspunkt ins WLAN bringen.
+2. Im Einrichtungsassistenten die Aufgabe **Nur Außenfühler** wählen und dem Gerät einen Ort
+   geben, etwa „Funkbrücke Kessel“. Ein bereits eingerichtetes Gerät wird über
+   **System → Einrichtung erneut durchlaufen** umgestellt; seine Räume entfallen dabei.
+3. Im zweiten Schritt das Thermometer als Außenfühler wählen. Sendet es verschlüsselt, zuerst
+   unter **Sensoren** den Schlüssel hinterlegen.
+4. Den Außenfühler an der bisherigen Platine abmelden, damit nur eine Quelle meldet.
+
+In dieser Betriebsart rührt die Platine keinen Kanal an: keine Schutzfahrt, kein Anfahren
+unbekannter Stellungen, keine Messfahrt, keine Fahrbefehle. Die Oberfläche zeigt statt Räumen und
+Kreisen den Außenfühler, die Anzeige am Gerät seine Temperatur, und Home Assistant erhält keine
+Ventile. `GET /api/state` meldet unter `device.function` den Wert `outdoor`, sonst `valves`.
 
 Die Heizungsgeräte finden die Brücke über mDNS und holen den Wert wie von jeder anderen Platine.
-Ohne Räume meldet sie keinen Wärmebedarf, und die App führt sie nicht unter den Räumen.
+Ohne Räume meldet sie keinen Wärmebedarf, braucht keinen Heizkreis, und die App führt sie nicht
+unter den Räumen. Ein Leitstand, der das Thermometer selbst nicht empfängt, übernimmt den Wert
+der Brücke, siehe [Funkthermometer und Außenfühler](#funkthermometer-und-außenfühler).
 
 ### Brennerzustand am Pufferspeicher
 
@@ -952,6 +963,16 @@ Wert als `outdoor_c` mit dem Alter `outdoor_age_s`, solange er nicht älter als 
 ist. Heizungsgeräte ab der Fassung nach 0.4.0 fragen den Leitstand zuerst und weichen erst dann
 auf eine Verteilerplatine aus (siehe [Außenfühler](#außenfühler)). Der Leitstand selbst meldet
 keinen Wärmebedarf.
+
+Empfängt der Leitstand den Außenfühler nicht selbst oder ist dessen Wert älter als eine
+Viertelstunde, übernimmt er den jüngsten Wert einer Verteilerplatine, die einen Außenfühler
+empfängt. Anzeige, HomeKit und `GET /api/demand` zeigen dann diesen Wert; die Seite Anlage nennt
+statt „Funk“ die Platine, von der er stammt, und `GET /api/state` führt sie unter
+`outdoor.source`. Der eigene Empfang geht vor, sobald er wieder frisch ist.
+
+Raumthermostate in HomeKit folgen den Räumen der Verteiler: Führt ein erreichbarer Verteiler einen
+Raum nicht mehr, entfernt der Leitstand das zugehörige Zubehör. Ein Verteiler, der nicht antwortet,
+behält seine Räume; sie zeigen in Home „Keine Antwort“.
 
 ### Protokoll auf der SD-Karte
 

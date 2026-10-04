@@ -208,6 +208,8 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   main{padding:.9rem .7rem 3rem}
   .card{padding:.9rem}
 }
+/* Ausgeblendetes bleibt aus, auch wo eine Regel display setzt. */
+[hidden]{display:none !important}
 </style>
 </head>
 <body>
@@ -261,7 +263,13 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
   </div>
 
   <section id="ov" class="on">
-    <div class="card">
+    <div class="card" id="ovOutdoor" hidden>
+      <h2>Außenfühler</h2>
+      <p class="lede">Dieses Gerät regelt keine Räume. Es empfängt den Außenfühler und reicht
+        dessen Werte an Leitstand und Heizungsgeräte weiter.</p>
+      <div class="row" id="ovOutdoorState"></div>
+    </div>
+    <div class="card" id="ovManifold">
       <h2>Verteiler</h2>
       <p class="lede">Alle elf Heizkreise in der Reihenfolge am Verteilerbalken, nach Räumen
         gruppiert. Die Füllung zeigt die Ventilstellung.</p>
@@ -499,7 +507,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="seizeCard">
       <h2>Schutzfahrt</h2>
       <p class="lede">Im Sommer stehen die Ventile über Monate geschlossen. Damit sie nicht
         festsitzen, fährt jeder Kreis einmal in der Woche auf Anschlag auf, wieder zu und
@@ -1369,6 +1377,11 @@ function renderOutdoor() {
     sel.innerHTML = html;
   }
 
+  $("#outdoorState").innerHTML = outdoorChips(gewaehlt);
+  $("#ovOutdoorState").innerHTML = outdoorChips(gewaehlt);
+}
+
+function outdoorChips(gewaehlt) {
   const a = state?.outdoor;
   const marken = [];
   if (!gewaehlt) {
@@ -1382,7 +1395,21 @@ function renderOutdoor() {
     if (a.battery_mv) marken.push(`<span class="chip">${a.battery_mv} mV</span>`);
     marken.push(`<span class="chip">vor ${a.age_s} s</span>`);
   }
-  $("#outdoorState").innerHTML = marken.join("");
+  return marken.join("");
+}
+
+/* Nur Außenfühler: Ohne Antriebe gibt es weder Räume noch Kreise noch eine
+   Schutzfahrt. Die Reiter verschwinden, die Übersicht zeigt den Fühler. */
+function applyFunction() {
+  const nur = !!config?.outdoor_only;
+  document.querySelectorAll('.tabs button[data-tab="rooms"], .tabs button[data-tab="chans"]')
+    .forEach(b => b.hidden = nur);
+  $("#ovManifold").hidden = nur;
+  $("#rooms").hidden = nur;
+  $("#seizeCard").hidden = nur;
+  $("#ovOutdoor").hidden = !nur;
+  const aktiv = document.querySelector(".tabs button.on")?.dataset.tab;
+  if (nur && (aktiv === "rooms" || aktiv === "chans")) selectTab("ov");
 }
 
 function renderLocalSensors() {
@@ -1668,6 +1695,8 @@ $("#otaGo").onclick = async () => {
    der Assistent fuehrt durch Etage, Raeume und Thermometer. */
 
 const WIZ_STEPS = ["Etage", "Räume", "Thermometer"];
+const WIZ_STEPS_AUSSEN = ["Gerät", "Außenfühler"];
+const wizSteps = () => wiz.outdoor_only ? WIZ_STEPS_AUSSEN : WIZ_STEPS;
 const WIZ_TEMPLATE = [
   {name: "Küche", channels: [1,2,3]},
   {name: "Kinderzimmer", channels: [4,5]},
@@ -1691,7 +1720,8 @@ function newRoom(name, channels) {
 }
 
 function openWizard() {
-  wiz = {step: 1, site: config.site || "", rooms: (config.rooms || []).map(r => ({...r}))};
+  wiz = {step: 1, site: config.site || "", rooms: (config.rooms || []).map(r => ({...r})),
+         outdoor_only: !!config.outdoor_only, outdoor_mac: config.outdoor_mac || null};
   $("#wizard").classList.add("on");
   renderWizard();
 }
@@ -1704,25 +1734,35 @@ function closeWizard() {
 
 function renderWizard() {
   if (!wiz) return;
-  $("#wizBar").style.width = (wiz.step / WIZ_STEPS.length * 100) + "%";
-  $("#wizSteps").innerHTML = WIZ_STEPS.map((s, i) =>
+  const steps = wizSteps();
+  $("#wizBar").style.width = (wiz.step / steps.length * 100) + "%";
+  $("#wizSteps").innerHTML = steps.map((s, i) =>
     i + 1 === wiz.step ? `<b>${i+1}. ${s}</b>` : `<span>${i+1}. ${s}</span>`).join("<span>·</span>");
   $("#wizBack").style.visibility = wiz.step === 1 ? "hidden" : "visible";
-  $("#wizNext").textContent = wiz.step === WIZ_STEPS.length ? "Einrichtung abschließen" : "Weiter";
+  $("#wizNext").textContent = wiz.step === steps.length ? "Einrichtung abschließen" : "Weiter";
 
   clearInterval(wizTimer); wizTimer = null;
 
   if (wiz.step === 1) wizStepSite();
+  else if (wiz.outdoor_only) wizStepOutdoor();
   else if (wiz.step === 2) wizStepRooms();
   else wizStepSensors();
 }
 
 function wizStepSite() {
-  $("#wizTitle").textContent = "Welche Etage steuert dieses Gerät?";
+  $("#wizTitle").textContent = "Welche Aufgabe hat dieses Gerät?";
   $("#wizLede").textContent = "Die Bezeichnung steht in der Kopfzeile und im Gerätenamen für "
     + "Home Assistant. Bei mehreren Platinen im Haus unterscheidet sie die Anlagen.";
 
   $("#wizBody").innerHTML = `<div class="card">
+    <div class="sensor-pick" style="margin-bottom:.9rem">
+      <label class="${wiz.outdoor_only ? "" : "on"}">
+        <input type="radio" name="wizFn" value="valves" ${wiz.outdoor_only ? "" : "checked"}>
+        <span>Verteiler — regelt Räume über die Stellantriebe</span></label>
+      <label class="${wiz.outdoor_only ? "on" : ""}">
+        <input type="radio" name="wizFn" value="outdoor" ${wiz.outdoor_only ? "checked" : ""}>
+        <span>Nur Außenfühler — empfängt den Außenfühler, ohne Stellantriebe und ohne Räume</span></label>
+    </div>
     <label class="f"><span>Bezeichnung der Anlage</span>
       <input id="wizSite" value="${wiz.site}" placeholder="z. B. Erdgeschoss" style="width:100%"></label>
     <div class="pick">${["Erdgeschoss","Obergeschoss","Dachgeschoss","Keller","Anbau"]
@@ -1738,6 +1778,10 @@ function wizStepSite() {
       : "Ohne Bezeichnung lässt sich die Einrichtung nicht abschließen.";
   };
   $("#wizSite").oninput = upd;
+  $("#wizBody").querySelectorAll("[name=wizFn]").forEach(el => el.onchange = () => {
+    wiz.outdoor_only = el.value === "outdoor";
+    renderWizard();
+  });
   $("#wizBody").querySelectorAll("[data-site]").forEach(b => b.onclick = () => {
     $("#wizSite").value = b.dataset.site; upd();
   });
@@ -1796,6 +1840,33 @@ function wizStepRooms() {
   };
 }
 
+function wizStepOutdoor() {
+  $("#wizTitle").textContent = "Welches Gerät ist der Außenfühler?";
+  $("#wizLede").textContent = "Die Liste zeigt alle empfangenen Geräte mit ihrem aktuellen Messwert "
+    + "und der Signalstärke; sie wird laufend aktualisiert. Der Außenfühler zeigt meist den "
+    + "niedrigsten Wert.";
+  drawOutdoorStep();
+  wizTimer = setInterval(async () => { await loadBle(); drawOutdoorStep(); }, 3000);
+}
+
+function drawOutdoorStep() {
+  if (!wiz || !wiz.outdoor_only || wiz.step !== 2) return;
+  const opts = ble.map(d => `<label class="${wiz.outdoor_mac === d.mac ? "on" : ""}">
+      <input type="radio" name="wizOut" data-mac="${d.mac}" ${wiz.outdoor_mac === d.mac ? "checked" : ""}>
+      <span class="mac">${bleLabel(d)}</span>
+      <span class="val">${num(d.temp_c,1)} °C · ${d.rssi} dBm${keyHint(d)}</span></label>`).join("");
+  $("#wizBody").innerHTML = `<div class="card"><div class="sensor-pick">
+      <label class="${wiz.outdoor_mac ? "" : "on"}">
+        <input type="radio" name="wizOut" data-mac="" ${wiz.outdoor_mac ? "" : "checked"}>
+        <span>später zuordnen</span></label>
+      ${opts || '<p class="lede" style="margin:0">Noch kein Thermometer empfangen.</p>'}
+    </div></div>`;
+  $("#wizBody").querySelectorAll("[name=wizOut]").forEach(el => el.onchange = () => {
+    wiz.outdoor_mac = el.dataset.mac || null;
+    drawOutdoorStep();
+  });
+}
+
 function wizStepSensors() {
   $("#wizTitle").textContent = "Welches Thermometer misst in welchem Raum?";
   $("#wizLede").textContent = "Die Liste zeigt alle empfangenen Geräte mit ihrem aktuellen Messwert "
@@ -1844,9 +1915,11 @@ $("#wizBack").onclick = () => { if (wiz.step > 1) { wiz.step--; renderWizard(); 
 $("#wizNext").onclick = async () => {
   if (wiz.step === 1) {
     if (!wiz.site) { toast("Bitte eine Bezeichnung eintragen", true); return; }
-    wiz.step = 2; renderWizard(); return;
+    wiz.step = 2; renderWizard();
+    if (wiz.outdoor_only) { await loadBle(); drawOutdoorStep(); }
+    return;
   }
-  if (wiz.step === 2) {
+  if (wiz.step === 2 && !wiz.outdoor_only) {
     if (!wiz.rooms.length) { toast("Bitte mindestens einen Raum anlegen", true); return; }
     const ohne = wiz.rooms.findIndex(r => !r.name.trim());
     if (ohne >= 0) { toast(`Raum ${ohne+1} braucht einen Namen`, true); return; }
@@ -1857,7 +1930,11 @@ $("#wizNext").onclick = async () => {
 
   const s = slug(wiz.site);
   config.site = wiz.site;
-  config.rooms = wiz.rooms;
+  config.outdoor_only = wiz.outdoor_only;
+  /* Als reiner Außenfühler hat das Gerät keine Räume; die Prüfung am Gerät
+     lehnt sie sonst ab. */
+  config.rooms = wiz.outdoor_only ? [] : wiz.rooms;
+  if (wiz.outdoor_only) config.outdoor_mac = wiz.outdoor_mac;
   if (!config.wifi.hostname || config.wifi.hostname === "floor-heating") {
     config.wifi.hostname = "floor-heating-" + s;
   }
@@ -1889,6 +1966,7 @@ async function loadConfig() {
   $("#place").textContent = config.site || "nicht eingerichtet";
   document.title = config.site ? "Fußbodenheizung " + config.site : "Fußbodenheizung";
   renderRoomEditor(); renderChannelConfig(); renderSystem(); renderSeize();
+  applyFunction(); renderOutdoor();
   /* Ohne Bezeichnung der Anlage ist das Geraet noch nicht eingerichtet. */
   if (!config.site && !wiz) openWizard();
 }

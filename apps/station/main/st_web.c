@@ -171,6 +171,8 @@ static void outdoor_json(cJSON *parent, const st_outdoor_t *o)
         cJSON_AddNumberToObject(jo, "rssi", o->rssi);
         cJSON_AddNumberToObject(jo, "age_s", o->age_s);
         cJSON_AddStringToObject(jo, "name", o->name);
+        /* Woher der Wert kommt: leer heisst eigener Empfang. */
+        cJSON_AddStringToObject(jo, "source", o->quelle);
     }
 }
 

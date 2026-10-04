@@ -415,7 +415,10 @@ static void anlage_werte(const st_plant_t *p)
         zahl(s, sizeof(s), o->humidity, 0, " % rF");
         text_frei(148, 191, s, KLEIN, GEDAEMPFT, lgfx::textdatum_t::baseline_right);
     }
-    const char *quelle = !o->assigned ? "kein F\xc3\xbchler" : !o->valid ? "kein Empfang" : "Funk";
+    /* Vom Verteiler uebernommen heisst: der Leitstand hoert den Fuehler nicht
+     * selbst. Angezeigt wird dann, ueber wen er kommt. */
+    const char *quelle = frisch && o->quelle[0] ? o->quelle
+                         : !o->assigned ? "kein F\xc3\xbchler" : !o->valid ? "kein Empfang" : "Funk";
     text_frei(148, 207, quelle, KLEIN, GEDAEMPFT, lgfx::textdatum_t::baseline_right);
 
     /* Brenner heute */

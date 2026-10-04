@@ -249,8 +249,16 @@ static void announce_all(void)
         ESP_LOGI(TAG, "Raum %u in Home Assistant entfernt", s_announced_rooms[i]);
     }
 
+    /* Ohne Antriebe gibt es nichts zu fahren; angekuendigte Ventile von
+     * frueher verschwinden wieder. */
     for (int n = 1; n <= HW_CHANNEL_COUNT; n++) {
-        announce_cover((uint8_t)n);
+        if (snap.outdoor_only) {
+            char obj[8];
+            snprintf(obj, sizeof(obj), "ch%d", n);
+            retract("cover", obj);
+        } else {
+            announce_cover((uint8_t)n);
+        }
     }
 
     for (int i = 0; i < snap.room_count; i++) {

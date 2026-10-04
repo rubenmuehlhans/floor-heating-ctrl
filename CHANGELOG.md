@@ -5,6 +5,23 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ## Unveröffentlicht
 
+### Verteiler
+
+- **Betriebsart „Nur Außenfühler“.** Eine Platine ohne Stellantriebe, die nur den Außenfühler
+  empfängt, braucht keinen Platzhalterraum mehr. Der Einrichtungsassistent fragt zuerst nach der
+  Aufgabe; in dieser Betriebsart entfallen Räume, Kreise, Schutzfahrt, das Anfahren unbekannter
+  Stellungen, Messfahrt und Fahrbefehle. Oberfläche und Anzeige zeigen den Außenfühler, Home
+  Assistant erhält keine Ventile. Konfiguration: `outdoor_only`; `GET /api/state` meldet
+  `device.function` mit `outdoor` oder `valves`.
+
+### Leitstand
+
+- **Außentemperatur von einer Verteilerplatine.** Empfängt der Leitstand den Außenfühler nicht
+  selbst, übernimmt er den jüngsten Wert einer Verteilerplatine; `outdoor.source` nennt sie.
+  Damit erscheint die Außentemperatur auch dann in HomeKit und auf der Anzeige.
+- **HomeKit entfernt verwaiste Räume.** Führt ein erreichbarer Verteiler einen Raum nicht mehr,
+  verschwindet das Thermostat aus Home.
+
 ### Gerät am Pufferspeicher
 
 - **Befund „Vorlauf und Rücklauf vertauscht“ nur noch bei laufender Pumpe.** Die Haltezeit

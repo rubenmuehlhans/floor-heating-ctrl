@@ -293,6 +293,15 @@ static void verteiler_lesen(const cJSON *root, st_manifold_t *m)
         z->heat = strcmp(mode, "off") != 0;
         z->position = (float)zahl(r, "target_position", 0);
     }
+
+    char funktion[12] = {0};
+    text(feld(root, "device"), "function", funktion, sizeof(funktion));
+    m->outdoor_only = strcmp(funktion, "outdoor") == 0;
+    const cJSON *o = feld(root, "outdoor");
+    m->aussen_valid = wahr(o, "valid") && zahl_da(o, "temp_c", &m->aussen_c);
+    m->aussen_hum_valid = m->aussen_valid && zahl_da(o, "humidity", &m->aussen_hum);
+    m->aussen_age_s = (uint32_t)zahl(o, "age_s", 0);
+    m->aussen_ms = now_ms();
 }
 
 /* ------------------------------------------------------------------ */
@@ -570,13 +579,52 @@ void st_poll_ble(const atc_device_t *dev)
 
 /* ------------------------------------------------------------------ */
 
+/*
+ * Hoert der Leitstand den Aussenfuehler nicht selbst, gilt der Wert eines
+ * Verteilers, der ihn empfaengt -- an dieser Anlage eine eigene Platine, die
+ * nur dafuer in Reichweite steht. Der eigene Empfang geht vor, solange er
+ * frisch ist; unter den Verteilern der juengste Wert.
+ */
+static void aussen_vom_verteiler(st_outdoor_t *o, uint32_t t)
+{
+    if (o->valid && o->age_s <= ST_OUTDOOR_STALE_S) {
+        return;
+    }
+    const st_manifold_t *best = NULL;
+    uint32_t best_alter = 0;
+    for (uint8_t k = 0; k < s_plant.manifold_count; k++) {
+        const st_manifold_t *m = &s_plant.manifolds[k];
+        if (!m->aussen_valid) {
+            continue;
+        }
+        uint32_t alter = m->aussen_age_s + (t - m->aussen_ms) / 1000;
+        if (alter <= ST_OUTDOOR_STALE_S && (best == NULL || alter < best_alter)) {
+            best = m;
+            best_alter = alter;
+        }
+    }
+    if (best == NULL) {
+        return;
+    }
+    o->valid = true;
+    o->temp_c = best->aussen_c;
+    o->hum_valid = best->aussen_hum_valid;
+    o->humidity = best->aussen_hum;
+    o->battery = 0;
+    o->rssi = 0;
+    o->age_s = best_alter;
+    snprintf(o->quelle, sizeof(o->quelle), "%s", best->dev.site[0] ? best->dev.site : best->dev.id);
+}
+
 void st_poll_snapshot(st_plant_t *out)
 {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     *out = s_plant;
+    uint32_t t = now_ms();
     if (s_plant.outdoor.valid) {
-        out->outdoor.age_s = (now_ms() - s_outdoor_ms) / 1000;
+        out->outdoor.age_s = (t - s_outdoor_ms) / 1000;
     }
+    aussen_vom_verteiler(&out->outdoor, t);
     xSemaphoreGive(s_mtx);
 }
 

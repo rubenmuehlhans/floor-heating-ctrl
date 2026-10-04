@@ -106,6 +106,9 @@ static esp_err_t cfg_validate(const app_config_t *c, char *err, size_t err_len)
     if (c->room_count > CFG_MAX_ROOMS) {
         FAIL("Zu viele Raeume (%u, hoechstens %d)", c->room_count, CFG_MAX_ROOMS);
     }
+    if (c->outdoor_only && c->room_count > 0) {
+        FAIL("Als reiner Aussenfuehler hat das Geraet keine Raeume");
+    }
 
     uint16_t used = 0;
     for (int i = 0; i < c->room_count; i++) {
@@ -236,6 +239,7 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     }
     cJSON_AddNumberToObject(root, "cfg_version", cfg->version);
     cJSON_AddStringToObject(root, "site", cfg->site);
+    cJSON_AddBoolToObject(root, "outdoor_only", cfg->outdoor_only);
 
     cJSON *rooms = cJSON_AddArrayToObject(root, "rooms");
     for (int i = 0; i < cfg->room_count; i++) {
@@ -446,6 +450,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
 
     /* Aussenfuehler. null loescht die Zuordnung, ein fehlender Schluessel
      * laesst sie stehen -- wie bei allen anderen Angaben auch. */
+    out->outdoor_only = cfgjson_bool(root, "outdoor_only", out->outdoor_only);
     const cJSON *am = cJSON_GetObjectItemCaseSensitive(root, "outdoor_mac");
     if (cJSON_IsNull(am)) {
         memset(out->outdoor_mac, 0, sizeof(out->outdoor_mac));

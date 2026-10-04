@@ -394,6 +394,53 @@ static bool fuehler(const st_plant_t *p, const char *rolle, float *wert)
     return false;
 }
 
+/*
+ * Entfernt Raeume, die ihr Verteiler nicht mehr fuehrt -- etwa nachdem eine
+ * Platine zum reinen Aussenfuehler wurde und ihren Platzhalterraum verlor.
+ * Geurteilt wird nur ueber Verteiler, deren letzte Abfrage ankam; ein
+ * verstummter Verteiler behaelt seine Raeume, sie zeigen dann "Keine Antwort".
+ */
+static void verwaiste_entfernen(const st_plant_t *p)
+{
+    for (int i = 0; i < ZUBEHOER_MAX; i++) {
+        xSemaphoreTake(s_mtx, portMAX_DELAY);
+        zub_t *z = &s_zub[i];
+        bool weg = false;
+        char kennung[32] = "";
+        if (z->belegt && z->art == Z_RAUM) {
+            for (int k = 0; k < p->manifold_count; k++) {
+                const st_manifold_t *m = &p->manifolds[k];
+                if (strcmp(m->dev.id, z->geraet) != 0 || !m->dev.reachable) {
+                    continue;
+                }
+                weg = true;
+                for (int r = 0; r < m->room_count; r++) {
+                    if (m->rooms[r].id == z->raum) {
+                        weg = false;
+                        break;
+                    }
+                }
+            }
+            if (weg) {
+                snprintf(kennung, sizeof(kennung), "%s/%u", z->geraet, z->raum);
+                z->belegt = false;
+            }
+        }
+        xSemaphoreGive(s_mtx);
+        if (!weg) {
+            continue;
+        }
+        hap_acc_t *acc = hap_acc_get_by_aid(hap_get_unique_aid(kennung));
+        /* Das SDK zaehlt die Konfigurationsnummer dabei selbst hoch, Home
+         * laedt die Liste dann neu. */
+        if (acc != NULL) {
+            hap_remove_bridged_accessory(acc);
+            hap_acc_delete(acc);
+        }
+        ESP_LOGI(TAG, "Raum %s entfernt, der Verteiler fuehrt ihn nicht mehr", kennung);
+    }
+}
+
 /* Legt fehlende Zubehoere an; das geschieht ausserhalb der Sperre, weil das
  * SDK dabei selbst sperrt und in den NVS schreibt. */
 static void anlegen(const st_plant_t *p)
@@ -593,6 +640,7 @@ static void aufgabe(void *arg)
         xSemaphoreGive(s_mtx);
         if (neu != revision || offen) {
             st_poll_snapshot(s_plant);
+            verwaiste_entfernen(s_plant);
             anlegen(s_plant);
             abgleichen(s_plant);
             ausliefern(s_plant);

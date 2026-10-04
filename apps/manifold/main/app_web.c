@@ -298,7 +298,15 @@ static esp_err_t state_get(httpd_req_t *req)
              mac[4], mac[5]);
     cJSON_AddStringToObject(dev, "mac", buf);
     cJSON_AddStringToObject(dev, "site", cfg.site);
-    cJSON_AddStringToObject(dev, "model", "ESP32 Ventilsteuerung, 11 Heizkreise");
+    /* function sagt Leitstand und App, ob hier Raeume geregelt werden oder
+     * nur der Aussenfuehler empfangen wird. */
+    if (snap.outdoor_only) {
+        cJSON_AddStringToObject(dev, "model", "ESP32 Empfang Aussenfuehler");
+        cJSON_AddStringToObject(dev, "function", "outdoor");
+    } else {
+        cJSON_AddStringToObject(dev, "model", "ESP32 Ventilsteuerung, 11 Heizkreise");
+        cJSON_AddStringToObject(dev, "function", "valves");
+    }
     cJSON_AddNumberToObject(dev, "channels", HW_CHANNEL_COUNT);
 
     cJSON *jnet = cJSON_AddObjectToObject(root, "net");

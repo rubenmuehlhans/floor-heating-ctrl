@@ -88,6 +88,14 @@ typedef struct {
     st_dev_t dev;
     st_room_t rooms[ST_MAX_ROOMS];
     uint8_t room_count;
+    /* Platine ohne Stellantriebe, die nur den Aussenfuehler empfaengt */
+    bool outdoor_only;
+    /* Aussenfuehler, wie ihn der Verteiler empfaengt. aussen_ms ist der
+     * eigene Zeitpunkt der Abfrage, aussen_age_s das Alter von dort aus. */
+    bool aussen_valid, aussen_hum_valid;
+    float aussen_c, aussen_hum;
+    uint32_t aussen_age_s;
+    uint32_t aussen_ms;
 } st_manifold_t;
 
 typedef struct {
@@ -101,6 +109,10 @@ typedef struct {
     uint8_t battery;
     int8_t rssi;
     uint32_t age_s;
+    /* Leer: eigener Empfang. Sonst die Bezeichnung des Verteilers, von dem
+     * der Wert stammt -- dann, wenn der Leitstand den Fuehler selbst nicht
+     * hoert. */
+    char quelle[32];
 } st_outdoor_t;
 
 typedef struct {

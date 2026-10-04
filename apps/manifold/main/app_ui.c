@@ -85,6 +85,27 @@ static void fit_text(char *dst, size_t dst_len, const char *src, int max_px)
 
 static void draw_overview(const ctl_snapshot_t *snap)
 {
+    if (snap->outdoor_only) {
+        char line[24];
+        ssd1327_text(4, 8, "Aussen", GRAY_DIM, 1);
+        if (!snap->outdoor.set) {
+            ssd1327_text(4, 24, "Kein Fuehler", GRAY_ON, 1);
+            ssd1327_text(4, 34, "zugeordnet.", GRAY_ON, 1);
+            return;
+        }
+        if (snap->outdoor.valid) {
+            snprintf(line, sizeof(line), "%.1f", snap->outdoor.temp_c);
+        } else {
+            snprintf(line, sizeof(line), "--.-");
+        }
+        ssd1327_text(4, 24, line, GRAY_ON, 2);
+        ssd1327_text(4 + ssd1327_text_width(line, 2) + 2, 32, "\xC2\xB0" "C", GRAY_DIM, 1);
+        if (snap->outdoor.valid) {
+            snprintf(line, sizeof(line), "%.0f %% Feuchte", snap->outdoor.humidity);
+            ssd1327_text(4, 46, line, GRAY_DIM, 1);
+        }
+        return;
+    }
     if (snap->room_count == 0) {
         ssd1327_text(4, 24, "Kein Raum", GRAY_ON, 2);
         ssd1327_text(4, 48, "eingerichtet.", GRAY_ON, 1);

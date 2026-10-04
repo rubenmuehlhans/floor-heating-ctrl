@@ -79,6 +79,7 @@ typedef struct {
     ctl_channel_t ch[HW_CHANNEL_COUNT];
     ctl_room_t rooms[CFG_MAX_ROOMS];
     uint8_t room_count;
+    bool outdoor_only;   /* nur Aussenfuehler, keine Stellantriebe */
     uint16_t bemf_mv[HW_BEMF_GROUP_COUNT];
     uint32_t uptime_s;
     ctl_seize_t seize;
