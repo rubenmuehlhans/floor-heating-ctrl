@@ -9,6 +9,7 @@ void plausi_defaults(plausi_cfg_t *cfg)
     cfg->min_buffer_c = 35.0f;
     cfg->max_error_ratio = 0.05f;
     cfg->backflow_k = 3.0f;
+    cfg->settle_s = 300;
 }
 
 void plausi_init(plausi_finding_t *f)
@@ -25,23 +26,33 @@ void plausi_init(plausi_finding_t *f)
  * nicht beurteilen". Im zweiten Fall bleibt der Zaehler stehen, statt von vorn
  * zu beginnen -- sonst kaeme eine Meldung nie zustande, wenn die Pumpe alle
  * zwanzig Minuten fuer fuenf laeuft.
+ *
+ * Stehen heisst dabei auch: Die Pause zaehlt nicht mit. Summiert wird nur die
+ * Zeit zwischen zwei beurteilbaren Schritten. Ein Startzeitpunkt allein
+ * reichte nicht -- nach einer Nacht Stillstand stuende die Meldung dann beim
+ * ersten Wert des Morgens sofort da.
  */
 static void schritt(plausi_finding_t *f, const plausi_cfg_t *cfg, bool urteilbar,
                     bool verletzt, uint32_t now_ms)
 {
     if (!urteilbar) {
+        f->last_ms = 0;
         return;
     }
     if (!verletzt) {
-        f->since_ms = 0;
+        f->held_ms = 0;
         f->held_s = 0;
+        f->last_ms = 0;
         f->active = false;
         return;
     }
-    if (f->since_ms == 0) {
-        f->since_ms = now_ms;
+    if (f->last_ms != 0) {
+        f->held_ms += now_ms - f->last_ms;
     }
-    f->held_s = (now_ms - f->since_ms) / 1000;
+    /* 0 heisst "keine Bezugszeit"; ein Schritt genau bei 0 ms zaehlt eben
+     * erst ab dem naechsten. */
+    f->last_ms = now_ms;
+    f->held_s = f->held_ms / 1000;
     if (f->held_s >= cfg->hold_s) {
         f->active = true;
     }
@@ -51,9 +62,20 @@ void plausi_flow_tick(plausi_finding_t *f, const plausi_cfg_t *cfg, bool pump_on
                       bool buffer_valid, float buffer_c, bool vl_valid, float vl_c,
                       bool rl_valid, float rl_c, uint32_t now_ms)
 {
-    bool urteilbar = pump_on && vl_valid && rl_valid && buffer_valid &&
+    if (!pump_on) {
+        f->running = false;
+    } else if (!f->running) {
+        f->running = true;
+        f->run_since_ms = now_ms;
+    }
+    bool eingelaufen = f->running && (now_ms - f->run_since_ms) / 1000 >= cfg->settle_s;
+    bool urteilbar = eingelaufen && vl_valid && rl_valid && buffer_valid &&
                      buffer_c >= cfg->min_buffer_c;
     schritt(f, cfg, urteilbar, urteilbar && vl_c < rl_c - cfg->margin_k, now_ms);
+    /* Ueber stehende Rohre wird nichts gemeldet, auch nichts Altes. */
+    if (!pump_on) {
+        f->active = false;
+    }
 }
 
 void plausi_buffer_tick(plausi_finding_t *f, const plausi_cfg_t *cfg, bool loading,

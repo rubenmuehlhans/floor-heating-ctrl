@@ -1927,7 +1927,15 @@ static void test_plausi_flow(void)
     CHECK(!f.active, "bei stehender Pumpe wird nicht geurteilt");
     CHECK(f.held_s == 0, "und die Uhr laeuft nicht");
 
-    /* Pumpe an, Speicher warm, Vorlauf kaelter: jetzt zaehlt es. */
+    /* Pumpe an, Speicher warm, Vorlauf kaelter. Die ersten fuenf Minuten
+     * zaehlen nicht: Da steht noch das Wasser der Standzeit in den Rohren. */
+    for (int i = 0; i < 300; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(f.held_s == 0, "in der Einlaufzeit laeuft die Uhr nicht, %u s", (unsigned)f.held_s);
+
+    /* Danach zaehlt es. */
     for (int i = 0; i < 600; i++) {
         t += 1000;
         plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
@@ -1935,23 +1943,67 @@ static void test_plausi_flow(void)
     CHECK(!f.active, "nach zehn Minuten noch keine Meldung");
     CHECK(f.held_s >= 590, "aber die Uhr laeuft, %u s", (unsigned)f.held_s);
 
-    /* Pumpe geht aus und wieder an: der Zaehler laeuft weiter, statt von vorn
-     * zu beginnen. Sonst kaeme bei kurzen Laufzeiten nie eine Meldung. */
-    for (int i = 0; i < 1200; i++) {
+    /*
+     * Pumpe geht aus und wieder an: der Zaehler laeuft weiter, statt von vorn
+     * zu beginnen. Sonst kaeme bei kurzen Laufzeiten nie eine Meldung. Die
+     * Pause selbst zaehlt aber nicht mit -- nach zwei Stunden Stillstand darf
+     * der erste Wert nach dem Anlaufen nicht sofort melden.
+     */
+    for (int i = 0; i < 7200; i++) {
         t += 1000;
         plausi_flow_tick(&f, &cfg, false, true, 60.0f, true, 30.0f, true, 36.0f, t);
     }
-    for (int i = 0; i < 1300; i++) {
+    uint32_t vorher = f.held_s;
+    for (int i = 0; i < 300; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(!f.active, "Stillstand zaehlt nicht zur Haltezeit");
+    CHECK(f.held_s == vorher, "Einlaufzeit nach der Pause zaehlt nicht, %u s", (unsigned)f.held_s);
+    for (int i = 0; i < 1250; i++) {
         t += 1000;
         plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
     }
     CHECK(f.active, "nach einer halben Stunde Pumpenlauf wird gemeldet");
+
+    /* Steht die Pumpe, wird nicht gemeldet; die Haltezeit bleibt erhalten,
+     * und nach der naechsten Einlaufzeit ist die Meldung wieder da. */
+    t += 1000;
+    plausi_flow_tick(&f, &cfg, false, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    CHECK(!f.active, "bei stehender Pumpe keine Meldung");
+    CHECK(f.held_s >= cfg.hold_s, "die Haltezeit bleibt dabei erhalten");
+    for (int i = 0; i < 301; i++) {
+        t += 1000;
+        plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 30.0f, true, 36.0f, t);
+    }
+    CHECK(f.active, "nach der Einlaufzeit ist die Meldung wieder da");
 
     /* Ein richtig herum messender Kreis meldet nichts, und eine Meldung
      * verschwindet, sobald es stimmt. */
     t += 1000;
     plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, 36.0f, true, 30.0f, t);
     CHECK(!f.active, "richtige Reihenfolge nimmt die Meldung zurueck");
+
+    /*
+     * Wie an der Anlage beobachtet: Bei jedem Anlaufen ist der Ruecklauf aus
+     * dem Stillstand eine gute Minute lang waermer, danach stimmt es. Ueber
+     * viele solcher Zyklen darf daraus keine Meldung werden.
+     */
+    plausi_init(&f);
+    for (int zyklus = 0; zyklus < 40; zyklus++) {
+        for (int i = 0; i < 1200; i++) {
+            t += 1000;
+            plausi_flow_tick(&f, &cfg, false, true, 60.0f, true, 27.0f, true, 28.5f, t);
+        }
+        for (int i = 0; i < 300; i++) {
+            t += 1000;
+            bool stehend = i < 90;
+            plausi_flow_tick(&f, &cfg, true, true, 60.0f, true, stehend ? 27.0f : 34.0f, true,
+                             stehend ? 28.5f : 29.0f, t);
+        }
+        CHECK(!f.active, "Anlaufen nach Stillstand meldet nicht, Zyklus %d", zyklus);
+    }
+    CHECK(!f.active && f.held_s == 0, "auch nach vierzig Zyklen keine Meldung");
 
     /* Kalter Speicher: nicht beurteilbar. */
     plausi_init(&f);

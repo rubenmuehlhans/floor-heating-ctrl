@@ -632,10 +632,13 @@ static void evaluate(uint32_t t)
         z->any_seen = bedarf.any_seen;
         pump_tick(&z->st, &z->cfg, &in, t);
         /* Vertauschte Fuehler faellt nur auf, solange die Pumpe laeuft und
-         * Waerme da ist -- bei stehender Pumpe stehen beide Rohre einfach da. */
+         * Waerme da ist -- bei stehender Pumpe stehen beide Rohre einfach da.
+         * Meldet das Relais aus, laeuft sie nicht, was immer der Sollzustand
+         * sagt; ohne Rueckmeldung bleibt nur der Sollzustand. */
+        bool laeuft = z->st.on && (!z->rel.known || z->rel.on);
         float rl_c = 0.0f;
         bool rl_ok = sensors_role_value(z->rl_role, &rl_c, NULL);
-        plausi_flow_tick(&z->swapped, &s_plausi, z->st.on, in.buffer_valid, in.buffer_c,
+        plausi_flow_tick(&z->swapped, &s_plausi, laeuft, in.buffer_valid, in.buffer_c,
                          in.flow_valid, in.flow_c, rl_ok, rl_c, t);
         xSemaphoreGive(s_mtx);
 

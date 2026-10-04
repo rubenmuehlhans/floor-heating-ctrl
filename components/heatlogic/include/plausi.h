@@ -54,28 +54,46 @@ typedef struct {
      * innerhalb von zehn Minuten, ausgeloest durch eine Warmwasserzapfung.
      */
     float backflow_k;
+    /*
+     * So lange muss die Pumpe eines Kreises laufen, bevor geurteilt wird. Beim
+     * Anlaufen steht noch das Wasser der Standzeit in den Rohren: An der Anlage
+     * war der Ruecklauf von Heizkreis 1 dann um 1 K waermer als der Vorlauf und
+     * kehrte sich erst nach gut einer Minute um.
+     */
+    uint32_t settle_s;
 } plausi_cfg_t;
 
 /* Ein Befund. Er haelt an, solange die Bedingung anliegt. */
 typedef struct {
     bool active;
-    uint32_t since_ms;   /* seit wann die Bedingung ununterbrochen anliegt */
-    uint32_t held_s;     /* wie lange sie bisher angelegen hat */
+    uint32_t held_s;     /* wie lange sie bisher beurteilbar angelegen hat */
+    /* Intern: die Haltezeit wird nur ueber beurteilbare Schritte summiert.
+     * last_ms ist der letzte solche Schritt, 0 nach einer Pause. */
+    uint32_t held_ms;
+    uint32_t last_ms;
+    /* Intern, nur Vertauschungspruefung: seit wann die Pumpe laeuft. */
+    bool running;
+    uint32_t run_since_ms;
 } plausi_finding_t;
 
 /* Vorgabe: 30 min Haltezeit, 1 K Rand, 35 °C Mindesttemperatur des Speichers,
- * 5 Prozent verworfene Messungen. */
+ * 5 Prozent verworfene Messungen, 5 min Einlaufzeit der Pumpe. */
 void plausi_defaults(plausi_cfg_t *cfg);
 void plausi_init(plausi_finding_t *f);
 
 /*
  * Ein Zeitschritt fuer die Vertauschungspruefung eines Heizkreises.
  *
- * Geurteilt wird nur, solange die Pumpe laeuft und der Speicher warm genug
- * ist -- bei stehender Pumpe stehen beide Rohre einfach da und nehmen an, was
- * ihre Umgebung vorgibt. Im Sommer ist der Ruecklauf aus dem Estrich dann
- * regelmaessig waermer als der Vorlauf am Mischer, ohne dass etwas vertauscht
- * waere.
+ * Geurteilt wird nur, solange die Pumpe seit der Einlaufzeit laeuft und der
+ * Speicher warm genug ist -- bei stehender Pumpe stehen beide Rohre einfach da
+ * und nehmen an, was ihre Umgebung vorgibt. Im Sommer ist der Ruecklauf aus
+ * dem Estrich dann regelmaessig waermer als der Vorlauf am Mischer, ohne dass
+ * etwas vertauscht waere.
+ *
+ * Gemeldet wird ebenfalls nur bei laufender Pumpe. Steht sie, verschwindet die
+ * Meldung; die bis dahin gesammelte Haltezeit bleibt erhalten, und die Meldung
+ * kehrt nach der naechsten Einlaufzeit zurueck, wenn die Bedingung dann noch
+ * anliegt.
  */
 void plausi_flow_tick(plausi_finding_t *f, const plausi_cfg_t *cfg, bool pump_on,
                       bool buffer_valid, float buffer_c, bool vl_valid, float vl_c,

@@ -77,8 +77,9 @@ typedef struct {
     pump_path_t path;
     int last_status;       /* HTTP-Status des letzten Versuchs, -1 = keine Verbindung */
 
-    /* Vor- und Ruecklauf vertauscht -- geprueft nur bei laufender Pumpe und
-     * warmem Speicher, siehe components/heatlogic/plausi.h. */
+    /* Vor- und Ruecklauf vertauscht -- geprueft und gemeldet nur bei
+     * eingelaufener Pumpe und warmem Speicher, siehe
+     * components/heatlogic/plausi.h. */
     bool flow_swapped;
     uint32_t swapped_held_s;
 } circuit_status_t;

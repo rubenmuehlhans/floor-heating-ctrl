@@ -3,6 +3,17 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
+## Unveröffentlicht
+
+### Gerät am Pufferspeicher
+
+- **Befund „Vorlauf und Rücklauf vertauscht“ nur noch bei laufender Pumpe.** Die Haltezeit
+  summiert jetzt nur beurteilbare Zeit. Bisher wurde vom ersten Auftreten an gemessen, sodass eine
+  Standzeit mitzählte und der erste Wert nach dem Anlaufen, wenn noch das Wasser der Standzeit in
+  den Rohren stand, die Meldung sofort auslöste. Geurteilt wird erst nach fünf Minuten
+  Pumpenlauf, und nur, solange das Relais die Pumpe als eingeschaltet meldet. Bei stehender Pumpe
+  wird der Befund nicht gemeldet.
+
 ## v0.5.0 — 3. Oktober 2026
 
 ### Leitstand

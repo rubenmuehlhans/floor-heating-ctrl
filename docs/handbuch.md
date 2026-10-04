@@ -766,15 +766,19 @@ Schnittstelle führt sie unter `findings` in `GET /api/state`, jeweils mit einer
 
 | Befund | Kennung | Bedingung und Bedeutung |
 |---|---|---|
-| Vorlauf und Rücklauf vertauscht | `flow_swapped` | Bei laufender Pumpe und einem Speicher ab 35 °C ist der Vorlauf eines Kreises länger als eine halbe Stunde mehr als 1 K kälter als sein Rücklauf. Entweder sitzen die Fühler an den falschen Rohren, oder ihre Rollen sind vertauscht zugeordnet. |
+| Vorlauf und Rücklauf vertauscht | `flow_swapped` | Bei laufender Pumpe und einem Speicher ab 35 °C ist der Vorlauf eines Kreises länger als eine halbe Stunde mehr als 1 K kälter als sein Rücklauf. Gezählt wird erst, wenn die Pumpe fünf Minuten läuft, und nur, solange das Relais sie als eingeschaltet meldet. Entweder sitzen die Fühler an den falschen Rohren, oder ihre Rollen sind vertauscht zugeordnet. |
 | Fühler verwirft viele Messungen | `probe_errors` | Mehr als 5 Prozent der Messungen eines Fühlers seit dem Start sind verworfen worden, gezählt ab hundert Messungen. Meist ein Wackelkontakt, eine zu lange Leitung oder ein zu schwacher Anschlusswiderstand. |
 | Warmes Wasser strömt in den Kesselrücklauf | `backflow` | Bei stehender Pumpe und ausgeschaltetem Brenner steigt der Kesselrücklauf um mindestens 3 K über seinen Tiefstwert. Von selbst kann er dabei nicht wärmer werden. An dieser Anlage sprang er bei einer Warmwasserzapfung von 36,9 auf 46,3 °C, während der Vorlauf bei 32 °C blieb: Heißes Wasser wird in die Rücklaufleitung gedrückt und kühlt dort ab. Meist fehlt eine Schwerkraftbremse oder sie ist undicht; jede Zapfung führt dann Wärme in den kalten Kessel. |
 | Tag über der Verbrauchslinie | `day_above_trend` | Die Brennerlaufzeit des letzten abgeschlossenen Tages liegt mehr als drei Standardabweichungen über der Verbrauchslinie, siehe oben. |
 | Kessel überträgt schlechter | `flue_gap_rising` | Der Abgas-Vorlauf-Abstand der letzten Ladungen liegt mehr als 15 K über dem Stand nach der Reinigung, siehe oben. |
 
 Die Prüfung auf vertauschte Fühler urteilt nur, solange sich der Zustand beurteilen lässt; steht
-die Pumpe, ruht sie, statt von vorn zu beginnen. Gemeldet wird erst, wenn der Zustand eine halbe
-Stunde anliegt, und die Meldung erlischt, sobald er beurteilbar nicht mehr zutrifft. Die Rückströmung zählt Ereignisse: Der Befund bleibt stehen,
+die Pumpe, ruht sie, statt von vorn zu beginnen. Die Standzeit zählt dabei nicht zur Haltezeit,
+ebenso wenig die ersten fünf Minuten nach dem Anlaufen: In dieser Zeit steht noch das Wasser der
+Standzeit in den Rohren, und der Rücklauf ist oft wärmer als der Vorlauf. Gemeldet wird erst, wenn
+der Zustand eine halbe Stunde beurteilbar anliegt, und nur, solange die Pumpe läuft. Steht sie,
+verschwindet die Meldung und kehrt nach der nächsten Einlaufzeit zurück, falls der Zustand weiter
+zutrifft. Sie erlischt, sobald er beurteilbar nicht mehr zutrifft. Die Rückströmung zählt Ereignisse: Der Befund bleibt stehen,
 bis das Gerät neu startet, und nennt ihre Anzahl sowie den größten Anstieg. Verbrauchslinie und
 Abgasabstand werden aus den Protokollen berechnet und ändern sich nur mit einem neuen Tag bzw.
 einer neuen Ladung.
@@ -1250,7 +1254,7 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | | Befund ab | 3 Streuungen über der Linie |
 | | Abgasabstand ab | 10 Ladungen, Fenster 50 |
 | | Befund ab | 15 K über dem Zustand nach der Reinigung |
-| Befunde | Vorlauf und Rücklauf vertauscht | 1 K, 1800 s anliegend |
+| Befunde | Vorlauf und Rücklauf vertauscht | 1 K, 1800 s anliegend, gezählt ab 300 s Pumpenlauf |
 | | Fühler verwirft Messungen | über 5 %, ab 100 Messungen |
 | | Rückströmung in den Kesselrücklauf | 3 K Anstieg |
 | Außenfühler | Zeitgrenze | 900 s |
