@@ -45,6 +45,15 @@ Ab Build 12 (5. Oktober, TestFlight):
 - **Sonnet mit Ersatzmodell.** Wie Opus erhält Sonnet ab 5.5 bei einer Ablehnung das von Anthropic
   empfohlene Ersatzmodell.
 
+### App
+
+- **Wärmepumpen-Check: Heizlast aus der Speicherwärme.** Neben der Verbrauchslinie, die über
+  Brennerstunden, Düse und Wirkungsgrad rechnet, misst der Check die Wärme selbst: den
+  Temperaturabfall des Speichers zwischen zwei Ladungen mal seinem Inhalt, gegen die
+  Heizgradtage desselben Zeitraums. Daraus Heizlast, Wärmeverlust in W/K und Sockel je Tag; dazu
+  die Ladeleistung in den Speicher und der Düsendurchsatz, der zu ihr passt. Der Inhalt des
+  Speichers kommt aus `buffer.volumen_l`.
+
 ### Heizungsgeräte
 
 - **Kein Neustart mehr bei jedem Ladungsbeginn.** Beim Brennerstart nach Verbrauch zieht das Gerät

@@ -387,11 +387,13 @@ public struct Speicher: Sendable {
     public var hoechstwertLadung: Double?
     public var zapfungenHeute: Int
     public var rueckstroemungen: Int
+    /// Inhalt in Litern aus der Konfiguration
+    public var volumen: Double?
 
     public init(
         temperatur: Double?, korrektur: Double? = nil, ladung: Double?, phase: String, phaseSeit: Int? = nil,
         warmwasserKnapp: Bool, voll: Double?, leer: Double?, leerGelernt: Bool, warngrenze: Double?,
-        hoechstwertLadung: Double?, zapfungenHeute: Int, rueckstroemungen: Int
+        hoechstwertLadung: Double?, zapfungenHeute: Int, rueckstroemungen: Int, volumen: Double? = nil
     ) {
         self.temperatur = temperatur
         self.korrektur = korrektur
@@ -406,6 +408,7 @@ public struct Speicher: Sendable {
         self.hoechstwertLadung = hoechstwertLadung
         self.zapfungenHeute = zapfungenHeute
         self.rueckstroemungen = rueckstroemungen
+        self.volumen = volumen
     }
 }
 

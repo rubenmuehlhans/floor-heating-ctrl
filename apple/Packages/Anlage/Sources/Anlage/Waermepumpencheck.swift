@@ -225,6 +225,170 @@ public enum Waermepumpencheck {
 
     /// Brennerstunden zwischen zwei Zeitpunkten aus einem Auszug mit der Reihe `brenner`, samt
     /// dem Anteil der Zeit, für den Werte vorliegen
+    // MARK: Heizlast aus der Speicherwärme
+
+    /// Wärmekapazität von Wasser in kWh je Liter und Kelvin
+    static let wasser = 0.001163
+
+    /// Zeitraum zwischen zwei Ladungen: Was der Speicher darin abgibt, hat das Haus verbraucht.
+    public struct Entladung: Sendable, Equatable {
+        public var von: Date
+        public var bis: Date
+        public var kwh: Double
+        /// Heizgradtage des Zeitraums, anteilig aus den Tagen
+        public var heizgradtage: Double
+        public var tage: Double { bis.timeIntervalSince(von) / 86_400 }
+    }
+
+    public struct Waermelast: Sendable, Equatable {
+        public var entladungen: [Entladung]
+        /// Nil, solange die Grundlage nicht reicht; dann nennt `grund` warum.
+        public var kwhJeHeizgradtag: Double?
+        /// Abgabe an Tagen ohne Heizbedarf: Warmwasser und Verluste von Speicher und Leitungen
+        public var sockelKWhJeTag: Double?
+        public var wattJeKelvin: Double?
+        /// Heizlast bei der Normaußentemperatur, ohne Sockel
+        public var kilowatt: Double?
+        public var bestimmtheit: Double?
+        /// Wärme in den Speicher je Brennerstunde, aus den Ladungen mit mindestens 20 Minuten Brenner
+        public var ladeleistung: Double?
+        /// Düsendurchsatz, der zur Ladeleistung passt
+        public var durchsatz: Double?
+        public var kaeltesterTag: Double?
+        public var hinweise: [String]
+        public var grund: String?
+    }
+
+    /// Zwischen zwei Ladungen müssen mindestens so viele Stunden liegen, sonst gehören sie
+    /// zusammen -- etwa ein Kessel, der nach der Ladung mehrmals nachzündet.
+    static let ladungsabstandStunden = 6.0
+
+    /// Heizlast aus der Wärme, die der Speicher zwischen den Ladungen abgibt.
+    ///
+    /// Anders als die Verbrauchslinie braucht das weder Düsendurchsatz noch Wirkungsgrad: Gemessen
+    /// wird die Wärme selbst, als Temperaturabfall des Speichers mal Inhalt. Jede Entladung --
+    /// vom Ende einer Ladung bis zum Beginn der nächsten -- ergibt eine mittlere Leistung und
+    /// erhält die Heizgradtage ihres Zeitraums. Eine Gerade durch diese Paare, gewichtet nach
+    /// Dauer, liefert Wärme je Heizgradtag und den Sockel bei null Heizgradtagen.
+    ///
+    /// Tage mit unvollständiger Außentemperatur gehen nicht ein: Ihre Heizgradtage sind zu klein.
+    public static func waermelast(
+        ladungen: [Ladungssatz], tage: [Tagessatz], volumen: Double?, annahmen a: Annahmen,
+        kalender: Calendar = .current
+    ) -> Waermelast {
+        var w = Waermelast(entladungen: [], hinweise: [])
+        guard let volumen, volumen > 0 else {
+            w.grund = "Der Inhalt des Speichers ist nicht bekannt; er steht in der Konfiguration des Heizungsgeräts."
+            return w
+        }
+        let kapazitaet = volumen * wasser
+
+        // Tage mit vollständiger Außentemperatur, nach Beginn. Der jüngste läuft noch.
+        let juengster = tage.map(\.datum).max()
+        var gradtage: [Date: Double] = [:]
+        for t in tage where t.datum != juengster {
+            guard let max = t.aussenMax, t.aussenMin != nil else { continue }
+            if max < bezug, t.heizgradtage < 0.5 * (bezug - max) { continue }
+            gradtage[kalender.startOfDay(for: t.datum)] = t.heizgradtage
+        }
+
+        // Ladungen, die kurz nacheinander folgen, gelten als eine.
+        let sortiert = ladungen.sorted { $0.beginn < $1.beginn }
+        var gruppen: [(vorher: Double, nachher: Double, beginn: Date, ende: Date)] = []
+        for l in sortiert {
+            let ende = l.beginn.addingTimeInterval(TimeInterval(l.dauer))
+            if var g = gruppen.last, l.beginn.timeIntervalSince(g.ende) < ladungsabstandStunden * 3600 {
+                g.nachher = l.speicherNachher
+                g.ende = ende
+                gruppen[gruppen.count - 1] = g
+            } else {
+                gruppen.append((l.speicherVorher, l.speicherNachher, l.beginn, ende))
+            }
+        }
+
+        for (vorige, naechste) in zip(gruppen, gruppen.dropFirst()) {
+            let von = vorige.ende, bis = naechste.beginn
+            // Länger als vier Tage ohne Ladung: Vermutlich fehlt dazwischen eine im Protokoll,
+            // und ihre Wärme fehlte der Rechnung.
+            guard bis > von, bis.timeIntervalSince(von) <= 4 * 86_400,
+                  let hgt = anteiligeGradtage(von: von, bis: bis, gradtage: gradtage, kalender: kalender)
+            else { continue }
+            let kwh = (vorige.nachher - naechste.vorher) * kapazitaet
+            w.entladungen.append(Entladung(von: von, bis: bis, kwh: kwh, heizgradtage: hgt))
+        }
+
+        // Ladeleistung: nur Ladungen mit nennenswertem Brennerlauf, sonst wiegt die Trägheit
+        // des Speicherfühlers zu viel.
+        let lange = ladungen.filter { $0.brenner >= 1200 && $0.speicherNachher > $0.speicherVorher }
+        let brennerstunden = Double(lange.map(\.brenner).reduce(0, +)) / 3600
+        if brennerstunden > 0 {
+            let kwh = lange.map { ($0.speicherNachher - $0.speicherVorher) * kapazitaet }.reduce(0, +)
+            w.ladeleistung = kwh / brennerstunden
+            w.durchsatz = kwh / brennerstunden / (a.heizwert * a.wirkungsgrad)
+        }
+
+        let summeTage = w.entladungen.map(\.tage).reduce(0, +)
+        let raten = w.entladungen.map { $0.heizgradtage / $0.tage }
+        let spreizung = (raten.max() ?? 0) - (raten.min() ?? 0)
+        guard w.entladungen.count >= 8, summeTage >= 10 else {
+            w.grund = "Erfasst sind \(w.entladungen.count) Entladungen über \(zahl(summeTage, 0)) Tage; nötig sind mindestens 8 über 10 Tage mit vollständiger Außentemperatur."
+            return w
+        }
+        guard spreizung >= 3 else {
+            w.grund = "Die Tage unterscheiden sich um höchstens \(zahl(spreizung, 1)) Heizgradtage; für eine Gerade sind mindestens 3 nötig. Nach einer kälteren Periode reicht es."
+            return w
+        }
+
+        // Gewichtete Gerade: Leistung in kWh je Tag gegen Heizgradtage je Tag
+        let g = w.entladungen.map(\.tage)
+        let x = raten
+        let y = w.entladungen.map { $0.kwh / $0.tage }
+        let sg = g.reduce(0, +)
+        let mx = zip(g, x).map(*).reduce(0, +) / sg
+        let my = zip(g, y).map(*).reduce(0, +) / sg
+        var sxx = 0.0, sxy = 0.0, syy = 0.0
+        for i in g.indices {
+            sxx += g[i] * (x[i] - mx) * (x[i] - mx)
+            sxy += g[i] * (x[i] - mx) * (y[i] - my)
+            syy += g[i] * (y[i] - my) * (y[i] - my)
+        }
+        let steigung = sxy / sxx
+        guard steigung > 0 else {
+            w.grund = "Die Wärmeabgabe steigt nicht mit der Kälte; der Heizbetrieb ist im erfassten Zeitraum noch nicht zu erkennen."
+            return w
+        }
+        let sockel = my - steigung * mx
+        w.kwhJeHeizgradtag = steigung
+        w.sockelKWhJeTag = sockel
+        w.wattJeKelvin = steigung / 24 * 1000
+        w.kilowatt = steigung * max(0, bezug - a.normaussen) / 24
+        w.bestimmtheit = syy > 0 ? sxy * sxy / (sxx * syy) : nil
+        w.kaeltesterTag = x.max().map { bezug - $0 }
+
+        if let k = w.kaeltesterTag, k - a.normaussen > 10 {
+            w.hinweise.append("Die kälteste erfasste Entladung lag im Mittel bei \(zahl(k, 1)) °C, \(zahl(k - a.normaussen, 0)) K über der Normaußentemperatur. Die Gerade wird weit verlängert; nach einer kalten Periode ist der Wert belastbarer.")
+        }
+        if let b = w.bestimmtheit, b < 0.6 {
+            w.hinweise.append("Die Gerade erklärt nur \(Int((b * 100).rounded())) % der Unterschiede zwischen den Entladungen.")
+        }
+        w.hinweise.append("Gemessen wird an einem einzigen Speicherfühler. Ist der Speicher geschichtet, folgt er der mittleren Temperatur nur ungefähr; der Wert kann deshalb um einige Prozent abweichen.")
+        return w
+    }
+
+    /// Heizgradtage eines Zeitraums, anteilig aus den Tagen. Nil, wenn ein berührter Tag fehlt.
+    static func anteiligeGradtage(von: Date, bis: Date, gradtage: [Date: Double], kalender: Calendar) -> Double? {
+        var summe = 0.0
+        var tag = kalender.startOfDay(for: von)
+        while tag < bis {
+            guard let naechster = kalender.date(byAdding: .day, value: 1, to: tag) else { return nil }
+            guard let hgt = gradtage[tag] else { return nil }
+            let anfang = max(von, tag), ende = min(bis, naechster)
+            summe += hgt * ende.timeIntervalSince(anfang) / naechster.timeIntervalSince(tag)
+            tag = naechster
+        }
+        return summe
+    }
+
     public static func brennerstunden(_ a: Verlaufsauszug) -> (stunden: Double, abdeckung: Double) {
         guard let b = a.reihen.first(where: { $0.schluessel == "brenner" }), a.anzahl > 0 else { return (0, 0) }
         let werte = b.werte.compactMap { $0 }

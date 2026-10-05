@@ -112,3 +112,94 @@ struct WaermepumpencheckTests {
         #expect(b.stunden == 1.75 && b.abdeckung == 0.75)
     }
 }
+
+@Suite("Wärmepumpen-Check: Heizlast aus der Speicherwärme")
+struct WaermelastTests {
+    private let kalender: Calendar = {
+        var k = Calendar(identifier: .gregorian)
+        k.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return k
+    }()
+
+    private func tag(_ i: Int) -> Date {
+        kalender.date(from: DateComponents(year: 2026, month: 11, day: 1 + i))!
+    }
+
+    private func gradtage(_ i: Int) -> Double { 2 + 12 * Double(i % 7) / 6 }
+
+    /// Ein Haus mit 12 kWh Sockel je Tag und 0,9 kWh je Heizgradtag; je Tag eine Ladung um 3 Uhr,
+    /// eine Stunde lang, die den Speicher wieder auf 70 °C bringt.
+    private func anlage(tage n: Int = 20, volumen: Double = 850) -> (ladungen: [Ladungssatz], tage: [Tagessatz]) {
+        let kapazitaet = volumen * Waermepumpencheck.wasser
+        let tage = (0...n).map { i in
+            Tagessatz(datum: tag(i), laufzeit: 3000, starts: 1, liter: 1.8, heizgradtage: gradtage(i),
+                      aussenMin: 20 - gradtage(i) - 3, aussenMax: 20 - gradtage(i) + 3)
+        }
+        var ladungen: [Ladungssatz] = []
+        var vorher = 55.0
+        for i in 0..<n {
+            let beginn = tag(i).addingTimeInterval(3 * 3600)
+            ladungen.append(Ladungssatz(beginn: beginn, dauer: 3600, brenner: 3000, starts: 1, speicherVorher: vorher,
+                                        speicherNachher: 70, kesselVorlaufMax: 79, abgasMax: 86, aussenMittel: nil, liter: 1.8))
+            // Bis zur nächsten Ladung: 20 Stunden dieses Tages, 3 des nächsten
+            let hgt = gradtage(i) * 20 / 24 + gradtage(i + 1) * 3 / 24
+            let dauer = 23.0 / 24
+            let kwh = (12 + 0.9 * hgt / dauer) * dauer
+            vorher = 70 - kwh / kapazitaet
+        }
+        return (ladungen, tage)
+    }
+
+    @Test func geradeAusDenEntladungen() throws {
+        let a = anlage()
+        var annahmen = Waermepumpencheck.Annahmen()
+        annahmen.normaussen = -12
+        let w = Waermepumpencheck.waermelast(ladungen: a.ladungen, tage: a.tage, volumen: 850, annahmen: annahmen,
+                                              kalender: kalender)
+        #expect(w.grund == nil)
+        #expect(w.entladungen.count == 19)
+        let steigung = try #require(w.kwhJeHeizgradtag)
+        #expect(abs(steigung - 0.9) < 1e-6)
+        #expect(abs((w.sockelKWhJeTag ?? 0) - 12) < 1e-6)
+        #expect(abs((w.kilowatt ?? 0) - 0.9 * 32 / 24) < 1e-6)
+        #expect(abs((w.wattJeKelvin ?? 0) - 37.5) < 1e-6)
+        #expect((w.bestimmtheit ?? 0) > 0.999)
+        // Ladeleistung: 15 K in 850 l in 50 Minuten Brenner, im Mittel über alle Ladungen
+        #expect((w.ladeleistung ?? 0) > 10)
+    }
+
+    @Test func nachzuendenGehoertZurLadung() {
+        var a = anlage()
+        // Eine halbe Stunde nach der dritten Ladung zündet der Kessel nach und hebt den Speicher.
+        let dritte = a.ladungen[2]
+        a.ladungen.insert(Ladungssatz(beginn: dritte.beginn.addingTimeInterval(5400), dauer: 1200, brenner: 600, starts: 0,
+                                      speicherVorher: 69.5, speicherNachher: 71, kesselVorlaufMax: 79, abgasMax: 58,
+                                      aussenMittel: nil, liter: 0.4), at: 3)
+        let w = Waermepumpencheck.waermelast(ladungen: a.ladungen, tage: a.tage, volumen: 850, annahmen: .init(),
+                                              kalender: kalender)
+        #expect(w.entladungen.count == 19, "die Nachzündung beginnt keine eigene Entladung")
+        #expect(w.grund == nil)
+    }
+
+    @Test func unvollstaendigeTageFehlen() {
+        var a = anlage()
+        // Tag 5 mit nur einem Außenwert: 13 °C, aber keine Heizgradtage
+        a.tage[5] = Tagessatz(datum: tag(5), laufzeit: 3000, starts: 1, liter: 1.8, heizgradtage: 0,
+                              aussenMin: 13, aussenMax: 13)
+        let w = Waermepumpencheck.waermelast(ladungen: a.ladungen, tage: a.tage, volumen: 850, annahmen: .init(),
+                                              kalender: kalender)
+        // Die Entladungen, die Tag 5 berühren, fallen weg.
+        #expect(w.entladungen.count == 17)
+        #expect(abs((w.kwhJeHeizgradtag ?? 0) - 0.9) < 1e-6)
+    }
+
+    @Test func ohneGrundlageEinGrund() {
+        let a = anlage(tage: 5)
+        let wenig = Waermepumpencheck.waermelast(ladungen: a.ladungen, tage: a.tage, volumen: 850, annahmen: .init(),
+                                                  kalender: kalender)
+        #expect(wenig.kilowatt == nil && wenig.grund?.contains("mindestens 8") == true)
+        let ohne = Waermepumpencheck.waermelast(ladungen: a.ladungen, tage: a.tage, volumen: nil, annahmen: .init(),
+                                                 kalender: kalender)
+        #expect(ohne.grund?.contains("Inhalt des Speichers") == true)
+    }
+}

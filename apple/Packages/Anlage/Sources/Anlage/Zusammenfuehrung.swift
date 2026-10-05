@@ -311,7 +311,8 @@ public enum Zusammenfuehrung {
             warngrenze: puffer?["warn_c"]?.alsZahl,
             hoechstwertLadung: c?.kalibrierung?.hoechstwertC,
             zapfungenHeute: stand.heizgeraet?.zapfung?.anzahl ?? 0,
-            rueckstroemungen: rueckstroemung.heizgeraet?.rueckstroemung?.ereignisse ?? 0
+            rueckstroemungen: rueckstroemung.heizgeraet?.rueckstroemung?.ereignisse ?? 0,
+            volumen: puffer?["volumen_l"]?.alsZahl
         )
     }
 

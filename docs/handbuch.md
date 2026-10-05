@@ -731,6 +731,16 @@ Heizlastberechnung, ist aber ein Gegencheck aus dem tatsächlichen Verbrauch.
   (10 kWh/l) mal Wirkungsgrad (einstellbar, Vorgabe 88 %). Dazu der Wärmeverlust des Hauses in W/K
   und die Brennerstunden, die der Auslegungstag bräuchte.
 - **Warmwasser:** der Achsenabschnitt der Verbrauchslinie in kWh je Tag.
+- **Heizlast aus der Speicherwärme:** unabhängig von Düse und Wirkungsgrad. Zwischen zwei Ladungen
+  gibt der Speicher Wärme an das Haus ab: Temperaturabfall des Speicherfühlers mal Inhalt
+  (`volumen_l`). Jede solche Entladung erhält die Heizgradtage ihres Zeitraums, anteilig aus dem
+  Tagesprotokoll; Ladungen, zwischen denen weniger als sechs Stunden liegen, etwa ein
+  nachzündender Kessel, gelten als eine. Eine nach Dauer gewichtete Gerade ergibt Wärme je
+  Heizgradtag und den Sockel bei null Heizgradtagen, also Warmwasser samt Verlusten von Speicher
+  und Leitungen. Nötig sind mindestens 8 Entladungen über 10 Tage und 3 Heizgradtage Spreizung;
+  Tage mit unvollständiger Außentemperatur und Lücken über vier Tage gehen nicht ein. Dazu die
+  Ladeleistung: Wärme in den Speicher je Brennerstunde aus den Ladungen mit mindestens 20 Minuten
+  Brenner, und der Düsendurchsatz, der mit dem angenommenen Wirkungsgrad dazu passt.
 - **Tankablesungen:** Zwei Ablesungen des Tankinhalts im Abstand einiger Wochen, samt nachgetankter
   Liter, ergeben mit den aufgezeichneten Brennerstunden den tatsächlichen Düsendurchsatz. Er
   ersetzt die Annahme, sobald mindestens 20 Brennerstunden und 90 % der Zeit dazwischen

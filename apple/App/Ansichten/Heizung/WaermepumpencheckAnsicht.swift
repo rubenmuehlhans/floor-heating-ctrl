@@ -51,6 +51,8 @@ struct WaermepumpencheckAnsicht: View {
                 Text("Die Normaußentemperatur Ihres Orts steht in DIN/TS 12831-1; in Deutschland liegt sie meist zwischen −10 und −16 °C. Den Wirkungsgrad schätzt der Abgas-Vorlauf-Abstand; ein Ölkessel ohne Brennwert liegt meist bei 85 bis 90 %.")
             }
 
+            waermeAbschnitt(Waermepumpencheck.waermelast(
+                ladungen: bild.ladungen, tage: bild.tage, volumen: bild.speicher?.volumen, annahmen: stand.annahmen))
             heizlastAbschnitt(heizlast, linie: bild.verbrauchslinie)
             tankAbschnitt(gemessen: gemessen)
             vorlaufAbschnitt(bild)
@@ -102,6 +104,44 @@ struct WaermepumpencheckAnsicht: View {
             Text("Heizlast")
         } footer: {
             Text("Aus der Verbrauchslinie: Brennerstunden je Heizgradtag mal Kesselleistung, verlängert bis zur Normaußentemperatur. Der Warmwasseranteil ist die Brennerlaufzeit an Tagen ohne Heizbedarf; er kommt zur Heizlast hinzu, wenn die Wärmepumpe auch das Warmwasser bereitet. Jahreswärme: Heizwärme je Heizgradtag mal der Heizgradtage Ihres Orts im Jahr.")
+        }
+    }
+
+    @ViewBuilder
+    private func waermeAbschnitt(_ w: Waermepumpencheck.Waermelast) -> some View {
+        Section {
+            if let kw = w.kilowatt {
+                Kennwert(titel: "Heizlast bei \(Format.temperatur(stand.annahmen.normaussen, stellen: 0))",
+                         wert: "\(Format.zahl(kw, stellen: 1)) kW", farbe: Farbe.tinte)
+                if let wk = w.wattJeKelvin {
+                    Kennwert(titel: "Wärmeverlust des Hauses", wert: "\(Format.zahl(wk, stellen: 0)) W/K")
+                }
+                if let s = w.sockelKWhJeTag {
+                    Kennwert(titel: "Sockel ohne Heizbedarf", wert: "\(Format.zahl(s, stellen: 1)) kWh je Tag")
+                }
+                if let h = w.kwhJeHeizgradtag {
+                    Kennwert(titel: "Heizwärme je Heizgradtag", wert: "\(Format.zahl(h, stellen: 2)) kWh")
+                }
+                if let t = w.kaeltesterTag {
+                    Kennwert(titel: "Kälteste erfasste Entladung", wert: "Mittel \(Format.temperatur(t))")
+                }
+                Kennwert(titel: "Entladungen", wert: "\(w.entladungen.count) über \(Format.zahl(w.entladungen.map(\.tage).reduce(0, +), stellen: 0)) Tage")
+            } else if let g = w.grund {
+                Text(g).foregroundStyle(.secondary)
+            }
+            if let l = w.ladeleistung, let d = w.durchsatz {
+                Kennwert(titel: "Ladeleistung in den Speicher",
+                         wert: "\(Format.zahl(l, stellen: 1)) kW, passend zu \(Format.zahl(d, stellen: 2)) l/h")
+            }
+            ForEach(w.hinweise, id: \.self) { t in
+                Label(t, systemImage: "exclamationmark.triangle")
+                    .font(.callout)
+                    .foregroundStyle(Farbe.warnung)
+            }
+        } header: {
+            Text("Heizlast aus der Speicherwärme")
+        } footer: {
+            Text("Gemessen wird die Wärme selbst: Zwischen zwei Ladungen gibt der Speicher Wärme an das Haus ab, Temperaturabfall mal Inhalt. Jede Entladung erhält die Heizgradtage ihres Zeitraums; eine Gerade durch diese Paare ergibt Wärme je Heizgradtag und den Sockel bei null Heizgradtagen. Düse und Wirkungsgrad gehen nicht ein. Der Sockel umfasst Warmwasser und die Verluste von Speicher und Leitungen. Die Ladeleistung ergibt mit dem Wirkungsgrad oben den Düsendurchsatz, der zu den Messungen passt.")
         }
     }
 
