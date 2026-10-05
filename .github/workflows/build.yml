@@ -19,7 +19,7 @@ jobs:
       matrix:
         app: [manifold, heatsource]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v6.0.2
@@ -30,7 +30,7 @@ jobs:
     name: Pruefungen ohne Hardware
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # cJSON fuer test_protokoll; die Fassung der Komponente espressif/cjson am Leitstand
       - run: git clone --depth 1 --branch v1.7.19 https://github.com/DaveGamble/cJSON.git /tmp/cJSON
       - run: make -C test/host CJSON_DIR=/tmp/cJSON
