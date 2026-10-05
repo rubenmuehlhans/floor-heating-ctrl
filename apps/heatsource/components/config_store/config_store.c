@@ -970,19 +970,31 @@ esp_err_t cfg_set(const app_config_t *in, char *err, size_t err_len)
         return rc;
     }
 
-    cfg_lock();
-    app_config_t vorher = s_cfg;
-    s_cfg = *in;
-    s_cfg.version = CFG_VERSION;
-    cfg_unlock();
+    /*
+     * Erst speichern, dann uebernehmen -- und dazwischen keine Kopie auf dem
+     * Stapel. Bisher lag hier die alte Konfiguration als Sicherung auf dem
+     * Stapel, 2,7 KB. Gerufen wird auch aus dem Brennerauftrag mit 4 KB, wenn
+     * beim Brennerstart der Nullpunkt des Fuellstands nachgezogen wird. Der
+     * Stapel lief dabei ueber: Seit dem 24. September startete das Geraet bei
+     * jeder grossen Ladung neu, und der Nullpunkt wurde nie gespeichert.
+     */
+    app_config_t *neu = malloc(sizeof(*neu));
+    if (neu == NULL) {
+        snprintf(err, err_len, "Kein Speicher fuer die Konfiguration");
+        return ESP_ERR_NO_MEM;
+    }
+    *neu = *in;
+    neu->version = CFG_VERSION;
 
-    rc = cfg_store(&s_cfg);
-    if (rc != ESP_OK) {
+    rc = cfg_store(neu);
+    if (rc == ESP_OK) {
         cfg_lock();
-        s_cfg = vorher;
+        s_cfg = *neu;
         cfg_unlock();
+    } else {
         snprintf(err, err_len, "Speichern fehlgeschlagen: %s", esp_err_to_name(rc));
     }
+    free(neu);
     return rc;
 }
 

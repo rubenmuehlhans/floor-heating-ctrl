@@ -609,21 +609,28 @@ esp_err_t cfg_set(const app_config_t *in, char *err, size_t err_len)
         return rc;
     }
 
-    cfg_lock();
-    app_config_t previous = s_cfg;
-    s_cfg = *in;
-    s_cfg.version = CFG_VERSION;
-    cfg_unlock();
-
-    rc = cfg_store(&s_cfg);
-    if (rc != ESP_OK) {
-        cfg_lock();
-        s_cfg = previous;
-        cfg_unlock();
+    /* Erst speichern, dann uebernehmen, ohne Kopie auf dem Stapel -- wie am
+     * Heizungsgeraet, wo die Sicherungskopie den Stapel eines Auftrags
+     * sprengte. */
+    app_config_t *neu = malloc(sizeof(*neu));
+    if (neu == NULL) {
         if (err && err_len) {
-            snprintf(err, err_len, "Speichern fehlgeschlagen: %s", esp_err_to_name(rc));
+            snprintf(err, err_len, "Kein Speicher fuer die Konfiguration");
         }
+        return ESP_ERR_NO_MEM;
     }
+    *neu = *in;
+    neu->version = CFG_VERSION;
+
+    rc = cfg_store(neu);
+    if (rc == ESP_OK) {
+        cfg_lock();
+        s_cfg = *neu;
+        cfg_unlock();
+    } else if (err && err_len) {
+        snprintf(err, err_len, "Speichern fehlgeschlagen: %s", esp_err_to_name(rc));
+    }
+    free(neu);
     return rc;
 }
 

@@ -827,7 +827,10 @@ esp_err_t burner_start(void)
     s_stats.tag = -1;
     s_stats.baseline_dc = STATS_NONE;
 
-    if (xTaskCreate(burner_task, "burner", 4096, NULL, 3, NULL) != pdPASS) {
+    /* 6 KB wie der Pumpenauftrag: Beim Brennerstart schreibt dieser Auftrag
+     * die Konfiguration in den NVS (leer_nachziehen), und mit 4 KB lief der
+     * Stapel dabei ueber. */
+    if (xTaskCreate(burner_task, "burner", 6144, NULL, 3, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
