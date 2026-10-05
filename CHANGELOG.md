@@ -3,7 +3,7 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
-## Unveröffentlicht
+## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler
 
@@ -45,7 +45,7 @@ Ab Build 12 (5. Oktober, TestFlight):
 - **Sonnet mit Ersatzmodell.** Wie Opus erhält Sonnet ab 5.5 bei einer Ablehnung das von Anthropic
   empfohlene Ersatzmodell.
 
-### App
+Noch in keinem TestFlight-Build:
 
 - **Wärmepumpen-Check: Heizlast aus der Speicherwärme.** Neben der Verbrauchslinie, die über
   Brennerstunden, Düse und Wirkungsgrad rechnet, misst der Check die Wärme selbst: den
