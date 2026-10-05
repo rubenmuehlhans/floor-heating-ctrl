@@ -31,5 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: make -C test/host
+      # cJSON fuer test_protokoll; die Fassung der Komponente espressif/cjson am Leitstand
+      - run: git clone --depth 1 --branch v1.7.19 https://github.com/DaveGamble/cJSON.git /tmp/cJSON
+      - run: make -C test/host CJSON_DIR=/tmp/cJSON
       - run: python3 tools/check_www.py
