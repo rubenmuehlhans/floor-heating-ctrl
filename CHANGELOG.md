@@ -45,7 +45,7 @@ Ab Build 12 (5. Oktober, TestFlight):
 - **Sonnet mit Ersatzmodell.** Wie Opus erhält Sonnet ab 5.5 bei einer Ablehnung das von Anthropic
   empfohlene Ersatzmodell.
 
-Noch in keinem TestFlight-Build:
+Ab Build 13 (5. Oktober, TestFlight):
 
 - **Wärmepumpen-Check: Heizlast aus der Speicherwärme.** Neben der Verbrauchslinie, die über
   Brennerstunden, Düse und Wirkungsgrad rechnet, misst der Check die Wärme selbst: den
