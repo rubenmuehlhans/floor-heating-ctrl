@@ -334,10 +334,26 @@ davor legt die App zum Vorschlag, nach sieben Tagen dieselben Kennzahlen danach
 
 | Modell | Einsatz | Stand |
 |---|---|---|
-| Claude Opus 5 | Gespräch und Lagebericht; Handbuch und Konzepte im zwischengespeicherten Teil der Anfrage; bei einer Ablehnung übernimmt serverseitig das empfohlene Ersatzmodell | abgedeckt; im Simulator nicht geprüft, weil dort kein Schlüssel hinterlegt ist |
-| Claude Sonnet 5 | wie Opus 5 zu etwa zwei Fünfteln des Preises je Token; ohne Ersatzmodell, weil die API es nur für Opus 5 beschreibt | abgedeckt; im Simulator nicht geprüft, weil dort kein Schlüssel hinterlegt ist |
+| Claude Opus (derzeit Opus 5.5) | Gespräch und Lagebericht; Handbuch und Konzepte im zwischengespeicherten Teil der Anfrage; bei einer Ablehnung übernimmt serverseitig das empfohlene Ersatzmodell | abgedeckt; im Simulator nicht geprüft, weil dort kein Schlüssel hinterlegt ist |
+| Claude Sonnet (derzeit Sonnet 5.5) | wie Opus zu etwa der Hälfte des Preises je Token, ebenfalls mit Ersatzmodell | abgedeckt; im Simulator nicht geprüft, weil dort kein Schlüssel hinterlegt ist |
+| Claude Haiku (derzeit Haiku 4.5) | Gespräch und Lagebericht zu etwa einem Viertel des Preises von Opus; Haiku 4.5 ohne adaptives Denken und ohne Aufwandsstufe, ohne Ersatzmodell, Kontext 200 000 Token | abgedeckt; im Simulator nicht geprüft, weil dort kein Schlüssel hinterlegt ist |
 | Apple Private Cloud Compute | Gespräch und Lagebericht | offen: verlangt die Berechtigung `com.apple.developer.private-cloud-compute`, die Apple auf Antrag vergibt; bis dahin wählbar, aber gesperrt (`HEIZUNG_PCC` in `project.yml`) |
 | Apple-Modell auf dem Gerät | kurze Auskünfte ohne Netz, Wissen über `wissen_suchen` | abgedeckt; für den Lagebericht nicht eingesetzt, weil es im Test Befunde falsch wiedergab |
+
+Welches Modell der Reihen Opus, Sonnet und Haiku antwortet, legt die App nicht fest: Höchstens
+einmal am Tag und bei „Verbindung prüfen“ fragt sie `GET /v1/models` ab und verwendet je Reihe das
+Modell mit dem jüngsten Erscheinungsdatum; Auswahl und Anzeige tragen dessen Namen. Fable wird
+nicht angeboten. Aus `capabilities` übernimmt die App, ob das Modell adaptives Denken und eine
+Aufwandsstufe kennt, und lässt beides sonst weg. Ohne Antwort gilt der zuletzt gespeicherte Stand,
+vor der ersten Abfrage Opus 5.5, Sonnet 5.5 und Haiku 4.5. Ein Gespräch geht mit einem neueren
+Modell derselben Reihe weiter; ein Werkzeugzwang (`tool_choice` `any`) wird nicht gesendet, weil
+Opus 5.5 und Sonnet 5.5 ihn abweisen.
+
+Weist die API eine Anfrage an das neueste Modell mit 400 oder 404 ab, geht dieselbe Anfrage an das
+Modell der Reihe, das zuletzt geantwortet hat (vor der ersten Antwort: das Modell beim Bau der App).
+Nimmt dieses sie an, gilt das neueste als abgewiesen: Die App verwendet es nicht mehr, meldet das
+einmal und versucht erst ein noch neueres Modell wieder. Weist auch das bewährte Modell ab, lag es
+an der Anfrage; dann bleibt es beim Fehler und kein Modell wird gesperrt.
 
 Den Lagebericht erstellt die KI auf Wunsch und von selbst höchstens alle sechs Stunden, nach
 einem neuen Befund frühestens nach 30 Minuten, nur bei geöffnetem Fenster und abschaltbar unter

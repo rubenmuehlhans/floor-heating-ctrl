@@ -25,6 +25,8 @@ final class Assistenzdienst {
     @ObservationIgnored private var eingetroffen = ""
     @ObservationIgnored let wissen = Wissen.ausBuendel()
     @ObservationIgnored private let privateCloud = PrivateCloudComputeLanguageModel()
+    /// Hört, welches Claude-Modell geantwortet und welches abgewiesen hat; setzt das App-Modell.
+    @ObservationIgnored var claudeBeobachter: ClaudeBeobachter?
 
     struct Antwort {
         var bausteine: [Beitrag.Baustein]
@@ -43,7 +45,7 @@ final class Assistenzdienst {
     /// `nil`, wenn das Modell bereitsteht, sonst der Grund
     func hindernis(_ modell: AppModell.KIModell, schluessel: String?) -> String? {
         switch modell {
-        case .claude, .claudeSonnet:
+        case .claude, .claudeSonnet, .claudeHaiku:
             return schluessel == nil ? "Für Claude braucht der Assistent einen API-Schlüssel von Anthropic. Hinterlegen Sie ihn unter Geräte › Einstellungen der App." : nil
         case .privateCloud:
             guard Self.privateCloudFreigegeben else {
@@ -85,10 +87,10 @@ final class Assistenzdienst {
 
     // MARK: Sitzungen
 
-    private func neueSitzung(_ modell: AppModell.KIModell, schluessel: String?, zugriff: any Anlagenzugriff, transkript: Transcript?) -> LanguageModelSession {
-        switch modell {
-        case .claude, .claudeSonnet:
-            let m = ClaudeSprachmodell(schluessel: schluessel ?? "", modell: modell.claudeModell ?? ClaudeKonfiguration.standardmodell)
+    private func neueSitzung(_ wahl: AppModell.Modellwahl, schluessel: String?, zugriff: any Anlagenzugriff, transkript: Transcript?) -> LanguageModelSession {
+        switch wahl.modell {
+        case .claude, .claudeSonnet, .claudeHaiku:
+            let m = claudeModell(wahl, schluessel: schluessel ?? "")
             let werkzeuge = Werkzeugsatz.claude(zugriff)
             if let transkript { return LanguageModelSession(model: m, tools: werkzeuge, transcript: transkript) }
             return LanguageModelSession(model: m, tools: werkzeuge, instructions: Instructions(Anweisungen.claude(wissen)))
@@ -124,9 +126,9 @@ final class Assistenzdienst {
 
     /// Stellt eine Frage im Gespräch `gespraech`. Während die Antwort entsteht, zeigt `laufend`
     /// Überlegung, Werkzeugaufrufe und den eintreffenden Text.
-    func frage(_ frage: String, gespraech: String, modell: AppModell.KIModell, schluessel: String?,
+    func frage(_ frage: String, gespraech: String, modell: AppModell.Modellwahl, schluessel: String?,
                zugriff: any Anlagenzugriff, transkript: Transcript?) async -> Antwort {
-        let kennung = "\(gespraech)|\(modell.rawValue)|\(schluessel?.suffix(6) ?? "")"
+        let kennung = "\(gespraech)|\(modell.kennung)|\(schluessel?.suffix(6) ?? "")"
         if sitzung == nil || sitzungskennung != kennung {
             // Ein früheres Transkript passt nur zum selben Modell; die Anweisungen stehen darin.
             sitzung = neueSitzung(modell, schluessel: schluessel, zugriff: zugriff, transkript: transkript)
@@ -151,7 +153,7 @@ final class Assistenzdienst {
         }
         defer { beobachter.cancel() }
         do {
-            for try await teil in sitzung.streamResponse(to: frage, options: Self.optionen(modell), contextOptions: kontextoptionen(modell, .moderate)) {
+            for try await teil in sitzung.streamResponse(to: frage, options: Self.optionen(modell.modell), contextOptions: kontextoptionen(modell.modell, .moderate)) {
                 eingetroffen = teil.content
                 laufend = Darstellung.bausteine(sitzung.transcript.dropFirst(beginn), laufenderText: eingetroffen)
             }
@@ -172,18 +174,25 @@ final class Assistenzdienst {
 
     // MARK: Lagebericht
 
-    func lagebericht(modell: AppModell.KIModell, schluessel: String?, zugriff: any Anlagenzugriff, befunde: [String]) async throws -> (Lagebericht, LanguageModelSession.Usage) {
+    func lagebericht(modell: AppModell.Modellwahl, schluessel: String?, zugriff: any Anlagenzugriff, befunde: [String]) async throws -> (Lagebericht, LanguageModelSession.Usage) {
         berichtLaeuft = true
         defer { berichtLaeuft = false }
         let s = neueSitzung(modell, schluessel: schluessel, zugriff: zugriff, transkript: nil)
         let antwort = try await s.respond(to: Anweisungen.lagebericht, generating: Lageberichtsentwurf.self,
-                                          options: Self.optionen(modell), contextOptions: kontextoptionen(modell, .moderate))
-        return (antwort.content.lagebericht(erstellt: .now, modell: modell.rawValue, befunde: befunde), antwort.usage)
+                                          options: Self.optionen(modell.modell), contextOptions: kontextoptionen(modell.modell, .moderate))
+        return (antwort.content.lagebericht(erstellt: .now, modell: modell.name, befunde: befunde), antwort.usage)
+    }
+
+    private func claudeModell(_ wahl: AppModell.Modellwahl, schluessel: String) -> ClaudeSprachmodell {
+        let claude = wahl.claude ?? ClaudeModelle.bekannt[.opus]!
+        return ClaudeSprachmodell(konfiguration: ClaudeKonfiguration(
+            schluessel: schluessel, modell: claude.kennung, faehigkeiten: claude.faehigkeiten,
+            rueckgriff: wahl.rueckgriff, beobachter: claudeBeobachter))
     }
 
     /// Kleinste Anfrage mit geringem Aufwand; bestätigt Schlüssel und Erreichbarkeit.
-    func pruefen(schluessel: String, modell: String) async throws -> String {
-        let s = LanguageModelSession(model: ClaudeSprachmodell(schluessel: schluessel, modell: modell)) {
+    func pruefen(schluessel: String, modell: AppModell.Modellwahl) async throws -> String {
+        let s = LanguageModelSession(model: claudeModell(modell, schluessel: schluessel)) {
             "Antworten Sie ausschließlich mit dem Wort OK."
         }
         return try await s.respond(to: "Verbindungstest", contextOptions: ContextOptions(reasoningLevel: .light)).content
@@ -199,21 +208,21 @@ final class Assistenzdienst {
                           reasoningTokenCount: nachher.output.reasoningTokenCount - vorher.output.reasoningTokenCount))
     }
 
-    static func meldung(_ fehler: any Error, _ modell: AppModell.KIModell) -> String {
+    static func meldung(_ fehler: any Error, _ modell: AppModell.Modellwahl) -> String {
         if let f = fehler as? LanguageModelError {
             switch f {
             case .refusal, .guardrailViolation:
                 return "Das Modell hat die Anfrage abgelehnt. Formulieren Sie die Frage anders."
             case .contextSizeExceeded:
-                return "Das Gespräch ist für \(modell.rawValue) zu lang geworden. Beginnen Sie ein neues Gespräch."
+                return "Das Gespräch ist für \(modell.name) zu lang geworden. Beginnen Sie ein neues Gespräch."
             case .rateLimited:
                 return "Zu viele Anfragen in kurzer Zeit. Versuchen Sie es in einer Minute noch einmal."
             case .timeout:
                 return "Das Modell hat nicht rechtzeitig geantwortet. Versuchen Sie es noch einmal."
             case .unsupportedCapability, .unsupportedGenerationGuide, .unsupportedTranscriptContent:
-                return "\(modell.rawValue) kann diese Anfrage nicht bearbeiten. Wählen Sie in den Einstellungen ein anderes Modell."
+                return "\(modell.name) kann diese Anfrage nicht bearbeiten. Wählen Sie in den Einstellungen ein anderes Modell."
             case .unsupportedLanguageOrLocale:
-                return "\(modell.rawValue) unterstützt die Sprache dieser Anfrage nicht."
+                return "\(modell.name) unterstützt die Sprache dieser Anfrage nicht."
             @unknown default:
                 break
             }

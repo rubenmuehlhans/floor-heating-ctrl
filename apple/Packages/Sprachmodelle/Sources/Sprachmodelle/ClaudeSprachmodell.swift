@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import Synchronization
 
 /// Claude als Sprachmodell für `LanguageModelSession`.
 ///
@@ -29,24 +30,43 @@ public struct ClaudeSprachmodell: LanguageModel {
 }
 
 public struct ClaudeKonfiguration: Hashable, Sendable {
-    public static let standardmodell = "claude-opus-5"
-    /// Günstiger als Opus (2 $ statt 5 $ je Million Token Eingabe, 10 $ statt 25 $ Ausgabe), mit
+    /// Die App nimmt das neueste Modell einer Reihe aus der Models-API (`ClaudeModelle`); diese
+    /// Kennungen gelten, bis sie geantwortet hat.
+    public static let standardmodell = ClaudeModelle.bekannt[.opus]!.kennung
+    /// Günstiger als Opus (2 $ statt 4 $ je Million Token Eingabe, 10 $ statt 20 $ Ausgabe), mit
     /// derselben Anfrageform: adaptives Denken, Aufwand von `low` bis `max`, 128 000 Token Ausgabe.
-    public static let sonnet = "claude-sonnet-5"
-    /// Modelle, für die das serverseitige Ersatzmodell (`fallbacks: "default"`) beschrieben ist.
-    /// Bei anderen Modellen ließe eine unbekannte Angabe die Anfrage scheitern; eine Ablehnung
-    /// kommt dort als `refusal` zurück.
-    public static let mitErsatzmodell: Set<String> = [standardmodell]
+    public static let sonnet = ClaudeModelle.bekannt[.sonnet]!.kennung
+    /// Das serverseitige Ersatzmodell (`fallbacks: "default"`) ist ab Opus 5 und Sonnet 5.5
+    /// beschrieben; neuere Modelle beider Reihen sollen es behalten. Bei älteren ließe die
+    /// unbekannte Angabe die Anfrage scheitern; eine Ablehnung kommt dort als `refusal` zurück.
+    public static func mitErsatzmodell(_ modell: String) -> Bool {
+        if let v = version(modell, .opus) { return v.lexicographicallyPrecedes([5]) == false }
+        if let v = version(modell, .sonnet) { return v.lexicographicallyPrecedes([5, 5]) == false }
+        return false
+    }
+
+    /// `claude-opus-5-5` → `[5, 5]`; ein angehängtes Datum zählt als letzte Stelle.
+    static func version(_ modell: String, _ reihe: ClaudeReihe) -> [Int]? {
+        guard modell.hasPrefix(reihe.praefix) else { return nil }
+        let stellen = modell.dropFirst(reihe.praefix.count).split(separator: "-").map { Int($0) }
+        guard !stellen.isEmpty, !stellen.contains(nil) else { return nil }
+        return stellen.compactMap { $0 }
+    }
     public static let messagesAPI = URL(string: "https://api.anthropic.com/v1/messages")!
 
     /// API-Schlüssel; er liegt in der App im Schlüsselbund.
     public var schluessel: String
     public var modell: String
+    public var faehigkeiten: ClaudeFaehigkeiten
+    /// Weist die API eine Anfrage an `modell` mit 400 oder 404 ab, geht sie unverändert an dieses
+    /// Modell. Für ein neu erschienenes Modell, das die Anfrageform dieser App-Version nicht annimmt.
+    public var rueckgriff: ClaudeModelleintrag?
+    public var beobachter: ClaudeBeobachter?
     /// Obergrenze für Denken und Antwort zusammen
     public var maximaleToken: Int
     /// Lehnen die Sicherheitsklassifikatoren eine Anfrage ab, beantwortet sie serverseitig das
-    /// empfohlene Ersatzmodell (`fallbacks: "default"`). Ohne Angabe nur bei den Modellen in
-    /// `mitErsatzmodell`.
+    /// empfohlene Ersatzmodell (`fallbacks: "default"`). Ohne Angabe nur bei den Modellen, für die
+    /// `mitErsatzmodell` zutrifft.
     public var ersatzmodell: Bool
     public var adresse: URL
     /// Wartezeiten vor den Wiederholungen bei Überlastung und Serverfehlern; ihre Anzahl ist die
@@ -55,17 +75,72 @@ public struct ClaudeKonfiguration: Hashable, Sendable {
     public var transport: ClaudeTransport
 
     public init(
-        schluessel: String, modell: String = Self.standardmodell, maximaleToken: Int = 64_000,
-        ersatzmodell: Bool? = nil, adresse: URL = Self.messagesAPI,
+        schluessel: String, modell: String = Self.standardmodell, faehigkeiten: ClaudeFaehigkeiten? = nil,
+        maximaleToken: Int = 64_000, ersatzmodell: Bool? = nil, rueckgriff: ClaudeModelleintrag? = nil,
+        beobachter: ClaudeBeobachter? = nil, adresse: URL = Self.messagesAPI,
         wartezeiten: [Duration] = [.seconds(2), .seconds(6)], transport: ClaudeTransport = .standard
     ) {
         self.schluessel = schluessel
         self.modell = modell
+        self.faehigkeiten = faehigkeiten ?? .vermutet(modell)
+        self.rueckgriff = rueckgriff
+        self.beobachter = beobachter
         self.maximaleToken = maximaleToken
-        self.ersatzmodell = ersatzmodell ?? Self.mitErsatzmodell.contains(modell)
+        self.ersatzmodell = ersatzmodell ?? Self.mitErsatzmodell(modell)
         self.adresse = adresse
         self.wartezeiten = wartezeiten
         self.transport = transport
+    }
+}
+
+extension ClaudeKonfiguration {
+    /// Dieselbe Konfiguration mit dem Rückgriffsmodell, ohne weiteren Rückgriff
+    func mitRueckgriff() -> ClaudeKonfiguration? {
+        guard let r = rueckgriff else { return nil }
+        var k = self
+        k.modell = r.kennung
+        k.faehigkeiten = r.faehigkeiten ?? .vermutet(r.kennung)
+        k.ersatzmodell = Self.mitErsatzmodell(r.kennung)
+        k.rueckgriff = nil
+        return k
+    }
+}
+
+/// Meldet der App, welches Modell geantwortet hat und welches die API abgewiesen hat, und merkt
+/// sich die abgewiesenen, damit die übrigen Anfragen einer Sitzung gleich zum Rückgriff gehen.
+/// Eine Klasse aus demselben Grund wie `ClaudeTransport`: verglichen wird über die Identität.
+public final class ClaudeBeobachter: Hashable, Sendable {
+    public enum Ereignis: Sendable, Equatable {
+        /// Das Modell hat eine Anfrage beantwortet.
+        case bewaehrt(String)
+        /// Das Modell hat die Anfrage abgewiesen, der Rückgriff hat sie beantwortet.
+        case abgewiesen(String, meldung: String)
+    }
+
+    private let melden: @Sendable (Ereignis) -> Void
+    private let abgewiesene = Mutex<Set<String>>([])
+
+    public init(_ melden: @escaping @Sendable (Ereignis) -> Void) {
+        self.melden = melden
+    }
+
+    func istAbgewiesen(_ modell: String) -> Bool {
+        abgewiesene.withLock { $0.contains(modell) }
+    }
+
+    func melde(_ ereignis: Ereignis) {
+        if case .abgewiesen(let modell, _) = ereignis {
+            abgewiesene.withLock { _ = $0.insert(modell) }
+        }
+        melden(ereignis)
+    }
+
+    public static func == (a: ClaudeBeobachter, b: ClaudeBeobachter) -> Bool {
+        a === b
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(self))
     }
 }
 

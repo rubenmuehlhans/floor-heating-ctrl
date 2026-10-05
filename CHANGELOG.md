@@ -26,6 +26,23 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   fehlte, das Protokoll meldete „Kopf zu lang“. Der Puffer fasst jetzt den Kopf für alle zwölf
   erfassten Thermometer, die Leser verwenden dieselbe Grenze.
 
+### App
+
+- **Immer die neuesten Claude-Modelle.** Statt fester Kennungen fragt die App bei Anthropic ab,
+  welches Opus-, Sonnet- und Haiku-Modell zuletzt erschienen ist, und verwendet diese; Auswahl,
+  Assistent und Einstellungen zeigen den Namen mit Version, derzeit Claude Opus 5.5, Claude
+  Sonnet 5.5 und Claude Haiku 4.5. Die Abfrage läuft höchstens einmal am Tag und bei „Verbindung
+  prüfen“; ein laufendes Gespräch geht mit dem neueren Modell weiter. Die gespeicherte Modellwahl
+  bleibt erhalten.
+- **Claude Haiku wählbar.** Das schnellste und günstigste Claude-Modell, für kurze Auskünfte. Ob ein
+  Modell adaptives Denken und eine Aufwandsstufe kennt, übernimmt die App aus der Modellliste;
+  Haiku 4.5 antwortet ohne beides.
+- **Rückgriff auf das bewährte Modell.** Weist die API ein neu erschienenes Modell mit 400 oder 404
+  ab, beantwortet das zuletzt bewährte Modell derselben Reihe die Anfrage. Das abgewiesene Modell
+  verwendet die App danach nicht mehr und meldet das einmal; ein noch neueres versucht sie wieder.
+- **Sonnet mit Ersatzmodell.** Wie Opus erhält Sonnet ab 5.5 bei einer Ablehnung das von Anthropic
+  empfohlene Ersatzmodell.
+
 ### Gerät am Pufferspeicher
 
 - **Befund „Vorlauf und Rücklauf vertauscht“ nur noch bei laufender Pumpe.** Die Haltezeit

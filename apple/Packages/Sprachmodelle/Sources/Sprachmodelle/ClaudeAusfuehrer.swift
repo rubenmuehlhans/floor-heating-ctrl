@@ -19,7 +19,13 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
         to request: LanguageModelExecutorGenerationRequest, model: ClaudeSprachmodell,
         streamingInto channel: LanguageModelExecutorGenerationChannel
     ) async throws {
-        let rumpf = try ClaudeAnfrage(anfrage: request, konfiguration: konfiguration).rumpf().daten()
+        var k = konfiguration
+        // Ein Modell, das in dieser Sitzung schon abgewiesen hat, bekommt keine weitere Anfrage.
+        if let beobachter = k.beobachter, beobachter.istAbgewiesen(k.modell), let r = k.mitRueckgriff() {
+            k = r
+        }
+        var rumpf = try ClaudeAnfrage(anfrage: request, konfiguration: k).rumpf().daten()
+        var abgewiesen: ClaudeBeobachter.Ereignis?
         // Überlastung und Serverfehler kommen als HTTP-Status oder als Fehlerereignis im Strom.
         // Beides wird wiederholt, solange noch nichts im Kanal steht; danach ließe sich die
         // Antwort nicht mehr ohne Doppelungen neu beginnen.
@@ -27,7 +33,7 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
         while true {
             var gesendet = false
             do {
-                let zeilen = try await verbinden(rumpf)
+                let zeilen = try await verbinden(rumpf, k)
                 // Eigene Kennung je Aufruf: `request.id` bleibt über alle Runden einer
                 // Werkzeugschleife gleich, und doppelte Eintragskennungen bringen die Sitzung
                 // durcheinander.
@@ -41,11 +47,20 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
                     if zustand.beendet { break }
                 }
                 try zustand.abschluss()
+                // Als abgewiesen gilt ein Modell erst, wenn der Rückgriff dieselbe Anfrage annimmt;
+                // sonst lag es an der Anfrage, nicht am Modell.
+                if let abgewiesen { k.beobachter?.melde(abgewiesen) }
+                k.beobachter?.melde(.bewaehrt(k.modell))
                 return
             } catch let fehler as ClaudeFehler
-                where fehler.voruebergehend && !gesendet && versuch < konfiguration.wartezeiten.count {
-                try await Task.sleep(for: konfiguration.wartezeiten[versuch])
+                where fehler.voruebergehend && !gesendet && versuch < k.wartezeiten.count {
+                try await Task.sleep(for: k.wartezeiten[versuch])
                 versuch += 1
+            } catch ClaudeFehler.anfrage(let status, _, let meldung)
+                where [400, 404].contains(status) && !gesendet && k.rueckgriff != nil {
+                abgewiesen = .abgewiesen(k.modell, meldung: meldung)
+                k = k.mitRueckgriff()!
+                rumpf = try ClaudeAnfrage(anfrage: request, konfiguration: k).rumpf().daten()
             } catch ClaudeFehler.imStrom(art: "overloaded_error", meldung: _) {
                 throw ClaudeFehler.ueberlastet(status: 529)
             }
@@ -53,7 +68,7 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
     }
 
     /// Stellt die Anfrage und gibt die Zeilen des Datenstroms zurück.
-    private func verbinden(_ rumpf: Data) async throws -> AsyncLineSequence<URLSession.AsyncBytes> {
+    private func verbinden(_ rumpf: Data, _ konfiguration: ClaudeKonfiguration) async throws -> AsyncLineSequence<URLSession.AsyncBytes> {
         var anfrage = URLRequest(url: konfiguration.adresse)
         anfrage.httpMethod = "POST"
         anfrage.httpBody = rumpf
@@ -80,7 +95,8 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
         case 429:
             throw LanguageModelError.rateLimited(.init(resetDate: Self.wiederAb(http), debugDescription: meldung))
         case 400 where meldung.localizedCaseInsensitiveContains("prompt is too long"):
-            throw LanguageModelError.contextSizeExceeded(.init(contextSize: 1_000_000, tokenCount: 0, debugDescription: meldung))
+            throw LanguageModelError.contextSizeExceeded(.init(
+                contextSize: konfiguration.faehigkeiten.kontext ?? 1_000_000, tokenCount: 0, debugDescription: meldung))
         case 500...:
             throw ClaudeFehler.ueberlastet(status: http.statusCode)
         default:

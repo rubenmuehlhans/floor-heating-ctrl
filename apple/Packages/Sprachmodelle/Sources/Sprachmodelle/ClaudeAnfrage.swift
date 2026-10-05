@@ -65,7 +65,6 @@ struct ClaudeAnfrage {
             "model": .text(konfiguration.modell),
             "max_tokens": .zahl(Double(anfrage.generationOptions.maximumResponseTokens ?? konfiguration.maximaleToken)),
             "stream": true,
-            "thinking": ["type": "adaptive", "display": "summarized"],
             "cache_control": ["type": "ephemeral"],
             "messages": .liste(nachrichten.map { n in
                 // Werkzeugergebnisse stehen am Anfang ihrer Nachricht.
@@ -75,6 +74,11 @@ struct ClaudeAnfrage {
                 return ["role": .text(n.rolle.rawValue), "content": .liste(bloecke)]
             }),
         ]
+        // Ohne adaptives Denken (Haiku 4.5) denkt das Modell nicht; ein festes Budget müsste
+        // unter `max_tokens` bleiben und bräuchte für Werkzeugschleifen eine eigene Beta.
+        if konfiguration.faehigkeiten.adaptivesDenken {
+            rumpf["thinking"] = ["type": "adaptive", "display": "summarized"]
+        }
         if !anweisungen.isEmpty {
             rumpf["system"] = [[
                 "type": "text",
@@ -90,14 +94,14 @@ struct ClaudeAnfrage {
                     "input_schema": try JSON.aus(d.parameters).werkzeugschema(),
                 ]
             })
-            switch anfrage.generationOptions.toolCallingMode {
-            case .required?: rumpf["tool_choice"] = ["type": "any"]
-            case .disallowed?: rumpf["tool_choice"] = ["type": "none"]
-            default: break
+            // Einen Werkzeugzwang (`any`, `tool`) weisen Opus 5.5 und Sonnet 5.5 mit 400 ab;
+            // `.required` bleibt deshalb bei `auto`, die Anweisungen nennen das Werkzeug.
+            if case .disallowed? = anfrage.generationOptions.toolCallingMode {
+                rumpf["tool_choice"] = ["type": "none"]
             }
         }
         var ausgabe: JSON = [:]
-        if let aufwand = Self.aufwand(anfrage.contextOptions.reasoningLevel) {
+        if konfiguration.faehigkeiten.aufwand, let aufwand = Self.aufwand(anfrage.contextOptions.reasoningLevel) {
             ausgabe["effort"] = .text(aufwand)
         }
         if let schema = anfrage.schema {
@@ -112,7 +116,8 @@ struct ClaudeAnfrage {
         return rumpf
     }
 
-    /// Denkstufe der Sitzung als `effort`. Ohne Angabe gilt die Vorgabe der API (`high`).
+    /// Denkstufe der Sitzung als `effort`. Ohne Angabe gilt die Vorgabe des Modells (Opus 5.5
+    /// `medium`, Sonnet 5.5 `high`).
     static func aufwand(_ stufe: ContextOptions.ReasoningLevel?) -> String? {
         switch stufe {
         case .light: "low"

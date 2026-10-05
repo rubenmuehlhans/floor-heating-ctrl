@@ -27,7 +27,7 @@ extension Lagebericht {
             ),
         ],
         erstellt: Beispielzeit.datum("2026-08-28T17:52:00"),
-        modell: "Claude Opus 5"
+        modell: "Claude Opus 5.5"
     )
 }
 

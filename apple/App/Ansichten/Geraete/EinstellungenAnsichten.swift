@@ -679,7 +679,7 @@ struct KIAbschnitt: View {
         Section {
             Picker("Modell", selection: $modell.kiModell) {
                 ForEach(AppModell.KIModell.allCases) { m in
-                    Text(m.rawValue).tag(m)
+                    Text(modell.kiName(m)).tag(m)
                 }
             }
             // Am Picker, weil die Zeilen darunter wechseln: Mit dem gesicherten Schlüssel ist
@@ -742,7 +742,7 @@ struct KIAbschnitt: View {
 
     private func fusszeile(_ m: AppModell.KIModell) -> String {
         let daten = switch m {
-        case .claude, .claudeSonnet:
+        case .claude, .claudeSonnet, .claudeHaiku:
             "Der Schlüssel liegt im Schlüsselbund dieses Geräts. An Anthropic gehen Messwerte, Einstellungen, Raumnamen und das Handbuch, nie Kennwörter, WLAN-Zugangsdaten oder Relaisadressen."
         case .privateCloud:
             "An Private Cloud Compute gehen Messwerte, Einstellungen und Raumnamen, nie Kennwörter, WLAN-Zugangsdaten oder Relaisadressen; Apple verwirft die Daten nach der Anfrage."
@@ -763,7 +763,7 @@ struct KIAbschnitt: View {
                 Text("Verbindung wird geprüft …").foregroundStyle(.secondary)
             }
         case .verbunden:
-            Label("Verbunden mit \(modell.kiModell.rawValue)", systemImage: "checkmark.circle.fill")
+            Label("Verbunden mit \(modell.modellwahl.name)", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(Farbe.gut)
         case .fehler(let meldung):
             Label(meldung, systemImage: "xmark.octagon.fill")

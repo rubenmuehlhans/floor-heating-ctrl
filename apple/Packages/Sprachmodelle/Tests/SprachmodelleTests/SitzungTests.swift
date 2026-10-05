@@ -51,10 +51,10 @@ struct SitzungTests {
     }
 
     /// Ohne Ersatzmodell geht auch die Kopfzeile der Beta nicht mit.
-    @Test func sonnetOhneBetaKopfzeile() async throws {
+    @Test func sonnet5OhneBetaKopfzeile() async throws {
         let host = "sonnet.test"
         let modell = ClaudeSprachmodell(konfiguration: ClaudeKonfiguration(
-            schluessel: "sk-test", modell: ClaudeKonfiguration.sonnet, adresse: URL(string: "https://\(host)/v1/messages")!,
+            schluessel: "sk-test", modell: "claude-sonnet-5", adresse: URL(string: "https://\(host)/v1/messages")!,
             transport: APIAttrappe.transport(host: host) { _ in
                 .init(rumpf: SSE.strom([SSE.beginn] + SSE.text(0, ["OK"]) + SSE.ende("end_turn")))
             }))

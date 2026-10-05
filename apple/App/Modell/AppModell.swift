@@ -21,33 +21,59 @@ final class AppModell {
         case uebersicht, raeume, assistent, heizung, geraete
     }
 
+    /// Opus, Sonnet und Haiku stehen für ihre Reihe; welches Modell darin antwortet, bestimmen
+    /// `claudeModelle`, `claudeBewaehrt` und `claudeAbgewiesen`.
     enum KIModell: String, CaseIterable, Identifiable {
-        case claude = "Claude Opus 5"
-        case claudeSonnet = "Claude Sonnet 5"
+        case claude = "Claude Opus"
+        case claudeSonnet = "Claude Sonnet"
+        case claudeHaiku = "Claude Haiku"
         case privateCloud = "Apple Private Cloud Compute"
         case geraet = "Apple-Modell auf dem Gerät"
 
         var id: String { rawValue }
 
-        var istClaude: Bool { claudeModell != nil }
+        /// Auch Namen mit Version, wie sie an Beiträgen und Lageberichten stehen und bis v0.5 in
+        /// den Einstellungen gespeichert wurden („Claude Opus 5“)
+        init?(name: String) {
+            guard let m = KIModell(rawValue: name) ?? KIModell.allCases.first(where: { $0.istClaude && name.hasPrefix($0.rawValue + " ") }) else {
+                return nil
+            }
+            self = m
+        }
 
-        /// Kennung für die Messages-API
-        var claudeModell: String? {
+        var claudeReihe: ClaudeReihe? {
             switch self {
-            case .claude: ClaudeKonfiguration.standardmodell
-            case .claudeSonnet: ClaudeKonfiguration.sonnet
+            case .claude: .opus
+            case .claudeSonnet: .sonnet
+            case .claudeHaiku: .haiku
             case .privateCloud, .geraet: nil
             }
         }
 
+        var istClaude: Bool { claudeReihe != nil }
+
         var erklaerung: String {
             switch self {
-            case .claude: "Stärkste Auswertung. Braucht einen API-Schlüssel von Anthropic; Messwerte, Einstellungen und Raumnamen werden dorthin übertragen."
-            case .claudeSonnet: "Kostet je Token etwa zwei Fünftel von Opus und genügt für die meisten Fragen und den Lagebericht. Braucht denselben API-Schlüssel; Messwerte, Einstellungen und Raumnamen werden an Anthropic übertragen."
+            case .claude: "Stärkste Auswertung, mit dem jeweils neuesten Opus-Modell. Braucht einen API-Schlüssel von Anthropic; Messwerte, Einstellungen und Raumnamen werden dorthin übertragen."
+            case .claudeSonnet: "Kostet je Token etwa die Hälfte von Opus und genügt für die meisten Fragen und den Lagebericht; die App verwendet das jeweils neueste Sonnet-Modell. Braucht denselben API-Schlüssel; Messwerte, Einstellungen und Raumnamen werden an Anthropic übertragen."
+            case .claudeHaiku: "Schnellstes und günstigstes Claude-Modell, mit dem jeweils neuesten Haiku. Für kurze Auskünfte; längere Auswertungen gelingen mit Opus oder Sonnet besser. Braucht denselben API-Schlüssel; Messwerte, Einstellungen und Raumnamen werden an Anthropic übertragen."
             case .privateCloud: "Rechnet auf Servern von Apple, ohne dass Apple die Daten einsehen kann. Kein Schlüssel nötig, begrenztes Kontingent."
             case .geraet: "Rechnet vollständig auf diesem Gerät und funktioniert ohne Netz. Für kurze Auskünfte, nicht für längere Auswertungen."
             }
         }
+    }
+
+    /// Das gewählte Modell, bei Claude mit dem Modell der Reihe, das gerade gilt, und dem
+    /// bewährten, falls die API das neue abweist
+    struct Modellwahl: Hashable {
+        var modell: KIModell
+        var claude: ClaudeModelleintrag?
+        var rueckgriff: ClaudeModelleintrag?
+
+        /// Für Anzeige, Beiträge und Verbrauch, etwa „Claude Opus 5.5“
+        var name: String { claude?.name ?? modell.rawValue }
+        /// Wechselt sie, beginnt eine neue Sitzung.
+        var kennung: String { claude?.kennung ?? modell.rawValue }
     }
 
     enum Kanalbefehl: Equatable {
@@ -121,7 +147,7 @@ final class AppModell {
     var lageberichtLaeuft: Bool { assistenzdienst.berichtLaeuft }
     var aufzeichnung: Aufzeichnung = .aus
 
-    var kiModell: KIModell = KIModell(rawValue: UserDefaults.standard.string(forKey: "kiModell") ?? "") ?? .claude {
+    var kiModell: KIModell = KIModell(name: UserDefaults.standard.string(forKey: "kiModell") ?? "") ?? .claude {
         didSet {
             guard kiModell != oldValue else { return }
             UserDefaults.standard.set(kiModell.rawValue, forKey: "kiModell")
@@ -129,6 +155,24 @@ final class AppModell {
             // Ein Transkript gehört zu einem Modell; mit dem Wechsel beginnt ein neues Gespräch.
             if !istBeispiel, !gespraech.beitraege.isEmpty { neuesGespraech() } else { assistenzdienst.zuruecksetzen() }
         }
+    }
+    /// Das neueste Modell je Reihe laut Models-API; gespeichert, damit Name und Kennung schon vor
+    /// der ersten Abfrage nach dem Start stimmen.
+    var claudeModelle: [ClaudeReihe: ClaudeModelleintrag] = AppModell.gespeicherteClaudeModelle("claudeModelle") {
+        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(claudeModelle), forKey: "claudeModelle") }
+    }
+    /// Das Modell je Reihe, das zuletzt geantwortet hat; Rückgriff, wenn die API ein neueres abweist.
+    var claudeBewaehrt: [ClaudeReihe: ClaudeModelleintrag] = AppModell.gespeicherteClaudeModelle("claudeBewaehrt") {
+        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(claudeBewaehrt), forKey: "claudeBewaehrt") }
+    }
+    /// Das neueste Modell je Reihe, das die Anfragen dieser App-Version abgewiesen hat. Es kommt
+    /// nicht mehr zum Zug; ein noch neueres wird wieder versucht.
+    var claudeAbgewiesen: [ClaudeReihe: String] = (UserDefaults.standard.dictionary(forKey: "claudeAbgewiesen") as? [String: String])
+        .map { Dictionary(uniqueKeysWithValues: $0.compactMap { k, v in ClaudeReihe(rawValue: k).map { ($0, v) } }) } ?? [:] {
+        didSet { UserDefaults.standard.set(Dictionary(uniqueKeysWithValues: claudeAbgewiesen.map { ($0.rawValue, $1) }), forKey: "claudeAbgewiesen") }
+    }
+    @ObservationIgnored var claudeModelleAbgefragt = UserDefaults.standard.object(forKey: "claudeModelleAbgefragt") as? Date {
+        didSet { UserDefaults.standard.set(claudeModelleAbgefragt, forKey: "claudeModelleAbgefragt") }
     }
     /// Lagebericht der KI von selbst: bei geöffneter App höchstens alle sechs Stunden und nach
     /// neuen Befunden
@@ -224,6 +268,9 @@ final class AppModell {
     init() {
         verlaufsaufzeichnung = verlaufsspeicher.map { Verlaufsaufzeichnung(speicher: $0) }
         betrieb = Anlagenbetrieb(sicherungen: sicherungen, verlauf: verlaufsaufzeichnung)
+        assistenzdienst.claudeBeobachter = ClaudeBeobachter { [weak self] ereignis in
+            Task { @MainActor in self?.claudeBeobachtet(ereignis) }
+        }
         // Die Abfragen beginnen mit der App, nicht mit dem ersten Fenster: Auf dem Mac läuft sie
         // auch ganz ohne Fenster in der Menüleiste.
         betriebAbgleichen()
@@ -446,10 +493,7 @@ final class AppModell {
             liveBegonnen = true
             if let letztes = ablage.gespraeche.first, let g = ablage.gespraechLaden(letztes.id) {
                 gespraech = g.gespraech
-                // Ein Transkript gehört zu dem Modell, das es geführt hat; mit einem anderen
-                // Modell beginnt die Sitzung neu, der Verlauf bleibt nur zur Anzeige.
-                let modellDesGespraechs = g.gespraech.beitraege.last { $0.rolle == .assistent }?.modell
-                transkript = modellDesGespraechs == nil || modellDesGespraechs == kiModell.rawValue ? g.transkript : nil
+                transkript = transkriptPasst(g.gespraech) ? g.transkript : nil
             } else {
                 gespraech = .neu()
                 transkript = nil
@@ -1246,7 +1290,8 @@ final class AppModell {
         verbindung = .pruefe
         Task {
             do {
-                _ = try await assistenzdienst.pruefen(schluessel: schluessel, modell: kiModell.claudeModell ?? ClaudeKonfiguration.standardmodell)
+                await claudeModelleAuffrischen(sofort: true)
+                _ = try await assistenzdienst.pruefen(schluessel: schluessel, modell: modellwahl)
                 verbindung = .verbunden
             } catch {
                 verbindung = .fehler(error.localizedDescription)

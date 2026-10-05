@@ -33,7 +33,7 @@ struct AnfrageTests {
         ]
         let r = try ClaudeAnfrage(anfrage: anfrage(eintraege, werkzeuge: [definition], stufe: .moderate), konfiguration: konfiguration).rumpf()
 
-        #expect(r["model"] == "claude-opus-5")
+        #expect(r["model"] == "claude-opus-5-5")
         #expect(r["max_tokens"] == 64000)
         #expect(r["stream"] == true)
         #expect(r["thinking"] == ["type": "adaptive", "display": "summarized"])
@@ -57,21 +57,52 @@ struct AnfrageTests {
         ])
     }
 
-    /// Sonnet 5 hat dieselbe Anfrageform; das Ersatzmodell ist nur für Opus 5 beschrieben.
-    @Test func sonnetOhneErsatzmodell() throws {
+    /// Sonnet 5.5 hat dieselbe Anfrageform wie Opus 5.5, das Ersatzmodell in der Form `default`
+    /// eingeschlossen.
+    @Test func sonnetMitErsatzmodell() throws {
         let sonnet = ClaudeKonfiguration(schluessel: "sk-test", modell: ClaudeKonfiguration.sonnet)
-        #expect(!sonnet.ersatzmodell)
         let eintraege: [Transcript.Entry] = [
             .instructions(.init(segments: [text("Antworten Sie knapp.")], toolDefinitions: [])),
             .prompt(.init(segments: [text("Wie warm ist der Speicher?")])),
         ]
         let r = try ClaudeAnfrage(anfrage: anfrage(eintraege, stufe: .moderate), konfiguration: sonnet).rumpf()
-        #expect(r["model"] == "claude-sonnet-5")
-        #expect(r["fallbacks"] == nil)
+        #expect(r["model"] == "claude-sonnet-5-5")
+        #expect(r["fallbacks"] == "default")
         #expect(r["thinking"] == ["type": "adaptive", "display": "summarized"])
         #expect(r["output_config"] == ["effort": "medium"])
         #expect(r["temperature"] == nil)
-        #expect(ClaudeKonfiguration(schluessel: "sk-test").ersatzmodell, "Opus 5 behält das Ersatzmodell")
+    }
+
+    /// Haiku 4.5 kennt weder adaptives Denken noch Aufwand und kein Ersatzmodell.
+    @Test func haikuOhneDenkenUndAufwand() throws {
+        let haiku = ClaudeKonfiguration(schluessel: "sk-test", modell: "claude-haiku-4-5")
+        let r = try ClaudeAnfrage(anfrage: anfrage([.prompt(.init(segments: [text("?")]))], stufe: .moderate), konfiguration: haiku).rumpf()
+        #expect(r["model"] == "claude-haiku-4-5")
+        #expect(r["thinking"] == nil)
+        #expect(r["output_config"] == nil)
+        #expect(r["fallbacks"] == nil)
+        #expect(r["cache_control"] == ["type": "ephemeral"])
+    }
+
+    /// Die Fähigkeiten laut API gehen der Vermutung nach der Kennung vor.
+    @Test func faehigkeitenLautAPI() throws {
+        let haiku5 = ClaudeKonfiguration(schluessel: "sk-test", modell: "claude-haiku-5",
+                                         faehigkeiten: ClaudeFaehigkeiten(adaptivesDenken: true, aufwand: true))
+        let r = try ClaudeAnfrage(anfrage: anfrage([.prompt(.init(segments: [text("?")]))], stufe: .light), konfiguration: haiku5).rumpf()
+        #expect(r["thinking"] == ["type": "adaptive", "display": "summarized"])
+        #expect(r["output_config"] == ["effort": "low"])
+        #expect(ClaudeFaehigkeiten.vermutet("claude-haiku-4-5-20251001").adaptivesDenken == false)
+        #expect(ClaudeFaehigkeiten.vermutet("claude-opus-6").adaptivesDenken)
+    }
+
+    @Test(arguments: [
+        ("claude-opus-5-5", true), ("claude-opus-5", true), ("claude-opus-6", true), ("claude-opus-4-8", false),
+        ("claude-opus-4-5-20251101", false), ("claude-sonnet-5-5", true), ("claude-sonnet-6", true),
+        ("claude-sonnet-5", false), ("claude-sonnet-4-6", false), ("claude-haiku-4-5", false), ("claude-fable-5-1", false),
+    ])
+    func ersatzmodellJeModell(_ modell: String, _ erwartet: Bool) {
+        #expect(ClaudeKonfiguration.mitErsatzmodell(modell) == erwartet)
+        #expect(ClaudeKonfiguration(schluessel: "sk-test", modell: modell).ersatzmodell == erwartet)
     }
 
     @Test func werkzeugschemaOhneZusaetzeVonFoundationModels() throws {
@@ -111,11 +142,12 @@ struct AnfrageTests {
         #expect(r["output_config"] == nil)
     }
 
+    /// Opus 5.5 und Sonnet 5.5 kennen keinen Werkzeugzwang; `.required` bleibt bei `auto`.
     @Test func werkzeugzwangUndVerbot() throws {
         var optionen = GenerationOptions()
         optionen.toolCallingMode = .required
         let erzwungen = try ClaudeAnfrage(anfrage: anfrage([.prompt(.init(segments: [text("?")]))], werkzeuge: [definition], optionen: optionen), konfiguration: konfiguration).rumpf()
-        #expect(erzwungen["tool_choice"] == ["type": "any"])
+        #expect(erzwungen["tool_choice"] == nil)
         optionen.toolCallingMode = .disallowed
         let verboten = try ClaudeAnfrage(anfrage: anfrage([.prompt(.init(segments: [text("?")]))], werkzeuge: [definition], optionen: optionen), konfiguration: konfiguration).rumpf()
         #expect(verboten["tool_choice"] == ["type": "none"])

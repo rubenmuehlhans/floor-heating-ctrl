@@ -74,6 +74,7 @@ final class APIAttrappe: URLProtocol, @unchecked Sendable {
     }
 
     struct Eingang: Sendable {
+        var url: URL?
         var kopf: [String: String]
         var rumpf: Data
         var json: JSON? { try? JSON.lesen(String(decoding: rumpf, as: UTF8.self)) }
@@ -116,7 +117,7 @@ final class APIAttrappe: URLProtocol, @unchecked Sendable {
             }
             strom.close()
         }
-        let eingang = Eingang(kopf: request.allHTTPHeaderFields ?? [:], rumpf: rumpf)
+        let eingang = Eingang(url: url, kopf: request.allHTTPHeaderFields ?? [:], rumpf: rumpf)
         let tabelle = Self.sperre.withLock { () -> (@Sendable (Eingang) -> Antwort)? in
             Self.eingaenge[host, default: []].append(eingang)
             return Self.tabellen[host]

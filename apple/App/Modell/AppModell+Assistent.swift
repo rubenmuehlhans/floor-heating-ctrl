@@ -3,6 +3,7 @@ import FoundationModels
 import Anlage
 import Assistent
 import Geraeteschnittstelle
+import Sprachmodelle
 
 /// Gespräch, Lagebericht und Vorschläge. In der Beispielanlage antwortet ein vorgegebener Text,
 /// und Vorschläge ändern nur die Beispieldaten; im Betrieb arbeitet das gewählte Modell mit den
@@ -19,6 +20,68 @@ extension AppModell {
             return "Für Claude braucht die App Ihre Zustimmung, Daten der Anlage an Anthropic zu übertragen."
         }
         return nil
+    }
+
+    // MARK: Modelle
+
+    var modellwahl: Modellwahl { modellwahl(kiModell) }
+
+    func modellwahl(_ modell: KIModell) -> Modellwahl {
+        guard let reihe = modell.claudeReihe else { return Modellwahl(modell: modell) }
+        let bewaehrt = claudeBewaehrt[reihe] ?? ClaudeModelle.bekannt[reihe]
+        let neuestes = claudeModelle[reihe] ?? ClaudeModelle.bekannt[reihe]
+        if let neuestes, neuestes.kennung == claudeAbgewiesen[reihe], bewaehrt != nil {
+            return Modellwahl(modell: modell, claude: bewaehrt)
+        }
+        return Modellwahl(modell: modell, claude: neuestes, rueckgriff: bewaehrt?.kennung == neuestes?.kennung ? nil : bewaehrt)
+    }
+
+    /// Name zur Auswahl, bei Claude mit Version
+    func kiName(_ modell: KIModell) -> String {
+        modellwahl(modell).name
+    }
+
+    static func gespeicherteClaudeModelle(_ schluessel: String) -> [ClaudeReihe: ClaudeModelleintrag] {
+        guard let daten = UserDefaults.standard.data(forKey: schluessel),
+              let modelle = try? JSONDecoder().decode([ClaudeReihe: ClaudeModelleintrag].self, from: daten) else { return [:] }
+        return modelle
+    }
+
+    /// Fragt höchstens einmal am Tag nach den neuesten Modellen; nur mit Schlüssel, und es geht nur
+    /// der Schlüssel an Anthropic. Ohne Antwort bleibt der letzte Stand.
+    func claudeModelleAuffrischen(sofort: Bool = false) async {
+        guard kiModell.istClaude, let schluessel = kiSchluessel else { return }
+        if !sofort, let zuletzt = claudeModelleAbgefragt, Date.now.timeIntervalSince(zuletzt) < 86_400 { return }
+        guard let neu = try? await ClaudeModelle.neueste(schluessel: schluessel) else { return }
+        claudeModelleAbgefragt = .now
+        if !neu.isEmpty { claudeModelle.merge(neu) { $1 } }
+    }
+
+    /// Merkt sich, welches Modell geantwortet und welches abgewiesen hat.
+    func claudeBeobachtet(_ ereignis: ClaudeBeobachter.Ereignis) {
+        switch ereignis {
+        case .bewaehrt(let kennung):
+            guard let reihe = ClaudeReihe(kennung: kennung), claudeBewaehrt[reihe]?.kennung != kennung else { return }
+            claudeBewaehrt[reihe] = claudeEintrag(kennung)
+        case .abgewiesen(let kennung, _):
+            guard let reihe = ClaudeReihe(kennung: kennung), claudeAbgewiesen[reihe] != kennung else { return }
+            claudeAbgewiesen[reihe] = kennung
+            let bewaehrt = modellwahl(kiModell).claude?.name ?? "dem bisherigen Modell"
+            melden("\(claudeEintrag(kennung).name) nimmt die Anfragen dieser App-Version nicht an. Der Assistent antwortet weiter mit \(bewaehrt).")
+        }
+    }
+
+    private func claudeEintrag(_ kennung: String) -> ClaudeModelleintrag {
+        let bekannt = Array(claudeModelle.values) + Array(claudeBewaehrt.values) + Array(ClaudeModelle.bekannt.values)
+        return bekannt.first { $0.kennung == kennung } ?? ClaudeModelleintrag(kennung: kennung, name: kennung)
+    }
+
+    /// Ein Transkript gehört zur Reihe, die es geführt hat; mit einem neueren Modell derselben
+    /// Reihe geht es weiter, mit einer anderen beginnt die Sitzung neu und der Verlauf bleibt nur
+    /// zur Anzeige.
+    func transkriptPasst(_ g: Gespraech) -> Bool {
+        guard let name = g.beitraege.last(where: { $0.rolle == .assistent })?.modell else { return true }
+        return KIModell(name: name) == kiModell
     }
 
     // MARK: Zustimmung
@@ -63,16 +126,18 @@ extension AppModell {
             gespraech.beitraege.append(Beitrag(id: UUID().uuidString, rolle: .assistent, bausteine: [.fehler(hindernis)], zeit: .now))
             return
         }
-        let modell = kiModell
+        let ki = kiModell
         antwortAufgabe = Task {
+            await claudeModelleAuffrischen()
+            let modell = modellwahl(ki)
             let antwort = await assistenzdienst.frage(volltext, gespraech: gespraech.id, modell: modell, schluessel: kiSchluessel,
                                                       zugriff: anbindung, transkript: transkript)
             gespraech.beitraege.append(Beitrag(id: UUID().uuidString, rolle: .assistent, bausteine: antwort.bausteine, zeit: .now,
-                                               modell: modell.rawValue))
+                                               modell: modell.name))
             gespraech.zuletzt = .now
             if let t = antwort.transkript { transkript = t }
             if let v = antwort.verbrauch, v.input.totalTokenCount > 0 || v.output.totalTokenCount > 0 {
-                ablage.verbrauchErfassen(modell: modell.rawValue, v)
+                ablage.verbrauchErfassen(modell: modell.name, v)
             }
             ablage.gespraechSichern(gespraech, transkript: transkript)
         }
@@ -115,10 +180,7 @@ extension AppModell {
         guard !antwortLaeuft, id != gespraech.id, let g = ablage.gespraechLaden(id) else { return }
         ablage.gespraechSichern(gespraech, transkript: transkript)
         gespraech = g.gespraech
-        // Ein Transkript eines anderen Modells passt nicht zur Sitzung; dann beginnt der
-        // Assistent mit dem Gesprächsverlauf nur als Anzeige neu.
-        let modellDesGespraechs = g.gespraech.beitraege.last { $0.rolle == .assistent }?.modell
-        transkript = modellDesGespraechs == nil || modellDesGespraechs == kiModell.rawValue ? g.transkript : nil
+        transkript = transkriptPasst(g.gespraech) ? g.transkript : nil
         assistenzdienst.zuruecksetzen()
     }
 
@@ -174,14 +236,16 @@ extension AppModell {
 
     private func berichten() {
         letzterBerichtsversuch = .now
-        let modell = kiModell
+        let ki = kiModell
         let befunde = anlage.befunde.map(\.id)
         Task {
+            await claudeModelleAuffrischen()
+            let modell = modellwahl(ki)
             do {
                 let (bericht, verbrauch) = try await assistenzdienst.lagebericht(
                     modell: modell, schluessel: kiSchluessel, zugriff: anbindung, befunde: befunde)
                 ablage.lageberichtSichern(bericht)
-                ablage.verbrauchErfassen(modell: modell.rawValue, verbrauch)
+                ablage.verbrauchErfassen(modell: modell.name, verbrauch)
             } catch {
                 melden("Der Lagebericht ließ sich nicht erstellen: \(Assistenzdienst.meldung(error, modell))", fehler: true)
             }

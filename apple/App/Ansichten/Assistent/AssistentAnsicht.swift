@@ -106,7 +106,7 @@ struct AssistentAnsicht: View {
                     Divider()
                     Picker("Modell", selection: Bindable(modell).kiModell) {
                         ForEach(AppModell.KIModell.allCases) { m in
-                            Text(m.rawValue).tag(m)
+                            Text(modell.kiName(m)).tag(m)
                         }
                     }
                 } label: {
@@ -125,7 +125,7 @@ struct AssistentAnsicht: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Assistent für Ihre Heizung")
                         .font(.headline)
-                    Text("\(modell.kiModell.rawValue) · liest Messwerte, Einstellungen und Befunde, ändert nichts ohne Ihre Bestätigung")
+                    Text("\(modell.modellwahl.name) · liest Messwerte, Einstellungen und Befunde, ändert nichts ohne Ihre Bestätigung")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if !modell.istBeispiel, let hindernis = modell.kiHindernis {
