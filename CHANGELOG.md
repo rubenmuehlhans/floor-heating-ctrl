@@ -28,6 +28,8 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ### App
 
+Ab Build 12 (5. Oktober, TestFlight):
+
 - **Immer die neuesten Claude-Modelle.** Statt fester Kennungen fragt die App bei Anthropic ab,
   welches Opus-, Sonnet- und Haiku-Modell zuletzt erschienen ist, und verwendet diese; Auswahl,
   Assistent und Einstellungen zeigen den Namen mit Version, derzeit Claude Opus 5.5, Claude
