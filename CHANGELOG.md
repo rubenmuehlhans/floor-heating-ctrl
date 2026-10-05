@@ -45,6 +45,22 @@ Ab Build 12 (5. Oktober, TestFlight):
 - **Sonnet mit Ersatzmodell.** Wie Opus erhält Sonnet ab 5.5 bei einer Ablehnung das von Anthropic
   empfohlene Ersatzmodell.
 
+### Heizungsgeräte
+
+- **Kein Neustart mehr bei jedem Ladungsbeginn.** Beim Brennerstart nach Verbrauch zieht das Gerät
+  den Nullpunkt des Füllstands nach und speichert die Konfiguration. `cfg_set` legte dabei die
+  bisherige Konfiguration, 2,7 KB, als Sicherung auf den Stapel des Brennerauftrags mit 4 KB, und
+  der Stapel lief über. Seit dem 24. September starteten beide Geräte bei jeder großen Ladung neu,
+  das am Kessel beim Brennerstart, das am Speicher wenige Minuten später; der Nullpunkt wurde nie
+  gespeichert. `cfg_set` speichert jetzt zuerst und übernimmt danach, ohne Kopie auf dem Stapel,
+  und der Brennerauftrag hat 6 KB. Die Verteiler-Firmware hatte dasselbe Muster und ist mit
+  angepasst.
+- **Kesselkreispumpe: Bei laufender Pumpe gilt der Rücklauf als Bezug.** Gegen den Speicherfühler
+  gerechnet, der an dieser Anlage gut 3 K unter dem zurückkommenden Wasser lag, lief die Pumpe
+  nach einer Ladung stundenlang weiter, obwohl der Kessel nichts abgab, und der Kessel zündete
+  dabei mehrfach nach. Bei stehender Pumpe gilt weiter der Speicher, zuzüglich des zuletzt
+  gemessenen Abstands zum Rücklauf.
+
 ### Gerät am Pufferspeicher
 
 - **Befund „Vorlauf und Rücklauf vertauscht“ nur noch bei laufender Pumpe.** Die Haltezeit

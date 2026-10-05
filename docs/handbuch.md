@@ -633,14 +633,23 @@ Die Pumpe zwischen Kessel und Pufferspeicher wird am **Gerät am Kessel** einger
 **Heizkreise → Kesselkreispumpe**. Geschaltet wird sie wie die Heizkreispumpen über ein
 Tasmota-Relais, über MQTT oder unmittelbar über HTTP.
 
-Sie läuft, solange der Kesselvorlauf wärmer ist als der Pufferspeicher — nur dann gibt der
-Kessel Wärme ab. Kehrt sich das um, fördert dieselbe Pumpe Wärme aus dem Speicher in den
+Sie läuft, solange der Kessel Wärme abgibt, also sein Vorlauf wärmer ist als das Wasser, das aus
+dem Speicher kommt. Kehrt sich das um, fördert dieselbe Pumpe Wärme aus dem Speicher in den
 Kessel, und von dort geht sie durch den Schornstein verloren.
 
-Verglichen wird mit der Speichertemperatur, ersatzweise mit dem eigenen Rücklauf. Bei laufender
-Pumpe sind beide fast dasselbe, weil der Rücklauf aus dem Speicher kommt. Steht sie, fließt
-nichts: Vor- und Rücklauf nehmen dann beide die Temperatur des Kesselkörpers an, ihre Differenz
-geht gegen null, und ein Kessel mit Restwärme bliebe stehen, obwohl der Speicher kälter ist.
+**Bei laufender Pumpe** wird der Kesselvorlauf mit dem Kesselrücklauf verglichen. Der Rücklauf
+ist das Wasser, das tatsächlich aus dem Speicher kommt; die Differenz ist die Wärme, die der
+Kessel gerade abgibt. Der Speicherfühler eignet sich dafür nicht, weil er an anderer Stelle sitzt.
+An dieser Anlage lag er nach einer Ladung gut 3 K unter dem Rücklauf (Vorlauf 75,0 °C,
+Rücklauf 75,3 °C, Speicher 72,0 °C). Gegen ihn gerechnet blieben 3 K „Abgabe“ stehen, die Pumpe
+lief am 5. Oktober sieben Stunden durch, und der Kessel zündete in dieser Zeit sechsmal nach.
+
+**Bei stehender Pumpe** fließt nichts: Vor- und Rücklauf nehmen beide die Temperatur des
+Kesselkörpers an, und ihre Differenz sagt nichts mehr. Bezug ist dann die Speichertemperatur,
+zuzüglich des Abstands, um den der Rücklauf beim letzten Lauf über dem Speicherfühler lag. Ohne
+diesen Aufschlag liefe die Pumpe nach dem Abschalten gleich wieder an. Liegt der Rücklauf unter
+dem Speicherfühler, etwa beim Entladen, gilt der Speicherfühler unverändert. Ohne
+Speichertemperatur gilt auch bei stehender Pumpe der Rücklauf.
 
 Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
 Speicher abkühlen. Sie springt an, sobald der Kesselvorlauf den Speicher um den Einschaltabstand
@@ -650,8 +659,8 @@ geschieht je nach Abgasrohr eine bis mehrere Minuten nach dem Zünden.
 
 | Einstellung | Vorgabe | Bedeutung |
 |---|---|---|
-| Ein ab Abstand | 3,0 K | So weit muss der Kesselvorlauf über der Speichertemperatur liegen, damit sich das Fördern lohnt. |
-| Aus unter | 2,0 K | Darunter kommt nichts mehr an. An der Anlage gemessen: Der Speicher erreichte seinen Höchststand genau in dem Augenblick, in dem der Abstand auf zwei Kelvin gefallen war. Muss kleiner sein als „ein", sonst taktet die Pumpe. |
+| Ein ab Abstand | 3,0 K | So weit muss der Kesselvorlauf bei stehender Pumpe über dem Bezug liegen, damit sich das Fördern lohnt. |
+| Aus unter | 2,0 K | Liegt der Kesselvorlauf bei laufender Pumpe weniger als diesen Abstand über dem Rücklauf, kommt nichts mehr an. Muss kleiner sein als „ein", sonst taktet die Pumpe. |
 | Haltezeit | 120 s | so lange muss die Bedingung anliegen |
 | Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
 | Notgrenze | 85 °C | darüber läuft sie in jedem Fall |

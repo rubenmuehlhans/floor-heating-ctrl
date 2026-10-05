@@ -111,11 +111,6 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
      * darunter faellt. Dazwischen bleibt es, wie es war -- sonst schaltete die
      * Pumpe im Minutentakt, wenn die Spreizung um null pendelt.
      *
-     * Bezug ist die Speichertemperatur, ersatzweise der Ruecklauf. Bei
-     * stehender Pumpe fliesst nichts: Vor- und Ruecklauf gleichen sich der
-     * Kesseltemperatur an, ihre Differenz geht gegen null, und ein Kessel mit
-     * Restwaerme bliebe stehen, obwohl der Speicher kaelter ist.
-     *
      * Nach einem Neustart beginnt die Regel bei laufender Pumpe. Wie sie
      * vorher stand, weiss das Geraet nicht mehr. Bisher galt beim ersten
      * Schritt die Einschaltschwelle, und eine Pumpe, die mitten in einer
@@ -123,7 +118,28 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
      * erst aus, wenn die Spreizung ueber die Haltezeit darunter liegt.
      */
     bool lief = st->started ? st->on : true;
-    float bezug = in->buffer_valid ? in->buffer_c : in->rl_c;
+
+    /*
+     * Laeuft die Pumpe, ist der Ruecklauf der Bezug: Er ist das Wasser, das
+     * tatsaechlich aus dem Speicher kommt, und Vor- minus Ruecklauf ist die
+     * Waerme, die der Kessel gerade abgibt. Der Speicherfuehler sitzt woanders.
+     * Am 5. Oktober lag er nach der Ladung gut drei Kelvin unter dem
+     * Ruecklauf: Vorlauf 75,0, Ruecklauf 75,3, Speicher 72,0. Gegen den
+     * Speicher gerechnet blieben drei Kelvin "Abgabe" stehen, obwohl der
+     * Kessel nichts abgab -- die Pumpe lief sieben Stunden durch und schob
+     * Speicherwasser durch den Kessel, der darueber sechsmal nachzuendete.
+     *
+     * Steht sie, bleibt nur der Speicher. Aufgeschlagen wird dann, um wie viel
+     * der Ruecklauf zuletzt ueber dem Speicherfuehler lag; ohne diesen
+     * Abstand saehe die stehende Pumpe wieder drei Kelvin und liefe gleich
+     * wieder an. Liegt der Ruecklauf darunter -- beim Entladen kommt kaltes
+     * Wasser von unten --, gilt der Speicher unveraendert.
+     */
+    if (lief && in->buffer_valid) {
+        float abstand = in->rl_c - in->buffer_c;
+        st->buffer_bias_k = abstand < 0.0f ? 0.0f : abstand > 10.0f ? 10.0f : abstand;
+    }
+    float bezug = lief || !in->buffer_valid ? in->rl_c : in->buffer_c + st->buffer_bias_k;
     float spreizung = in->vl_c - bezug;
     bool transfer = lief ? spreizung > cfg->off_k : spreizung >= cfg->on_k;
 

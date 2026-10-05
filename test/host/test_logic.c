@@ -2466,6 +2466,8 @@ static void test_flue_median(void)
     CHECK(fabsf(ra.now_k - 45.0f) < 0.01f, "bei gerader Anzahl %.1f statt 45", ra.now_k);
 }
 
+static bp_input_t kessel_lauf(float vl, float rl, float speicher, bool brenner);
+
 static void test_boilerpump_speicher(void)
 {
     printf("Kesselkreispumpe: der Speicher ist der bessere Bezug\n");
@@ -2478,25 +2480,27 @@ static void test_boilerpump_speicher(void)
     uint32_t t = 1000;
 
     /*
-     * Der Fall von der Anlage: Die Pumpe steht, der Kessel hat sich bei 75
-     * Grad ausgeglichen -- Vor- und Ruecklauf liegen aufeinander, die
-     * Spreizung sagt nichts. Der Speicher ist mit 71 Grad kaelter, es ist also
-     * noch Waerme abzuholen.
+     * Zuerst steht die Pumpe bei kaltem Kessel. Der Ruecklauf kam dabei mit
+     * Speichertemperatur zurueck; der Speicherfuehler zeigt also, was ankaeme.
      */
-    bp_input_t in = {.valid = true, .vl_c = 75.2f, .rl_c = 75.6f,
-                     .buffer_valid = true, .buffer_c = 71.3f};
-    for (uint32_t i = 0; i < 400; i++) {
-        t += 1000;
-        bp_tick(&st, &cfg, &in, t);
-    }
+    t = bp_laufen(&st, &cfg, kessel_lauf(50.0f, 58.0f, 58.0f, false), t, 400);
+    CHECK(!st.on, "kalter Kessel: sie steht");
+
+    /*
+     * Der Kessel hat sich bei 75 Grad ausgeglichen -- Vor- und Ruecklauf
+     * liegen aufeinander, die Spreizung sagt nichts. Der Speicher ist mit 71
+     * Grad kaelter, es ist also noch Waerme abzuholen.
+     */
+    t = bp_laufen(&st, &cfg, kessel_lauf(75.2f, 75.6f, 71.3f, false), t, cfg.hold_s + 10);
     CHECK(st.on, "vier Kelvin ueber dem Speicher: die Pumpe laeuft an");
 
+    /* Jetzt laeuft sie, und der Ruecklauf bringt Speicherwasser: Der Kessel
+     * gibt ab, solange sein Vorlauf darueber liegt. */
+    t = bp_laufen(&st, &cfg, kessel_lauf(75.2f, 71.5f, 71.3f, false), t, 600);
+    CHECK(st.on, "gegen den Ruecklauf gerechnet gibt er ab");
+
     /* Ist der Speicher eingeholt, geht sie aus. */
-    in.buffer_c = 75.0f;
-    for (uint32_t i = 0; i < 600; i++) {
-        t += 1000;
-        bp_tick(&st, &cfg, &in, t);
-    }
+    t = bp_laufen(&st, &cfg, kessel_lauf(75.2f, 75.0f, 75.0f, false), t, 600);
     CHECK(!st.on, "auf gleicher Hoehe steht sie wieder");
 
     /* Ohne Speicherwert -- etwa weil das Nachbargeraet schweigt -- entscheidet
@@ -2531,31 +2535,38 @@ static void test_boilerpump_nachlauf(void)
     in.valid = true;
     in.buffer_valid = true;
 
+    /* Aufgezeichnet war nur der Speicher. Bei laufender Pumpe kommt der
+     * Ruecklauf aus ihm; die Werte dafuer sind daraus abgeleitet. */
+
     /* Waehrend der Ladung: Kessel weit ueber dem Speicher. */
     in.vl_c = 69.0f; in.rl_c = 60.9f; in.buffer_c = 56.0f;
     for (int i = 0; i < 400; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
     CHECK(st.on, "waehrend der Ladung laeuft sie");
 
     /* Restwaerme wird noch abgefuehrt, Abstand 7,2 K. */
-    in.vl_c = 76.2f; in.buffer_c = 69.0f;
+    in.vl_c = 76.2f; in.rl_c = 69.0f; in.buffer_c = 69.0f;
     for (int i = 0; i < 600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
     CHECK(st.on, "bei sieben Kelvin Abstand foerdert sie weiter");
 
-    /* Der Speicher hat seinen Hoechststand erreicht: Abstand 2,0 K. */
-    in.vl_c = 74.3f; in.buffer_c = 72.35f;
+    /* Der Speicher hat seinen Hoechststand erreicht: Abstand 1,9 K. */
+    in.vl_c = 74.3f; in.rl_c = 72.4f; in.buffer_c = 72.35f;
     for (int i = 0; i < 600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
     CHECK(!st.on, "am Hoechststand des Speichers geht sie aus, nicht \"%s\"",
           bp_reason_text(st.reason));
 
     /* Und bleibt aus, waehrend beide zusammen auskuehlen. */
-    in.vl_c = 70.8f; in.buffer_c = 70.1f;
+    in.vl_c = 70.8f; in.rl_c = 70.6f; in.buffer_c = 70.1f;
     for (int i = 0; i < 3600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
     CHECK(!st.on, "und bleibt aus, statt den Kessel warmzuhalten");
 
     /* Neue Waerme im Kessel startet sie wieder. */
-    in.vl_c = 74.0f; in.buffer_c = 70.1f;
-    for (int i = 0; i < 400; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    in.vl_c = 74.0f; in.rl_c = 74.0f; in.buffer_c = 70.1f;
+    for (uint32_t i = 0; i < cfg.hold_s + 10; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
     CHECK(st.on, "vier Kelvin Abstand starten sie wieder");
+    /* Laeuft sie, kommt Speicherwasser zurueck, und der Kessel gibt ab. */
+    in.rl_c = 70.3f;
+    for (int i = 0; i < 600; i++) { t += 1000; bp_tick(&st, &cfg, &in, t); }
+    CHECK(st.on, "und foerdert, solange der Vorlauf ueber dem Ruecklauf liegt");
     (void)t;
 }
 
@@ -2623,9 +2634,10 @@ static void test_boilerpump_brenner(void)
     cfg.enabled = true;
 
     /*
-     * Zuerst ohne Brennermeldung, wie bis 0.4.0: Bei 0,9 K Abstand zum
-     * Speicher liest die Regel "nichts abzugeben", und nach der Haltezeit
-     * steht die Pumpe -- mitten im Lauf.
+     * Zuerst ohne Brennermeldung, wie bis 0.4.0. Damals las die Regel gegen
+     * den Speicher bei 0,9 K Abstand "nichts abzugeben". Gegen den Ruecklauf
+     * sind es am Ende genau 2,0 K, die Ausschaltschwelle -- eine Minute
+     * laenger, und die Pumpe steht mitten im Lauf.
      */
     bp_state_t alt;
     bp_init(&alt, BP_MODE_AUTO);
@@ -2634,6 +2646,8 @@ static void test_boilerpump_brenner(void)
         t = bp_laufen(&alt, &cfg, kessel_lauf(LAUF_0923[i][0], LAUF_0923[i][1],
                                               LAUF_0923[i][2], false), t, 120);
     }
+    t = bp_laufen(&alt, &cfg, kessel_lauf(LAUF_0923[LAUF_0923_N - 1][0], LAUF_0923[LAUF_0923_N - 1][1],
+                                          LAUF_0923[LAUF_0923_N - 1][2], false), t, 60);
     CHECK(!alt.on, "ohne Brennermeldung geht sie im Lauf aus -- das war der Fehler");
 
     /* Mit der Meldung laeuft sie durch. */
@@ -2680,6 +2694,57 @@ static void test_boilerpump_brenner(void)
     bp_set_mode(&st, BP_MODE_OFF, t);
     t = bp_laufen(&st, &cfg, meldung, t, 10);
     CHECK(!st.on && st.reason == BP_REASON_MANUAL, "Hand aus gilt auch bei laufendem Brenner");
+}
+
+/*
+ * Der Morgen des 5. Oktober, Fuenfminutenwerte vom Kesselgeraet: Vorlauf,
+ * Ruecklauf, Speicher. Um 03:28 ging der Brenner aus. Gegen den Speicher
+ * gerechnet blieben drei Kelvin "Abgabe" stehen, die Pumpe lief bis 10:08,
+ * und der Kessel zuendete bis 08:27 sechsmal nach.
+ */
+static const float NACH_0510[][3] = {
+    {75.5f, 75.7f, 67.8f}, /* 03:30 */
+    {75.4f, 75.6f, 68.7f},
+    {75.2f, 75.4f, 69.2f},
+    {75.0f, 75.3f, 69.6f},
+    {74.8f, 75.1f, 69.8f},
+    {74.6f, 74.9f, 70.0f}, /* 03:55 */
+};
+#define NACH_0510_N (sizeof(NACH_0510) / sizeof(NACH_0510[0]))
+
+static void test_boilerpump_nachzuenden(void)
+{
+    printf("Kesselkreispumpe: nach der Ladung nicht durch den Kessel umwaelzen\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /* Ladung: der Brenner laeuft, die Pumpe mit ihm. */
+    t = bp_laufen(&st, &cfg, kessel_lauf(78.8f, 72.2f, 64.5f, true), t, 300);
+    CHECK(st.on && st.reason == BP_REASON_BURNER, "waehrend der Ladung laeuft sie");
+
+    /* Brenner aus. Der Ruecklauf liegt ueber dem Vorlauf: nichts abzugeben. */
+    for (size_t i = 0; i < NACH_0510_N; i++) {
+        t = bp_laufen(&st, &cfg, kessel_lauf(NACH_0510[i][0], NACH_0510[i][1], NACH_0510[i][2], false),
+                      t, 300);
+        if (i == 0) {
+            CHECK(!st.on, "fuenf Minuten nach dem Brenner steht sie, nicht \"%s\"",
+                  bp_reason_text(st.reason));
+        }
+    }
+    CHECK(!st.on, "und bleibt stehen, obwohl der Speicherfuehler 4,6 K tiefer liegt");
+    CHECK(st.buffer_bias_k > 5.0f, "der Abstand zum Speicherfuehler ist gemerkt: %.1f K",
+          (double)st.buffer_bias_k);
+
+    /* Der Kessel zuendet nach: die Brennermeldung schaltet sie sofort ein. */
+    t += 1000;
+    bp_input_t zuenden = kessel_lauf(78.6f, 75.2f, 70.2f, true);
+    bp_tick(&st, &cfg, &zuenden, t);
+    CHECK(st.on && st.reason == BP_REASON_BURNER, "beim Nachzuenden laeuft sie mit");
 }
 
 static void test_boilerpump_neustart(void)
@@ -2856,6 +2921,7 @@ int main(void)
     test_boilerpump_speicher();
     test_boilerpump_brenner();
     test_boilerpump_neustart();
+    test_boilerpump_nachzuenden();
     test_burner_fortsetzen();
     test_trend_gerade();
     test_trend_ausreisser();

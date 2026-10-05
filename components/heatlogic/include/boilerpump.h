@@ -18,10 +18,13 @@
  *     ganz gleich was die Spreizung sagt. Ein Fuehler, der klemmt, darf die
  *     Waermeabfuhr nicht verhindern.
  *
- * Verglichen wird der Kesselvorlauf mit der Speichertemperatur, ersatzweise
- * mit dem eigenen Ruecklauf. Waehrend die Pumpe laeuft, sind beide fast
- * dasselbe -- der Ruecklauf kommt aus dem Speicher. Steht sie, gehen sie
- * auseinander, und nur der Speicher taugt dann noch als Bezug.
+ * Verglichen wird der Kesselvorlauf bei laufender Pumpe mit dem eigenen
+ * Ruecklauf -- er kommt aus dem Speicher, und die Differenz ist die Waerme,
+ * die der Kessel tatsaechlich abgibt. Der Speicherfuehler taugt dafuer nicht:
+ * Er sitzt an anderer Stelle und lag an der Anlage drei Kelvin unter dem
+ * Wasser, das zurueckkam. Steht die Pumpe, fliesst nichts, Vor- und Ruecklauf
+ * nehmen die Kesseltemperatur an, und nur der Speicher bleibt als Bezug --
+ * zuzueglich des Abstands, um den der Ruecklauf zuletzt darueber lag.
  *
  * Beim Anlaufen des Brenners steht die Pumpe zunaechst: Der kalte Kessel
  * wuerde sonst den warmen Speicher abkuehlen. Sie springt an, sobald der
@@ -88,12 +91,11 @@ typedef struct {
     bool valid;            /* beide Kesselfuehler liefern */
     float vl_c, rl_c;
     /*
-     * Speichertemperatur, wenn sie vorliegt. Sie ist der bessere Bezug: Bei
-     * stehender Pumpe fliesst nichts, Vor- und Ruecklauf nehmen beide die
-     * Temperatur des Kesselkoerpers an, und die Spreizung sagt dann nichts
-     * mehr. Ein Kessel, der noch Waerme haelt, bliebe so unbemerkt stehen.
-     * Faellt der Wert aus -- er kommt vom Nachbargeraet --, gilt wieder der
-     * Ruecklauf.
+     * Speichertemperatur, wenn sie vorliegt. Bezug bei stehender Pumpe: Dann
+     * fliesst nichts, Vor- und Ruecklauf nehmen beide die Temperatur des
+     * Kesselkoerpers an, und die Spreizung sagt nichts mehr. Ein Kessel, der
+     * noch Waerme haelt, bliebe so unbemerkt stehen. Faellt der Wert aus --
+     * er kommt vom Nachbargeraet --, gilt wieder der Ruecklauf.
      */
     bool buffer_valid;
     float buffer_c;
@@ -112,6 +114,10 @@ typedef struct {
     bool switched;          /* es wurde wirklich schon einmal geschaltet */
     uint32_t cond_since_ms; /* seit wann die aktuelle Bedingung anliegt */
     bool cond_transfer;     /* welche Bedingung das ist */
+    /* Um so viel lag der Ruecklauf bei laufender Pumpe zuletzt ueber dem
+     * Speicherfuehler, 0 bis 10 K. Bei stehender Pumpe kommt er auf den
+     * Speicher. */
+    float buffer_bias_k;
 } bp_state_t;
 
 /* Vorgabe: drei Kelvin ein, zwei aus, zwei Minuten Haltezeit, je drei Minuten
