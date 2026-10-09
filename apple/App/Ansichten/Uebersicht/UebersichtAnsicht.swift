@@ -139,7 +139,7 @@ struct UebersichtAnsicht: View {
     }
 
     private func pumpenGestoert(_ anlage: Anlagenbild) -> Int {
-        anlage.heizkreise.filter { !$0.relais.erreichbar }.count + (anlage.kesselkreispumpe.map { $0.relais.erreichbar ? 0 : 1 } ?? 0)
+        anlage.heizkreise.filter(\.relais.gestoert).count + (anlage.kesselkreispumpe.map { $0.relais.gestoert ? 1 : 0 } ?? 0)
     }
 
     private func pumpenzahl(_ anlage: Anlagenbild) -> Int {

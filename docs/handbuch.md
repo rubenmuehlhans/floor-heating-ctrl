@@ -437,6 +437,8 @@ Fußbodenvorlauftemperatur, nicht knapp über Raumtemperatur.
 | Ein Ventil gehört zu keinem Raum | Es zählt nicht als Bedarf und wird zugefahren |
 | Diese Steuerung fällt ganz aus | Am Relais sorgt eine Regel dafür, dass die Pumpe von selbst anläuft (siehe unten) |
 | Die Rückmeldung weicht länger als 30 s vom Sollwert ab | „Relais folgt nicht" |
+| Das Relais nimmt keine Verbindung an | Es gilt als stromlos: Die vorgeschaltete Regelung hat den Pumpenausgang abgeschaltet (siehe unten). Die Pumpe gilt als stehend, keine Störung; die Vertauschungsprüfung ruht |
+| Das Relais ist stromlos, die Steuerung will die Pumpe aber laufen lassen | „vorgeschaltete Regelung gibt die Pumpe nicht frei"; die App meldet es nach einer Stunde als Hinweis |
 
 **Absicherung am Relais.** Das Gerät sendet alle sechzig Sekunden ein Lebenszeichen. Hinterlegen
 Sie am Tasmota-Relais folgende Einstellungen, damit die Pumpe bei einem Ausfall dieser Steuerung
@@ -451,6 +453,25 @@ Rule1 1
 Bleibt das Lebenszeichen aus, schaltet das Relais nach einer Viertelstunde ein. Eine laufende
 Pumpe gegen geschlossene Ventile ist verschwenderisch, aber unschädlich; eine stehende Pumpe bei
 Wärmebedarf ist es nicht.
+
+**Relais hinter einer vorgeschalteten Regelung.** Häufig bleibt die bisherige Regelung im Spiel:
+Das Tasmota-Relais hängt am Pumpenausgang der Kesselregelung (Heizkreise) oder des Heliomaten
+(Ladepumpe), und die Pumpe läuft nur, wenn beide sie wollen. Schaltet die vorgeschaltete Regelung
+ab, hat das Relais keinen Strom und verschwindet aus dem Netz. Das Heizungsgerät wertet eine
+fehlende Verbindung deshalb nicht als Störung, sondern als **stromlos**: Die Pumpe gilt als
+stehend, die Oberfläche zeigt „Relais ohne Strom“ mit der Dauer, und eine Abweichung zwischen
+Sollzustand und letzter Rückmeldung wird in dieser Zeit nicht gemeldet. Bekommt das Relais wieder
+Strom, erhält es binnen zehn Sekunden den Sollzustand. Antwortet es dagegen mit einem falschen
+Status, steht die Verbindung, und es bleibt eine Störung.
+
+Damit eine Pumpe sofort läuft, sobald die vorgeschaltete Regelung Strom gibt, gehört an jedes
+solche Relais `PowerOnState 1`; die Steuerung schaltet sie gegebenenfalls kurz danach ab. An der
+Kesselkreispumpe ist das wichtig: Startet das Relais dort ausgeschaltet, heizt der Kessel ohne
+Abfuhr, bis die Brennererkennung anspricht.
+
+Will die Steuerung eine Pumpe laufen lassen, während ihr Relais stromlos ist, gilt der Kreis als
+**gesperrt**, etwa in der Nachtabsenkung der Kesselregelung. Soll diese Steuerung allein über die
+Heizkreispumpen entscheiden, gehören deren Ausgänge an der Kesselregelung auf Dauerbetrieb.
 
 ## Brenner und Pufferspeicher
 

@@ -1332,12 +1332,15 @@ function renderBoilerPump() {
       marken.push(`<span class="chip warn">Handbetrieb</span>`);
     if (b.path === "keiner") marken.push(`<span class="chip warn">kein Weg zum Relais</span>`);
     else marken.push(`<span class="chip plain">über ${b.path === "http" ? "HTTP" : "MQTT"}</span>`);
-    if (b.relay.known && !b.relay.mismatch)
+    /* Ein Relais ohne Verbindung hat an dieser Anlage keinen Strom: Die
+       vorgeschaltete Regelung hat die Pumpe abgeschaltet. Das ist kein Fehler. */
+    if (b.relay.unpowered)
+      marken.push(`<span class="chip plain">Relais ohne Strom seit ${formatUptime(b.relay.unpowered_s || 0)}</span>`);
+    else if (b.relay.known && !b.relay.mismatch)
       marken.push(`<span class="chip ${b.relay.on ? "heat" : "plain"}">Relais ${
         b.relay.on ? "ein" : "aus"}</span>`);
-    if (b.path === "http" && b.relay.status !== undefined && b.relay.status !== 200)
-      marken.push(`<span class="chip bad">${b.relay.status < 0
-        ? "Relais nicht erreichbar" : `Relais antwortet mit ${b.relay.status}`}</span>`);
+    if (b.path === "http" && !b.relay.unpowered && b.relay.status !== undefined && b.relay.status !== 200)
+      marken.push(`<span class="chip bad">Relais antwortet mit ${b.relay.status}</span>`);
   }
   $("#bp-marks").innerHTML = marken.join("");
 
@@ -1433,16 +1436,19 @@ function renderCircuits() {
     if (!k.any_seen && (c.peers || []).length)
       marken.push(`<span class="chip bad">kein Verteiler erreicht</span>`);
     if (k.relay.mismatch) marken.push(`<span class="chip bad">Relais folgt nicht</span>`);
-    if (k.relay.known && !k.relay.mismatch)
+    if (k.blocked)
+      marken.push(`<span class="chip warn">vorgeschaltete Regelung gibt die Pumpe nicht frei</span>`);
+    if (k.relay.unpowered)
+      marken.push(`<span class="chip plain">Relais ohne Strom seit ${formatUptime(k.relay.unpowered_s || 0)}</span>`);
+    else if (k.relay.known && !k.relay.mismatch)
       marken.push(`<span class="chip ${k.relay.on ? "heat" : "plain"}">Relais ${
         k.relay.on ? "ein" : "aus"}</span>`);
     if (k.path === "keiner")
       marken.push(`<span class="chip warn">kein Weg zum Relais</span>`);
     else
       marken.push(`<span class="chip plain">über ${k.path === "http" ? "HTTP" : "MQTT"}</span>`);
-    if (k.path === "http" && k.relay.status !== undefined && k.relay.status !== 200)
-      marken.push(`<span class="chip bad">${k.relay.status < 0
-        ? "Relais nicht erreichbar" : `Relais antwortet mit ${k.relay.status}`}</span>`);
+    if (k.path === "http" && !k.relay.unpowered && k.relay.status !== undefined && k.relay.status !== 200)
+      marken.push(`<span class="chip bad">Relais antwortet mit ${k.relay.status}</span>`);
 
     const quellzeilen = meine.length ? meine.map(q => `<div class="src">
         <span class="chip ${q.demand ? "heat" : "plain"}">${q.demand ? "Bedarf" : "kein Bedarf"}</span>

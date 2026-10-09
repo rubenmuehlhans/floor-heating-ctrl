@@ -310,6 +310,11 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddBoolToObject(rel, "online", c->relay_online);
         cJSON_AddNumberToObject(rel, "age_s", c->relay_age_s);
         cJSON_AddBoolToObject(rel, "mismatch", c->relay_mismatch);
+        cJSON_AddBoolToObject(rel, "unpowered", c->relay_unpowered);
+        if (c->relay_unpowered) {
+            cJSON_AddNumberToObject(rel, "unpowered_s", c->relay_unpowered_s);
+        }
+        cJSON_AddBoolToObject(j, "blocked", c->blocked);
         if (c->path == PUMP_PATH_HTTP) {
             cJSON_AddNumberToObject(rel, "status", c->last_status);
         }
@@ -625,6 +630,10 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON_AddBoolToObject(jbr, "known", bp.relay_known);
     cJSON_AddBoolToObject(jbr, "on", bp.relay_on);
     cJSON_AddBoolToObject(jbr, "online", bp.relay_online);
+    cJSON_AddBoolToObject(jbr, "unpowered", bp.relay_unpowered);
+    if (bp.relay_unpowered) {
+        cJSON_AddNumberToObject(jbr, "unpowered_s", bp.relay_unpowered_s);
+    }
     if (bp.path == PUMP_PATH_HTTP) {
         cJSON_AddNumberToObject(jbr, "status", bp.last_status);
     }

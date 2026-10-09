@@ -49,6 +49,18 @@ typedef struct {
     /* Rueckmeldung des Relais. */
     bool known, on, online;
     uint32_t seen_ms;
+    /*
+     * Keine Verbindung zum Relais: Es hat keinen Strom. An dieser Anlage haengen
+     * die Relais hinter den Pumpenausgaengen von Kesselregelung und Heliomat;
+     * schalten die ab, verschwindet das Relais aus dem Netz, und die Pumpe steht,
+     * gleich was hier verlangt wird. Das ist kein Fehler, sondern die
+     * vorgeschaltete Regelung. Bekommt es wieder Strom, startet es mit
+     * PowerOnState 1 eingeschaltet und erhaelt binnen HTTP_RETRY_MS den
+     * Sollzustand. Eine Antwort mit falschem Status zaehlt nicht dazu: Dann
+     * steht die Verbindung, und etwas anderes stimmt nicht.
+     */
+    bool stromlos;
+    uint32_t stromlos_seit_ms;
     uint32_t want_since_ms;   /* seit wann der Sollzustand anliegt */
     uint32_t last_sent_ms;
     bool last_sent_on;
@@ -373,6 +385,12 @@ static void relay_lwt_cb(const char *topic, const char *payload, void *ctx)
         snprintf(erwartet, sizeof(erwartet), "tele/%s/LWT", z->rel.topic);
         if (strcmp(topic, erwartet) == 0) {
             z->rel.online = online;
+            if (!online && !z->rel.stromlos) {
+                z->rel.stromlos = true;
+                z->rel.stromlos_seit_ms = now_ms();
+            } else if (online) {
+                z->rel.stromlos = false;
+            }
             /* Ein neu gestartetes Relais bekommt den Sollzustand sofort. */
             if (online) {
                 z->rel.last_sent_ms = 0;
@@ -504,6 +522,11 @@ static void push_relay(relay_t *r, bool soll, uint32_t t)
     r->last_status = status;
 
     if (status == 200) {
+        if (r->stromlos) {
+            ESP_LOGI(TAG, "Relais %s wieder versorgt nach %lu s", r->host,
+                     (unsigned long)((t - r->stromlos_seit_ms) / 1000));
+        }
+        r->stromlos = false;
         r->last_sent_ms = t;
         r->last_sent_on = soll;
         r->known = true;
@@ -513,8 +536,13 @@ static void push_relay(relay_t *r, bool soll, uint32_t t)
     } else {
         r->online = false;
         if (status < 0) {
-            ESP_LOGW(TAG, "Relais %s nicht erreichbar", r->host);
+            if (!r->stromlos) {
+                r->stromlos = true;
+                r->stromlos_seit_ms = t;
+                ESP_LOGW(TAG, "Relais %s ohne Verbindung, vermutlich stromlos", r->host);
+            }
         } else {
+            r->stromlos = false;
             /* Verbindung stand, aber die Antwort passt nicht: falsche Adresse,
              * fehlende Anmeldung oder gar kein Tasmota. */
             ESP_LOGW(TAG, "Relais %s antwortet mit %d", r->host, status);
@@ -635,7 +663,7 @@ static void evaluate(uint32_t t)
          * Waerme da ist -- bei stehender Pumpe stehen beide Rohre einfach da.
          * Meldet das Relais aus, laeuft sie nicht, was immer der Sollzustand
          * sagt; ohne Rueckmeldung bleibt nur der Sollzustand. */
-        bool laeuft = z->st.on && (!z->rel.known || z->rel.on);
+        bool laeuft = z->st.on && !z->rel.stromlos && (!z->rel.known || z->rel.on);
         float rl_c = 0.0f;
         bool rl_ok = sensors_role_value(z->rl_role, &rl_c, NULL);
         plausi_flow_tick(&z->swapped, &s_plausi, laeuft, in.buffer_valid, in.buffer_c,
@@ -803,10 +831,15 @@ size_t pumps_status(circuit_status_t *out, size_t max)
         o->flow_swapped = z->swapped.active;
         o->swapped_held_s = z->swapped.held_s;
         o->relay_known = z->rel.known;
-        o->relay_on = z->rel.on;
+        /* Ohne Strom laeuft die Pumpe nicht, was immer das Relais zuletzt
+         * meldete. */
+        o->relay_on = z->rel.on && !z->rel.stromlos;
         o->relay_online = z->rel.online;
         o->relay_age_s = z->rel.seen_ms ? (t - z->rel.seen_ms) / 1000 : 0;
-        o->relay_mismatch = z->rel.known && z->rel.on != z->st.on &&
+        o->relay_unpowered = z->rel.stromlos;
+        o->relay_unpowered_s = z->rel.stromlos ? (t - z->rel.stromlos_seit_ms) / 1000 : 0;
+        o->blocked = z->st.on && z->rel.stromlos;
+        o->relay_mismatch = z->rel.known && !z->rel.stromlos && z->rel.on != z->st.on &&
                             z->rel.last_sent_ms != 0 && (t - z->rel.last_sent_ms) > MISMATCH_MS;
         o->path = (z->rel.topic[0] != '\0' && mqttc_connected()) ? PUMP_PATH_MQTT
                   : (z->rel.host[0] != '\0' ? PUMP_PATH_HTTP : PUMP_PATH_NONE);
@@ -830,8 +863,10 @@ void pumps_boiler_status(boiler_pump_status_t *out)
     out->reason_key = bp_reason_key(s_bp.reason);
     out->since_s = s_bp.started ? (now_ms() - s_bp.since_ms) / 1000 : 0;
     out->relay_known = s_bprel.known;
-    out->relay_on = s_bprel.on;
+    out->relay_on = s_bprel.on && !s_bprel.stromlos;
     out->relay_online = s_bprel.online;
+    out->relay_unpowered = s_bprel.stromlos;
+    out->relay_unpowered_s = s_bprel.stromlos ? (now_ms() - s_bprel.stromlos_seit_ms) / 1000 : 0;
     out->last_status = s_bprel.last_status;
     out->path = s_bprel.topic[0] && mqttc_connected() ? PUMP_PATH_MQTT
                 : s_bprel.host[0] ? PUMP_PATH_HTTP : PUMP_PATH_NONE;

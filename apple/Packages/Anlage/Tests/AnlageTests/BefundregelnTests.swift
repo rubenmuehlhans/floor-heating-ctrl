@@ -97,6 +97,36 @@ struct BefundregelnTests {
         #expect(gestoert["kreis-ohne-bedarf:2"] != nil)
     }
 
+    /// Die Relais hängen hinter den Pumpenausgängen von Kesselregelung und Heliomat. Schalten die
+    /// ab, ist das Relais stromlos und nicht erreichbar -- keine Störung. Will das Heizungsgerät
+    /// die Pumpe trotzdem laufen lassen, ist der Kreis gesperrt.
+    @Test func stromlosesRelaisIstKeineStoerung() throws {
+        let b = befunde([try speicher { z in
+            z.heizkreise?[0].pumpeEin = true
+            z.heizkreise?[0].relais?.erreichbar = false
+            z.heizkreise?[0].relais?.stromlos = true
+            z.heizkreise?[0].gesperrt = true
+            z.heizkreise?[1].pumpeEin = false
+            z.heizkreise?[1].relais?.erreichbar = false
+            z.heizkreise?[1].relais?.stromlos = true
+        }])
+        #expect(b["relais"] == nil, "stromlos ist keine Störung")
+        #expect(b["kreis-gesperrt:1"]?.schwere == .hinweis)
+        #expect(b["kreis-gesperrt:1"]?.mindestdauer == 3600)
+        #expect(b["kreis-gesperrt:2"] == nil, "ohne Bedarf ist nichts gesperrt")
+
+        let bild = Zusammenfuehrung.bild([try speicher { z in
+            z.heizkreise?[0].pumpeEin = true
+            z.heizkreise?[0].relais?.ein = true
+            z.heizkreise?[0].relais?.stromlos = true
+        }])
+        #expect(bild.heizkreise.first?.pumpeLaeuft == false, "ohne Strom steht die Pumpe")
+
+        // Ohne Verbindung und ohne diese Erklärung bleibt es eine Störung.
+        let gestoert = befunde([try speicher { z in z.heizkreise?[0].relais?.erreichbar = false }])
+        #expect(gestoert["relais"]?.schwere == .stoerung)
+    }
+
     /// Eine Platine ohne Räume empfängt nur ein Funkthermometer; sie meldet nie Bedarf und
     /// braucht deshalb keinen Heizkreis.
     @Test func verteilerOhneRaeumeBrauchtKeinenKreis() throws {

@@ -180,8 +180,10 @@ extension Zusammenfuehrung {
 
     static func kreisbefunde(_ staende: [Geraetestand], bild: Anlagenbild, speicher: Geraetestand?) -> [Befund] {
         var liste: [Befund] = []
-        let gestoert = bild.heizkreise.filter { !$0.relais.erreichbar && $0.relais.weg != "kein Weg" }.map { ($0.name, $0.relais.adresse) }
-            + (bild.kesselkreispumpe.flatMap { $0.relais.erreichbar ? nil : [($0.name, $0.relais.adresse)] } ?? [])
+        // Ein stromloses Relais ist keine Störung: Die vorgeschaltete Regelung hat den Pumpenausgang
+        // abgeschaltet, an dem es hängt.
+        let gestoert = bild.heizkreise.filter { $0.relais.gestoert && $0.relais.weg != "kein Weg" }.map { ($0.name, $0.relais.adresse) }
+            + (bild.kesselkreispumpe.flatMap { $0.relais.gestoert ? [($0.name, $0.relais.adresse)] : nil } ?? [])
         if !gestoert.isEmpty {
             let adressen = gestoert.map(\.1).filter { !$0.isEmpty }.joined(separator: ", ")
             liste.append(Befund(
@@ -189,6 +191,14 @@ extension Zusammenfuehrung {
                 titel: gestoert.count == 1 ? "Relais \(gestoert[0].0) nicht erreichbar" : "Relais der Pumpen nicht erreichbar",
                 text: "Die Relais\(adressen.isEmpty ? "" : " unter \(adressen)") antworten nicht. Die Pumpen folgen der Steuerung deshalb nicht. Bleibt das Lebenszeichen aus, schaltet die Ausfallregel im Relais die Pumpe nach 15 Minuten ein, sofern sie eingerichtet ist.",
                 ort: gestoert.map(\.0).joined(separator: ", "), quelle: "Heizungsgeräte", mindestdauer: 600))
+        }
+
+        for kreis in bild.heizkreise where kreis.gesperrt {
+            liste.append(Befund(
+                id: "kreis-gesperrt:\(kreis.nummer)", schwere: .hinweis,
+                titel: "\(kreis.name): Wärmebedarf, aber die Kesselregelung gibt die Pumpe nicht frei",
+                text: "Die Räume fordern Wärme an, das Relais der Pumpe ist aber ohne Strom. Die vorgeschaltete Regelung am Kessel hat ihren Pumpenausgang abgeschaltet, etwa in der Nachtabsenkung. Soll diese Steuerung über die Pumpe entscheiden, stellen Sie den Ausgang der Kesselregelung auf Dauerbetrieb.",
+                ort: kreis.name, quelle: "Prüfung der App", mindestdauer: 3600))
         }
 
         // Die versorgten Verteiler stehen in der Konfiguration; bis sie gelesen ist, wären alle

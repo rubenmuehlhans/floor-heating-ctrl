@@ -339,7 +339,9 @@ public enum Zusammenfuehrung {
             kanal: p?["relay"]?.alsGanzzahl ?? 1,
             weg: wegname,
             erreichbar: r?.erreichbar ?? false,
-            ein: r?.ein ?? false
+            ein: (r?.ein ?? false) && r?.stromlos != true,
+            stromlos: r?.stromlos ?? false,
+            stromlosSeit: r?.stromlosS
         )
     }
 
@@ -355,7 +357,8 @@ public enum Zusammenfuehrung {
                 nummer: id,
                 name: c.name ?? k?["name"]?.alsText ?? "Heizkreis \(id)",
                 betriebsart: pumpenbetriebsart(c.betriebsart ?? k?["mode"]?.alsText),
-                pumpeLaeuft: c.pumpeEin ?? false,
+                // Ohne Strom am Relais steht die Pumpe, was immer verlangt ist.
+                pumpeLaeuft: (c.pumpeEin ?? false) && c.relais?.stromlos != true,
                 grund: c.grund ?? "",
                 bedarf: c.bedarf ?? false,
                 vorlauf: c.vorlaufC ?? fuehler[vlRolle],
@@ -372,7 +375,8 @@ public enum Zusammenfuehrung {
                 frostgrenze: k?["frost_c"]?.alsZahl ?? 0,
                 bedarfVeraltet: c.veraltet ?? false,
                 keinVerteilerErreicht: c.abnehmerGesehen == false && !peers.isEmpty,
-                vorlaufRolle: vlRolle, ruecklaufRolle: rlRolle
+                vorlaufRolle: vlRolle, ruecklaufRolle: rlRolle,
+                gesperrt: c.gesperrt ?? ((c.pumpeEin ?? false) && c.relais?.stromlos == true)
             )
         }
     }
@@ -400,7 +404,7 @@ public enum Zusammenfuehrung {
         return Pumpe(
             name: "Kesselkreispumpe",
             betriebsart: pumpenbetriebsart(p.betriebsart),
-            laeuft: p.ein ?? false,
+            laeuft: (p.ein ?? false) && p.relais?.stromlos != true,
             grund: pumpengrund(p.grundSchluessel) ?? p.grund ?? "",
             relais: relais(konfiguration: k, zustand: p.relais, weg: p.weg),
             einschaltschwelle: k?["on_k"]?.alsZahl ?? 0,

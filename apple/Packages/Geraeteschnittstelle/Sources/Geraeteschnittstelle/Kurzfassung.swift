@@ -120,6 +120,8 @@ extension Heizgeraetezustand {
                 e["vorlauf_c"] = Kurz.zahl(k.vorlaufC)
                 e["ruecklauf_c"] = Kurz.zahl(k.ruecklaufC)
                 e["relais_erreichbar"] = k.relais?.erreichbar.map(JSONWert.bool)
+                if k.relais?.stromlos == true { e["relais_stromlos"] = true }
+                if k.gesperrt == true { e["gesperrt"] = true }
                 if k.relais?.abweichung == true { e["relais_abweichung"] = true }
                 return e.wert
             })
@@ -130,6 +132,7 @@ extension Heizgeraetezustand {
             e["ein"] = p.ein.map(JSONWert.bool)
             e["grund"] = p.grund.map(JSONWert.text)
             e["relais_erreichbar"] = p.relais?.erreichbar.map(JSONWert.bool)
+            if p.relais?.stromlos == true { e["relais_stromlos"] = true }
             o["kesselkreispumpe"] = e.wert
         }
         o["befunde"] = befunde.map { b in

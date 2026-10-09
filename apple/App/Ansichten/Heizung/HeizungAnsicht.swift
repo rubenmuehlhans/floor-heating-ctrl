@@ -218,7 +218,9 @@ struct Kartenlink: View {
 
 extension Heizkreis {
     var pumpenmarke: (text: String, symbol: String, farbe: Color) {
-        if !relais.erreichbar { return ("Relais gestört", "xmark.octagon", Farbe.stoerung) }
+        if relais.gestoert { return ("Relais gestört", "xmark.octagon", Farbe.stoerung) }
+        if gesperrt { return ("Von der Kesselregelung gesperrt", "lock", Farbe.warnung) }
+        if relais.stromlos { return ("Pumpe aus, Relais ohne Strom", "powerplug", Farbe.gedaempft) }
         if pumpeLaeuft { return ("Pumpe läuft", "fanblades", Farbe.waerme) }
         return ("Pumpe aus", "power", Farbe.gedaempft)
     }
@@ -260,7 +262,18 @@ struct HeizkreisKarte: View {
             } else if kreis.bedarfVeraltet {
                 Zustandsmarke(text: "Ein versorgter Verteiler antwortet nicht", symbol: "wifi.exclamationmark", farbe: Farbe.warnung)
             }
-            if !kreis.relais.erreichbar {
+            if kreis.gesperrt {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "lock").foregroundStyle(Farbe.warnung)
+                    Text("Die Räume fordern Wärme an, aber die Kesselregelung gibt die Pumpe nicht frei: Das Relais \(kreis.relais.adresse) ist ohne Strom.")
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .padding(10)
+                .background(Farbe.warnung.opacity(0.08), in: .rect(cornerRadius: 8))
+            }
+            if kreis.relais.gestoert {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "xmark.octagon").foregroundStyle(Farbe.stoerung)
                     Text("Relais \(kreis.relais.adresse) antwortet nicht; die Pumpe folgt der Steuerung nicht.")
@@ -289,8 +302,10 @@ struct KesselkreispumpeKarte: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(pumpe.name).font(Schrift.kartentitel)
                 Spacer()
-                if !pumpe.relais.erreichbar {
+                if pumpe.relais.gestoert {
                     Zustandsmarke(text: "Relais gestört", symbol: "xmark.octagon", farbe: Farbe.stoerung)
+                } else if pumpe.relais.stromlos {
+                    Zustandsmarke(text: "Pumpe aus, Relais ohne Strom", symbol: "powerplug", farbe: Farbe.gedaempft)
                 } else {
                     Zustandsmarke(text: pumpe.laeuft ? "Pumpe läuft" : "Pumpe aus", symbol: pumpe.laeuft ? "fanblades" : "power",
                                   farbe: pumpe.laeuft ? Farbe.waerme : Farbe.gedaempft)
@@ -329,6 +344,9 @@ struct RelaisZeile: View {
                     .foregroundStyle(Farbe.gedaempft)
                 if relais.erreichbar {
                     Text(relais.ein ? "ein" : "aus").foregroundStyle(Farbe.gedaempft)
+                } else if relais.stromlos {
+                    Text("ohne Strom" + (relais.stromlosSeit.map { " seit \(Format.dauer($0))" } ?? ""))
+                        .foregroundStyle(Farbe.gedaempft)
                 } else {
                     Label("nicht erreichbar", systemImage: "xmark.octagon")
                         .foregroundStyle(Farbe.stoerung)

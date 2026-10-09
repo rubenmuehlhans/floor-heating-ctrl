@@ -57,7 +57,7 @@ struct Anlagenschema: View {
         linie(&c, [CGPoint(x: 385, y: 275), CGPoint(x: 225, y: 275)], Farbe.kaelte)
         kicker(&c, "Rücklauf", CGPoint(x: 312, y: 258))
         wert(&c, Format.temperatur(k?.ruecklauf), CGPoint(x: 312, y: 296), Farbe.kaelte)
-        pumpe(&c, CGPoint(x: 248, y: 275), laeuft: anlage.kesselkreispumpe?.laeuft ?? false, gestoert: anlage.kesselkreispumpe.map { !$0.relais.erreichbar } ?? false)
+        pumpe(&c, CGPoint(x: 248, y: 275), laeuft: anlage.kesselkreispumpe?.laeuft ?? false, gestoert: anlage.kesselkreispumpe.map { $0.relais.gestoert } ?? false)
         // Speicher
         speicher(&c, CGRect(x: 385, y: 95, width: 110, height: 250))
         kicker(&c, "Pufferspeicher", CGPoint(x: 440, y: 76))
@@ -73,14 +73,16 @@ struct Anlagenschema: View {
             linie(&c, [CGPoint(x: 680, y: rl), CGPoint(x: 495, y: rl)], Farbe.kaelte)
             linie(&c, [CGPoint(x: 568, y: vl + 14), CGPoint(x: 568, y: rl)], Farbe.kaelte)
             mischer(&c, CGPoint(x: 568, y: vl))
-            pumpe(&c, CGPoint(x: 630, y: vl), laeuft: kreis.pumpeLaeuft, gestoert: !kreis.relais.erreichbar)
+            pumpe(&c, CGPoint(x: 630, y: vl), laeuft: kreis.pumpeLaeuft, gestoert: kreis.relais.gestoert)
             kicker(&c, "Vorlauf", CGPoint(x: 690, y: vl - 12), anker: .leading)
             wert(&c, Format.temperatur(kreis.vorlauf), CGPoint(x: 690, y: vl + 9), Farbe.waerme, anker: .leading)
             kicker(&c, "Rücklauf", CGPoint(x: 690, y: rl - 12), anker: .leading)
             wert(&c, Format.temperatur(kreis.ruecklauf), CGPoint(x: 690, y: rl + 9), Farbe.kaelte, anker: .leading)
             kicker(&c, kreis.versorgteVerteiler.joined(separator: " und "), CGPoint(x: 588, y: rl + 24))
-            if !kreis.relais.erreichbar {
+            if kreis.relais.gestoert {
                 kicker(&c, "Relais nicht erreichbar", CGPoint(x: 588, y: rl + 40), farbe: Farbe.stoerung)
+            } else if kreis.gesperrt {
+                kicker(&c, "von der Kesselregelung gesperrt", CGPoint(x: 588, y: rl + 40), farbe: Farbe.warnung)
             }
         }
     }
@@ -109,7 +111,7 @@ struct Anlagenschema: View {
         linie(&c, [CGPoint(x: 222, y: 156), CGPoint(x: 120, y: 156)], Farbe.kaelte)
         kicker(&c, "Rücklauf", CGPoint(x: 188, y: 141))
         wert(&c, Format.temperatur(k?.ruecklauf), CGPoint(x: 186, y: 173), Farbe.kaelte)
-        pumpe(&c, CGPoint(x: 134, y: 156), laeuft: anlage.kesselkreispumpe?.laeuft ?? false, gestoert: anlage.kesselkreispumpe.map { !$0.relais.erreichbar } ?? false)
+        pumpe(&c, CGPoint(x: 134, y: 156), laeuft: anlage.kesselkreispumpe?.laeuft ?? false, gestoert: anlage.kesselkreispumpe.map { $0.relais.gestoert } ?? false)
 
         // Heizkreise wie im Browser, nur gespiegelt: Vorlauf aus dem Speicher über Mischer und
         // Pumpe nach links, Rücklauf zurück, der Mischer mischt aus dem Rücklauf bei. So kreuzt
@@ -121,14 +123,16 @@ struct Anlagenschema: View {
             linie(&c, [CGPoint(x: 96, y: rl), CGPoint(x: 222, y: rl)], Farbe.kaelte)
             linie(&c, [CGPoint(x: 178, y: vl + 14), CGPoint(x: 178, y: rl)], Farbe.kaelte)
             mischer(&c, CGPoint(x: 178, y: vl))
-            pumpe(&c, CGPoint(x: 128, y: vl), laeuft: kreis.pumpeLaeuft, gestoert: !kreis.relais.erreichbar)
+            pumpe(&c, CGPoint(x: 128, y: vl), laeuft: kreis.pumpeLaeuft, gestoert: kreis.relais.gestoert)
             kicker(&c, "Vorlauf", CGPoint(x: 48, y: vl - 12))
             wert(&c, Format.temperatur(kreis.vorlauf), CGPoint(x: 48, y: vl + 10), Farbe.waerme)
             kicker(&c, "Rücklauf", CGPoint(x: 48, y: rl - 12))
             wert(&c, Format.temperatur(kreis.ruecklauf), CGPoint(x: 48, y: rl + 10), Farbe.kaelte)
             kicker(&c, kreis.versorgteVerteiler.joined(separator: " und "), CGPoint(x: 118, y: rl + 36))
-            if !kreis.relais.erreichbar {
+            if kreis.relais.gestoert {
                 kicker(&c, "Relais nicht erreichbar", CGPoint(x: 118, y: rl + 52), farbe: Farbe.stoerung)
+            } else if kreis.gesperrt {
+                kicker(&c, "von der Kesselregelung gesperrt", CGPoint(x: 118, y: rl + 52), farbe: Farbe.warnung)
             }
         }
     }

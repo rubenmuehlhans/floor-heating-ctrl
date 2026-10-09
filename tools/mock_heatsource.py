@@ -224,8 +224,12 @@ def state() -> dict:
             "vl_c": vl, "rl_c": rl,
             "spread_k": None if vl is None or rl is None else round(vl - rl, 2),
             "path": "mqtt",
-            "relay": {"known": True, "on": bedarf, "online": True, "age_s": 4,
-                      "mismatch": False},
+            # Heizkreis 2 haengt hinter einem abgeschalteten Pumpenausgang der
+            # Kesselregelung: Das Relais hat keinen Strom.
+            "relay": {"known": True, "on": bedarf, "online": c["id"] != 2, "age_s": 4,
+                      "mismatch": False, "unpowered": c["id"] == 2,
+                      **({"unpowered_s": 5400} if c["id"] == 2 else {})},
+            "blocked": False,
         })
 
     quellen = []

@@ -71,6 +71,12 @@ typedef struct {
     bool relay_online;
     uint32_t relay_age_s;
     bool relay_mismatch;   /* Rueckmeldung weicht laenger vom Sollwert ab */
+    /* Relais ohne Verbindung, vermutlich von der vorgeschalteten Regelung
+     * stromlos geschaltet; seit wie vielen Sekunden. */
+    bool relay_unpowered;
+    uint32_t relay_unpowered_s;
+    /* Die Pumpe soll laufen, die vorgeschaltete Regelung gibt sie nicht frei. */
+    bool blocked;
     /* Welcher Weg zum Relais gerade gilt -- nicht, welcher zuletzt geklappt
      * hat: die Oberflaeche soll zeigen, worueber geschaltet wird, auch wenn
      * das Relais gerade nicht antwortet. */
@@ -93,6 +99,8 @@ typedef struct {
     const char *reason_key;
     uint32_t since_s;
     bool relay_known, relay_on, relay_online;
+    bool relay_unpowered;  /* siehe circuit_status_t */
+    uint32_t relay_unpowered_s;
     int last_status;
     pump_path_t path;
 } boiler_pump_status_t;

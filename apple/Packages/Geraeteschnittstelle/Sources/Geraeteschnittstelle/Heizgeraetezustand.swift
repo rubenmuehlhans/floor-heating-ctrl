@@ -147,6 +147,10 @@ public struct Heizgeraetezustand: Decodable, Sendable, Equatable {
         public var abweichung: Bool?
         public var status: Int?
         public var alterS: Int?
+        /// Keine Verbindung: Das Relais hat keinen Strom, die vorgeschaltete Regelung hat den
+        /// Pumpenausgang abgeschaltet. Kein Fehler.
+        public var stromlos: Bool?
+        public var stromlosS: Int?
 
         enum CodingKeys: String, CodingKey {
             case bekannt = "known"
@@ -155,6 +159,8 @@ public struct Heizgeraetezustand: Decodable, Sendable, Equatable {
             case abweichung = "mismatch"
             case status
             case alterS = "age_s"
+            case stromlos = "unpowered"
+            case stromlosS = "unpowered_s"
         }
     }
 
@@ -176,6 +182,8 @@ public struct Heizgeraetezustand: Decodable, Sendable, Equatable {
         public var spreizungK: Double?
         public var seitS: Int?
         public var relais: Relais?
+        /// Die Pumpe soll laufen, die vorgeschaltete Regelung gibt sie nicht frei.
+        public var gesperrt: Bool?
 
         enum CodingKeys: String, CodingKey {
             case id, name
@@ -192,6 +200,7 @@ public struct Heizgeraetezustand: Decodable, Sendable, Equatable {
             case spreizungK = "spread_k"
             case seitS = "since_s"
             case relais = "relay"
+            case gesperrt = "blocked"
         }
     }
 

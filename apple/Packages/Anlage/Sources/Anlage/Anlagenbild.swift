@@ -424,14 +424,24 @@ public struct Relais: Sendable, Hashable {
     public var weg: String
     public var erreichbar: Bool
     public var ein: Bool
+    /// Ohne Verbindung, weil die vorgeschaltete Regelung (Kessel, Heliomat) den Pumpenausgang und
+    /// damit das Relais stromlos geschaltet hat. Die Pumpe steht; ein Fehler ist das nicht.
+    public var stromlos: Bool
+    public var stromlosSeit: Int?
 
-    public init(adresse: String, kanal: Int, weg: String, erreichbar: Bool, ein: Bool) {
+    public init(adresse: String, kanal: Int, weg: String, erreichbar: Bool, ein: Bool,
+                stromlos: Bool = false, stromlosSeit: Int? = nil) {
         self.adresse = adresse
         self.kanal = kanal
         self.weg = weg
         self.erreichbar = erreichbar
         self.ein = ein
+        self.stromlos = stromlos
+        self.stromlosSeit = stromlosSeit
     }
+
+    /// Nicht erreichbar, ohne dass die vorgeschaltete Regelung es erklärt
+    public var gestoert: Bool { !erreichbar && !stromlos }
 }
 
 public struct Heizkreis: Identifiable, Sendable {
@@ -459,14 +469,17 @@ public struct Heizkreis: Identifiable, Sendable {
     /// im Verlauf stehen sie als `fuehler.<rolle>`.
     public var vorlaufRolle: String
     public var ruecklaufRolle: String
+    /// Die Pumpe soll laufen, die vorgeschaltete Regelung gibt sie nicht frei.
+    public var gesperrt: Bool
 
     public init(
         nummer: Int, name: String, betriebsart: Pumpenbetriebsart, pumpeLaeuft: Bool, grund: String,
         bedarf: Bool, vorlauf: Double?, ruecklauf: Double?, versorgteVerteiler: [String],
         relais: Relais, nachlauf: Int, mindestlaufzeit: Int, mindestpause: Int,
         mindestSpeicher: Double, frostgrenze: Double, bedarfVeraltet: Bool = false, keinVerteilerErreicht: Bool = false,
-        vorlaufRolle: String? = nil, ruecklaufRolle: String? = nil
+        vorlaufRolle: String? = nil, ruecklaufRolle: String? = nil, gesperrt: Bool = false
     ) {
+        self.gesperrt = gesperrt
         self.vorlaufRolle = vorlaufRolle ?? "hk\(nummer)_vl"
         self.ruecklaufRolle = ruecklaufRolle ?? "hk\(nummer)_rl"
         self.bedarfVeraltet = bedarfVeraltet

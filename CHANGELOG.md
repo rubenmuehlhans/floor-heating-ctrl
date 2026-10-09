@@ -56,6 +56,15 @@ Ab Build 13 (5. Oktober, TestFlight):
 
 ### Heizungsgeräte
 
+- **Stromlose Relais sind keine Störung.** An dieser Anlage hängen die Tasmota-Relais hinter den
+  Pumpenausgängen von Kesselregelung und Heliomat; schalten die ab, verschwindet das Relais aus
+  dem Netz. Eine fehlende Verbindung gilt jetzt als stromlos: Pumpe steht, keine Abweichung, keine
+  Vertauschungsprüfung, Meldung nur beim Wechsel statt bei jedem Versuch. `GET /api/state`
+  führt `relay.unpowered` und `relay.unpowered_s`, je Heizkreis `blocked`, wenn die Pumpe laufen
+  soll, das Relais aber stromlos ist. Oberfläche des Geräts und App zeigen „Relais ohne Strom“
+  bzw. „von der Kesselregelung gesperrt“; die App meldet einen gesperrten Kreis nach einer
+  Stunde als Hinweis statt das Relais als Störung.
+
 - **Kein Neustart mehr bei jedem Ladungsbeginn.** Beim Brennerstart nach Verbrauch zieht das Gerät
   den Nullpunkt des Füllstands nach und speichert die Konfiguration. `cfg_set` legte dabei die
   bisherige Konfiguration, 2,7 KB, als Sicherung auf den Stapel des Brennerauftrags mit 4 KB, und
