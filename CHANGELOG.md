@@ -3,6 +3,29 @@
 Die veröffentlichten Fassungen stehen mit Abbildern unter
 [Releases](https://github.com/rubenmuehlhans/floor-heating-ctrl/releases).
 
+## Unveröffentlicht
+
+### Heizungsgeräte
+
+- **Stromlose Relais sind keine Störung.** An dieser Anlage hängen die Tasmota-Relais hinter den
+  Pumpenausgängen von Kesselregelung und Heliomat; schalten die ab, verschwindet das Relais aus
+  dem Netz. Eine fehlende Verbindung gilt jetzt als stromlos: Pumpe steht, keine Abweichung, keine
+  Vertauschungsprüfung, Meldung nur beim Wechsel statt bei jedem Versuch. `GET /api/state`
+  führt `relay.unpowered` und `relay.unpowered_s`, je Heizkreis `blocked`, wenn die Pumpe laufen
+  soll, das Relais aber stromlos ist. Oberfläche des Geräts und App zeigen „Relais ohne Strom“
+  bzw. „von der Kesselregelung gesperrt“; die App meldet einen gesperrten Kreis nach einer
+  Stunde als Hinweis statt das Relais als Störung.
+
+### App
+
+- **Befund „Die Pumpe läuft, die Wärme kommt nicht an“.** Erkennt einen Heizkreis ohne Durchfluss,
+  meist Luft in der Leitung bei zu niedrigem Anlagendruck. Mit einem 1-Wire-Fühler am versorgten
+  Verteiler eindeutig (Vorlauf am Heizungsgerät mindestens 10 K über dem Verteiler, Warnung),
+  ohne ihn als Hinweis (Rücklauf mindestens 14 K über den Räumen bei höchstens 6 K Spreizung).
+  Beide nach einer halben Stunde. Abgeleitet aus Heizkreis 2 am 9. Oktober.
+- **Stromlose Relais zählen nicht als Störung;** ein gesperrter Heizkreis erscheint nach einer
+  Stunde als Hinweis (siehe Heizungsgeräte).
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler
@@ -55,15 +78,6 @@ Ab Build 13 (5. Oktober, TestFlight):
   Speichers kommt aus `buffer.volumen_l`.
 
 ### Heizungsgeräte
-
-- **Stromlose Relais sind keine Störung.** An dieser Anlage hängen die Tasmota-Relais hinter den
-  Pumpenausgängen von Kesselregelung und Heliomat; schalten die ab, verschwindet das Relais aus
-  dem Netz. Eine fehlende Verbindung gilt jetzt als stromlos: Pumpe steht, keine Abweichung, keine
-  Vertauschungsprüfung, Meldung nur beim Wechsel statt bei jedem Versuch. `GET /api/state`
-  führt `relay.unpowered` und `relay.unpowered_s`, je Heizkreis `blocked`, wenn die Pumpe laufen
-  soll, das Relais aber stromlos ist. Oberfläche des Geräts und App zeigen „Relais ohne Strom“
-  bzw. „von der Kesselregelung gesperrt“; die App meldet einen gesperrten Kreis nach einer
-  Stunde als Hinweis statt das Relais als Störung.
 
 - **Kein Neustart mehr bei jedem Ladungsbeginn.** Beim Brennerstart nach Verbrauch zieht das Gerät
   den Nullpunkt des Füllstands nach und speichert die Konfiguration. `cfg_set` legte dabei die
