@@ -127,6 +127,43 @@ struct BefundregelnTests {
         #expect(gestoert["relais"]?.schwere == .stoerung)
     }
 
+    /// Heizkreis 2 am 9. Oktober: Pumpe an, Luft in der Leitung zum Obergeschoss. Vorlauf 40,8 °C,
+    /// Rücklauf 35,7 °C, Räume um 19,5 °C.
+    @Test func pumpeLaeuftOhneDurchfluss() throws {
+        func raeume(_ t: Double) -> (inout Verteilerzustand) -> Void {
+            { z in for i in (z.raeume ?? []).indices { z.raeume?[i].temperaturC = t; z.raeume?[i].messwertGueltig = true } }
+        }
+        func kreis(vl: Double, rl: Double) -> (inout Heizgeraetezustand) -> Void {
+            { z in
+                z.heizkreise?[0].pumpeEin = true
+                z.heizkreise?[0].vorlaufC = vl
+                z.heizkreise?[0].ruecklaufC = rl
+            }
+        }
+        // Ohne Fühler am Verteiler: Rücklauf 16 K über den Räumen bei 5 K Spreizung
+        let ohne = befunde([try verteiler { z in raeume(19.5)(&z); z.bordfuehler?.einwire = [] },
+                            try speicher(kreis(vl: 40.8, rl: 35.7))])
+        #expect(ohne["kreis-ohne-durchfluss:1"]?.schwere == .hinweis)
+        #expect(ohne["kreis-ohne-durchfluss:1"]?.mindestdauer == 1800)
+
+        // Mit Durchfluss: Rücklauf 7 K über den Räumen
+        let fliesst = befunde([try verteiler { z in raeume(21)(&z); z.bordfuehler?.einwire = [] },
+                               try speicher(kreis(vl: 33, rl: 28))])
+        #expect(fliesst["kreis-ohne-durchfluss:1"] == nil)
+
+        // Mit Fühler am Verteiler ist es eindeutig.
+        let fuehler = try JSONDecoder().decode(Verteilerzustand.Bordfuehler.Einwirefuehler.self,
+                                               from: Data(#"{"address":"0x28","temp_c":22,"valid":true}"#.utf8))
+        let kalt = befunde([try verteiler { z in raeume(21)(&z); z.bordfuehler?.einwire = [fuehler] },
+                            try speicher(kreis(vl: 38, rl: 30))])
+        #expect(kalt["kreis-ohne-durchfluss:1"]?.schwere == .warnung)
+        var warm = fuehler
+        warm.temperaturC = 36
+        let kommtAn = befunde([try verteiler { z in raeume(21)(&z); z.bordfuehler?.einwire = [warm] },
+                               try speicher(kreis(vl: 38, rl: 30))])
+        #expect(kommtAn["kreis-ohne-durchfluss:1"] == nil)
+    }
+
     /// Eine Platine ohne Räume empfängt nur ein Funkthermometer; sie meldet nie Bedarf und
     /// braucht deshalb keinen Heizkreis.
     @Test func verteilerOhneRaeumeBrauchtKeinenKreis() throws {

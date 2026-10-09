@@ -217,6 +217,10 @@ extension Zusammenfuehrung {
             guard let id = c.id else { continue }
             let name = c.name.flatMap { $0.isEmpty ? nil : $0 } ?? "Heizkreis \(id)"
             let peers = konfig.first { $0["id"]?.alsGanzzahl == id }?["peers"]?.alsListe ?? []
+            if let kreis = bild.heizkreise.first(where: { $0.nummer == id }), kreis.pumpeLaeuft,
+               let b = durchflussbefund(kreis, verteiler: peers.compactMap(\.alsText), staende: staende, bild: bild, quelle: s.ort) {
+                liste.append(b)
+            }
             if c.relais?.abweichung == true {
                 liste.append(Befund(
                     id: "relais-abweichung:\(id)", schwere: .warnung, titel: "Pumpe \(name) folgt dem Schaltbefehl nicht",
@@ -401,6 +405,51 @@ extension Zusammenfuehrung {
 }
 
 /// Zahlen und Dauern in Befundtexten, deutsch und mit geschütztem Leerzeichen vor der Einheit.
+extension Zusammenfuehrung {
+    /// So weit muss der Vorlauf am Heizungsgerät über dem wärmsten Fühler am Verteiler liegen, damit
+    /// dort als nicht angekommen gilt, was abgeht.
+    static let durchflussVerteilerK = 10.0
+    /// Ohne Fühler am Verteiler: Rücklauf so weit über den Räumen, bei höchstens so viel Spreizung.
+    /// Am 9. Oktober stand Heizkreis 2 mit Luft in der Leitung bei 40,8 °C Vorlauf, 35,7 °C Rücklauf
+    /// und 19,5 °C in den Räumen: 16 K über den Räumen, 5,1 K Spreizung. Mit Durchfluss lag der
+    /// Rücklauf am 5. Oktober 6 bis 8 K über den Räumen.
+    static let durchflussRuecklaufK = 14.0
+    static let durchflussSpreizungK = 6.0
+
+    /// Die Pumpe läuft, aber im Kreis fließt kaum Wasser -- meist Luft in der Leitung, weil der
+    /// Anlagendruck nicht bis in das obere Geschoss reicht.
+    static func durchflussbefund(_ kreis: Heizkreis, verteiler: [String], staende: [Geraetestand], bild: Anlagenbild,
+                                 quelle: String) -> Befund? {
+        guard let vl = kreis.vorlauf, let rl = kreis.ruecklauf else { return nil }
+        let raeume = bild.etagen.filter { verteiler.contains($0.id) }
+            .flatMap(\.raeume).filter { $0.betriebsart == .heizen }.compactMap(\.ist)
+        guard !raeume.isEmpty else { return nil }
+        let raum = raeume.reduce(0, +) / Double(raeume.count)
+        // Ohne Wärme im Vorlauf gibt es nichts, was ankommen müsste.
+        guard vl - raum >= 10 else { return nil }
+
+        let id = "kreis-ohne-durchfluss:\(kreis.nummer)"
+        let titel = "\(kreis.name): Die Pumpe läuft, die Wärme kommt nicht an"
+        let rat = "Meist steckt Luft in der Leitung, oft weil der Anlagendruck nicht bis in das obere Geschoss reicht. Prüfen Sie das Manometer am Kessel und entlüften Sie nur bei warmer Anlage und ausreichendem Druck; sonst saugt der Entlüfter Luft an, statt sie abzulassen."
+        // Der wärmste Fühler am Verteiler steht für dessen Vorlauf.
+        let amVerteiler = staende.filter { verteiler.contains($0.geraet.id) }
+            .flatMap { $0.verteiler?.bordfuehler?.einwire ?? [] }
+            .filter { $0.gueltig == true }.compactMap(\.temperaturC).max()
+        if let v = amVerteiler {
+            guard vl - v >= durchflussVerteilerK else { return nil }
+            return Befund(
+                id: id, schwere: .warnung, titel: titel,
+                text: "Am Heizungsgerät hat der Vorlauf \(Befundtext.zahl(vl)) °C, am Verteiler kommen nur \(Befundtext.zahl(v)) °C an. Durch den Kreis fließt kaum Wasser. \(rat)",
+                ort: kreis.name, quelle: quelle, mindestdauer: 1800)
+        }
+        guard rl - raum >= durchflussRuecklaufK, vl - rl <= durchflussSpreizungK else { return nil }
+        return Befund(
+            id: id, schwere: .hinweis, titel: titel,
+            text: "Der Rücklauf kommt mit \(Befundtext.zahl(rl)) °C zurück, \(Befundtext.zahl(rl - raum, stellen: 0)) K über den Räumen. Fließt das Wasser durch die Fußbodenschleifen, kühlt es dort deutlich stärker ab; vermutlich fließt kaum etwas. \(rat) Sicher erkennen lässt sich das mit einem Fühler am Vorlauf des Verteilers.",
+            ort: kreis.name, quelle: quelle, mindestdauer: 1800)
+    }
+}
+
 enum Befundtext {
     static let deutsch = Locale(identifier: "de_DE")
 

@@ -439,6 +439,23 @@ Fußbodenvorlauftemperatur, nicht knapp über Raumtemperatur.
 | Die Rückmeldung weicht länger als 30 s vom Sollwert ab | „Relais folgt nicht" |
 | Das Relais nimmt keine Verbindung an | Es gilt als stromlos: Die vorgeschaltete Regelung hat den Pumpenausgang abgeschaltet (siehe unten). Die Pumpe gilt als stehend, keine Störung; die Vertauschungsprüfung ruht |
 | Das Relais ist stromlos, die Steuerung will die Pumpe aber laufen lassen | „vorgeschaltete Regelung gibt die Pumpe nicht frei"; die App meldet es nach einer Stunde als Hinweis |
+| Die Pumpe läuft, im Kreis fließt aber kaum Wasser | Die App meldet nach einer halben Stunde „Die Pumpe läuft, die Wärme kommt nicht an“, siehe unten |
+
+**Kein Durchfluss trotz laufender Pumpe.** Steckt Luft in der Leitung, dreht die Pumpe, ohne
+Wasser in das obere Geschoss zu fördern; die Fühler am Heizungsgerät zeigen dann nur, was sich
+nahe am Mischer erwärmt. Die App erkennt das auf zwei Wegen. Trägt einer der versorgten Verteiler
+einen Fühler am 1-Wire-Bus, gilt dessen wärmster Wert als Vorlauf am Verteiler: Liegt der Vorlauf
+am Heizungsgerät mindestens 10 K darüber, kommt nichts an (Warnung). Ohne solchen Fühler bleibt
+ein Hinweis: Rücklauf mindestens 14 K über dem Mittel der beheizten Räume bei höchstens 6 K
+Spreizung. Mit Durchfluss kühlt das Wasser in den Schleifen deutlich stärker ab; an dieser Anlage
+lag der Rücklauf dann 6 bis 8 K über den Räumen, mit Luft in der Leitung 16 K. Beide Meldungen
+erscheinen erst, wenn der Zustand eine halbe Stunde anhält, und nur, solange Vorlauf mindestens
+10 K über den Räumen liegt. Ein Fühler am Vorlauf jedes Verteilers macht die Prüfung eindeutig.
+
+Häufigste Ursache ist zu niedriger Anlagendruck: Am höchsten Punkt müssen mindestens 0,3 bis
+0,5 bar anliegen, am Kessel also je Meter Höhe 0,1 bar mehr. Reicht er nicht, saugt ein geöffneter
+Entlüfter Luft an, statt sie abzulassen. Entlüftet wird deshalb nur bei warmer Anlage und
+ausreichendem Druck.
 
 **Absicherung am Relais.** Das Gerät sendet alle sechzig Sekunden ein Lebenszeichen. Hinterlegen
 Sie am Tasmota-Relais folgende Einstellungen, damit die Pumpe bei einem Ausfall dieser Steuerung
