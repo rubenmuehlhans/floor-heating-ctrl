@@ -775,7 +775,7 @@ struct KIAbschnitt: View {
 
 /// Wege in die Systemeinstellungen; ändern kann dort nur, wer das Gerät bedient.
 enum Systemeinstellungen {
-    static func mitteilungenOeffnen() {
+    @MainActor static func mitteilungenOeffnen() {
         #if os(iOS)
         if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
             UIApplication.shared.open(url)

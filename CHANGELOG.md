@@ -18,6 +18,8 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ### App
 
+Ab Build 14 (9. Oktober, TestFlight):
+
 - **Befund „Die Pumpe läuft, die Wärme kommt nicht an“.** Erkennt einen Heizkreis ohne Durchfluss,
   meist Luft in der Leitung bei zu niedrigem Anlagendruck. Mit einem 1-Wire-Fühler am versorgten
   Verteiler eindeutig (Vorlauf am Heizungsgerät mindestens 10 K über dem Verteiler, Warnung),
@@ -25,6 +27,8 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   Beide nach einer halben Stunde. Abgeleitet aus Heizkreis 2 am 9. Oktober.
 - **Stromlose Relais zählen nicht als Störung;** ein gesperrter Heizkreis erscheint nach einer
   Stunde als Hinweis (siehe Heizungsgeräte).
+- **Keine Warnungen mehr mit dem iOS-27-SDK:** Hintergrundabruf über `submitTaskRequest`,
+  Öffnen der Mitteilungseinstellungen auf dem Hauptthread.
 
 ## v0.6.0 — 5. Oktober 2026
 

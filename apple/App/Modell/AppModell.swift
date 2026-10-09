@@ -339,7 +339,7 @@ final class AppModell {
         guard !istBeispiel else { return }
         let anfrage = BGAppRefreshTaskRequest(identifier: Self.abrufkennung)
         anfrage.earliestBeginDate = .now.addingTimeInterval(15 * 60)
-        try? BGTaskScheduler.shared.submit(anfrage)
+        Task { try? await BGTaskScheduler.shared.submitTaskRequest(anfrage) }
     }
     #endif
 

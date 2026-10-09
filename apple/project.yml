@@ -75,7 +75,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         HEIZUNG_PCC: "NO"
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "13"
+        CURRENT_PROJECT_VERSION: "14"
         INFOPLIST_KEY_CFBundleDisplayName: Heizung
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Die App verbindet sich mit den Heizungsgeräten in Ihrem Heimnetz."
