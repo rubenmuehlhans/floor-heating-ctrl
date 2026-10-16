@@ -35,6 +35,7 @@
 		773D23435C0EEF71E64BD12B /* Funkschluessel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66C8117CAD6FD6386CB596E /* Funkschluessel.swift */; };
 		7AF8EFC79707B2BB24C117EE /* Verlaufszeitraum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2C16ACB620075686773D81 /* Verlaufszeitraum.swift */; };
 		82DAFB5B47F809A99A50E82E /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50747252F464C70E79FCF40 /* Format.swift */; };
+		853425A5AAB12C7C39248364 /* Spalten.swift in Sources */ = {isa = PBXBuildFile; fileRef = F77B0B859C56C20B6B6024FD /* Spalten.swift */; };
 		93EC333A55EC35241B269454 /* UebersichtAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = F418B824924C2A66001509A1 /* UebersichtAnsicht.swift */; };
 		979476CDBFCB9FF5C6D4AC7E /* Leitstandbetrieb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF3477EA02784967090358F0 /* Leitstandbetrieb.swift */; };
 		9AEC0E79D140B5370D476D18 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 32D503F84BF4878CA173E732 /* AppIcon.icon */; };
@@ -112,6 +113,7 @@
 		EBC391A727D56124DE64A910 /* Verlauf */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Verlauf; path = Packages/Verlauf; sourceTree = SOURCE_ROOT; };
 		F418B824924C2A66001509A1 /* UebersichtAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UebersichtAnsicht.swift; sourceTree = "<group>"; };
 		F6599950B9C36E2BEFDB955D /* EinrichtungsAssistent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EinrichtungsAssistent.swift; sourceTree = "<group>"; };
+		F77B0B859C56C20B6B6024FD /* Spalten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spalten.swift; sourceTree = "<group>"; };
 		F8E2A0FA59320302EFB0DB8E /* Heizung.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Heizung.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F946CA02906649FCD88FEB9F /* konzept-waermeerzeuger.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; name = "konzept-waermeerzeuger.md"; path = "../docs/konzept-waermeerzeuger.md"; sourceTree = "<group>"; };
 		FF3477EA02784967090358F0 /* Leitstandbetrieb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Leitstandbetrieb.swift; sourceTree = "<group>"; };
@@ -237,6 +239,7 @@
 				E50747252F464C70E79FCF40 /* Format.swift */,
 				5A34FB3CB4C98B3FE8861E37 /* Gestaltung.swift */,
 				327E15982488086CE34ACBB1 /* Navigation.swift */,
+				F77B0B859C56C20B6B6024FD /* Spalten.swift */,
 				20A20BAFCA96A820D6CFB2BB /* Stellrad.swift */,
 			);
 			path = Gemeinsam;
@@ -439,6 +442,7 @@
 				E13EB0896D2A2505992A6171 /* Navigation.swift in Sources */,
 				C8C36B6825AB340A37EF1989 /* RaeumeAnsicht.swift in Sources */,
 				697F8CD0C123FB43EB631A2D /* Schluesselbund.swift in Sources */,
+				853425A5AAB12C7C39248364 /* Spalten.swift in Sources */,
 				6FBB2C0A0FD7E382AC0BFEF2 /* Stellrad.swift in Sources */,
 				93EC333A55EC35241B269454 /* UebersichtAnsicht.swift in Sources */,
 				3821287EDCF30F0CE6C9AB65 /* VerlaufAnsichten.swift in Sources */,

@@ -38,6 +38,14 @@ Noch in keinem TestFlight-Build:
   Text, wenn daneben keine Zeilen von gut 30 Zeichen bleiben; bisher trennte der Text Wörter. Ist
   ein Verteilerbalken breiter als seine Karte, blendet ein Verlauf am Rand aus, wo weitere Kanäle
   folgen.
+- **Zwei Spalten auf dem Innendisplay des iPhone Duo, auf dem iPad und auf dem Mac.** Übersicht,
+  Raum und Heizung verteilen ihre Abschnitte auf zwei Spalten, sobald links und rechts der Teilung
+  je 350 pt bleiben; jede Spalte scrollt für sich, schmaler bleibt es bei einer Spalte in der
+  bisherigen Reihenfolge. Auf dem iPhone Duo liegt die Teilung auf der Faltlinie, samt dem
+  Freiraum, den das System dort für Bedienelemente vorsieht, sonst in der Mitte. Die Räume stehen
+  zweispaltig in festen Spalten an der Teilung, der Verteilerbalken als erste Zelle. Das
+  Anlagenschema wählt die Querfassung nach der Breite, ab 600 pt, statt nach der Größenklasse. Die
+  Faltlinie fragt die App erst ab iOS 27.1 ab; die Mindestversion bleibt iOS 27.0.
 
 ## v0.6.0 — 5. Oktober 2026
 

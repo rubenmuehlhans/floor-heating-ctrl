@@ -2,27 +2,33 @@ import SwiftUI
 import Anlage
 
 /// Anlagenschema nach dem Vorbild der Weboberfläche: Ölkessel, Pufferspeicher, Mischer und
-/// Heizkreise; Messwerte stehen dort, wo der Fühler sitzt. Quer auf iPad und Mac, hochkant auf
-/// dem iPhone, damit die Beschriftung lesbar bleibt.
+/// Heizkreise; Messwerte stehen dort, wo der Fühler sitzt. Quer ab 600 pt Breite, schmaler
+/// hochkant, damit die Beschriftung lesbar bleibt.
 struct Anlagenschema: View {
     let anlage: Anlagenbild
-    @Environment(\.horizontalSizeClass) private var klasse
-
-    private var quer: Bool { klasse != .compact }
-    private var entwurf: CGSize { quer ? CGSize(width: 780, height: 410) : CGSize(width: 340, height: 500) }
 
     var body: some View {
-        Canvas { ctx, groesse in
+        // Die Querfassung ist für 780 pt entworfen; unter 600 pt erschiene sie zu stark verkleinert.
+        ViewThatFits(in: .horizontal) {
+            fassung(quer: true)
+                .frame(minWidth: 600, idealWidth: 600, maxWidth: 880)
+            fassung(quer: false)
+                .frame(maxWidth: 460)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement()
+        .accessibilityLabel("Anlagenschema")
+        .accessibilityValue(beschreibung)
+    }
+
+    private func fassung(quer: Bool) -> some View {
+        let entwurf = quer ? CGSize(width: 780, height: 410) : CGSize(width: 340, height: 500)
+        return Canvas { ctx, groesse in
             let s = groesse.width / entwurf.width
             ctx.scaleBy(x: s, y: s)
             if quer { zeichneQuer(&ctx) } else { zeichneHoch(&ctx) }
         }
         .aspectRatio(entwurf.width / entwurf.height, contentMode: .fit)
-        .frame(maxWidth: quer ? 880 : 460)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement()
-        .accessibilityLabel("Anlagenschema")
-        .accessibilityValue(beschreibung)
     }
 
     private var beschreibung: String {

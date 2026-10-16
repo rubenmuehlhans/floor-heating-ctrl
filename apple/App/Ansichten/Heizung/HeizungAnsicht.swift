@@ -19,24 +19,24 @@ struct HeizungAnsicht: View {
                     Button("Gerät hinzufügen") { modell.zeigeEinrichtung = true }
                 }
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Kartenkopf(titel: "Anlage", erklaerung: "Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen dort, wo der Fühler sitzt.")
-                            Anlagenschema(anlage: a)
-                            Divider().overlay(Farbe.linie)
-                            AussenZeile(aussen: a.aussen)
-                        }
-                        .padding(16)
-                        .karte()
+                Doppelseite {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Kartenkopf(titel: "Anlage", erklaerung: "Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen dort, wo der Fühler sitzt.")
+                        Anlagenschema(anlage: a)
+                        Divider().overlay(Farbe.linie)
+                        AussenZeile(aussen: a.aussen)
+                    }
+                    .padding(16)
+                    .karte()
 
-                        if let speicher = a.speicher {
-                            SpeicherKarte(speicher: speicher)
-                        }
-                        if let kessel = a.kessel {
-                            BrennerKarte(kessel: kessel)
-                        }
+                    if let speicher = a.speicher {
+                        SpeicherKarte(speicher: speicher)
+                    }
+                    if let kessel = a.kessel {
+                        BrennerKarte(kessel: kessel)
+                    }
 
+                    Group {
                         if !a.heizkreise.isEmpty || a.kesselkreispumpe != nil {
                             Abschnitt(titel: "Pumpen")
                         }
@@ -68,9 +68,7 @@ struct HeizungAnsicht: View {
                         .padding(16)
                         .karte()
                     }
-                    .padding()
-                    .frame(maxWidth: 1100)
-                    .frame(maxWidth: .infinity)
+                    .spalte(.rechts)
                 }
             }
         }

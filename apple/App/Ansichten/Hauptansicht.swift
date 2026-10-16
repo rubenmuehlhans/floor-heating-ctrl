@@ -19,22 +19,24 @@ struct Hauptansicht: View {
 
     var body: some View {
         @Bindable var modell = modell
+        // Das Spaltenmaß je Bereich, nicht für das ganze Fenster: Randspalte, Seitenleiste und
+        // Assistent nehmen der Seite Breite weg.
         TabView(selection: $modell.bereich) {
             Tab("Übersicht", systemImage: "house", value: AppModell.Bereich.uebersicht) {
-                NavigationStack { UebersichtAnsicht().zielnavigation() }
+                NavigationStack { UebersichtAnsicht().zielnavigation() }.spaltenmass()
             }
             Tab("Räume", systemImage: "square.grid.2x2", value: AppModell.Bereich.raeume) {
-                NavigationStack { RaeumeAnsicht().zielnavigation() }
+                NavigationStack { RaeumeAnsicht().zielnavigation() }.spaltenmass()
             }
             Tab("Assistent", systemImage: "sparkles", value: AppModell.Bereich.assistent) {
-                NavigationStack { AssistentAnsicht().zielnavigation() }
+                NavigationStack { AssistentAnsicht().zielnavigation() }.spaltenmass()
             }
             .hidden(assistentImSeitenbereich)
             Tab("Heizung", systemImage: "flame", value: AppModell.Bereich.heizung) {
-                NavigationStack { HeizungAnsicht().zielnavigation() }
+                NavigationStack { HeizungAnsicht().zielnavigation() }.spaltenmass()
             }
             Tab("Geräte", systemImage: "cpu", value: AppModell.Bereich.geraete) {
-                NavigationStack { GeraeteAnsicht().zielnavigation() }
+                NavigationStack { GeraeteAnsicht().zielnavigation() }.spaltenmass()
             }
         }
         .tabViewStyle(.sidebarAdaptable)

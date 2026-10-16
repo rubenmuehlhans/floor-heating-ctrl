@@ -10,22 +10,22 @@ struct UebersichtAnsicht: View {
 
     var body: some View {
         let anlage = modell.anlage
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Geraeteleiste(anlage: anlage)
+        Doppelseite {
+            Geraeteleiste(anlage: anlage)
 
-                if modell.istBeispiel {
-                    BeispielanlageKarte()
-                } else if modell.betrieb.staende.values.allSatisfy({ $0.letzterKontakt == nil }) {
-                    HStack(spacing: 10) {
-                        ProgressView().controlSize(.small)
-                        Text("Die Geräte werden abgefragt …").foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 4)
+            if modell.istBeispiel {
+                BeispielanlageKarte()
+            } else if modell.betrieb.staende.values.allSatisfy({ $0.letzterKontakt == nil }) {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Die Geräte werden abgefragt …").foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 4)
+            }
 
-                LageberichtKarte(bericht: modell.aktuellerLagebericht)
+            LageberichtKarte(bericht: modell.aktuellerLagebericht)
 
+            Group {
                 Abschnitt(titel: "Räume", zusatz: raeumeZusatz(anlage))
                 // Eine Platine ohne Räume, die nur ein Funkthermometer empfängt, hätte hier
                 // nur eine leere Überschrift.
@@ -48,70 +48,68 @@ struct UebersichtAnsicht: View {
                         }
                     }
                 }
-
-                if anlage.speicher != nil || anlage.kessel != nil || anlage.aussen != nil || pumpenzahl(anlage) > 0 {
-                    Abschnitt(titel: "Wärmeerzeugung", zusatz: "Stand \(Format.uhrzeit(anlage.stand))")
-                    Button {
-                        modell.bereich = .heizung
-                    } label: {
-                        LazyVGrid(columns: kennzahlspalten, spacing: 10) {
-                            if let speicher = anlage.speicher {
-                                Kennzahl(titel: "Speicher", wert: speicher.temperatur.map { Format.zahl($0) } ?? "–", einheit: "°C",
-                                         fuss: "Ladung \(Format.prozent(speicher.ladung)) · \(speicher.phase)", farbe: Farbe.waerme)
-                            }
-                            if let kessel = anlage.kessel {
-                                Kennzahl(titel: "Brenner", wert: kessel.brennerLaeuft ? "läuft" : "aus",
-                                         fuss: "gestern \(Format.dauer(kessel.laufzeitGestern)) · \(Format.starts(kessel.startsGestern))",
-                                         farbe: kessel.brennerLaeuft ? Farbe.waerme : Farbe.tinte)
-                            }
-                            if let aussen = anlage.aussen {
-                                Kennzahl(titel: "Außen", wert: Format.zahl(aussen.temperatur), einheit: "°C",
-                                         fuss: [aussen.quelle, aussen.feuchte.map { "Feuchte \(Format.mitEinheit(Format.zahl($0, stellen: 0), "%"))" }]
-                                            .compactMap { $0 }.joined(separator: " · "),
-                                         farbe: Farbe.kaelte)
-                            }
-                            if pumpenzahl(anlage) > 0 {
-                                let gestoert = pumpenGestoert(anlage)
-                                Kennzahl(titel: "Pumpen", wert: gestoert > 0 ? "\(gestoert) gestört" : "in Ordnung",
-                                         fuss: gestoert > 0 ? "Relais nicht erreichbar" : "\(pumpenzahl(anlage)) Relais erreichbar",
-                                         farbe: gestoert > 0 ? Farbe.stoerung : Farbe.gut)
-                            }
-                        }
-                        .padding(14)
-                        .karte()
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Abschnitt(titel: "Befunde", zusatz: "\(anlage.befunde.count)")
-                VStack(spacing: 0) {
-                    ForEach(Array(anlage.befundeNachSchwere.prefix(3).enumerated()), id: \.element.id) { i, befund in
-                        if i > 0 { Divider().overlay(Farbe.linie).padding(.leading, 46) }
-                        NavigationLink(value: Ziel.befund(befund.id)) {
-                            BefundZeile(befund: befund)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Divider().overlay(Farbe.linie)
-                    NavigationLink(value: Ziel.befunde) {
-                        HStack {
-                            Text("Alle \(anlage.befunde.count) Befunde").font(.subheadline.weight(.medium))
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Farbe.blass)
-                        }
-                        .foregroundStyle(Color.accentColor)
-                        .padding(14)
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .karte()
             }
-            .padding()
-            .frame(maxWidth: 1100)
-            .frame(maxWidth: .infinity)
+            .spalte(.rechts)
+
+            if anlage.speicher != nil || anlage.kessel != nil || anlage.aussen != nil || pumpenzahl(anlage) > 0 {
+                Abschnitt(titel: "Wärmeerzeugung", zusatz: "Stand \(Format.uhrzeit(anlage.stand))")
+                Button {
+                    modell.bereich = .heizung
+                } label: {
+                    LazyVGrid(columns: kennzahlspalten, spacing: 10) {
+                        if let speicher = anlage.speicher {
+                            Kennzahl(titel: "Speicher", wert: speicher.temperatur.map { Format.zahl($0) } ?? "–", einheit: "°C",
+                                     fuss: "Ladung \(Format.prozent(speicher.ladung)) · \(speicher.phase)", farbe: Farbe.waerme)
+                        }
+                        if let kessel = anlage.kessel {
+                            Kennzahl(titel: "Brenner", wert: kessel.brennerLaeuft ? "läuft" : "aus",
+                                     fuss: "gestern \(Format.dauer(kessel.laufzeitGestern)) · \(Format.starts(kessel.startsGestern))",
+                                     farbe: kessel.brennerLaeuft ? Farbe.waerme : Farbe.tinte)
+                        }
+                        if let aussen = anlage.aussen {
+                            Kennzahl(titel: "Außen", wert: Format.zahl(aussen.temperatur), einheit: "°C",
+                                     fuss: [aussen.quelle, aussen.feuchte.map { "Feuchte \(Format.mitEinheit(Format.zahl($0, stellen: 0), "%"))" }]
+                                        .compactMap { $0 }.joined(separator: " · "),
+                                     farbe: Farbe.kaelte)
+                        }
+                        if pumpenzahl(anlage) > 0 {
+                            let gestoert = pumpenGestoert(anlage)
+                            Kennzahl(titel: "Pumpen", wert: gestoert > 0 ? "\(gestoert) gestört" : "in Ordnung",
+                                     fuss: gestoert > 0 ? "Relais nicht erreichbar" : "\(pumpenzahl(anlage)) Relais erreichbar",
+                                     farbe: gestoert > 0 ? Farbe.stoerung : Farbe.gut)
+                        }
+                    }
+                    .padding(14)
+                    .karte()
+                }
+                .buttonStyle(.plain)
+            }
+
+            Abschnitt(titel: "Befunde", zusatz: "\(anlage.befunde.count)")
+            VStack(spacing: 0) {
+                ForEach(Array(anlage.befundeNachSchwere.prefix(3).enumerated()), id: \.element.id) { i, befund in
+                    if i > 0 { Divider().overlay(Farbe.linie).padding(.leading, 46) }
+                    NavigationLink(value: Ziel.befund(befund.id)) {
+                        BefundZeile(befund: befund)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Divider().overlay(Farbe.linie)
+                NavigationLink(value: Ziel.befunde) {
+                    HStack {
+                        Text("Alle \(anlage.befunde.count) Befunde").font(.subheadline.weight(.medium))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Farbe.blass)
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(14)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+            .karte()
         }
         .background(Farbe.grund)
         .navigationTitle("Übersicht")

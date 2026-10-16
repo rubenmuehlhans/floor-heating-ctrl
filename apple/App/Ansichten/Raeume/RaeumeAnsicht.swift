@@ -4,8 +4,7 @@ import Anlage
 
 struct RaeumeAnsicht: View {
     @Environment(AppModell.self) private var modell
-
-    private let spalten = [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)]
+    @Environment(\.spaltenmass) private var mass
 
     var body: some View {
         ScrollView {
@@ -14,16 +13,23 @@ struct RaeumeAnsicht: View {
                 // Sie empfängt nur ein Funkthermometer, geregelt wird an ihr nichts.
                 ForEach(modell.anlage.etagen.filter { !($0.raeume.isEmpty && $0.traegtAussenfuehler) }) { etage in
                     Abschnitt(titel: etage.name, zusatz: etage.bedarf ? "Wärmebedarf" : "kein Bedarf")
-                    Verteilerbalken(etage: etage)
-                    if etage.raeume.isEmpty {
-                        Label("Noch kein Raum eingerichtet. Räume legen Sie unter Geräte › \(etage.name) › Räume und Kanäle an.",
-                              systemImage: "square.grid.2x2")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                    LazyVGrid(columns: spalten, spacing: 14) {
-                        ForEach(etage.raeume) { raum in
-                            Raumkarte(raum: raum, etage: etage)
+                    if mass.spalten == 2 {
+                        // Über die volle Breite läge der Verteilerbalken über der Faltlinie; er
+                        // wird die erste Zelle des Rasters.
+                        LazyVGrid(columns: spalten, spacing: 14) {
+                            Verteilerbalken(etage: etage)
+                            ForEach(etage.raeume) { raum in
+                                Raumkarte(raum: raum, etage: etage)
+                            }
+                        }
+                        ohneRaum(etage)
+                    } else {
+                        Verteilerbalken(etage: etage)
+                        ohneRaum(etage)
+                        LazyVGrid(columns: spalten, spacing: 14) {
+                            ForEach(etage.raeume) { raum in
+                                Raumkarte(raum: raum, etage: etage)
+                            }
                         }
                     }
                 }
@@ -39,6 +45,26 @@ struct RaeumeAnsicht: View {
         .background(Farbe.grund)
         .navigationTitle("Räume")
         .fragenKnopf("Räume")
+    }
+
+    /// Zweispaltig zwei feste Spalten links und rechts der Teilung, damit keine Karte über der
+    /// Faltlinie liegt; einspaltig so viele, wie Karten von 320 pt nebeneinander passen.
+    private var spalten: [GridItem] {
+        if mass.spalten == 2 {
+            return [GridItem(.fixed(mass.links), spacing: 2 * mass.fuge, alignment: .top),
+                    GridItem(.fixed(mass.rechts), alignment: .top)]
+        }
+        return [GridItem(.adaptive(minimum: 320), spacing: 14, alignment: .top)]
+    }
+
+    @ViewBuilder
+    private func ohneRaum(_ etage: Etage) -> some View {
+        if etage.raeume.isEmpty {
+            Label("Noch kein Raum eingerichtet. Räume legen Sie unter Geräte › \(etage.name) › Räume und Kanäle an.",
+                  systemImage: "square.grid.2x2")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -251,82 +277,81 @@ struct RaumDetailAnsicht: View {
 
     var body: some View {
         if let raum = modell.anlage.raum(raumID), let etage = modell.anlage.etagen.first(where: { $0.raeume.contains { $0.id == raumID } }) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Kicker(raum.etage)
-                            Spacer()
-                            Zustandsmarke(text: raum.zustand.text, symbol: raum.zustand.symbol, farbe: raum.zustand.farbe)
-                        }
-                        HStack(alignment: .firstTextBaseline) {
-                            Messzahl(zahl: raum.ist.map { Format.zahl($0) } ?? "–,–",
-                                     font: .system(size: 56, weight: .bold, design: .monospaced),
-                                     farbe: raum.ist == nil ? Farbe.blass : Farbe.tinte)
-                            Spacer()
-                            Text(raum.abstandText).font(Schrift.daten).foregroundStyle(raum.abstandFarbe)
-                        }
-                        if raum.thermometer != nil {
-                            SollwertStellrad(wert: modell.soll(raum.id), hinweis: "Wird an den Verteiler gesendet, sobald das Rad steht.")
-                                .padding(.top, 6)
-                        }
-                        HStack {
-                            Button {
-                                modell.raumPruefen(raum.id)
-                            } label: {
-                                Label("Jetzt prüfen", systemImage: "arrow.clockwise")
-                            }
-                            .buttonStyle(.rahmen)
-                            Spacer()
-                            Button(raum.betriebsart == .heizen ? "Ausschalten" : "Einschalten") {
-                                modell.betriebsartUmschalten(raum.id)
-                            }
-                            .buttonStyle(.rahmen)
-                        }
+            Doppelseite(breite: 820) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Kicker(raum.etage)
+                        Spacer()
+                        Zustandsmarke(text: raum.zustand.text, symbol: raum.zustand.symbol, farbe: raum.zustand.farbe)
                     }
-                    .padding(16)
-                    .karte()
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 10)], spacing: 10) {
-                        Kennzahl(titel: "Luftfeuchte", wert: raum.feuchte.map { Format.zahl($0, stellen: 0) } ?? "–", einheit: "%")
-                        Kennzahl(titel: "Batterie", wert: raum.batterie.map { "\($0)" } ?? "–", einheit: "%",
-                                 farbe: (raum.batterie ?? 100) < 10 ? Farbe.stoerung : Farbe.tinte)
-                        Kennzahl(titel: "Messwert", wert: raum.messwertAlter.map { "\($0)" } ?? "–", einheit: "s alt")
-                        Kennzahl(titel: "Zielstellung", wert: Format.prozentzahl(raum.zielstellung), einheit: "%", farbe: Farbe.waerme)
+                    HStack(alignment: .firstTextBaseline) {
+                        Messzahl(zahl: raum.ist.map { Format.zahl($0) } ?? "–,–",
+                                 font: .system(size: 56, weight: .bold, design: .monospaced),
+                                 farbe: raum.ist == nil ? Farbe.blass : Farbe.tinte)
+                        Spacer()
+                        Text(raum.abstandText).font(Schrift.daten).foregroundStyle(raum.abstandFarbe)
                     }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Kartenkopf(titel: "Ventile", erklaerung: "Am Sollwert stehen die Ventile halb offen, \(Format.kelvin(raum.regelung.proportionalband)) darunter ganz offen, ebenso viel darüber ganz zu.")
-                        ForEach(raum.kanaele, id: \.self) { nummer in
-                            if let k = etage.kanaele.first(where: { $0.nummer == nummer }) {
-                                NavigationLink(value: Ziel.kanal(etage: etage.id, nummer: nummer)) {
-                                    KanalZeile(kanal: k, zeigeRaum: false)
-                                        .contentShape(.rect)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                    if raum.thermometer != nil {
+                        SollwertStellrad(wert: modell.soll(raum.id), hinweis: "Wird an den Verteiler gesendet, sobald das Rad steht.")
+                            .padding(.top, 6)
+                    }
+                    HStack {
+                        Button {
+                            modell.raumPruefen(raum.id)
+                        } label: {
+                            Label("Jetzt prüfen", systemImage: "arrow.clockwise")
                         }
-                    }
-                    .padding(16)
-                    .karte()
-
-                    RaumVerlaufKarte(etage: etage, raum: raum)
-
-                    NavigationLink(value: Ziel.einstellungen("raum", geraet: etage.id, eintrag: "\(raum.nummer)")) {
-                        HStack {
-                            Label("Regelparameter", systemImage: "slider.horizontal.3")
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Farbe.blass)
+                        .buttonStyle(.rahmen)
+                        Spacer()
+                        Button(raum.betriebsart == .heizen ? "Ausschalten" : "Einschalten") {
+                            modell.betriebsartUmschalten(raum.id)
                         }
-                        .padding(16)
-                        .contentShape(.rect)
-                        .karte()
+                        .buttonStyle(.rahmen)
                     }
-                    .buttonStyle(.plain)
                 }
-                .padding()
-                .frame(maxWidth: 820)
-                .frame(maxWidth: .infinity)
+                .padding(16)
+                .karte()
+
+                // Ab 150 pt je Kachel zweispaltig, auch links auf dem Innendisplay des iPhone Duo
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                    Kennzahl(titel: "Luftfeuchte", wert: raum.feuchte.map { Format.zahl($0, stellen: 0) } ?? "–", einheit: "%")
+                    Kennzahl(titel: "Batterie", wert: raum.batterie.map { "\($0)" } ?? "–", einheit: "%",
+                             farbe: (raum.batterie ?? 100) < 10 ? Farbe.stoerung : Farbe.tinte)
+                    Kennzahl(titel: "Messwert", wert: raum.messwertAlter.map { "\($0)" } ?? "–", einheit: "s alt")
+                    Kennzahl(titel: "Zielstellung", wert: Format.prozentzahl(raum.zielstellung), einheit: "%", farbe: Farbe.waerme)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Kartenkopf(titel: "Ventile", erklaerung: "Am Sollwert stehen die Ventile halb offen, \(Format.kelvin(raum.regelung.proportionalband)) darunter ganz offen, ebenso viel darüber ganz zu.")
+                    ForEach(raum.kanaele, id: \.self) { nummer in
+                        if let k = etage.kanaele.first(where: { $0.nummer == nummer }) {
+                            NavigationLink(value: Ziel.kanal(etage: etage.id, nummer: nummer)) {
+                                KanalZeile(kanal: k, zeigeRaum: false)
+                                    .contentShape(.rect)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(16)
+                .karte()
+                .spalte(.rechts)
+
+                RaumVerlaufKarte(etage: etage, raum: raum)
+                    .spalte(.rechts)
+
+                NavigationLink(value: Ziel.einstellungen("raum", geraet: etage.id, eintrag: "\(raum.nummer)")) {
+                    HStack {
+                        Label("Regelparameter", systemImage: "slider.horizontal.3")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Farbe.blass)
+                    }
+                    .padding(16)
+                    .contentShape(.rect)
+                    .karte()
+                }
+                .buttonStyle(.plain)
+                .spalte(.rechts)
             }
             .background(Farbe.grund)
             .navigationTitle(raum.name)
