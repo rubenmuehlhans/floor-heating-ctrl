@@ -30,6 +30,15 @@ Ab Build 14 (9. Oktober, TestFlight):
 - **Keine Warnungen mehr mit dem iOS-27-SDK:** Hintergrundabruf über `submitTaskRequest`,
   Öffnen der Mitteilungseinstellungen auf dem Hauptthread.
 
+Noch in keinem TestFlight-Build:
+
+- **Übersicht und Räume in schmalen Spalten,** etwa auf dem Außendisplay des iPhone Duo. Die
+  Geräteleiste bricht um, statt seitlich unter die Statusanzeige zu laufen; eine Gruppe beginnt
+  samt Bezeichnung eine neue Zeile. Die Karte „Beispielanlage“ stellt die Schaltfläche unter den
+  Text, wenn daneben keine Zeilen von gut 30 Zeichen bleiben; bisher trennte der Text Wörter. Ist
+  ein Verteilerbalken breiter als seine Karte, blendet ein Verlauf am Rand aus, wo weitere Kanäle
+  folgen.
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler

@@ -15,22 +15,7 @@ struct UebersichtAnsicht: View {
                 Geraeteleiste(anlage: anlage)
 
                 if modell.istBeispiel {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Image(systemName: "theatermasks").foregroundStyle(Farbe.gedaempft)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Beispielanlage").font(.subheadline.weight(.semibold))
-                            Text("Die App zeigt einen Mitschnitt, bis Sie ein Gerät einbinden. Befehle verändern hier nur die Beispieldaten.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                        Button("Geräte einbinden") { modell.zeigeEinrichtung = true }
-                            .buttonStyle(.rahmenBetont)
-                            .fixedSize()
-                    }
-                    .padding(14)
-                    .karte()
+                    BeispielanlageKarte()
                 } else if modell.betrieb.staende.values.allSatisfy({ $0.letzterKontakt == nil }) {
                     HStack(spacing: 10) {
                         ProgressView().controlSize(.small)
@@ -148,21 +133,26 @@ struct UebersichtAnsicht: View {
 }
 
 /// Kopfzeile wie in der Weboberfläche: die Geräte der Anlage als Marken, mit Erreichbarkeit.
+/// Reicht die Breite nicht, bricht die Leiste um, statt seitlich zu scrollen.
 struct Geraeteleiste: View {
     @Environment(AppModell.self) private var modell
     let anlage: Anlagenbild
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                Kicker("Heizung")
-                ForEach(anlage.geraete.filter { $0.art == .kessel || $0.art == .speicher }) { g in marke(g) }
-                Kicker("Verteiler").padding(.leading, 6)
-                ForEach(anlage.geraete.filter { $0.art == .verteiler }) { g in marke(g) }
-            }
-            .padding(.horizontal, 4)
+        // Passt eine Gruppe nicht mehr in die Zeile, beginnt sie samt Bezeichnung eine neue.
+        // Nur eine Gruppe, die allein breiter ist als die Zeile, verteilt ihre Marken.
+        Fliesslayout(abstand: 12, zeilenabstand: 6) {
+            gruppe("Heizung", anlage.geraete.filter { $0.art == .kessel || $0.art == .speicher })
+            gruppe("Verteiler", anlage.geraete.filter { $0.art == .verteiler })
         }
-        .scrollClipDisabled()
+        .padding(.horizontal, 4)
+    }
+
+    private func gruppe(_ titel: String, _ geraete: [Geraet]) -> some View {
+        Fliesslayout {
+            Kicker(titel)
+            ForEach(geraete) { g in marke(g) }
+        }
     }
 
     private func marke(_ g: Geraet) -> some View {
@@ -179,6 +169,57 @@ struct Geraeteleiste: View {
             .overlay { Capsule().strokeBorder(Farbe.linieStark, lineWidth: 1) }
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Hinweis, solange die App die Beispielanlage zeigt. Die Schaltfläche steht neben dem Text, wenn
+/// ihm daneben Zeilen von gut 30 Zeichen bleiben, sonst darunter. Schmaler umbrochen trennte der
+/// Text Wörter.
+struct BeispielanlageKarte: View {
+    @Environment(AppModell.self) private var modell
+    /// Schmalste Textspalte neben der Schaltfläche; wächst mit der Schriftgröße.
+    @ScaledMetric(relativeTo: .callout) private var textbreite: CGFloat = 240
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            // Die Idealbreite zählt nur bei der Wahl. Passt diese Fassung, bricht der Text wie
+            // bisher in der ganzen Breite neben der Schaltfläche um.
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                symbol
+                beschreibung.frame(idealWidth: textbreite)
+                Spacer(minLength: 0)
+                knopf
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                symbol
+                VStack(alignment: .leading, spacing: 12) {
+                    beschreibung
+                    knopf
+                }
+            }
+        }
+        .padding(14)
+        .karte()
+    }
+
+    private var symbol: some View {
+        Image(systemName: "theatermasks").foregroundStyle(Farbe.gedaempft)
+    }
+
+    private var beschreibung: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Beispielanlage").font(.subheadline.weight(.semibold))
+            Text("Die App zeigt einen Mitschnitt, bis Sie ein Gerät einbinden. Befehle verändern hier nur die Beispieldaten.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var knopf: some View {
+        Button("Geräte einbinden") { modell.zeigeEinrichtung = true }
+            .buttonStyle(.rahmenBetont)
+            .fixedSize()
     }
 }
 

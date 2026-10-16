@@ -176,38 +176,63 @@ struct Messwert: View {
 // MARK: - Umbrechende Reihe
 
 /// Legt Marken nebeneinander und bricht in die nächste Zeile um, wenn der Platz nicht reicht.
+/// Die Elemente einer Zeile stehen mittig zueinander. Ein Element, das allein breiter ist als die
+/// Zeile, erhält die Zeilenbreite und bricht selbst um; so bleibt eine Gruppe, die ein inneres
+/// Fliesslayout zusammenhält, beisammen und rückt als Ganzes in die nächste Zeile.
 struct Fliesslayout: Layout {
     var abstand: CGFloat = 6
+    /// Abstand zwischen den Zeilen; ohne Angabe derselbe wie zwischen den Elementen.
+    var zeilenabstand: CGFloat? = nil
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let breite = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, zeile: CGFloat = 0, rechts: CGFloat = 0
-        for sub in subviews {
-            let groesse = sub.sizeThatFits(.unspecified)
-            if x > 0, x + groesse.width > breite {
-                x = 0
-                y += zeile + abstand
-                zeile = 0
-            }
-            x += groesse.width + abstand
-            zeile = max(zeile, groesse.height)
-            rechts = max(rechts, x - abstand)
-        }
-        return CGSize(width: min(rechts, breite), height: y + zeile)
+        anordnung(subviews, breite: proposal.width ?? .infinity).groesse
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, zeile: CGFloat = 0
-        for sub in subviews {
-            let groesse = sub.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + groesse.width > bounds.maxX {
-                x = bounds.minX
-                y += zeile + abstand
-                zeile = 0
+        // Dieselbe Breite wie beim Messen, nicht bounds.width: Sonst kann ein Rundungsfehler das
+        // letzte Element einer genau gefüllten Zeile in die nächste schieben.
+        let anordnung = anordnung(subviews, breite: proposal.width ?? .infinity)
+        for (sub, platz) in zip(subviews, anordnung.plaetze) {
+            sub.place(at: CGPoint(x: bounds.minX + platz.ort.x, y: bounds.minY + platz.ort.y), proposal: platz.vorschlag)
+        }
+    }
+
+    private struct Platz {
+        var ort: CGPoint
+        var groesse: CGSize
+        var vorschlag: ProposedViewSize
+    }
+
+    private func anordnung(_ subviews: Subviews, breite: CGFloat) -> (plaetze: [Platz], groesse: CGSize) {
+        var plaetze: [Platz] = []
+        var x: CGFloat = 0, y: CGFloat = 0, zeile: CGFloat = 0, rechts: CGFloat = 0
+        var zeilenanfang = 0
+
+        func zeileAbschliessen() {
+            for i in zeilenanfang..<plaetze.count {
+                plaetze[i].ort.y = y + (zeile - plaetze[i].groesse.height) / 2
             }
-            sub.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(groesse))
+        }
+
+        for sub in subviews {
+            var vorschlag = ProposedViewSize(sub.sizeThatFits(.unspecified))
+            if let ideal = vorschlag.width, ideal > breite {
+                vorschlag = ProposedViewSize(width: breite, height: nil)
+            }
+            let groesse = sub.sizeThatFits(vorschlag)
+            if x > 0, x + groesse.width > breite {
+                zeileAbschliessen()
+                x = 0
+                y += zeile + (zeilenabstand ?? abstand)
+                zeile = 0
+                zeilenanfang = plaetze.count
+            }
+            plaetze.append(Platz(ort: CGPoint(x: x, y: y), groesse: groesse, vorschlag: vorschlag))
+            rechts = max(rechts, x + groesse.width)
             x += groesse.width + abstand
             zeile = max(zeile, groesse.height)
         }
+        zeileAbschliessen()
+        return (plaetze, CGSize(width: min(rechts, breite), height: y + zeile))
     }
 }

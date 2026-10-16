@@ -46,6 +46,9 @@ struct RaeumeAnsicht: View {
 /// zeigt die Ventilstellung. Wie die Karte „Verteiler“ der Weboberfläche.
 struct Verteilerbalken: View {
     let etage: Etage
+    /// Breite des Verlaufs an jedem Rand: so weit, wie der Balken dort über die Karte hinausreicht,
+    /// höchstens 32 pt.
+    @State private var verlauf = EdgeInsets()
 
     private struct Gruppe: Identifiable {
         var id: Int { kanaele.first?.nummer ?? 0 }
@@ -92,6 +95,24 @@ struct Verteilerbalken: View {
                     }
                 }
                 .padding(.bottom, 2)
+            }
+            // Ist der Balken breiter als die Karte, zeigt ein Verlauf am Rand, dass dort weitere
+            // Kanäle folgen. Er wird schmaler, je näher das Ende rückt, und verschwindet dort.
+            .onScrollGeometryChange(for: EdgeInsets.self) { geo in
+                let links = min(max(geo.visibleRect.minX, 0), 32)
+                let rechts = min(max(geo.contentSize.width - geo.visibleRect.maxX, 0), 32)
+                return EdgeInsets(top: 0, leading: links.rounded(), bottom: 0, trailing: rechts.rounded())
+            } action: { _, neu in
+                verlauf = neu
+            }
+            .mask {
+                HStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: verlauf.leading)
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: verlauf.trailing)
+                }
             }
         }
         .padding(16)
