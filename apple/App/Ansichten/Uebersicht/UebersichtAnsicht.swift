@@ -31,13 +31,8 @@ struct UebersichtAnsicht: View {
                 // nur eine leere Überschrift.
                 ForEach(anlage.etagen.filter { !$0.raeume.isEmpty }) { etage in
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Text(etage.name).font(.subheadline.weight(.semibold))
-                            if etage.bedarf {
-                                Zustandsmarke(text: "Wärmebedarf", symbol: "flame", farbe: Farbe.waerme)
-                            }
-                        }
-                        .padding(.horizontal, 4)
+                        etagenkopf(etage)
+                            .padding(.horizontal, 4)
                         LazyVGrid(columns: raumspalten, spacing: 12) {
                             ForEach(etage.raeume) { raum in
                                 NavigationLink(value: Ziel.raum(raum.id)) {
@@ -114,6 +109,17 @@ struct UebersichtAnsicht: View {
         .background(Farbe.grund)
         .navigationTitle("Übersicht")
         .fragenKnopf("Übersicht")
+    }
+
+    /// Name der Etage, bei Wärmebedarf mit Marke. Reicht die Zeile nicht für beides, steht die Marke
+    /// unter dem Namen; daneben trennte der Name bei großer Schrift das Wort.
+    private func etagenkopf(_ etage: Etage) -> some View {
+        let name = Text(etage.name).font(.subheadline.weight(.semibold))
+        let marke = etage.bedarf ? Zustandsmarke(text: "Wärmebedarf", symbol: "flame", farbe: Farbe.waerme) : nil
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { name; marke }
+            VStack(alignment: .leading, spacing: 6) { name; marke }
+        }
     }
 
     private func raeumeZusatz(_ anlage: Anlagenbild) -> String {
@@ -236,11 +242,18 @@ struct LageberichtKarte: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Label("Lagebericht", systemImage: "sparkles")
-                    .font(Schrift.kartentitel)
-                Spacer()
-                Zustandsmarke(text: bericht.zustand.rawValue, symbol: symbol, farbe: farbe)
+            // Reicht die Zeile nicht für Titel und Marke, steht die Marke unter dem Titel; daneben
+            // trennte der Titel bei großer Schrift das Wort.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    titel
+                    Spacer()
+                    marke
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    titel
+                    marke
+                }
             }
 
             Text(bericht.kurztext)
@@ -286,36 +299,69 @@ struct LageberichtKarte: View {
             }
             .font(Schrift.datenKlein)
             .foregroundStyle(Farbe.gedaempft)
-            HStack(spacing: 8) {
-                if !modell.offeneVorschlaege.isEmpty {
-                    Button("\(modell.offeneVorschlaege.count) Vorschläge") {
-                        modell.bereich = .assistent
-                    }
-                    .buttonStyle(.rahmen)
-                    .fixedSize()
+            // Die Schaltflächen behalten ihre Breite. Reicht die Zeile nicht für beide, stehen sie
+            // untereinander; sonst ragte die Karte bei großer Schrift über den Rand.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    vorschlaegeKnopf
+                    nachfragenKnopf
+                    Spacer(minLength: 0)
+                    neuKnopf
                 }
-                Button("Nachfragen") {
-                    modell.fragen("Lagebericht")
-                }
-                .buttonStyle(.rahmenBetont)
-                .fixedSize()
-                Spacer(minLength: 0)
-                if !modell.istBeispiel, modell.lageberichtMoeglich {
-                    Button {
-                        modell.lageberichtErstellen()
-                    } label: {
-                        Label("Neu erstellen", systemImage: "arrow.clockwise")
-                            .labelStyle(.iconOnly)
+                VStack(alignment: .leading, spacing: 8) {
+                    vorschlaegeKnopf
+                    HStack(spacing: 8) {
+                        nachfragenKnopf
+                        Spacer(minLength: 0)
+                        neuKnopf
                     }
-                    .buttonStyle(.rahmen)
-                    .disabled(modell.lageberichtLaeuft)
-                    .help("Lagebericht der KI neu erstellen")
-                    .accessibilityLabel("Lagebericht neu erstellen")
                 }
             }
         }
         .padding(16)
         .karte(betont: true)
+    }
+
+    private var titel: some View {
+        Label("Lagebericht", systemImage: "sparkles")
+            .font(Schrift.kartentitel)
+    }
+
+    private var marke: some View {
+        Zustandsmarke(text: bericht.zustand.rawValue, symbol: symbol, farbe: farbe)
+    }
+
+    @ViewBuilder private var vorschlaegeKnopf: some View {
+        if !modell.offeneVorschlaege.isEmpty {
+            Button("\(modell.offeneVorschlaege.count) Vorschläge") {
+                modell.bereich = .assistent
+            }
+            .buttonStyle(.rahmen)
+            .fixedSize()
+        }
+    }
+
+    private var nachfragenKnopf: some View {
+        Button("Nachfragen") {
+            modell.fragen("Lagebericht")
+        }
+        .buttonStyle(.rahmenBetont)
+        .fixedSize()
+    }
+
+    @ViewBuilder private var neuKnopf: some View {
+        if !modell.istBeispiel, modell.lageberichtMoeglich {
+            Button {
+                modell.lageberichtErstellen()
+            } label: {
+                Label("Neu erstellen", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.rahmen)
+            .disabled(modell.lageberichtLaeuft)
+            .help("Lagebericht der KI neu erstellen")
+            .accessibilityLabel("Lagebericht neu erstellen")
+        }
     }
 
     private var farbe: Color {
