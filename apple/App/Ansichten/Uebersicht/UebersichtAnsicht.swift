@@ -186,12 +186,20 @@ struct BeispielanlageKarte: View {
                 symbol
                 beschreibung.frame(idealWidth: textbreite)
                 Spacer(minLength: 0)
-                knopf
+                knopf.fixedSize()
             }
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                symbol
-                VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    symbol
                     beschreibung
+                }
+                // Unter dem Text, solange Symbol und Schaltfläche nebeneinander passen; bei sehr
+                // großer Schrift vom Rand der Karte aus, notfalls mit umbrochener Beschriftung.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        symbol.hidden()
+                        knopf.fixedSize()
+                    }
                     knopf
                 }
             }
@@ -217,7 +225,6 @@ struct BeispielanlageKarte: View {
     private var knopf: some View {
         Button("Geräte einbinden") { modell.zeigeEinrichtung = true }
             .buttonStyle(.rahmenBetont)
-            .fixedSize()
     }
 }
 
