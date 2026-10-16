@@ -6,6 +6,7 @@
 | [Konzept: Wärmeerzeugung, Pufferspeicher und Pumpensteuerung](konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Bedarfserkennung, Pumpenlogik, Kesselkreispumpe, Schnittstellen |
 | [Konzept: Auswertung der Anlage](konzept-auswertung.md) | Protokolle, Verbrauchslinie, Abgas-Vorlauf-Abstand, Plausibilität, Rückströmung, Warmwasserzapfung, Reihenfolge der Umsetzung |
 | [Konzept: Leitstand](konzept-leitstand.md) | Funkempfang in Kesselnähe, lückenloses Protokoll auf SD-Karte, Abgleich des Verlaufs mit den Apps, Anzeige, HomeKit, Etappen mit Prüfschritten |
+| [Konzept: Die App auf dem iPhone Duo](konzept-iphone-duo.md) | Außen- und Innendisplay, Doppelseite an der Faltlinie, Liste und Eintrag, Assistent in der rechten Hälfte, aufgestellt und als Zelt, Entwürfe, Etappen mit Prüfschritten |
 | [Katalog der Messgrößen](katalog-messgroessen.md) | Spalten des Protokolls und des Verlaufs der App, Kennzahlen, Fünfminutenmittel, Ereignisse |
 | [Umbau auf zwei Anwendungen](umbau-projektstruktur.md) | Aufteilung des Projekts, gemeinsame Komponenten, Nachweis der Unverändertheit |
 | [Änderungen](../CHANGELOG.md) | was sich seit welcher Fassung geändert hat |
