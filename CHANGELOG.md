@@ -54,7 +54,7 @@ Ab Build 15 (17. Oktober, TestFlight):
   Karte, entfällt ihr Symbol. Das Stellrad beschriftet ab xxxLarge nur jede zweite ganze Zahl und
   wächst mit der Schrift. Bei Standardschrift bleibt alles, wie es war.
 
-Noch in keinem TestFlight-Build:
+Ab Build 16 (17. Oktober, TestFlight):
 
 - **Rechte Spalte für Geöffnetes.** Zweispaltig öffnen sich Befund, Gerät, Formulare und
   Systemseiten rechts neben der Seite, von der sie kommen; die Seite bleibt links stehen, Zurück
