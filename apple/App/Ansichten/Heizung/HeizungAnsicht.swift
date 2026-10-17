@@ -121,7 +121,11 @@ struct AussenZeile: View {
 
 struct SpeicherKarte: View {
     let speicher: Speicher
-    private let kennzahlen = [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)]
+    /// Wächst mit der Schrift wie auf der Übersicht; bei großer Schrift eine Kennzahl je Zeile.
+    @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 150
+    private var kennzahlen: [GridItem] {
+        [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10, alignment: .top)]
+    }
 
     var body: some View {
         let s = speicher
@@ -159,7 +163,11 @@ struct SpeicherKarte: View {
 
 struct BrennerKarte: View {
     let kessel: Kessel
-    private let kennzahlen = [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)]
+    /// Wächst mit der Schrift wie auf der Übersicht; bei großer Schrift eine Kennzahl je Zeile.
+    @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 150
+    private var kennzahlen: [GridItem] {
+        [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10, alignment: .top)]
+    }
 
     var body: some View {
         let k = kessel
@@ -227,7 +235,11 @@ extension Heizkreis {
 struct HeizkreisKarte: View {
     @Environment(AppModell.self) private var modell
     let kreis: Heizkreis
-    private let spalten = [GridItem(.adaptive(minimum: 110), spacing: 10, alignment: .top)]
+    /// Wächst mit der Schrift wie auf der Übersicht; bei großer Schrift eine Kennzahl je Zeile.
+    @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 110
+    private var spalten: [GridItem] {
+        [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10, alignment: .top)]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

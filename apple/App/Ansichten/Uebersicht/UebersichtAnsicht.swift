@@ -5,8 +5,20 @@ import Assistent
 struct UebersichtAnsicht: View {
     @Environment(AppModell.self) private var modell
 
-    private let raumspalten = [GridItem(.adaptive(minimum: 160, maximum: 260), spacing: 12)]
-    private let kennzahlspalten = [GridItem(.adaptive(minimum: 150), spacing: 10)]
+    // Die Spaltenbreiten wachsen mit der Schrift, und zwar relativ zur kleinsten: Das Maß von
+    // `.caption2` wächst bei großer Schrift am stärksten, mindestens so stark wie jede Schrift in
+    // Kachel und Kennzahl. Bei großer Schrift stehen Räume und Kennzahlen deshalb untereinander;
+    // mit festen Breiten kürzten zwei schmale Spalten Namen und Werte.
+    @ScaledMetric(relativeTo: .caption2) private var raumbreite: CGFloat = 160
+    @ScaledMetric(relativeTo: .caption2) private var raumbreiteHoechstens: CGFloat = 260
+    @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 150
+
+    private var raumspalten: [GridItem] {
+        [GridItem(.adaptive(minimum: raumbreite, maximum: raumbreiteHoechstens), spacing: 12)]
+    }
+    private var kennzahlspalten: [GridItem] {
+        [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10)]
+    }
 
     var body: some View {
         let anlage = modell.anlage
@@ -385,13 +397,17 @@ struct LageberichtKarte: View {
 
 struct RaumKachel: View {
     let raum: Raum
+    @Environment(\.dynamicTypeSize) private var schriftgroesse
 
     var body: some View {
+        // Bei den Größen der Bedienungshilfen brechen Name und Untertitel um, statt gekürzt zu
+        // werden; selbst die ganze Breite reicht dann nicht immer für eine Zeile.
+        let zeilen = schriftgroesse.isAccessibilitySize ? nil : 1
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text(raum.name)
                     .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+                    .lineLimit(zeilen)
                 Spacer(minLength: 4)
                 Image(systemName: raum.zustand.symbol)
                     .font(.caption.weight(.bold))
@@ -406,7 +422,7 @@ struct RaumKachel: View {
             Text(untertitel)
                 .font(Schrift.datenKlein)
                 .foregroundStyle(raum.abstandFarbe)
-                .lineLimit(1)
+                .lineLimit(zeilen)
             Fortschritt(anteil: raum.zielstellung, farbe: raum.betriebsart == .aus ? Farbe.blass : Farbe.waerme, hoehe: 4)
                 .padding(.top, 2)
         }

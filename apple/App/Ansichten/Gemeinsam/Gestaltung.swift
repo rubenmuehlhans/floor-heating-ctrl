@@ -150,16 +150,19 @@ struct Kennzahl: View {
     var einheit: String = ""
     var fuss: String? = nil
     var farbe: Color = Farbe.tinte
+    @Environment(\.dynamicTypeSize) private var schriftgroesse
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Kicker(titel)
             Messzahl(zahl: wert, einheit: einheit, font: Schrift.messwert, farbe: farbe)
             if let fuss {
+                // Bei den Größen der Bedienungshilfen ohne Zeilengrenze; zwei Zeilen kürzten dort
+                // auch in voller Breite.
                 Text(fuss)
                     .font(Schrift.datenKlein)
                     .foregroundStyle(Farbe.gedaempft)
-                    .lineLimit(2)
+                    .lineLimit(schriftgroesse.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -260,14 +263,26 @@ struct Abschnitt: View {
     var zusatz: String? = nil
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Kicker(titel)
-            Spacer()
-            if let zusatz {
-                Text(zusatz).font(Schrift.datenKlein).foregroundStyle(Farbe.gedaempft)
+        // Reicht die Zeile nicht für Titel und Zusatz, steht der Zusatz unter dem Titel; daneben
+        // kürzte der Titel bei großer Schrift.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                Kicker(titel)
+                Spacer()
+                zusatzText
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Kicker(titel)
+                zusatzText
             }
         }
         .padding(.top, 10)
         .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder private var zusatzText: some View {
+        if let zusatz {
+            Text(zusatz).font(Schrift.datenKlein).foregroundStyle(Farbe.gedaempft)
+        }
     }
 }

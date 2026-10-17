@@ -274,6 +274,8 @@ struct Raumkarte: View {
 struct RaumDetailAnsicht: View {
     @Environment(AppModell.self) private var modell
     let raumID: Raum.ID
+    /// Wächst mit der Schrift wie auf der Übersicht; bei großer Schrift eine Kennzahl je Zeile.
+    @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 150
 
     var body: some View {
         if let raum = modell.anlage.raum(raumID), let etage = modell.anlage.etagen.first(where: { $0.raeume.contains { $0.id == raumID } }) {
@@ -313,7 +315,7 @@ struct RaumDetailAnsicht: View {
                 .karte()
 
                 // Ab 150 pt je Kachel zweispaltig, auch links auf dem Innendisplay des iPhone Duo
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10)], spacing: 10) {
                     Kennzahl(titel: "Luftfeuchte", wert: raum.feuchte.map { Format.zahl($0, stellen: 0) } ?? "–", einheit: "%")
                     Kennzahl(titel: "Batterie", wert: raum.batterie.map { "\($0)" } ?? "–", einheit: "%",
                              farbe: (raum.batterie ?? 100) < 10 ? Farbe.stoerung : Farbe.tinte)
