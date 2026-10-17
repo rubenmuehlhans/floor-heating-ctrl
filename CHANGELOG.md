@@ -30,7 +30,7 @@ Ab Build 14 (9. Oktober, TestFlight):
 - **Keine Warnungen mehr mit dem iOS-27-SDK:** Hintergrundabruf über `submitTaskRequest`,
   Öffnen der Mitteilungseinstellungen auf dem Hauptthread.
 
-Noch in keinem TestFlight-Build:
+Ab Build 15 (17. Oktober, TestFlight):
 
 - **Übersicht und Räume in schmalen Spalten,** etwa auf dem Außendisplay des iPhone Duo. Die
   Geräteleiste bricht um, statt seitlich unter die Statusanzeige zu laufen; eine Gruppe beginnt
@@ -46,6 +46,13 @@ Noch in keinem TestFlight-Build:
   zweispaltig in festen Spalten an der Teilung, der Verteilerbalken als erste Zelle. Das
   Anlagenschema wählt die Querfassung nach der Breite, ab 600 pt, statt nach der Größenklasse. Die
   Faltlinie fragt die App erst ab iOS 27.1 ab; die Mindestversion bleibt iOS 27.0.
+- **Große Schrift in schmalen Spalten.** Bei den Schriftgrößen der Bedienungshilfen ragte die
+  Übersicht in einer Spalte von 350 pt über den Rand, Raumnamen brachen zeichenweise um, Kacheln
+  und Kennzahlen kürzten Namen und Werte. Raumkacheln und Kennzahlen wachsen jetzt mit der Schrift
+  und stehen bei großer Schrift einzeln je Zeile. Schaltflächen, Zustandsmarken und Zusätze rücken
+  unter den Titel, wenn die Zeile nicht reicht; ist eine Zustandsmarke allein breiter als die
+  Karte, entfällt ihr Symbol. Das Stellrad beschriftet ab xxxLarge nur jede zweite ganze Zahl und
+  wächst mit der Schrift. Bei Standardschrift bleibt alles, wie es war.
 
 ## v0.6.0 — 5. Oktober 2026
 
