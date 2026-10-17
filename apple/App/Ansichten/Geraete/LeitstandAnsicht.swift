@@ -255,7 +255,7 @@ struct LeitstandAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle(stand.eintrag.ort)
+        .seitentitel(stand.eintrag.ort)
         .task(id: leitstandID) { await bildLaden() }
         .refreshable {
             await modell.leitstandbetrieb.jetztAbfragen(leitstandID)

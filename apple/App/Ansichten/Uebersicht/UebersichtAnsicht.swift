@@ -4,6 +4,8 @@ import Assistent
 
 struct UebersichtAnsicht: View {
     @Environment(AppModell.self) private var modell
+    @Environment(\.horizontalSizeClass) private var breite
+    @Environment(\.verticalSizeClass) private var hoehe
 
     // Die Spaltenbreiten wachsen mit der Schrift, und zwar relativ zur kleinsten: Das Maß von
     // `.caption2` wächst bei großer Schrift am stärksten, mindestens so stark wie jede Schrift in
@@ -21,8 +23,17 @@ struct UebersichtAnsicht: View {
     }
 
     var body: some View {
+        // Im Querformat bei compact × compact, etwa als Zelt auf dem Tisch, die Anzeigetafel
+        if breite == .compact && hoehe == .compact {
+            Anzeigetafel()
+        } else {
+            seite
+        }
+    }
+
+    private var seite: some View {
         let anlage = modell.anlage
-        Doppelseite {
+        return Doppelseite {
             Geraeteleiste(anlage: anlage)
 
             if modell.istBeispiel {
@@ -47,7 +58,7 @@ struct UebersichtAnsicht: View {
                             .padding(.horizontal, 4)
                         LazyVGrid(columns: raumspalten, spacing: 12) {
                             ForEach(etage.raeume) { raum in
-                                NavigationLink(value: Ziel.raum(raum.id)) {
+                                ZielLink(Ziel.raum(raum.id)) {
                                     RaumKachel(raum: raum)
                                 }
                                 .buttonStyle(.plain)
@@ -96,7 +107,7 @@ struct UebersichtAnsicht: View {
             VStack(spacing: 0) {
                 ForEach(Array(anlage.befundeNachSchwere.prefix(3).enumerated()), id: \.element.id) { i, befund in
                     if i > 0 { Divider().overlay(Farbe.linie).padding(.leading, 46) }
-                    NavigationLink(value: Ziel.befund(befund.id)) {
+                    ZielLink(Ziel.befund(befund.id)) {
                         BefundZeile(befund: befund)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 12)
@@ -104,7 +115,7 @@ struct UebersichtAnsicht: View {
                     .buttonStyle(.plain)
                 }
                 Divider().overlay(Farbe.linie)
-                NavigationLink(value: Ziel.befunde) {
+                ZielLink(Ziel.befunde) {
                     HStack {
                         Text("Alle \(anlage.befunde.count) Befunde").font(.subheadline.weight(.medium))
                         Spacer()
@@ -119,7 +130,7 @@ struct UebersichtAnsicht: View {
             .karte()
         }
         .background(Farbe.grund)
-        .navigationTitle("Übersicht")
+        .seitentitel("Übersicht")
         .fragenKnopf("Übersicht")
     }
 
@@ -172,7 +183,7 @@ struct Geraeteleiste: View {
     }
 
     private func marke(_ g: Geraet) -> some View {
-        NavigationLink(value: Ziel.geraet(g.id)) {
+        ZielLink(Ziel.geraet(g.id)) {
             HStack(spacing: 5) {
                 Circle().fill(g.erreichbar ? Farbe.gut : Farbe.stoerung).frame(width: 6, height: 6)
                 Text(g.ort)
@@ -484,13 +495,22 @@ struct BefundeAnsicht: View {
     @Environment(AppModell.self) private var modell
 
     var body: some View {
+        // Zweispaltig rechts der gewählte Befund, ohne Auswahl der schwerste
+        ListeUndEintrag(vorgabe: modell.anlage.befundeNachSchwere.first.map { Ziel.befund($0.id) }) {
+            liste
+        }
+        .seitentitel("Befunde")
+        .fragenKnopf("Befunde")
+    }
+
+    private var liste: some View {
         Form {
             ForEach([Befund.Schwere.stoerung, .warnung, .hinweis], id: \.self) { schwere in
                 let liste = modell.anlage.befunde.filter { $0.schwere == schwere }
                 if !liste.isEmpty {
                     Section(schwere == .hinweis ? "Hinweise" : schwere == .warnung ? "Warnungen" : "Störungen") {
                         ForEach(liste) { befund in
-                            NavigationLink(value: Ziel.befund(befund.id)) {
+                            ZielLink(Ziel.befund(befund.id)) {
                                 BefundZeile(befund: befund)
                             }
                             .contextMenu {
@@ -534,8 +554,6 @@ struct BefundeAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Befunde")
-        .fragenKnopf("Befunde")
     }
 }
 
@@ -588,7 +606,7 @@ struct BefundAnsicht: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Farbe.grund)
-            .navigationTitle(befund.schwere.bezeichnung)
+            .seitentitel(befund.schwere.bezeichnung)
         } else {
             ContentUnavailableView("Befund erledigt", systemImage: "checkmark.circle", description: Text("Der Befund steht nicht mehr an."))
         }

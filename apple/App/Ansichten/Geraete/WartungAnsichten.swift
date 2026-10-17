@@ -48,7 +48,7 @@ struct FirmwareAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Firmware")
+        .seitentitel("Firmware")
         .fileImporter(isPresented: $zeigeDatei, allowedContentTypes: [.data]) { ergebnis in
             fehler = nil
             do {
@@ -139,7 +139,7 @@ struct SicherungAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Sicherung")
+        .seitentitel("Sicherung")
         .onAppear(perform: neuLaden)
         .confirmationDialog("Sicherung einspielen?", isPresented: Binding(get: { einspielen != nil }, set: { if !$0 { einspielen = nil } }),
                             titleVisibility: .visible) {

@@ -65,7 +65,7 @@ struct WaermepumpencheckAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Wärmepumpen-Check")
+        .seitentitel("Wärmepumpen-Check")
         .fragenKnopf("Wärmepumpen-Check: Heizlast, Vorlauf und Räume")
         .onChange(of: stand) { stand.sichern() }
         .task(id: modell.verlaufsrevision) { auszug = await modell.stundenauszug(tage: tage) }
@@ -291,7 +291,7 @@ struct TankablesungBlatt: View {
                 }
             }
             .formularStil()
-            .navigationTitle("Tankablesung")
+            .seitentitel("Tankablesung")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { schliessen() } }
                 ToolbarItem(placement: .confirmationAction) {

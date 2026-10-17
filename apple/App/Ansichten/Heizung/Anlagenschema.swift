@@ -6,6 +6,8 @@ import Anlage
 /// hochkant, damit die Beschriftung lesbar bleibt.
 struct Anlagenschema: View {
     let anlage: Anlagenbild
+    /// Größere Beschriftung, etwa aufgestellt auf dem Tisch, aus Abstand zu lesen
+    var lesegroesse: CGFloat = 1
 
     var body: some View {
         // Die Querfassung ist für 780 pt entworfen; unter 600 pt erschiene sie zu stark verkleinert.
@@ -153,7 +155,7 @@ struct Anlagenschema: View {
 
     private func kicker(_ c: inout GraphicsContext, _ text: String, _ punkt: CGPoint, anker: UnitPoint = .center, farbe: Color = Farbe.gedaempft) {
         let t = Text(text.uppercased())
-            .font(.system(size: 10.5, weight: .semibold))
+            .font(.system(size: 10.5 * lesegroesse, weight: .semibold))
             .tracking(1.2)
             .foregroundStyle(farbe)
         c.draw(t, at: punkt, anchor: anker)
@@ -161,7 +163,7 @@ struct Anlagenschema: View {
 
     private func wert(_ c: inout GraphicsContext, _ text: String, _ punkt: CGPoint, _ farbe: Color, anker: UnitPoint = .center) {
         let t = Text(text)
-            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+            .font(.system(size: 16 * lesegroesse, weight: .semibold, design: .monospaced))
             .foregroundStyle(farbe)
         c.draw(t, at: punkt, anchor: anker)
     }

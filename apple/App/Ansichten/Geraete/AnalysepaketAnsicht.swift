@@ -54,7 +54,7 @@ struct AnalysepaketAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Analysepaket")
+        .seitentitel("Analysepaket")
         .onChange(of: tage) { datei = nil }
         .onChange(of: raster) { datei = nil }
     }

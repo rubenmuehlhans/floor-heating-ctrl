@@ -379,7 +379,7 @@ struct HeizkreisVerlaufAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle(kreis?.name ?? "Heizkreis")
+        .seitentitel(kreis?.name ?? "Heizkreis")
         .fragenKnopf("Heizkreis \(nummer), Verlauf und Heizkurve, \(zeitraum.rawValue)")
         .task(id: Ladeschluessel(zeitraum: zeitraum, revision: modell.verlaufsrevision)) {
             auszug = await modell.verlaufsauszug(zeitraum)

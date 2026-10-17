@@ -83,7 +83,7 @@ struct EinstellungsFormular<Zusatz: View>: View {
                 }
             }
             .formularStil()
-            .navigationTitle(kontext.titel)
+            .seitentitel(kontext.titel)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     if speichert {
@@ -604,7 +604,7 @@ struct AppEinstellungenAnsicht: View {
                     }
                     .disabled(modell.verlaufsspeicher == nil)
                 }
-                NavigationLink(value: Ziel.analysepaket) {
+                ZielLink(Ziel.analysepaket) {
                     Label("Analysepaket erstellen …", systemImage: "shippingbox")
                 }
                 .disabled((umfang?.bloecke ?? 0) == 0)
@@ -628,7 +628,7 @@ struct AppEinstellungenAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Einstellungen")
+        .seitentitel("Einstellungen")
         .task(id: modell.verlaufsrevision) {
             umfang = await modell.verlaufsumfang()
             ereignisse = await modell.ereignisumfang()

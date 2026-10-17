@@ -136,9 +136,10 @@ Entwürfe: [Übersicht](entwuerfe/iphone-duo/2-aufgeklappt-uebersicht.svg),
 
 ### Liste und Eintrag
 
-Listenseiten: Befunde, Geräte, Lageberichte, Änderungsprotokoll. Auf dem Innendisplay steht links die
-Liste, rechts der gewählte Eintrag. Ohne Auswahl zeigt die rechte Spalte den ersten Eintrag, bei
-Befunden den schwersten.
+Listenseiten: Befunde und Geräte. Auf dem Innendisplay steht links die Liste, rechts der gewählte
+Eintrag. Ohne Auswahl zeigt die rechte Spalte den ersten Eintrag, bei Befunden den schwersten.
+Lageberichte und Änderungsprotokoll zeigen ihre Einträge vollständig in der Liste und bleiben
+einspaltig.
 
 ### Navigation auf dem Innendisplay
 
@@ -263,6 +264,19 @@ ersten Teil. Die Doppelseite soll einspaltig alle Abschnitte untereinander zeige
 
 ## Etappen
 
+### Stand am 17. Oktober
+
+| Etappe | Stand |
+|---|---|
+| 1 | erledigt, in Build 15: Geräteleiste mit Umbruch, „Beispielanlage“ mit `ViewThatFits`, Verlauf am Rand des Verteilerbalkens. Geprüft auf Duo außen, iPhone 18 Pro und iPhone 17e; iPad pixelgleich |
+| 2 | erledigt, in Build 15: Spaltenmaß und Doppelseite für Übersicht, Raum und Heizung, Räume in zwei festen Spalten, Anlagenschema nach Breite. Abweichung: Die Mindestversion bleibt iOS 27.0; die Faltlinie fragt die App erst ab iOS 27.1 ab |
+| zusätzlich | erledigt, in Build 15: Darstellung bei großer Schrift (xLarge bis AX3) in Spalten von 350 pt: Raster einspaltig statt gekürzt, Marken und Schaltflächen unter dem Titel, Stellrad mit wachsender Höhe |
+| 3 | umgesetzt, nicht eingecheckt: `Weg`, `ZielLink`, `Stapel` und `Nebenseite` in `Zielfuehrung.swift`; Liste und Eintrag für Befunde und Geräte. Geprüft auf dem Innendisplay quer: Gerät aus der Übersicht und Heizkreis-Formular aus der Heizung öffnen sich rechts, Zurück im Kopf der Spalte; zugeklappt öffnet und schließt das Gerät wie bisher. Abweichungen: Lageberichte und Änderungsprotokoll haben keine Einträge zum Öffnen und bleiben Listen; Seiten, die nicht zwei Spalten belegen, stehen links der Teilung. Geprüft in Device Hub: Ein rechts geöffnetes Gerät steht zugeklappt als ganze Seite mit Zurück zur Übersicht und nach dem Aufklappen wieder in der rechten Spalte |
+| 4 | umgesetzt, nicht eingecheckt: Breite des Assistenten aus der Faltlinie; geprüft, seine Kante liegt bei 475 pt. Abweichung: „Verweise öffnen links“ entfällt, die Antworten enthalten bisher keine Verweise |
+| 5 | umgesetzt, nicht eingecheckt: Verlauf zweispaltig, geprüft auf dem Innendisplay quer. Die Abfrage der Faltlinie kam schon mit Etappe 2 |
+| 6 | umgesetzt, nicht eingecheckt: `Aufstellung` in `Spalten.swift`, Heizung, Raum und Verlauf; Schema mit Lesegröße 1,3. Abweichung: eigener Behälter statt `ArrangementView`, damit die Seite einspaltig unverändert bleibt. Geprüft in Device Hub: Heizung, Raum und Verlauf teilen sich an der Faltlinie, der Faltbereich bleibt frei; aufgestellt entfällt der Erklärsatz der Karte „Anlage“ |
+| 7 | umgesetzt, nicht eingecheckt: `Anzeigetafel.swift`. Geprüft zugeklappt quer: sechs Werte, Antippen von „Befunde“ öffnet die Befunde |
+
 ### Etappe 1: Außendisplay
 
 Geräteleiste mit Umbruch, Karte „Beispielanlage“ mit `ViewThatFits`, Hinweis am Verteilerbalken.
@@ -318,9 +332,8 @@ Antippen öffnet die Seite zum Wert. Zurück im Hochformat steht die vorherige S
 
 ## Offene Entscheidungen
 
-1. Mindestversion iOS 27.1 (Vorschlag) oder iOS 27.0 mit Verfügbarkeitsprüfung an jeder neuen
-   Schnittstelle. Das Duo wird mit iOS 27.1 ausgeliefert; die App wird bisher nur über TestFlight
-   verteilt.
+1. Entschieden in Etappe 2: Die Mindestversion bleibt iOS 27.0; jede Schnittstelle aus iOS 27.1
+   steht hinter einer Verfügbarkeitsprüfung.
 2. Seitenleiste statt Tab-Leiste auf dem Innendisplay (`defaultTabBarPlacement(.sidebar)`):
    Vorschlag nein. Die Seitenleiste belegt links eine eigene Spalte, auf dem iPad 320 pt; links der
    Faltlinie bliebe für die linke Inhaltsspalte zu wenig Breite.

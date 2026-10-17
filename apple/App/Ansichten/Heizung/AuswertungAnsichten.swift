@@ -39,7 +39,7 @@ struct VerbrauchslinieAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Verbrauchslinie")
+        .seitentitel("Verbrauchslinie")
         .fragenKnopf("Verbrauchslinie")
     }
 }
@@ -161,7 +161,7 @@ struct ProtokolleAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Protokolle")
+        .seitentitel("Protokolle")
         .fragenKnopf("Protokolle")
         .confirmationDialog("Protokolle löschen?", isPresented: $frageLoeschen, titleVisibility: .visible) {
             Button("Unwiderruflich löschen", role: .destructive) { modell.protokolleLoeschen() }
@@ -236,7 +236,7 @@ struct AufzeichnungAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Ladung aufzeichnen")
+        .seitentitel("Ladung aufzeichnen")
         .confirmationDialog("Vorhandene Aufzeichnung verwerfen?", isPresented: Binding(get: { frageVerwerfen != nil }, set: { if !$0 { frageVerwerfen = nil } }),
                             titleVisibility: .visible) {
             Button(frageVerwerfen == .verwerfen ? "Verwerfen" : "Verwerfen und neu beginnen", role: .destructive) {

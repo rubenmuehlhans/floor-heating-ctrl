@@ -54,6 +54,23 @@ Ab Build 15 (17. Oktober, TestFlight):
   Karte, entfällt ihr Symbol. Das Stellrad beschriftet ab xxxLarge nur jede zweite ganze Zahl und
   wächst mit der Schrift. Bei Standardschrift bleibt alles, wie es war.
 
+Noch in keinem TestFlight-Build:
+
+- **Rechte Spalte für Geöffnetes.** Zweispaltig öffnen sich Befund, Gerät, Formulare und
+  Systemseiten rechts neben der Seite, von der sie kommen; die Seite bleibt links stehen, Zurück
+  steht im Kopf der Spalte. Befunde und Geräte zeigen links die Liste, rechts den gewählten
+  Eintrag, ohne Auswahl den ersten. Einspaltig liegen beide übereinander wie bisher; beim Auf- und
+  Zuklappen wechselt die rechte Seite zwischen Spalte und Stapel. Seiten, die nicht selbst zwei
+  Spalten belegen, bleiben links der Teilung.
+- **Assistent in der rechten Hälfte:** Auf dem Innendisplay des iPhone Duo beginnt der
+  Seitenbereich des Assistenten an der Faltlinie; die Seite steht daneben einspaltig.
+- **Verlauf zweispaltig:** links Kessel, Speicher, Abgas und Brenner, rechts Heizkreise, Räume,
+  Verteiler und Ereignisse; die gewählte Zeit gilt in beiden Spalten.
+- **Aufgestellt:** Ist das Innendisplay hochkant angewinkelt, stehen bei Heizung, Raum und Verlauf
+  oben die Anzeige und unten die Bedienung; das Anlagenschema beschriftet dann um 30 % größer.
+- **Anzeigetafel:** Im Querformat bei compact × compact, etwa auf dem Außendisplay als Zelt, zeigt
+  die Übersicht sechs Werte in großer Schrift; Antippen öffnet die Seite zum Wert.
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler

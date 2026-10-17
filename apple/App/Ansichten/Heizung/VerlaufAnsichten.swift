@@ -9,6 +9,7 @@ import Verlauf
 /// Reihen lassen sich nach Gruppen ein- und ausblenden.
 struct VerlaufAnsicht: View {
     @Environment(AppModell.self) private var modell
+    @Environment(\.spaltenmass) private var mass
     @State private var zeitraum: Verlaufszeitraum = .tag
     @State private var auszug: Verlaufsauszug?
     @State private var ereignisse: [Ereignis] = []
@@ -18,33 +19,50 @@ struct VerlaufAnsicht: View {
     @State private var aussenAus: Set<Int> = []
 
     var body: some View {
-        let a = auszug
-        let kreise = modell.anlage.heizkreise
-        Form {
-            Section {
-                Picker("Zeitraum", selection: $zeitraum) {
-                    ForEach(Verlaufszeitraum.allCases) { Text($0.rawValue).tag($0) }
+        Group {
+            // Zweispaltig links Kessel, Speicher und Brenner, rechts Heizkreise, Räume und
+            // Ereignisse; jede Spalte scrollt für sich, die Auswahl einer Zeit gilt in beiden.
+            if mass.aufgestellt {
+                // Aufgestellt oben die Diagramme der Anlage, unten Zeitraum, Heizkreise und Ereignisse
+                Aufstellung(scrollen: false) {
+                    Form { inhalt { anlagentafeln($0) } }
+                        .formularStil()
+                } unten: {
+                    Form {
+                        kopf
+                        if let a = auszug { kreistafeln(a, kreise: modell.anlage.heizkreise) }
+                    }
+                    .formularStil()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Auswahlzeile(auswahl: $auswahl)
-            } footer: {
-                Text("Jede Gruppe hat ihre eigene Skala. Tippen oder ziehen wählt eine Zeit und zeigt ihre Werte in allen Diagrammen; die Legende blendet Reihen aus und ein.")
-            }
-            if let a {
-                if a.reihen.contains(where: { Verlaufsgliederung.gruppe($0) != nil }) {
-                    tafeln(a, kreise: kreise)
-                } else {
-                    Section {
-                        Text("Für diesen Zeitraum liegt kein Verlauf vor.").foregroundStyle(.secondary)
+            } else if mass.spalten == 2 {
+                HStack(spacing: 0) {
+                    Form {
+                        kopf
+                        inhalt { anlagentafeln($0) }
+                    }
+                    .formularStil()
+                    .padding(.trailing, mass.fuge)
+                    .frame(width: mass.teilung)
+                    Form {
+                        if let a = auszug { kreistafeln(a, kreise: modell.anlage.heizkreise) }
+                    }
+                    .formularStil()
+                    .padding(.leading, mass.fuge)
+                    .padding(.trailing, max(mass.rand - 16, 0))
+                }
+                .background(Farbe.grund)
+            } else {
+                Form {
+                    kopf
+                    inhalt {
+                        anlagentafeln($0)
+                        kreistafeln($0, kreise: modell.anlage.heizkreise)
                     }
                 }
-            } else {
-                Section { ProgressView().frame(maxWidth: .infinity, minHeight: 300) }
+                .formularStil()
             }
         }
-        .formularStil()
-        .navigationTitle("Verlauf")
+        .seitentitel("Verlauf")
         .fragenKnopf("Verlauf, \(zeitraum.rawValue)")
         .task(id: Ladeschluessel(zeitraum: zeitraum, revision: modell.verlaufsrevision)) {
             auszug = await modell.verlaufsauszug(zeitraum)
@@ -52,10 +70,44 @@ struct VerlaufAnsicht: View {
         }
     }
 
+    private var kopf: some View {
+        Section {
+            Picker("Zeitraum", selection: $zeitraum) {
+                ForEach(Verlaufszeitraum.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Auswahlzeile(auswahl: $auswahl)
+        } footer: {
+            Text("Jede Gruppe hat ihre eigene Skala. Tippen oder ziehen wählt eine Zeit und zeigt ihre Werte in allen Diagrammen; die Legende blendet Reihen aus und ein.")
+        }
+    }
+
+    /// Die Tafeln, sobald der Auszug geladen ist, sonst Ladeanzeige oder Hinweis
     @ViewBuilder
-    private func tafeln(_ a: Verlaufsauszug, kreise: [Heizkreis]) -> some View {
+    private func inhalt<Tafeln: View>(@ViewBuilder _ tafeln: (Verlaufsauszug) -> Tafeln) -> some View {
+        if let a = auszug {
+            if a.reihen.contains(where: { Verlaufsgliederung.gruppe($0) != nil }) {
+                tafeln(a)
+            } else {
+                Section {
+                    Text("Für diesen Zeitraum liegt kein Verlauf vor.").foregroundStyle(.secondary)
+                }
+            }
+        } else {
+            Section { ProgressView().frame(maxWidth: .infinity, minHeight: 300) }
+        }
+    }
+
+    private func eigeneEreignisse(_ a: Verlaufsauszug) -> [Ereignis] {
         let geraete = Set(a.reihen.map(\.geraet))
-        let eigene = ereignisse.filter { geraete.contains($0.geraet) }
+        return ereignisse.filter { geraete.contains($0.geraet) }
+    }
+
+    /// Kessel, Speicher, Abgas, Brenner
+    @ViewBuilder
+    private func anlagentafeln(_ a: Verlaufsauszug) -> some View {
+        let eigene = eigeneEreignisse(a)
         let brenner = zeitraum.brennerHinterlegen ? Verlaufsfarben.brennerlaeufe(a) : []
         let erzeugung = Verlaufsgliederung.reihen(.waermeerzeugung, in: a).filter { $0.schluessel != "fuehler.abgas" }
         let abgas = a.reihen.filter { $0.schluessel == "fuehler.abgas" }
@@ -89,6 +141,12 @@ struct VerlaufAnsicht: View {
                 Text("Balken: Anteil der Zeit, in der der Brenner lief. Linie: geschätzter Füllstand des Pufferspeichers.")
             }
         }
+    }
+
+    /// Heizkreise, Räume, Verteiler und Ereignisse
+    @ViewBuilder
+    private func kreistafeln(_ a: Verlaufsauszug, kreise: [Heizkreis]) -> some View {
+        let eigene = eigeneEreignisse(a)
         let mitVerlauf = kreise.filter { !Verlaufsgliederung.heizkreis($0, in: a).leer }
         let kreisbereich = Heizkreistafel.bereich(mitVerlauf, in: a)
         ForEach(mitVerlauf) { kreis in
@@ -97,7 +155,7 @@ struct VerlaufAnsicht: View {
                                auswahl: $auswahl, aussenAn: Binding(
                                    get: { !aussenAus.contains(kreis.nummer) },
                                    set: { an in if an { aussenAus.remove(kreis.nummer) } else { aussenAus.insert(kreis.nummer) } }))
-                NavigationLink(value: Ziel.heizkreisverlauf(kreis.nummer)) {
+                ZielLink(Ziel.heizkreisverlauf(kreis.nummer)) {
                     Label("Heizkurve", systemImage: "chart.dots.scatter")
                 }
             } header: {

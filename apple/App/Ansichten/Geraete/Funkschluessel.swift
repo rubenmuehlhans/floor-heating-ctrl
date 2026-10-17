@@ -125,7 +125,7 @@ struct FunkschluesselBlatt: View {
                 }
             }
             .formularStil()
-            .navigationTitle("Schlüssel")
+            .seitentitel("Schlüssel")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

@@ -4,6 +4,7 @@ import Geraeteschnittstelle
 
 struct HeizungAnsicht: View {
     @Environment(AppModell.self) private var modell
+    @Environment(\.spaltenmass) private var mass
 
     private let kennzahlen = [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)]
 
@@ -19,10 +20,12 @@ struct HeizungAnsicht: View {
                     Button("Gerät hinzufügen") { modell.zeigeEinrichtung = true }
                 }
             } else {
-                Doppelseite {
+                // Aufgestellt oben Anlage, Speicher und Brenner, unten Pumpen und Auswertung
+                Doppelseite(aufstellbar: true) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Kartenkopf(titel: "Anlage", erklaerung: "Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen dort, wo der Fühler sitzt.")
-                        Anlagenschema(anlage: a)
+                        // Aufgestellt ohne Erklärsatz: die obere Hälfte gehört dem Schema
+                        Kartenkopf(titel: "Anlage", erklaerung: mass.aufgestellt ? nil : "Kessel, Pufferspeicher und die angelegten Heizkreise. Messwerte stehen dort, wo der Fühler sitzt.")
+                        Anlagenschema(anlage: a, lesegroesse: mass.aufgestellt ? 1.3 : 1)
                         Divider().overlay(Farbe.linie)
                         AussenZeile(aussen: a.aussen)
                     }
@@ -69,11 +72,12 @@ struct HeizungAnsicht: View {
                         .karte()
                     }
                     .spalte(.rechts)
+                    .haelfte(.unten)
                 }
             }
         }
         .background(Farbe.grund)
-        .navigationTitle("Heizung")
+        .seitentitel("Heizung")
         .fragenKnopf("Heizung")
     }
 }
@@ -205,7 +209,7 @@ struct Kartenlink: View {
     var body: some View {
         VStack(spacing: 0) {
             if trenner { Divider().overlay(Farbe.linie) }
-            NavigationLink(value: ziel) {
+            ZielLink(ziel) {
                 HStack {
                     Label(titel, systemImage: symbol)
                         .foregroundStyle(Color.accentColor)
@@ -442,14 +446,14 @@ struct HeizkreisAnsicht: View {
                     Text("Die Ausfallregel schaltet die Pumpe im Relais ein, wenn das Heizungsgerät eine Viertelstunde lang kein Lebenszeichen sendet. Die Prüfung fragt das Relais unmittelbar ab.")
                 }
                 Section {
-                    NavigationLink(value: Ziel.einstellungen("heizkreis", eintrag: "\(nummer)")) {
+                    ZielLink(Ziel.einstellungen("heizkreis", eintrag: "\(nummer)")) {
                         Label("Pumpenlogik und Relais", systemImage: "slider.horizontal.3")
                     }
                     Button("Heizkreis löschen …", systemImage: "trash", role: .destructive) { frageLoeschen = true }
                 }
             }
             .formularStil()
-            .navigationTitle(kreis.name)
+            .seitentitel(kreis.name)
             .fragenKnopf(kreis.name)
             .confirmationDialog("„\(kreis.name)“ löschen?", isPresented: $frageLoeschen, titleVisibility: .visible) {
                 Button("Löschen", role: .destructive) { modell.heizkreisLoeschen(nummer) }

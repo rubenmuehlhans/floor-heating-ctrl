@@ -72,15 +72,6 @@ enum Systemseite: String, Hashable, CaseIterable {
     }
 }
 
-extension View {
-    /// Alle Ziele eines Bereichs; einmal je `NavigationStack` angebracht.
-    func zielnavigation() -> some View {
-        navigationDestination(for: Ziel.self) { ziel in
-            ZielAnsicht(ziel: ziel)
-        }
-    }
-}
-
 struct ZielAnsicht: View {
     let ziel: Ziel
 
@@ -136,10 +127,24 @@ struct FragenKnopf: View {
 }
 
 extension View {
+    /// In der rechten Spalte ohne eigenen Knopf; die Seite daneben hat ihn schon.
     func fragenKnopf(_ bezug: String) -> some View {
-        toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                FragenKnopf(bezug: bezug)
+        modifier(FragenKnopfSetzen(bezug: bezug))
+    }
+}
+
+private struct FragenKnopfSetzen: ViewModifier {
+    @Environment(\.eingebettet) private var eingebettet
+    let bezug: String
+
+    func body(content: Content) -> some View {
+        if eingebettet {
+            content
+        } else {
+            content.toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    FragenKnopf(bezug: bezug)
+                }
             }
         }
     }

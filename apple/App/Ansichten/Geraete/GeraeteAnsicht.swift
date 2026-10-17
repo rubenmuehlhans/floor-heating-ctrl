@@ -7,22 +7,32 @@ struct GeraeteAnsicht: View {
     @Environment(AppModell.self) private var modell
 
     var body: some View {
+        // Zweispaltig rechts das gewählte Gerät, ohne Auswahl das erste
+        let erstes = modell.anlage.geraete.first { $0.art != .relais }
+        ListeUndEintrag(vorgabe: erstes.map { Ziel.geraet($0.id) }) {
+            liste
+        }
+        .seitentitel("Geräte")
+        .fragenKnopf("Geräte")
+    }
+
+    private var liste: some View {
         let geraete = modell.anlage.geraete
-        Form {
+        return Form {
             Section("Heizungsgeräte") {
                 ForEach(geraete.filter { $0.art == .kessel || $0.art == .speicher }) { g in
-                    NavigationLink(value: Ziel.geraet(g.id)) { GeraetZeile(geraet: g) }
+                    ZielLink(Ziel.geraet(g.id)) { GeraetZeile(geraet: g) }
                 }
             }
             Section("Verteiler") {
                 ForEach(geraete.filter { $0.art == .verteiler }) { g in
-                    NavigationLink(value: Ziel.geraet(g.id)) { GeraetZeile(geraet: g) }
+                    ZielLink(Ziel.geraet(g.id)) { GeraetZeile(geraet: g) }
                 }
             }
             if !modell.verzeichnis.leitstaende.isEmpty {
                 Section {
                     ForEach(modell.verzeichnis.leitstaende) { l in
-                        NavigationLink(value: Ziel.leitstand(l.id)) {
+                        ZielLink(Ziel.leitstand(l.id)) {
                             LeitstandZeile(eintrag: l, stand: modell.leitstandbetrieb.staende[l.id])
                         }
                     }
@@ -82,15 +92,13 @@ struct GeraeteAnsicht: View {
                     Label("Gerät hinzufügen", systemImage: "plus.circle")
                 }
                 #if os(iOS)
-                NavigationLink(value: Ziel.appEinstellungen) {
+                ZielLink(Ziel.appEinstellungen) {
                     Label("Einstellungen der App", systemImage: "gearshape")
                 }
                 #endif
             }
         }
         .formularStil()
-        .navigationTitle("Geräte")
-        .fragenKnopf("Geräte")
     }
 }
 
@@ -216,7 +224,7 @@ struct SystemAbschnitt: View {
     var body: some View {
         Section("System") {
             ForEach(seiten, id: \.self) { seite in
-                NavigationLink(value: Ziel.system(seite, geraet: geraet.id)) {
+                ZielLink(Ziel.system(seite, geraet: geraet.id)) {
                     Label(seite.rawValue, systemImage: seite.symbol)
                 }
             }
@@ -261,7 +269,7 @@ struct VerteilerAnsicht: View {
             if let etage {
                 Section {
                     ForEach(etage.kanaele) { kanal in
-                        NavigationLink(value: Ziel.kanal(etage: etage.id, nummer: kanal.nummer)) {
+                        ZielLink(Ziel.kanal(etage: etage.id, nummer: kanal.nummer)) {
                             KanalZeile(kanal: kanal, zeigeRaum: true)
                         }
                     }
@@ -280,13 +288,13 @@ struct VerteilerAnsicht: View {
                     } label: {
                         Label("Alle Kanäle", systemImage: "slider.vertical.3")
                     }
-                    NavigationLink(value: Ziel.messfahrt(etage: etage.id)) {
+                    ZielLink(Ziel.messfahrt(etage: etage.id)) {
                         Label("Messfahrt", systemImage: "waveform.path.ecg")
                     }
-                    NavigationLink(value: Ziel.raumverwaltung(etage: etage.id)) {
+                    ZielLink(Ziel.raumverwaltung(etage: etage.id)) {
                         Label("Räume und Kanäle", systemImage: "square.grid.2x2")
                     }
-                    NavigationLink(value: Ziel.sensoren(geraet.id)) {
+                    ZielLink(Ziel.sensoren(geraet.id)) {
                         Label("Sensoren", systemImage: "sensor")
                     }
                 }
@@ -295,7 +303,7 @@ struct VerteilerAnsicht: View {
             SystemAbschnitt(geraet: geraet, seiten: [.netzwerk, .mqtt, .betrieb, .tasten, .zeit, .firmware, .sicherung])
         }
         .formularStil()
-        .navigationTitle(geraet.ort)
+        .seitentitel(geraet.ort)
         .fragenKnopf("Verteiler \(geraet.ort)")
         .confirmationDialog("Befehl an alle Kanäle?", isPresented: Binding(get: { frageAlle != nil }, set: { if !$0 { frageAlle = nil } }), titleVisibility: .visible) {
             Button("Ausführen") {
@@ -414,16 +422,16 @@ struct KanalAnsicht: View {
                     Kennwert(titel: "Auslöseschwelle", wert: "\(kanal.schwelle) mV")
                     Kennwert(titel: "Hysterese", wert: "\(kanal.hysterese) mV")
                     Kennwert(titel: "Herkunft", wert: kanal.kalibriert ? "Messfahrt" : "Vorgabe")
-                    NavigationLink(value: Ziel.einstellungen("kanal", geraet: etageID, eintrag: "\(nummer)")) {
+                    ZielLink(Ziel.einstellungen("kanal", geraet: etageID, eintrag: "\(nummer)")) {
                         Label("Fahrzeiten und Schwellen bearbeiten", systemImage: "slider.horizontal.3")
                     }
-                    NavigationLink(value: Ziel.messfahrt(etage: etageID)) {
+                    ZielLink(Ziel.messfahrt(etage: etageID)) {
                         Label("Messfahrt starten", systemImage: "waveform.path.ecg")
                     }
                 }
             }
             .formularStil()
-            .navigationTitle("Kanal \(nummer)")
+            .seitentitel("Kanal \(nummer)")
             .fragenKnopf("\(etage.name), Kanal \(nummer)")
         }
     }
@@ -564,7 +572,7 @@ struct MessfahrtAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Messfahrt")
+        .seitentitel("Messfahrt")
         .onAppear {
             if kanalwahl == nil { kanalwahl = etage.flatMap { e in e.belegteKanaele.first { !$0.kalibriert }?.nummer } }
         }
@@ -603,7 +611,7 @@ struct RaumverwaltungAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Räume \(modell.anlage.etage(etageID)?.name ?? "")")
+        .seitentitel("Räume \(modell.anlage.etage(etageID)?.name ?? "")")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Speichern") { modell.raeumeSchreiben(etageID, raeume) }
@@ -806,7 +814,7 @@ struct SensorenAnsicht: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    NavigationLink(value: Ziel.einstellungen("tasten", geraet: geraetID)) {
+                    ZielLink(Ziel.einstellungen("tasten", geraet: geraetID)) {
                         Label("Schwellen einstellen", systemImage: "slider.horizontal.3")
                     }
                 } header: {
@@ -816,7 +824,7 @@ struct SensorenAnsicht: View {
                 }
             }
             .formularStil()
-            .navigationTitle("Sensoren")
+            .seitentitel("Sensoren")
             .sheet(item: $schluesselFuer) { ziel in
                 FunkschluesselBlatt(ort: .verteiler(geraetID), ziel: ziel)
             }
@@ -873,7 +881,7 @@ struct HeizgeraetAnsicht: View {
             GeraetZustand(geraet: geraet)
 
             Section("Fühler") {
-                NavigationLink(value: Ziel.fuehler(geraet.id)) {
+                ZielLink(Ziel.fuehler(geraet.id)) {
                     LabeledContent {
                         Text("\(geraet.bus?.zugeordnet ?? 0) von \(geraet.bus?.gefunden ?? 0) zugeordnet")
                     } label: {
@@ -884,13 +892,13 @@ struct HeizgeraetAnsicht: View {
 
             if geraet.art == .kessel {
                 Section("Kessel") {
-                    NavigationLink(value: Ziel.einstellungen("brenner", geraet: geraet.id)) {
+                    ZielLink(Ziel.einstellungen("brenner", geraet: geraet.id)) {
                         Label("Brennererkennung", systemImage: "flame")
                     }
-                    NavigationLink(value: Ziel.einstellungen("kkp", geraet: geraet.id)) {
+                    ZielLink(Ziel.einstellungen("kkp", geraet: geraet.id)) {
                         Label("Kesselkreispumpe", systemImage: "fanblades")
                     }
-                    NavigationLink(value: Ziel.einstellungen("speicher", geraet: geraet.id)) {
+                    ZielLink(Ziel.einstellungen("speicher", geraet: geraet.id)) {
                         Label("Pufferspeicher", systemImage: "cylinder.split.1x2")
                     }
                     Button {
@@ -901,11 +909,11 @@ struct HeizgeraetAnsicht: View {
                 }
             } else {
                 Section("Speicher und Heizkreise") {
-                    NavigationLink(value: Ziel.einstellungen("speicher", geraet: geraet.id)) {
+                    ZielLink(Ziel.einstellungen("speicher", geraet: geraet.id)) {
                         Label("Pufferspeicher", systemImage: "cylinder.split.1x2")
                     }
                     ForEach(modell.anlage.heizkreise) { kreis in
-                        NavigationLink(value: Ziel.heizkreis(kreis.nummer)) {
+                        ZielLink(Ziel.heizkreis(kreis.nummer)) {
                             Label(kreis.name, systemImage: "arrow.triangle.2.circlepath")
                         }
                     }
@@ -926,7 +934,7 @@ struct HeizgeraetAnsicht: View {
             )
         }
         .formularStil()
-        .navigationTitle(geraet.ort)
+        .seitentitel(geraet.ort)
         .fragenKnopf("Heizungsgerät \(geraet.ort)")
         .confirmationDialog("Reinigung auf heute setzen?", isPresented: $frageReinigung, titleVisibility: .visible) {
             Button("Reinigung vermerken") { modell.kesselGereinigt() }
@@ -945,7 +953,7 @@ struct FuehlerAnsicht: View {
             Form {
                 Section {
                     ForEach(g.fuehler) { f in
-                        NavigationLink(value: Ziel.einstellungen("fuehler", geraet: geraetID, eintrag: f.rom)) {
+                        ZielLink(Ziel.einstellungen("fuehler", geraet: geraetID, eintrag: f.rom)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text(f.rolle.isEmpty ? "nicht zugeordnet" : Parameterkatalog.rollenname(f.rolle))
@@ -987,7 +995,7 @@ struct FuehlerAnsicht: View {
                 }
             }
             .formularStil()
-            .navigationTitle("Fühler am Bus")
+            .seitentitel("Fühler am Bus")
         }
     }
 }

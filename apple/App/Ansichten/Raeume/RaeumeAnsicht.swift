@@ -43,7 +43,7 @@ struct RaeumeAnsicht: View {
             .frame(maxWidth: .infinity)
         }
         .background(Farbe.grund)
-        .navigationTitle("Räume")
+        .seitentitel("Räume")
         .fragenKnopf("Räume")
     }
 
@@ -187,7 +187,7 @@ struct Raumkarte: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                NavigationLink(value: Ziel.raum(raum.id)) {
+                ZielLink(Ziel.raum(raum.id)) {
                     Raumkopf(zustand: raum.zustand) {
                         HStack(alignment: .firstTextBaseline) {
                             Text(raum.name).font(Schrift.kartentitel)
@@ -306,41 +306,33 @@ struct RaumDetailAnsicht: View {
     let raumID: Raum.ID
     /// Wächst mit der Schrift wie auf der Übersicht; bei großer Schrift eine Kennzahl je Zeile.
     @ScaledMetric(relativeTo: .caption2) private var kennzahlbreite: CGFloat = 150
+    @Environment(\.spaltenmass) private var mass
 
     var body: some View {
         if let raum = modell.anlage.raum(raumID), let etage = modell.anlage.etagen.first(where: { $0.raeume.contains { $0.id == raumID } }) {
-            Doppelseite(breite: 820) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Raumkopf(zustand: raum.zustand) {
-                        Kicker(raum.etage)
+            Doppelseite(breite: 820, aufstellbar: true) {
+                // Aufgestellt oben Messwert und Verlauf, unten Stellrad und Schaltflächen
+                if mass.aufgestellt {
+                    VStack(alignment: .leading, spacing: 12) {
+                        messung(raum)
                     }
-                    HStack(alignment: .firstTextBaseline) {
-                        Messzahl(zahl: raum.ist.map { Format.zahl($0) } ?? "–,–",
-                                 font: .system(size: 56, weight: .bold, design: .monospaced),
-                                 farbe: raum.ist == nil ? Farbe.blass : Farbe.tinte)
-                        Spacer()
-                        Text(raum.abstandText).font(Schrift.daten).foregroundStyle(raum.abstandFarbe)
+                    .padding(16)
+                    .karte()
+                    RaumVerlaufKarte(etage: etage, raum: raum)
+                    VStack(alignment: .leading, spacing: 12) {
+                        bedienung(raum)
                     }
-                    if raum.thermometer != nil {
-                        SollwertStellrad(wert: modell.soll(raum.id), hinweis: "Wird an den Verteiler gesendet, sobald das Rad steht.")
-                            .padding(.top, 6)
+                    .padding(16)
+                    .karte()
+                    .haelfte(.unten)
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        messung(raum)
+                        bedienung(raum)
                     }
-                    HStack {
-                        Button {
-                            modell.raumPruefen(raum.id)
-                        } label: {
-                            Label("Jetzt prüfen", systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.rahmen)
-                        Spacer()
-                        Button(raum.betriebsart == .heizen ? "Ausschalten" : "Einschalten") {
-                            modell.betriebsartUmschalten(raum.id)
-                        }
-                        .buttonStyle(.rahmen)
-                    }
+                    .padding(16)
+                    .karte()
                 }
-                .padding(16)
-                .karte()
 
                 // Ab 150 pt je Kachel zweispaltig, auch links auf dem Innendisplay des iPhone Duo
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10)], spacing: 10) {
@@ -355,7 +347,7 @@ struct RaumDetailAnsicht: View {
                     Kartenkopf(titel: "Ventile", erklaerung: "Am Sollwert stehen die Ventile halb offen, \(Format.kelvin(raum.regelung.proportionalband)) darunter ganz offen, ebenso viel darüber ganz zu.")
                     ForEach(raum.kanaele, id: \.self) { nummer in
                         if let k = etage.kanaele.first(where: { $0.nummer == nummer }) {
-                            NavigationLink(value: Ziel.kanal(etage: etage.id, nummer: nummer)) {
+                            ZielLink(Ziel.kanal(etage: etage.id, nummer: nummer)) {
                                 KanalZeile(kanal: k, zeigeRaum: false)
                                     .contentShape(.rect)
                             }
@@ -367,10 +359,12 @@ struct RaumDetailAnsicht: View {
                 .karte()
                 .spalte(.rechts)
 
-                RaumVerlaufKarte(etage: etage, raum: raum)
-                    .spalte(.rechts)
+                if !mass.aufgestellt {
+                    RaumVerlaufKarte(etage: etage, raum: raum)
+                        .spalte(.rechts)
+                }
 
-                NavigationLink(value: Ziel.einstellungen("raum", geraet: etage.id, eintrag: "\(raum.nummer)")) {
+                ZielLink(Ziel.einstellungen("raum", geraet: etage.id, eintrag: "\(raum.nummer)")) {
                     HStack {
                         Label("Regelparameter", systemImage: "slider.horizontal.3")
                         Spacer()
@@ -384,10 +378,47 @@ struct RaumDetailAnsicht: View {
                 .spalte(.rechts)
             }
             .background(Farbe.grund)
-            .navigationTitle(raum.name)
+            .seitentitel(raum.name)
             .fragenKnopf(raum.name)
         } else {
             ContentUnavailableView("Raum nicht gefunden", systemImage: "questionmark.square.dashed")
+        }
+    }
+
+    /// Etage, Zustand und Messwert
+    @ViewBuilder
+    private func messung(_ raum: Raum) -> some View {
+        Raumkopf(zustand: raum.zustand) {
+            Kicker(raum.etage)
+        }
+        HStack(alignment: .firstTextBaseline) {
+            Messzahl(zahl: raum.ist.map { Format.zahl($0) } ?? "–,–",
+                     font: .system(size: 56, weight: .bold, design: .monospaced),
+                     farbe: raum.ist == nil ? Farbe.blass : Farbe.tinte)
+            Spacer()
+            Text(raum.abstandText).font(Schrift.daten).foregroundStyle(raum.abstandFarbe)
+        }
+    }
+
+    /// Stellrad, Jetzt prüfen, Ein- und Ausschalten
+    @ViewBuilder
+    private func bedienung(_ raum: Raum) -> some View {
+        if raum.thermometer != nil {
+            SollwertStellrad(wert: modell.soll(raum.id), hinweis: "Wird an den Verteiler gesendet, sobald das Rad steht.")
+                .padding(.top, 6)
+        }
+        HStack {
+            Button {
+                modell.raumPruefen(raum.id)
+            } label: {
+                Label("Jetzt prüfen", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.rahmen)
+            Spacer()
+            Button(raum.betriebsart == .heizen ? "Ausschalten" : "Einschalten") {
+                modell.betriebsartUmschalten(raum.id)
+            }
+            .buttonStyle(.rahmen)
         }
     }
 }

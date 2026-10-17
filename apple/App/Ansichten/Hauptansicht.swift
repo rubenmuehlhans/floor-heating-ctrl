@@ -6,6 +6,8 @@ struct Hauptansicht: View {
     @Environment(AppModell.self) private var modell
     @Environment(\.horizontalSizeClass) private var breite
     @Environment(\.scenePhase) private var phase
+    /// Breite des Assistenten als Seitenbereich; mit Faltlinie genau die rechte Hälfte
+    @State private var assistentbreite: CGFloat = 400
 
     /// Zeigt der Seitenbereich den Assistenten, entfällt der Tab auf dem iPad; sonst reicht die
     /// Tab-Leiste im Hochformat nicht für alle fünf Bereiche.
@@ -17,26 +19,48 @@ struct Hauptansicht: View {
         #endif
     }
 
+    /// Ein Bereich: sein Stapel mit dem Pfad aus dem Modell, das Spaltenmaß und die Ziele.
+    private func stapel<Inhalt: View>(_ b: AppModell.Bereich, @ViewBuilder inhalt: () -> Inhalt) -> some View {
+        NavigationStack(path: pfad(b)) {
+            Seitenrahmen(weg: nil) { inhalt() }
+                .zielnavigation()
+        }
+        .environment(\.bereich, b)
+        .spaltenmass(b)
+    }
+
+    /// Der Pfad des Stapels: zweispaltig nur die Seiten, die das Fenster belegen, einspaltig auch die
+    /// der rechten Spalte darüber.
+    private func pfad(_ b: AppModell.Bereich) -> Binding<[Weg]> {
+        Binding(
+            get: { modell.stapel[b, default: Stapel()].pfad(zweispaltig: modell.zweispaltig[b] ?? false) },
+            set: { neu in
+                modell.stapel[b, default: Stapel()].setzen(
+                    neu, zweispaltig: modell.zweispaltig[b] ?? false, wurzelHatNebenspalte: b.hatNebenspalte)
+            }
+        )
+    }
+
     var body: some View {
         @Bindable var modell = modell
         // Das Spaltenmaß je Bereich, nicht für das ganze Fenster: Randspalte, Seitenleiste und
         // Assistent nehmen der Seite Breite weg.
         TabView(selection: $modell.bereich) {
             Tab("Übersicht", systemImage: "house", value: AppModell.Bereich.uebersicht) {
-                NavigationStack { UebersichtAnsicht().zielnavigation() }.spaltenmass()
+                stapel(.uebersicht) { UebersichtAnsicht() }
             }
             Tab("Räume", systemImage: "square.grid.2x2", value: AppModell.Bereich.raeume) {
-                NavigationStack { RaeumeAnsicht().zielnavigation() }.spaltenmass()
+                stapel(.raeume) { RaeumeAnsicht() }
             }
             Tab("Assistent", systemImage: "sparkles", value: AppModell.Bereich.assistent) {
-                NavigationStack { AssistentAnsicht().zielnavigation() }.spaltenmass()
+                stapel(.assistent) { AssistentAnsicht() }
             }
             .hidden(assistentImSeitenbereich)
             Tab("Heizung", systemImage: "flame", value: AppModell.Bereich.heizung) {
-                NavigationStack { HeizungAnsicht().zielnavigation() }.spaltenmass()
+                stapel(.heizung) { HeizungAnsicht() }
             }
             Tab("Geräte", systemImage: "cpu", value: AppModell.Bereich.geraete) {
-                NavigationStack { GeraeteAnsicht().zielnavigation() }.spaltenmass()
+                stapel(.geraete) { GeraeteAnsicht() }
             }
         }
         .tabViewStyle(.sidebarAdaptable)
@@ -45,7 +69,7 @@ struct Hauptansicht: View {
                 AssistentAnsicht(kompakt: true)
                     .zielnavigation()
             }
-            .inspectorColumnWidth(min: 340, ideal: 400, max: 560)
+            .inspectorColumnWidth(min: 340, ideal: assistentbreite, max: max(560, assistentbreite))
         }
         .onChange(of: modell.bereich) { _, neu in
             if neu == .assistent { modell.zeigeAssistent = false }
@@ -98,6 +122,27 @@ struct Hauptansicht: View {
             .environment(modell)
         }
         .tint(Color.accentColor)
+        .background {
+            GeometryReader { geo in
+                Color.clear.onChange(of: Self.rechteHaelfte(geo), initial: true) { _, breite in
+                    assistentbreite = breite ?? 400
+                }
+            }
+        }
+    }
+}
+
+extension Hauptansicht {
+    /// Von der senkrechten Faltlinie bis zum rechten Rand; ohne Faltlinie `nil`.
+    static func rechteHaelfte(_ geo: GeometryProxy) -> CGFloat? {
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            return geo.reservedRegions(kind: .division, options: .includeInactive)
+                .first { $0.frame.height > $0.frame.width }
+                .map { (geo.size.width - $0.frame.midX).rounded() }
+        }
+        #endif
+        return nil
     }
 }
 

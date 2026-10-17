@@ -101,6 +101,10 @@ final class AppModell {
     // MARK: Zustand
 
     var bereich: Bereich = .uebersicht
+    /// Geöffnete Seiten je Bereich, zweispaltig getrennt nach Seite und rechter Spalte
+    var stapel: [Bereich: Stapel] = [:]
+    /// Ob der Bereich gerade zwei Spalten hat; setzt das Spaltenmaß
+    var zweispaltig: [Bereich: Bool] = [:]
     /// Das angezeigte Bild: die Beispielanlage, solange kein Gerät eingebunden ist.
     /// Im Betrieb mit den Befunden, die das Befundgedächtnis sichtbar macht: nach ihrer
     /// Mindestdauer und ohne kurzes Flattern.

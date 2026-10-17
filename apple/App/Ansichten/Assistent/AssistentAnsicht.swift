@@ -73,7 +73,7 @@ struct AssistentAnsicht: View {
             modell.senden(eingabe)
             eingabe = ""
         }
-        .navigationTitle(kompakt ? "Assistent" : modell.gespraech.titel)
+        .seitentitel(kompakt ? "Assistent" : modell.gespraech.titel)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -95,11 +95,11 @@ struct AssistentAnsicht: View {
                         }
                         .disabled(modell.antwortLaeuft)
                     }
-                    NavigationLink(value: Ziel.aenderungen) {
+                    ZielLink(Ziel.aenderungen) {
                         Label("Änderungsprotokoll", systemImage: "clock.arrow.circlepath")
                     }
                     if !modell.istBeispiel {
-                        NavigationLink(value: Ziel.lageberichte) {
+                        ZielLink(Ziel.lageberichte) {
                             Label("Frühere Lageberichte", systemImage: "doc.text.magnifyingglass")
                         }
                     }
@@ -665,7 +665,7 @@ struct AenderungenAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Änderungsprotokoll")
+        .seitentitel("Änderungsprotokoll")
     }
 }
 
@@ -703,6 +703,6 @@ struct LageberichteAnsicht: View {
             }
         }
         .formularStil()
-        .navigationTitle("Lageberichte")
+        .seitentitel("Lageberichte")
     }
 }
