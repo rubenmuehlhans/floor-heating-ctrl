@@ -173,17 +173,17 @@ struct Kennzahl: View {
     }
 }
 
-/// Umrandete Marke mit Symbol, wie „heizt" oder „kein Thermometer" in der Weboberfläche.
+/// Umrandete Marke mit Symbol, wie „heizt" oder „kein Thermometer" in der Weboberfläche. Ohne
+/// Symbol steht nur der Text, etwa wenn die Marke mit Symbol breiter wäre als die Karte.
 struct Zustandsmarke: View {
     let text: String
-    let symbol: String
+    let symbol: String?
     let farbe: Color
     var gefuellt = true
 
     var body: some View {
-        Label(text, systemImage: symbol)
+        beschriftung
             .font(.caption.weight(.medium))
-            .labelStyle(.titleAndIcon)
             .foregroundStyle(farbe)
             .lineLimit(1)
             .fixedSize()
@@ -191,6 +191,15 @@ struct Zustandsmarke: View {
             .padding(.vertical, 3)
             .background(gefuellt ? farbe.opacity(0.1) : Farbe.flaeche, in: .capsule)
             .overlay { Capsule().strokeBorder(farbe.opacity(0.45), lineWidth: 1) }
+    }
+
+    @ViewBuilder private var beschriftung: some View {
+        if let symbol {
+            Label(text, systemImage: symbol)
+                .labelStyle(.titleAndIcon)
+        } else {
+            Text(text)
+        }
     }
 }
 

@@ -47,12 +47,36 @@ struct Stellrad: View {
         position.viewID(type: Int.self)
     }
 
+    /// Länge der Striche an ganzen Graden und Abstand der Zahl darunter
+    private let strichlaenge: CGFloat = 26
+    private let zahlabstand: CGFloat = 6
+    /// Breite und Höhe einer zweistelligen Skalenzahl bei Standardschrift (gemessen 15 × 14,3 pt).
+    /// Sie wachsen relativ zu .caption2: Dessen Maß wächst bei jeder Stufe etwas stärker als die
+    /// Schrift der Skala, die Schätzung liegt also eher zu hoch. Zur Laufzeit gemessen stünde die
+    /// Größe erst nach dem ersten Layout fest, und die Karte spränge um die neue Höhe.
+    @ScaledMetric(relativeTo: .caption2) private var zahlbreite: CGFloat = 15
+    @ScaledMetric(relativeTo: .caption2) private var zahlhoehe: CGFloat = 14.5
+
+    /// Jede wievielte ganze Zahl beschriftet ist. Zwischen zwei Zahlen bleibt mindestens ein
+    /// Fünftel ihrer Breite frei; bei großer Schrift stießen sie sonst aneinander (AX1) oder
+    /// liefen ineinander (ab AX2). Die Striche bleiben, nur die Zahlen werden seltener.
+    private var zahlenschritt: Int {
+        let grad = teilung / CGFloat(schritt)
+        return [1, 2, 5].first { CGFloat($0) * grad >= zahlbreite * 1.2 } ?? 10
+    }
+
+    /// Wird die Zahl unter dem Strich höher, als `hoehe` Platz lässt, wächst das Rad mit; sonst
+    /// schnitte es die Zahlen unten ab.
+    private var radhoehe: CGFloat {
+        max(hoehe, strichlaenge + zahlabstand + zahlhoehe)
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             LazyHStack(spacing: 0) {
                 ForEach(0..<anzahl, id: \.self) { i in
                     strich(i)
-                        .frame(width: teilung, height: hoehe, alignment: .top)
+                        .frame(width: teilung, height: radhoehe, alignment: .top)
                 }
             }
             .scrollTargetLayout()
@@ -105,7 +129,7 @@ struct Stellrad: View {
                 .opacity(gedimmt ? 0.45 : 1)
                 .allowsHitTesting(false)
         }
-        .frame(height: hoehe)
+        .frame(height: radhoehe)
         .sensoryFeedback(.selection, trigger: angezeigt) { _, _ in bedient }
         #if os(macOS)
         // Wie ein Schieberegler: erreichbar über die Tastaturnavigation, nicht per Klick. Den
@@ -146,11 +170,11 @@ struct Stellrad: View {
     private func strich(_ i: Int) -> some View {
         let w = wert(bei: i)
         let ganz = abs(w.rounded() - w) < 0.001
-        return VStack(spacing: 6) {
+        return VStack(spacing: zahlabstand) {
             Capsule()
                 .fill(ganz ? Farbe.gedaempft : Farbe.linieStark)
-                .frame(width: ganz ? 2 : 1.5, height: ganz ? 26 : 14)
-            if ganz {
+                .frame(width: ganz ? 2 : 1.5, height: ganz ? strichlaenge : 14)
+            if ganz, Int(w.rounded()) % zahlenschritt == 0 {
                 Text("\(Int(w))")
                     .font(Schrift.datenKlein)
                     .foregroundStyle(Farbe.gedaempft)

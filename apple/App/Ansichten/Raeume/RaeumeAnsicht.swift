@@ -188,13 +188,13 @@ struct Raumkarte: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
                 NavigationLink(value: Ziel.raum(raum.id)) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(raum.name).font(Schrift.kartentitel)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Farbe.blass)
-                        Spacer()
-                        Zustandsmarke(text: raum.zustand.text, symbol: raum.zustand.symbol, farbe: raum.zustand.farbe)
+                    Raumkopf(zustand: raum.zustand) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(raum.name).font(Schrift.kartentitel)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Farbe.blass)
+                        }
                     }
                     .contentShape(.rect)
                 }
@@ -269,6 +269,36 @@ struct Raumkarte: View {
     }
 }
 
+/// Titel mit der Zustandsmarke des Raums rechts daneben. Reicht die Zeile nicht für beides, steht
+/// die Marke unter dem Titel; daneben brach der Raumname bei großer Schrift zeichenweise um
+/// („B/ür/o“), und die Etage wurde gekürzt. Ist die Marke auch allein breiter als die Karte, wie
+/// „kein Thermometer“ bei AX3, entfällt ihr Symbol.
+private struct Raumkopf<Titel: View>: View {
+    let zustand: Raumzustand
+    @ViewBuilder let titel: Titel
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                titel
+                Spacer()
+                marke(symbol: zustand.symbol)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                titel
+                ViewThatFits(in: .horizontal) {
+                    marke(symbol: zustand.symbol)
+                    marke(symbol: nil)
+                }
+            }
+        }
+    }
+
+    private func marke(symbol: String?) -> Zustandsmarke {
+        Zustandsmarke(text: zustand.text, symbol: symbol, farbe: zustand.farbe)
+    }
+}
+
 // MARK: - Raumdetail
 
 struct RaumDetailAnsicht: View {
@@ -281,10 +311,8 @@ struct RaumDetailAnsicht: View {
         if let raum = modell.anlage.raum(raumID), let etage = modell.anlage.etagen.first(where: { $0.raeume.contains { $0.id == raumID } }) {
             Doppelseite(breite: 820) {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
+                    Raumkopf(zustand: raum.zustand) {
                         Kicker(raum.etage)
-                        Spacer()
-                        Zustandsmarke(text: raum.zustand.text, symbol: raum.zustand.symbol, farbe: raum.zustand.farbe)
                     }
                     HStack(alignment: .firstTextBaseline) {
                         Messzahl(zahl: raum.ist.map { Format.zahl($0) } ?? "–,–",
