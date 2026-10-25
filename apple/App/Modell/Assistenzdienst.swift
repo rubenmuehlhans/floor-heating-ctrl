@@ -87,21 +87,18 @@ final class Assistenzdienst {
 
     // MARK: Sitzungen
 
+    /// Eine Sitzung, die ihr Transkript auch nach einem Fehler behält (`Gespraechsverlauf`)
     private func neueSitzung(_ wahl: AppModell.Modellwahl, schluessel: String?, zugriff: any Anlagenzugriff, transkript: Transcript?) -> LanguageModelSession {
         switch wahl.modell {
         case .claude, .claudeSonnet, .claudeHaiku:
-            let m = claudeModell(wahl, schluessel: schluessel ?? "")
-            let werkzeuge = Werkzeugsatz.claude(zugriff)
-            if let transkript { return LanguageModelSession(model: m, tools: werkzeuge, transcript: transkript) }
-            return LanguageModelSession(model: m, tools: werkzeuge, instructions: Instructions(Anweisungen.claude(wissen)))
+            Gespraechsverlauf.sitzung(model: claudeModell(wahl, schluessel: schluessel ?? ""), tools: Werkzeugsatz.claude(zugriff),
+                                      anweisungen: Anweisungen.claude(wissen), transkript: transkript)
         case .privateCloud:
-            let werkzeuge = Werkzeugsatz.apple(zugriff, wissen: wissen)
-            if let transkript { return LanguageModelSession(model: privateCloud, tools: werkzeuge, transcript: transkript) }
-            return LanguageModelSession(model: privateCloud, tools: werkzeuge, instructions: Instructions(Anweisungen.apple()))
+            Gespraechsverlauf.sitzung(model: privateCloud, tools: Werkzeugsatz.apple(zugriff, wissen: wissen),
+                                      anweisungen: Anweisungen.apple(), transkript: transkript)
         case .geraet:
-            let werkzeuge = Werkzeugsatz.apple(zugriff, wissen: wissen)
-            if let transkript { return LanguageModelSession(model: SystemLanguageModel.default, tools: werkzeuge, transcript: transkript) }
-            return LanguageModelSession(model: SystemLanguageModel.default, tools: werkzeuge, instructions: Instructions(Anweisungen.apple()))
+            Gespraechsverlauf.sitzung(model: SystemLanguageModel.default, tools: Werkzeugsatz.apple(zugriff, wissen: wissen),
+                                      anweisungen: Anweisungen.apple(), transkript: transkript)
         }
     }
 
@@ -160,15 +157,19 @@ final class Assistenzdienst {
             return Antwort(bausteine: Darstellung.bausteine(sitzung.transcript.dropFirst(beginn)),
                            verbrauch: Self.differenz(sitzung.usage, vorher), transkript: sitzung.transcript)
         } catch {
-            // Nach einem Fehler setzt die Sitzung ihr Transkript zurück; was bis dahin zu sehen
-            // war, samt Werkzeugaufrufen, bleibt stehen.
+            // Was bis dahin zu sehen war, samt Werkzeugaufrufen, bleibt stehen.
             let bisher = Darstellung.bausteine(sitzung.transcript.dropFirst(beginn), laufenderText: eingetroffen)
             var bausteine = laufend.count > bisher.count ? laufend : bisher
-            bausteine.append(.fehler(Task.isCancelled || error is CancellationError ? "Angehalten." : Self.meldung(error, modell)))
-            // Nach einem Fehler steht die Sitzung womöglich mitten im Werkzeuglauf; die nächste
-            // Frage beginnt mit dem Transkript der letzten vollständigen Antwort.
+            let angehalten = Task.isCancelled || error is CancellationError
+            let meldung = angehalten ? "Angehalten." : Self.meldung(error, modell)
+            bausteine.append(.fehler(meldung))
+            // Die Sitzung behält Frage und Antwort bis zum Fehler, damit die nächste Frage sich
+            // darauf beziehen kann. Steht sie mitten im Werkzeuglauf, erhalten die offenen Aufrufe
+            // ein Ergebnis; die nächste Frage beginnt eine Sitzung mit diesem Transkript.
+            let grund = angehalten ? "Der Nutzer hat die Antwort angehalten." : "Die Antwort ist gescheitert (\(meldung))."
             self.sitzung = nil
-            return Antwort(bausteine: bausteine, verbrauch: Self.differenz(sitzung.usage, vorher), transkript: nil)
+            return Antwort(bausteine: bausteine, verbrauch: Self.differenz(sitzung.usage, vorher),
+                           transkript: Gespraechsverlauf.nachAbbruch(sitzung.transcript, grund: grund))
         }
     }
 

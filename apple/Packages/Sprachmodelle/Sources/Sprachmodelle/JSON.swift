@@ -130,6 +130,54 @@ extension JSON {
         }
     }
 
+    /// Werkzeugargumente in den Typen des Schemas. Claude hält sich ohne strikten Modus nicht
+    /// immer an sie und schreibt etwa `"wert": 68` oder die Raumnummer als Zahl, wo das Schema
+    /// Text verlangt. FoundationModels liest die Argumente streng; ein Fehler bricht den ganzen
+    /// Zug ab, die Sitzung verwirft ihn. Was sich eindeutig umdeuten lässt, wird umgedeutet, der
+    /// Rest bleibt, wie er ist.
+    func angeglichen(an schema: JSON, definitionen: JSON? = nil) -> JSON {
+        let definitionen = definitionen ?? schema["$defs"]
+        if let ref = schema["$ref"]?.alsText, ref.hasPrefix("#/$defs/"),
+           let ziel = definitionen?[String(ref.dropFirst(8))] {
+            return angeglichen(an: ziel, definitionen: definitionen)
+        }
+        switch (schema["type"]?.alsText, self) {
+        case ("string", .zahl(let z)):
+            return .text(z.rounded() == z && abs(z) < 1e15 ? String(Int64(z)) : String(z))
+        case ("string", .bool(let b)):
+            return .text(b ? "true" : "false")
+        case ("string", .liste(let l)) where l.allSatisfy({ $0.istSkalar }):
+            // Eine Liste von Verteilern als Text, wie ihn die Beschreibung nennt
+            return .text(l.compactMap { $0.angeglichen(an: ["type": "string"]).alsText }.joined(separator: ", "))
+        case ("integer", .text(let t)), ("number", .text(let t)):
+            let z = Double(t.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
+            return z.map(JSON.zahl) ?? self
+        case ("boolean", .text(let t)):
+            return ["true": true, "false": false][t.lowercased()].map(JSON.bool) ?? self
+        case ("array", .liste(let l)):
+            return .liste(l.map { $0.angeglichen(an: schema["items"] ?? [:], definitionen: definitionen) })
+        case ("array", .null):
+            return self
+        case ("array", _):
+            return .liste([angeglichen(an: schema["items"] ?? [:], definitionen: definitionen)])
+        case ("object", .objekt(let o)):
+            var neu = o
+            for (k, v) in o {
+                if let s = schema["properties"]?[k] { neu[k] = v.angeglichen(an: s, definitionen: definitionen) }
+            }
+            return .objekt(neu)
+        default:
+            return self
+        }
+    }
+
+    private var istSkalar: Bool {
+        switch self {
+        case .text, .zahl, .bool: true
+        default: false
+        }
+    }
+
     private var kurz: String {
         switch self {
         case .zahl(let z) where z.rounded() == z: String(Int64(z))

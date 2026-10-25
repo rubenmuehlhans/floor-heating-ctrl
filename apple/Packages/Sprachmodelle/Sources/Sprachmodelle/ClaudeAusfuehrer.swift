@@ -25,6 +25,9 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
             k = r
         }
         var rumpf = try ClaudeAnfrage(anfrage: request, konfiguration: k).rumpf().daten()
+        let schemata = Dictionary(request.enabledToolDefinitions.compactMap { d in
+            (try? JSON.aus(d.parameters)).map { (d.name, $0) }
+        }, uniquingKeysWith: { erstes, _ in erstes })
         var abgewiesen: ClaudeBeobachter.Ereignis?
         // Überlastung und Serverfehler kommen als HTTP-Status oder als Fehlerereignis im Strom.
         // Beides wird wiederholt, solange noch nichts im Kanal steht; danach ließe sich die
@@ -37,7 +40,7 @@ public struct ClaudeAusfuehrer: LanguageModelExecutor {
                 // Eigene Kennung je Aufruf: `request.id` bleibt über alle Runden einer
                 // Werkzeugschleife gleich, und doppelte Eintragskennungen bringen die Sitzung
                 // durcheinander.
-                var zustand = Stromzustand(praefix: UUID().uuidString)
+                var zustand = Stromzustand(praefix: UUID().uuidString, schemata: schemata)
                 for try await zeile in zeilen {
                     guard let ereignis = try ClaudeStrom.auswerten(zeile: zeile) else { continue }
                     for aktion in try zustand.verarbeiten(ereignis) {

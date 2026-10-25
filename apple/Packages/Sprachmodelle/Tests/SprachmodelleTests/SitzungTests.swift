@@ -50,6 +50,51 @@ struct SitzungTests {
         #expect(ergebnis["content"]?[0]?["text"]?.alsText?.contains(#""puffer_c":53"#) == true)
     }
 
+    /// Die zweite Frage trägt den ganzen ersten Austausch samt Werkzeugaufruf und Ergebnis mit,
+    /// auch wenn das Modell sie abweist und der Rückgriff sie beantwortet.
+    @Test func zweiteFrageMitVerlaufUndRueckgriff() async throws {
+        let host = "mehrrunden.test"
+        let modell = ClaudeSprachmodell(konfiguration: ClaudeKonfiguration(
+            schluessel: "sk-test", rueckgriff: ClaudeModelleintrag(kennung: "claude-opus-5", name: "Claude Opus 5"),
+            adresse: URL(string: "https://\(host)/v1/messages")!,
+            transport: APIAttrappe.transport(host: host) { eingang in
+                switch APIAttrappe.eingaenge(host: host).count {
+                case 1:
+                    return .init(rumpf: SSE.strom([SSE.beginn] + SSE.denken(0, "Ich lese.", signatur: "sig-1")
+                        + SSE.werkzeug(1, id: "toolu_1", name: "anlage_status", argumente: [#"{"bereich":"heizung","stunden":"3"}"#])
+                        + SSE.ende("tool_use")))
+                case 2:
+                    return .init(rumpf: SSE.strom([SSE.beginn] + SSE.text(0, ["Der Speicher hat 53 °C."]) + SSE.ende("end_turn")))
+                case 3:
+                    return .init(status: 400, kopf: ["Content-Type": "application/json"],
+                                 rumpf: Data(#"{"type":"error","error":{"type":"invalid_request_error","message":"unbekannt"}}"#.utf8))
+                default:
+                    return .init(rumpf: SSE.strom([SSE.beginn] + SSE.text(0, ["Im Verteiler 31 °C."]) + SSE.ende("end_turn")))
+                }
+            }))
+        let sitzung = LanguageModelSession(model: modell, tools: [Statuswerkzeug()]) { "Anweisungen" }
+        // `stunden` kommt als Text; ohne Angleichen bräche FoundationModels den Zug ab.
+        _ = try await sitzung.respond(to: "Wie warm ist der Speicher?")
+        _ = try await sitzung.respond(to: "Und im Verteiler?")
+
+        let eingaenge = APIAttrappe.eingaenge(host: host)
+        try #require(eingaenge.count == 4)
+        #expect(eingaenge[3].json?["model"] == "claude-opus-5")
+        for eingang in eingaenge[2...] {
+            guard case .liste(let nachrichten)? = eingang.json?["messages"] else {
+                Issue.record("keine Nachrichten")
+                return
+            }
+            #expect(nachrichten.map { $0["role"]?.alsText } == ["user", "assistant", "user", "assistant", "user"])
+            #expect(nachrichten[0]["content"]?[0]?["text"] == "Wie warm ist der Speicher?")
+            #expect(nachrichten[1]["content"]?[1] == ["type": "tool_use", "id": "toolu_1", "name": "anlage_status",
+                                                      "input": ["bereich": "heizung", "stunden": 3]])
+            #expect(nachrichten[2]["content"]?[0]?["tool_use_id"] == "toolu_1")
+            #expect(nachrichten[3]["content"]?[0]?["text"] == "Der Speicher hat 53 °C.")
+            #expect(nachrichten[4]["content"]?[0]?["text"] == "Und im Verteiler?")
+        }
+    }
+
     /// Ohne Ersatzmodell geht auch die Kopfzeile der Beta nicht mit.
     @Test func sonnet5OhneBetaKopfzeile() async throws {
         let host = "sonnet.test"

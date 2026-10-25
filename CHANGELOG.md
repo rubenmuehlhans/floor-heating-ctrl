@@ -71,6 +71,20 @@ Ab Build 16 (17. Oktober, TestFlight):
 - **Anzeigetafel:** Im Querformat bei compact × compact, etwa auf dem Außendisplay als Zelt, zeigt
   die Übersicht sechs Werte in großer Schrift; Antippen öffnet die Seite zum Wert.
 
+Noch in keinem TestFlight-Build:
+
+- **Assistent behält den Gesprächsverlauf nach einem Abbruch.** Scheiterte eine Antwort oder wurde
+  sie angehalten, setzte FoundationModels das Transkript auf den Stand vor der Frage zurück. Die
+  App zeigte Frage, Werkzeugaufrufe und Teilantwort weiter an, das Modell erhielt sie mit der
+  nächsten Frage aber nicht mehr; Rückfragen wie „ja, mach das“ liefen damit ins Leere. Die
+  Sitzungen behalten ihr Transkript jetzt auch nach einem Fehler. Werkzeugaufrufe ohne Ergebnis
+  erhalten eines, das den Abbruch nennt, sodass jedes `tool_use` sein `tool_result` hat.
+- **Werkzeugargumente nach dem Schema.** Claude gibt Werte gelegentlich als Zahl an, wo das Schema
+  Text verlangt, etwa `"wert": 68` oder die Raumnummer bei `aenderung_vorschlagen`. FoundationModels
+  lehnte solche Aufrufe ab und brach die ganze Antwort ab. Die App gleicht die Argumente vor der
+  Ausführung an das Schema an: Zahl und Wahrheitswert zu Text, Text zu Zahl oder Wahrheitswert,
+  ein Einzelwert zur Liste und eine Liste von Verteilern zu Text.
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler

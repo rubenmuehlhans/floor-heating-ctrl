@@ -49,7 +49,9 @@ struct AnlagenstatusTests {
 }
 
 /// Der Durchstich durch alle Schichten: Sitzung → Claude-Ausführer → Werkzeuge → Anlage und
-/// zurück. Die API ist vorgetäuscht: erst ein Vorschlag, dann die Antwort.
+/// zurück. Die API ist vorgetäuscht: erst ein Vorschlag, dann die Antwort. Nacheinander, weil
+/// sich die Tests die vorgetäuschte API teilen.
+@Suite(.serialized)
 struct DurchstichTests {
     @Test func claudeLegtEinenVorschlagAn() async throws {
         let anlage = try Testanlage()
@@ -80,6 +82,103 @@ struct DurchstichTests {
             #expect(erste.contains("\"name\":\"\(name)\""), "\(name)")
         }
         #expect(!erste.contains("wissen_suchen"), "Claude hat das Wissen in den Anweisungen")
+    }
+
+    private static func modell(_ antwort: @escaping @Sendable (Int) -> Data) -> ClaudeSprachmodell {
+        ClaudeSprachmodell(konfiguration: .init(
+            schluessel: "sk-test", adresse: URL(string: "https://api.test/v1/messages")!,
+            transport: APIStub.transport { _ in antwort(APIStub.rumpfe().count) }))
+    }
+
+    private static func nachrichten(_ rumpf: String) throws -> [[String: Any]] {
+        let json = try #require(try JSONSerialization.jsonObject(with: Data(rumpf.utf8)) as? [String: Any])
+        return try #require(json["messages"] as? [[String: Any]])
+    }
+
+    private static func bloecke(_ nachricht: [String: Any]) -> [[String: Any]] {
+        nachricht["content"] as? [[String: Any]] ?? []
+    }
+
+    /// „ja, mach das“ nach einer Rückfrage: Die zweite Frage kennt den ersten Austausch samt
+    /// Werkzeugaufruf und Ergebnis, auch in einer Sitzung, die nach dem Sichern neu aus dem
+    /// Transkript entsteht. Den Vorschlag legt Claude mit `"wert": 68` als Zahl an.
+    @MainActor
+    @Test func folgefrageKenntDenVerlauf() async throws {
+        let anlage = try Testanlage()
+        let modell = Self.modell { n in
+            switch n {
+            case 1: APIStub.werkzeugaufruf(#"{"bereich":"heizung"}"#)
+            case 2: APIStub.antwort("Voll steht auf 62 °C, die Ladungen enden bei 68,5 °C. Soll ich 68 °C vorschlagen?")
+            case 3: APIStub.werkzeugaufruf(
+                #"{"titel":"Speicher voll: 62 → 68 °C","aenderungen":[{"parameter":"buffer.voll_c","wert":68}],"begruendung":"Die Ladungen enden bei 68,5 °C.","wirkung":"Der Ladezustand stimmt oben."}"#,
+                name: "aenderung_vorschlagen")
+            default: APIStub.antwort("Der Vorschlag liegt auf der Karte.")
+            }
+        }
+        let werkzeuge = Werkzeugsatz.claude(anlage)
+        let anweisungen = Anweisungen.claude(Wissen(dokumente: []))
+        let erste = Gespraechsverlauf.sitzung(model: modell, tools: werkzeuge, anweisungen: anweisungen, transkript: nil)
+        _ = try await erste.respond(to: "Stimmt die Ladeanzeige?")
+
+        // Wie nach einem Neustart der App: gesichert, geladen, neue Sitzung
+        let ablage = Assistenzablage(ordner: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString))
+        let gespraech = Gespraech(id: "g", titel: "Ladeanzeige", beitraege: [Beitrag(id: "b", rolle: .nutzer, bausteine: [], zeit: .now)])
+        ablage.gespraechSichern(gespraech, transkript: erste.transcript)
+        let transkript = try #require(ablage.gespraechLaden("g")?.transkript)
+        let zweite = Gespraechsverlauf.sitzung(model: modell, tools: werkzeuge, anweisungen: anweisungen, transkript: transkript)
+        let antwort = try await zweite.respond(to: "ja, mach das")
+        #expect(antwort.content == "Der Vorschlag liegt auf der Karte.")
+
+        let rumpfe = APIStub.rumpfe()
+        try #require(rumpfe.count == 4)
+        let verlauf = try Self.nachrichten(rumpfe[2])
+        #expect(verlauf.map { $0["role"] as? String } == ["user", "assistant", "user", "assistant", "user"])
+        #expect(Self.bloecke(verlauf[0]).first?["text"] as? String == "Stimmt die Ladeanzeige?")
+        let aufruf = try #require(Self.bloecke(verlauf[1]).first { $0["type"] as? String == "tool_use" })
+        let ergebnis = try #require(Self.bloecke(verlauf[2]).first)
+        #expect(ergebnis["type"] as? String == "tool_result")
+        #expect(ergebnis["tool_use_id"] as? String == aufruf["id"] as? String)
+        #expect(Self.bloecke(verlauf[3]).last?["text"] as? String == "Voll steht auf 62 °C, die Ladungen enden bei 68,5 °C. Soll ich 68 °C vorschlagen?")
+        #expect(Self.bloecke(verlauf[4]).first?["text"] as? String == "ja, mach das")
+
+        let vorschlaege = await anlage.vorschlaege
+        try #require(vorschlaege.count == 1)
+        #expect(vorschlaege[0].ziele.allSatisfy { $0.neu == .zahl(68) })
+        #expect(rumpfe[3].contains(#"\"angelegt\":true"#))
+    }
+
+    /// Scheitert eine Antwort mitten im Werkzeuglauf, bleiben Frage und Aufruf im Verlauf; der
+    /// Aufruf erhält ein Ergebnis, das den Abbruch nennt.
+    @MainActor
+    @Test func abgebrochenerZugBleibtImVerlauf() async throws {
+        let modell = Self.modell { n in
+            switch n {
+            // Ohne `bereich` lässt sich der Aufruf nicht lesen; die Sitzung bricht ab.
+            case 1: APIStub.werkzeugaufruf(#"{"geraet":"Obergeschoss"}"#)
+            default: APIStub.antwort("Im Obergeschoss sind alle Räume erreichbar.")
+            }
+        }
+        let werkzeuge = Werkzeugsatz.claude(try Testanlage())
+        let anweisungen = Anweisungen.claude(Wissen(dokumente: []))
+        let sitzung = Gespraechsverlauf.sitzung(model: modell, tools: werkzeuge, anweisungen: anweisungen, transkript: nil)
+        await #expect(throws: LanguageModelSession.ToolCallError.self) {
+            _ = try await sitzung.respond(to: "Wie steht es im Obergeschoss?")
+        }
+        let transkript = Gespraechsverlauf.nachAbbruch(sitzung.transcript, grund: "Die Antwort ist gescheitert.")
+        let weiter = Gespraechsverlauf.sitzung(model: modell, tools: werkzeuge, anweisungen: anweisungen, transkript: transkript)
+        _ = try await weiter.respond(to: "und jetzt?")
+
+        let verlauf = try Self.nachrichten(try #require(APIStub.rumpfe().last))
+        #expect(verlauf.map { $0["role"] as? String } == ["user", "assistant", "user"])
+        #expect(Self.bloecke(verlauf[0]).first?["text"] as? String == "Wie steht es im Obergeschoss?")
+        let aufruf = try #require(Self.bloecke(verlauf[1]).first { $0["type"] as? String == "tool_use" })
+        // Ergebnis zum Aufruf, danach die neue Frage in derselben Nachricht
+        let antwort = Self.bloecke(verlauf[2])
+        #expect(antwort.map { $0["type"] as? String } == ["tool_result", "text"])
+        #expect(antwort.first?["tool_use_id"] as? String == aufruf["id"] as? String)
+        let ergebnistext = (antwort.first?["content"] as? [[String: Any]])?.first?["text"] as? String
+        #expect(ergebnistext == "Nicht ausgeführt: Die Antwort ist gescheitert.")
+        #expect(antwort.last?["text"] as? String == "und jetzt?")
     }
 }
 

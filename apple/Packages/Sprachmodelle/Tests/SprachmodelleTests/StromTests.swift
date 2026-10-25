@@ -25,8 +25,8 @@ struct StromTests {
         #expect(a == [
             .denken(eintrag: "r-0", text: "Ich lese den Zustand."),
             .signatur(eintrag: "r-0", signatur: "EqQBCgIYAhIM"),
-            .werkzeug(eintrag: "r-werkzeuge", id: "toolu_1", name: "anlage_status", argumente: #"{"bereich": "#),
-            .werkzeug(eintrag: "r-werkzeuge", id: "toolu_1", name: "anlage_status", argumente: #""heizung"}"#),
+            // Die Argumente gehen erst mit dem Ende des Blocks hinaus, als Ganzes.
+            .werkzeug(eintrag: "r-werkzeuge", id: "toolu_1", name: "anlage_status", argumente: #"{"bereich": "heizung"}"#),
             // Eingabe samt Zwischenspeicher: 1200 + 800 + 40
             .verbrauch(eintrag: "r-werkzeuge", art: .werkzeuge, eingabe: 2040, cache: 800, ausgabe: 87),
         ])
@@ -43,6 +43,37 @@ struct StromTests {
     @Test func werkzeugOhneParameterErhaeltLeeresObjekt() throws {
         let (a, _) = try aktionen([SSE.beginn] + SSE.werkzeug(0, id: "t", name: "befunde", argumente: []) + SSE.ende("tool_use"))
         #expect(a.first == .werkzeug(eintrag: "r-werkzeuge", id: "t", name: "befunde", argumente: "{}"))
+    }
+
+    /// Claude schreibt Zahlen, wo das Schema Text verlangt; FoundationModels würde den Zug mit
+    /// einem `ToolCallError` abbrechen.
+    @Test func argumenteNachDemSchema() throws {
+        let schema = try JSON.lesen(#"""
+            {"type":"object","$defs":{"Wertangabe":{"type":"object","properties":{"parameter":{"type":"string"},"eintrag":{"type":"string"},"wert":{"type":"string"}}}},
+             "properties":{"aenderungen":{"type":"array","items":{"$ref":"#/$defs/Wertangabe"}},"stunden":{"type":"integer"},
+                           "reihen":{"type":"array","items":{"type":"string"}},"erledigte":{"type":"boolean"},"titel":{"type":"string"}}}
+            """#)
+        var zustand = Stromzustand(praefix: "r", schemata: ["x": schema])
+        let argumente = #"{"aenderungen":[{"parameter":"rooms[].p_band_k","eintrag":3,"wert":1.5},{"parameter":"circuits[].peers","eintrag":2,"wert":["Erdgeschoss","Keller"]}],"stunden":"24","reihen":"brenner","erledigte":"false","titel":"T","fremd":7}"#
+        var aktionen: [Kanalaktion] = []
+        for e in [ClaudeEreignis.blockBeginn(index: 0, block: .werkzeug(id: "t", name: "x")), .argumentDelta(index: 0, json: argumente), .blockEnde(index: 0)] {
+            aktionen += try zustand.verarbeiten(e)
+        }
+        guard case .werkzeug(_, _, _, let text)? = aktionen.first else {
+            Issue.record("kein Aufruf")
+            return
+        }
+        #expect(try JSON.lesen(text) == JSON.lesen(#"""
+            {"aenderungen":[{"parameter":"rooms[].p_band_k","eintrag":"3","wert":"1.5"},{"parameter":"circuits[].peers","eintrag":"2","wert":"Erdgeschoss, Keller"}],
+             "stunden":24,"reihen":["brenner"],"erledigte":false,"titel":"T","fremd":7}
+            """#))
+    }
+
+    @Test func unlesbareArgumenteBleibenUnveraendert() throws {
+        var zustand = Stromzustand(praefix: "r", schemata: ["x": ["type": "object"]])
+        _ = try zustand.verarbeiten(.blockBeginn(index: 0, block: .werkzeug(id: "t", name: "x")))
+        _ = try zustand.verarbeiten(.argumentDelta(index: 0, json: #"{"a":"#))
+        #expect(try zustand.verarbeiten(.blockEnde(index: 0)) == [.werkzeug(eintrag: "r-werkzeuge", id: "t", name: "x", argumente: #"{"a":"#)])
     }
 
     @Test func ablehnung() throws {

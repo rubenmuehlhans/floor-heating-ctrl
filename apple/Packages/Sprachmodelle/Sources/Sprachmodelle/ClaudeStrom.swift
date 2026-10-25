@@ -203,14 +203,20 @@ struct Stromzustand {
     private(set) var beendet = false
     private var bloecke: [Int: ClaudeEreignis.Block] = [:]
     private var offeneWerkzeuge: Set<Int> = []
-    private var argumenteErhalten: Set<Int> = []
+    /// Argumente je Werkzeugblock, bis der Block endet
+    private var argumente: [Int: String] = [:]
+    /// Werkzeugblöcke, die schon in den Kanal gegangen sind
+    private var ausgegeben: Set<Int> = []
+    /// Eingabeschema je Werkzeug, zum Angleichen der Argumente
+    let schemata: [String: JSON]
     private var stopGrund: String?
     private var stopdetails: ClaudeEreignis.Stopdetails?
     private var verbrauch = ClaudeEreignis.Verbrauch()
     private var letzterEintrag: (id: String, art: Kanalaktion.Art)?
 
-    init(praefix: String) {
+    init(praefix: String, schemata: [String: JSON] = [:]) {
         self.praefix = praefix
+        self.schemata = schemata
     }
 
     private var werkzeugeintrag: String { "\(praefix)-werkzeuge" }
@@ -254,15 +260,17 @@ struct Stromzustand {
             return [.signatur(eintrag: eintrag(i), signatur: s)]
 
         case .argumentDelta(let i, let json):
-            guard case .werkzeug(let id, let name) = bloecke[i], !json.isEmpty else { return [] }
-            argumenteErhalten.insert(i)
-            return [.werkzeug(eintrag: werkzeugeintrag, id: id, name: name, argumente: json)]
+            guard case .werkzeug = bloecke[i] else { return [] }
+            argumente[i, default: ""] += json
+            return []
 
         case .blockEnde(let i):
             guard case .werkzeug(let id, let name) = bloecke[i] else { return [] }
             offeneWerkzeuge.remove(i)
-            // Ein Werkzeug ohne Parameter bekommt ein leeres Objekt.
-            return argumenteErhalten.contains(i) ? [] : [.werkzeug(eintrag: werkzeugeintrag, id: id, name: name, argumente: "{}")]
+            ausgegeben.insert(i)
+            // Erst der ganze Aufruf lässt sich an das Schema angleichen. Ein Werkzeug ohne
+            // Parameter bekommt ein leeres Objekt.
+            return [.werkzeug(eintrag: werkzeugeintrag, id: id, name: name, argumente: angeglichen(argumente[i] ?? "", name))]
 
         case .nachrichtDelta(let grund, let details, let v):
             stopGrund = grund ?? stopGrund
@@ -294,13 +302,25 @@ struct Stromzustand {
             case .denken, .verborgenesDenken:
                 aktionen.append(.denkenVerwerfen(eintrag: eintrag(i)))
             case .werkzeug(let id, _):
-                aktionen.append(.werkzeugEntfernen(eintrag: werkzeugeintrag, id: id))
+                if ausgegeben.contains(i) {
+                    aktionen.append(.werkzeugEntfernen(eintrag: werkzeugeintrag, id: id))
+                }
+                // Ein Aufruf, der noch nicht zu Ende ist, geht gar nicht erst hinaus.
+                bloecke[i] = nil
                 offeneWerkzeuge.remove(i)
             default:
                 break
             }
         }
         return aktionen
+    }
+
+    /// Die Argumente als JSON in den Typen des Schemas; was sich nicht lesen lässt, unverändert
+    private func angeglichen(_ text: String, _ werkzeug: String) -> String {
+        guard !text.trimmingCharacters(in: .whitespaces).isEmpty else { return "{}" }
+        guard let schema = schemata[werkzeug], let json = try? JSON.lesen(text),
+              let daten = try? json.angeglichen(an: schema).daten() else { return text }
+        return String(decoding: daten, as: UTF8.self)
     }
 
     /// Prüft nach dem Ende des Stroms, ob die Antwort verwendbar ist.
