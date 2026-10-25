@@ -71,7 +71,7 @@ Ab Build 16 (17. Oktober, TestFlight):
 - **Anzeigetafel:** Im Querformat bei compact × compact, etwa auf dem Außendisplay als Zelt, zeigt
   die Übersicht sechs Werte in großer Schrift; Antippen öffnet die Seite zum Wert.
 
-Noch in keinem TestFlight-Build:
+Ab Build 17 (25. Oktober, TestFlight):
 
 - **Assistent behält den Gesprächsverlauf nach einem Abbruch.** Scheiterte eine Antwort oder wurde
   sie angehalten, setzte FoundationModels das Transkript auf den Stand vor der Frage zurück. Die
