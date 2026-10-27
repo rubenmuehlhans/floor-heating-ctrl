@@ -92,6 +92,12 @@ Ab Build 17 (25. Oktober, TestFlight):
   Ausführung an das Schema an: Zahl und Wahrheitswert zu Text, Text zu Zahl oder Wahrheitswert,
   ein Einzelwert zur Liste und eine Liste von Verteilern zu Text.
 
+Ab Build 18 (27. Oktober, TestFlight):
+
+- **Nachlauf der Kesselkreispumpe einstellbar** unter Kesselkreispumpe › Schaltpunkte
+  („Nachlauf nach Brennerende“, `boiler_pump.overrun_s`), als Grund „Nachlauf nach dem Brenner“
+  (siehe Heizungsgeräte).
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler
