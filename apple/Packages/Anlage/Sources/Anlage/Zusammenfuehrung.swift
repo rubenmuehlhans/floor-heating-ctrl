@@ -386,6 +386,7 @@ public enum Zusammenfuehrung {
         switch schluessel {
         case "transfer": "der Kessel gibt Wärme ab"
         case "burner": "der Brenner läuft"
+        case "overrun": "Nachlauf nach dem Brenner"
         case "no_transfer": "Kessel kaum wärmer als der Speicher, Fördern brächte keine Wärme in den Speicher"
         case "emergency": "Notabfuhr, Kesselvorlauf über der Grenze"
         case "no_reading": "keine Kesselwerte, sie läuft sicherheitshalber"

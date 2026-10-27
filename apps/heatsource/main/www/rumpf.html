@@ -399,7 +399,10 @@ a.btn:hover{filter:none}
       <p class="lede">Zwischen Ein- und Ausschaltschwelle bleibt es, wie es war — sonst
          schaltete die Pumpe im Minutentakt, sobald die Spreizung um null pendelt. Die
          Schwellen gelten nur bei ausgeschaltetem Brenner: Meldet die Brennererkennung ihn als
-         laufend, läuft die Pumpe ohne Haltezeit. Über der Notgrenze läuft sie in jedem Fall,
+         laufend, läuft die Pumpe ohne Haltezeit, und nach dem Brennerende läuft sie den
+         Nachlauf lang weiter: Der Kessel bleibt so auf Speichertemperatur und zündet nach, solange
+         die Ladung noch angefordert ist, statt heiß stehen zu bleiben und später einzeln
+         nachzuheizen. Über der Notgrenze läuft sie in jedem Fall,
          auch gegen die Schwellen: Ein klemmender Fühler darf die Wärmeabfuhr nicht verhindern.
          Fehlen die Kesselwerte ganz, läuft sie ebenfalls.</p>
       <div class="fields">
@@ -408,6 +411,8 @@ a.btn:hover{filter:none}
         <label>Aus unter (K)<input type="number" id="bp-offk" step="0.1" min="0" max="20"
                style="width:6rem"></label>
         <label>Haltezeit (s)<input type="number" id="bp-hold" min="0" max="3600"
+               style="width:6rem"></label>
+        <label>Nachlauf nach Brennerende (min)<input type="number" id="bp-overrun" min="0" max="120"
                style="width:6rem"></label>
         <label>Mindestlaufzeit (s)<input type="number" id="bp-minrun" min="0" max="3600"
                style="width:6rem"></label>
@@ -1295,6 +1300,7 @@ const freieKennung = () => {
 const BP_GRUND = {
   transfer: "der Kessel gibt Wärme ab",
   burner: "der Brenner läuft",
+  overrun: "Nachlauf nach dem Brenner — hält den Kessel auf Speichertemperatur, damit die Ladung in einem Zug endet",
   no_transfer: "Kessel kaum wärmer als der Speicher — Fördern brächte keine Wärme in den Speicher",
   emergency: "Notabfuhr, Kesselvorlauf über der Grenze",
   no_reading: "keine Kesselwerte, sie läuft sicherheitshalber",
@@ -1357,6 +1363,7 @@ function renderBoilerPump() {
   $("#bp-onk").value = c.on_k ?? 1;
   $("#bp-offk").value = c.off_k ?? 0.5;
   $("#bp-hold").value = c.hold_s ?? 120;
+  $("#bp-overrun").value = Math.round((c.overrun_s ?? 1800) / 60);
   $("#bp-minrun").value = c.min_run_s ?? 180;
   $("#bp-minpause").value = c.min_pause_s ?? 180;
   $("#bp-emerg").value = c.emergency_c ?? 85;
@@ -2062,6 +2069,7 @@ async function boot() {
       on_k: parseFloat(v("#bp-onk")),
       off_k: parseFloat(v("#bp-offk")),
       hold_s: parseInt(v("#bp-hold"), 10),
+      overrun_s: parseInt(v("#bp-overrun"), 10) * 60,
       min_run_s: parseInt(v("#bp-minrun"), 10),
       min_pause_s: parseInt(v("#bp-minpause"), 10),
       emergency_c: parseFloat(v("#bp-emerg")),

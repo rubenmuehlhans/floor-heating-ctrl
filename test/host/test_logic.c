@@ -2632,6 +2632,8 @@ static void test_boilerpump_brenner(void)
     bp_cfg_t cfg;
     bp_defaults(&cfg);
     cfg.enabled = true;
+    /* Hier geht es um die Regel nach dem Brennerende, nicht um den Nachlauf. */
+    cfg.overrun_s = 0;
 
     /*
      * Zuerst ohne Brennermeldung, wie bis 0.4.0. Damals las die Regel gegen
@@ -2719,6 +2721,8 @@ static void test_boilerpump_nachzuenden(void)
     bp_cfg_t cfg;
     bp_defaults(&cfg);
     cfg.enabled = true;
+    /* Die Spreizungsregel fuer sich, ohne den spaeter eingefuehrten Nachlauf. */
+    cfg.overrun_s = 0;
     bp_state_t st;
     bp_init(&st, BP_MODE_AUTO);
     uint32_t t = 1000;
@@ -2745,6 +2749,57 @@ static void test_boilerpump_nachzuenden(void)
     bp_input_t zuenden = kessel_lauf(78.6f, 75.2f, 70.2f, true);
     bp_tick(&st, &cfg, &zuenden, t);
     CHECK(st.on && st.reason == BP_REASON_BURNER, "beim Nachzuenden laeuft sie mit");
+}
+
+static void test_boilerpump_nachlauf_brenner(void)
+{
+    printf("Kesselkreispumpe: Nachlauf nach dem Brennerende\n");
+
+    bp_cfg_t cfg;
+    bp_defaults(&cfg);
+    cfg.enabled = true;
+    CHECK(cfg.overrun_s == 1800, "Vorgabe dreissig Minuten, nicht %u s", (unsigned)cfg.overrun_s);
+    bp_state_t st;
+    bp_init(&st, BP_MODE_AUTO);
+    uint32_t t = 1000;
+
+    /* Ladung; dann Brenner aus, der Ruecklauf kommt so heiss wie der Vorlauf. */
+    t = bp_laufen(&st, &cfg, kessel_lauf(78.0f, 72.0f, 64.0f, true), t, 600);
+    bp_input_t danach = kessel_lauf(75.9f, 76.0f, 69.0f, false);
+    t = bp_laufen(&st, &cfg, danach, t, 1790);
+    CHECK(st.on && st.reason == BP_REASON_OVERRUN, "im Nachlauf laeuft sie, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    CHECK(strcmp(bp_reason_key(st.reason), "overrun") == 0, "Schluessel \"overrun\"");
+
+    /* Danach entscheidet die Spreizung, mit ihrer Haltezeit ab dem Ende des
+     * Nachlaufs. */
+    t = bp_laufen(&st, &cfg, danach, t, 20);
+    CHECK(st.on && st.reason == BP_REASON_HOLD, "nach dem Nachlauf erst die Haltezeit, nicht \"%s\"",
+          bp_reason_text(st.reason));
+    t = bp_laufen(&st, &cfg, danach, t, cfg.hold_s);
+    CHECK(!st.on && st.reason == BP_REASON_NO_TRANSFER, "dann steht sie");
+
+    /* Zuendet der Kessel im Nachlauf wieder, laeuft sie mit, und der Nachlauf
+     * beginnt mit dem naechsten Brennerende von vorn. */
+    t = bp_laufen(&st, &cfg, kessel_lauf(78.0f, 72.0f, 64.0f, true), t, 300);
+    t = bp_laufen(&st, &cfg, danach, t, 240);
+    CHECK(st.reason == BP_REASON_OVERRUN, "im Nachlauf");
+    t = bp_laufen(&st, &cfg, kessel_lauf(79.0f, 75.0f, 66.0f, true), t, 480);
+    CHECK(st.reason == BP_REASON_BURNER, "Nachzuendung: Brenner");
+    t = bp_laufen(&st, &cfg, danach, t, 1700);
+    CHECK(st.on && st.reason == BP_REASON_OVERRUN, "der Nachlauf zaehlt ab dem zweiten Brennerende");
+
+    /* Hand aus gilt auch im Nachlauf. */
+    bp_set_mode(&st, BP_MODE_OFF, t);
+    t = bp_laufen(&st, &cfg, danach, t, 5);
+    CHECK(!st.on && st.reason == BP_REASON_MANUAL, "Hand aus geht vor");
+
+    /* Ohne Nachlauf wie bisher: Haltezeit ab dem Brennerende. */
+    cfg.overrun_s = 0;
+    bp_init(&st, BP_MODE_AUTO);
+    t = bp_laufen(&st, &cfg, kessel_lauf(78.0f, 72.0f, 64.0f, true), t, 600);
+    t = bp_laufen(&st, &cfg, danach, t, cfg.hold_s + 10);
+    CHECK(!st.on, "ohne Nachlauf steht sie nach der Haltezeit");
 }
 
 static void test_boilerpump_neustart(void)
@@ -2922,6 +2977,7 @@ int main(void)
     test_boilerpump_brenner();
     test_boilerpump_neustart();
     test_boilerpump_nachzuenden();
+    test_boilerpump_nachlauf_brenner();
     test_burner_fortsetzen();
     test_trend_gerade();
     test_trend_ausreisser();

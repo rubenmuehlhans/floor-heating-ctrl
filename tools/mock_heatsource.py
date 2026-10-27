@@ -107,7 +107,7 @@ CFG = {
                "leer_epoch": 0, "volumen_l": 0.0, "zapf_drop_k": 2.0, "zapf_win_s": 900},
     "boiler_pump": {"enabled": True, "topic": "", "host": "192.168.1.204", "user": "",
                     "pass_set": False, "relay": 1, "mode": "auto", "on_k": 1.0, "off_k": 0.5,
-                    "hold_s": 120, "min_run_s": 180, "min_pause_s": 180, "emergency_c": 85.0},
+                    "hold_s": 120, "overrun_s": 1800, "min_run_s": 180, "min_pause_s": 180, "emergency_c": 85.0},
     "wifi": {"ssid": "Heimnetz", "hostname": "heizung", "pass_set": True, "ap_pass_set": True},
     "mqtt": {"enabled": False, "uri": "", "user": "", "prefix": "heiz", "pass_set": False},
 }

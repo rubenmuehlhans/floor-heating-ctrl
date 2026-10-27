@@ -67,7 +67,7 @@ public enum Beispielkonfiguration {
             k["boiler_pump"] = [
                 "enabled": true, "mode": "auto", "topic": "", "host": .text(p.relais.adresse), "user": "",
                 "pass_set": false, "relay": .zahl(Double(p.relais.kanal)), "on_k": .zahl(p.einschaltschwelle),
-                "off_k": .zahl(p.ausschaltschwelle), "hold_s": .zahl(Double(p.haltezeit)), "min_run_s": 180,
+                "off_k": .zahl(p.ausschaltschwelle), "hold_s": .zahl(Double(p.haltezeit)), "overrun_s": 1800, "min_run_s": 180,
                 "min_pause_s": 180, "emergency_c": .zahl(p.notgrenze),
             ]
         }

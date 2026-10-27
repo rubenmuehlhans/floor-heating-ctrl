@@ -42,8 +42,18 @@
  * Die Brennererkennung meldet einen Start erst eine bis mehrere Minuten nach
  * dem Zuenden. Die Ruecklaufanhebung bleibt damit erhalten; ist die Pumpe bis
  * dahin nicht angesprungen, schaltet die Meldung sie ein. Aus geht sie erst,
- * wenn die Erkennung den Brenner als aus meldet, und dann wie sonst nach
- * Spreizung und Haltezeit.
+ * wenn die Erkennung den Brenner als aus meldet, nach dem Nachlauf, und dann
+ * wie sonst nach Spreizung und Haltezeit.
+ *
+ * Nachlauf: Nach dem Brennerende laeuft die Pumpe overrun_s weiter, gleich was
+ * die Spreizung sagt. Waerme bringt sie dabei kaum noch, aber sie haelt den
+ * Kessel auf Speichertemperatur. Fordert die vorgeschaltete Regelung weiter an,
+ * zuendet der Kessel deshalb nach wenigen Minuten wieder, und die Ladung laeuft
+ * in einem Zug zu Ende. Ohne Nachlauf blieb der Kessel heiss stehen, kuehlte
+ * achtzig Minuten aus und zuendete dann zu einem kurzen Lauf nach -- am
+ * 24. Oktober viermal nach der Ladung, 3,35 l fuer einen Ladezyklus. Mit
+ * dreissig Minuten Nachlauf am 25. Oktober: eine Nachzuendung nach vier
+ * Minuten, 1,85 l bei gleicher Aussentemperatur.
  */
 #pragma once
 
@@ -59,6 +69,7 @@ typedef enum {
     BP_REASON_NONE = 0,
     BP_REASON_TRANSFER,     /* der Kessel gibt Waerme ab */
     BP_REASON_BURNER,       /* der Brenner laeuft */
+    BP_REASON_OVERRUN,      /* Nachlauf nach dem Brennerende */
     BP_REASON_NO_TRANSFER,  /* Kessel kaum waermer als der Speicher (ersatzweise der Ruecklauf) */
     BP_REASON_EMERGENCY,    /* Notgrenze des Kesselvorlaufs ueberschritten */
     BP_REASON_NO_READING,   /* ohne Messwerte laeuft sie */
@@ -81,6 +92,7 @@ typedef struct {
     /* Darunter gilt er als aufnehmend. Kleiner als on_k, sonst pendelt es. */
     float off_k;
     uint32_t hold_s;       /* so lange muss die Bedingung anliegen */
+    uint32_t overrun_s;    /* Nachlauf nach dem Brennerende, 0 = keiner */
     uint32_t min_run_s;
     uint32_t min_pause_s;
     float emergency_c;     /* darueber laeuft sie in jedem Fall */
@@ -118,10 +130,14 @@ typedef struct {
      * Speicherfuehler, 0 bis 10 K. Bei stehender Pumpe kommt er auf den
      * Speicher. */
     float buffer_bias_k;
+    /* Brenner lief beim letzten Schritt; seit wann der Nachlauf laeuft */
+    bool brenner_lief;
+    bool nachlauf;
+    uint32_t brenner_aus_ms;
 } bp_state_t;
 
-/* Vorgabe: drei Kelvin ein, zwei aus, zwei Minuten Haltezeit, je drei Minuten
- * Mindestlaufzeit und -pause, Notgrenze 85 Grad. */
+/* Vorgabe: drei Kelvin ein, zwei aus, zwei Minuten Haltezeit, dreissig Minuten
+ * Nachlauf, je drei Minuten Mindestlaufzeit und -pause, Notgrenze 85 Grad. */
 void bp_defaults(bp_cfg_t *cfg);
 void bp_init(bp_state_t *st, bp_mode_t mode);
 void bp_set_mode(bp_state_t *st, bp_mode_t mode, uint32_t now_ms);

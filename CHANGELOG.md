@@ -7,6 +7,13 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ### Heizungsgeräte
 
+- **Kesselkreispumpe: Nachlauf nach dem Brennerende als eigene Einstellung.** `boiler_pump.overrun_s`,
+  Vorgabe 1800 s. Die Pumpe läuft nach dem Brennerende so lange weiter, gleich was die Spreizung
+  sagt; danach gilt die Regel mit ihrer Haltezeit. Sie hält den Kessel auf Speichertemperatur,
+  sodass er nachzündet, solange die Ladung angefordert ist, statt später einzeln nachzuheizen.
+  Versuch an der Anlage: 3,35 l je Ladezyklus mit 2 Minuten (vier Nachläufe nach je 80 Minuten),
+  1,85 l mit 30 Minuten (eine Nachzündung nach vier Minuten). Grund `overrun`.
+
 - **Stromlose Relais sind keine Störung.** An dieser Anlage hängen die Tasmota-Relais hinter den
   Pumpenausgängen von Kesselregelung und Heliomat; schalten die ab, verschwindet das Relais aus
   dem Netz. Eine fehlende Verbindung gilt jetzt als stromlos: Pumpe steht, keine Abweichung, keine

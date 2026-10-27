@@ -139,6 +139,8 @@ void cfg_defaults(app_config_t *out)
     out->boiler_pump.on_k = 3.0f;
     out->boiler_pump.off_k = 2.0f;
     out->boiler_pump.hold_s = 120;
+    /* Dreissig Minuten wie an der Anlage erprobt, siehe heatlogic/boilerpump.h. */
+    out->boiler_pump.overrun_s = 1800;
     out->boiler_pump.min_run_s = 180;
     out->boiler_pump.min_pause_s = 180;
     out->boiler_pump.emergency_c = 85.0f;
@@ -308,6 +310,9 @@ static esp_err_t cfg_validate(const app_config_t *cfg, char *err, size_t err_len
         }
         if (bp->emergency_c < 60.0f || bp->emergency_c > 110.0f) {
             FEHLER("Notgrenze der Kesselkreispumpe muss zwischen 60 und 110 Grad liegen");
+        }
+        if (bp->overrun_s > 7200) {
+            FEHLER("Nachlauf der Kesselkreispumpe darf hoechstens zwei Stunden betragen");
         }
         if (bp->hold_s > 3600 || bp->min_run_s > 3600 || bp->min_pause_s > 3600) {
             FEHLER("Zeiten der Kesselkreispumpe duerfen hoechstens eine Stunde betragen");
@@ -584,6 +589,7 @@ char *cfg_to_json(const app_config_t *cfg, bool include_secrets)
     cJSON_AddNumberToObject(jk, "on_k", kp->on_k);
     cJSON_AddNumberToObject(jk, "off_k", kp->off_k);
     cJSON_AddNumberToObject(jk, "hold_s", kp->hold_s);
+    cJSON_AddNumberToObject(jk, "overrun_s", kp->overrun_s);
     cJSON_AddNumberToObject(jk, "min_run_s", kp->min_run_s);
     cJSON_AddNumberToObject(jk, "min_pause_s", kp->min_pause_s);
     cJSON_AddNumberToObject(jk, "emergency_c", kp->emergency_c);
@@ -796,6 +802,7 @@ esp_err_t cfg_from_json(const char *json, app_config_t *out, char *err, size_t e
         kp->on_k = (float)cfgjson_num(jk, "on_k", kp->on_k);
         kp->off_k = (float)cfgjson_num(jk, "off_k", kp->off_k);
         kp->hold_s = (uint16_t)cfgjson_num(jk, "hold_s", kp->hold_s);
+        kp->overrun_s = (uint16_t)cfgjson_num(jk, "overrun_s", kp->overrun_s);
         kp->min_run_s = (uint16_t)cfgjson_num(jk, "min_run_s", kp->min_run_s);
         kp->min_pause_s = (uint16_t)cfgjson_num(jk, "min_pause_s", kp->min_pause_s);
         kp->emergency_c = (float)cfgjson_num(jk, "emergency_c", kp->emergency_c);

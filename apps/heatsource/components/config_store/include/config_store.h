@@ -135,6 +135,7 @@ typedef struct {
     float on_k;                  /* ab dieser Spreizung gibt der Kessel ab */
     float off_k;
     uint16_t hold_s;
+    uint16_t overrun_s;          /* Nachlauf nach dem Brennerende, 0 = keiner */
     uint16_t min_run_s;
     uint16_t min_pause_s;
     float emergency_c;           /* darueber laeuft sie in jedem Fall */

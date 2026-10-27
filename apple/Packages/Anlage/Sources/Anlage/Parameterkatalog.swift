@@ -402,6 +402,8 @@ public enum Parameterkatalog {
                  hilfe: "Muss unter der Einschaltschwelle liegen; dazwischen bleibt es, wie es war.", ki: true),
             ganz(h, .geraet, ["boiler_pump", "hold_s"], "kkp", abschnitt: "Schaltpunkte", "Haltezeit", "s", 0...3600, schritt: 10,
                  vorgabe: 120, hilfe: "So lange muss eine Bedingung anstehen, bevor die Pumpe umschaltet.", ki: true, erweitert: true),
+            ganz(h, .geraet, ["boiler_pump", "overrun_s"], "kkp", abschnitt: "Schaltpunkte", "Nachlauf nach Brennerende", "s", 0...7200, schritt: 60,
+                 vorgabe: 1800, hilfe: "So lange läuft die Pumpe nach dem Brennerende weiter. Sie hält den Kessel auf Speichertemperatur; fordert die Regelung die Ladung weiter an, zündet er gleich nach, statt später einzeln nachzuheizen.", ki: true),
             ganz(h, .geraet, ["boiler_pump", "min_run_s"], "kkp", abschnitt: "Schaltpunkte", "Mindestlaufzeit", "s", 0...3600, schritt: 10,
                  vorgabe: 180, hilfe: "Kürzer läuft die Pumpe nicht.", ki: true, erweitert: true),
             ganz(h, .geraet, ["boiler_pump", "min_pause_s"], "kkp", abschnitt: "Schaltpunkte", "Mindestpause", "s", 0...3600, schritt: 10,

@@ -700,6 +700,7 @@ geschieht je nach Abgasrohr eine bis mehrere Minuten nach dem Zünden.
 | Ein ab Abstand | 3,0 K | So weit muss der Kesselvorlauf bei stehender Pumpe über dem Bezug liegen, damit sich das Fördern lohnt. |
 | Aus unter | 2,0 K | Liegt der Kesselvorlauf bei laufender Pumpe weniger als diesen Abstand über dem Rücklauf, kommt nichts mehr an. Muss kleiner sein als „ein", sonst taktet die Pumpe. |
 | Haltezeit | 120 s | so lange muss die Bedingung anliegen |
+| Nachlauf nach Brennerende | 1800 s | so lange läuft sie nach dem Brennerende weiter, gleich was die Spreizung sagt; 0 = kein Nachlauf |
 | Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
 | Notgrenze | 85 °C | darüber läuft sie in jedem Fall |
 
@@ -715,6 +716,17 @@ Kesselvorlauf die Notgrenze, läuft sie ebenfalls**, gleich was die Spreizung sa
 klemmender Fühler darf die Wärmeabfuhr nicht verhindern. Bei stehender Pumpe erreicht die Wärme
 des Kesselkörpers die Fühler am Rohr allerdings nur verzögert; die Notgrenze ersetzt deshalb die
 Kopplung an den Brenner nicht.
+
+**Nachlauf nach dem Brennerende.** Wärme bringt die Pumpe nach dem Brennerende kaum noch: Das
+Wasser kommt dann meist so heiß aus dem Speicher zurück, wie der Kessel ist. Sie hält den Kessel
+aber auf Speichertemperatur. Fordert die vorgeschaltete Regelung, an dieser Anlage der Heliomat,
+die Ladung noch an, zündet der Kessel deshalb nach wenigen Minuten wieder, und die Ladung endet
+in einem Zug. Ohne Nachlauf bleibt der Kessel heiß stehen, kühlt aus und zündet erst nach etwa
+80 Minuten zu einem kurzen Lauf nach, der den ausgekühlten Kessel jedes Mal neu aufheizt. Am
+24. Oktober waren das nach der Ladung vier Nachläufe, 3,35 l für einen Ladezyklus; mit
+30 Minuten Nachlauf am 25. Oktober eine Nachzündung nach vier Minuten und 1,85 l bei gleicher
+Außentemperatur. Nach dem Nachlauf entscheidet die Spreizung wie sonst, mit ihrer Haltezeit ab
+seinem Ende. Ein Neustart mitten im Nachlauf beginnt ohne ihn.
 
 **Nach einem Neustart** des Geräts beginnt die Regel bei laufender Pumpe, und aus geht sie
 frühestens nach der Haltezeit. Die Brennererkennung setzt mit dem zuletzt gesicherten Zustand

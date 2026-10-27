@@ -179,6 +179,7 @@ static void apply_config(void)
     s_bpcfg.on_k = kp->on_k;
     s_bpcfg.off_k = kp->off_k;
     s_bpcfg.hold_s = kp->hold_s;
+    s_bpcfg.overrun_s = kp->overrun_s;
     s_bpcfg.min_run_s = kp->min_run_s;
     s_bpcfg.min_pause_s = kp->min_pause_s;
     s_bpcfg.emergency_c = kp->emergency_c;

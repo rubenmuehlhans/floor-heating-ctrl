@@ -16,6 +16,7 @@ void bp_defaults(bp_cfg_t *cfg)
     cfg->on_k = 3.0f;
     cfg->off_k = 2.0f;
     cfg->hold_s = 120;
+    cfg->overrun_s = 1800;
     cfg->min_run_s = 180;
     cfg->min_pause_s = 180;
     cfg->emergency_c = 85.0f;
@@ -101,8 +102,31 @@ void bp_tick(bp_state_t *st, const bp_cfg_t *cfg, const bp_input_t *in, uint32_t
     if (in->burner_running) {
         st->cond_transfer = true;
         st->cond_since_ms = now_ms;
+        st->brenner_lief = true;
+        st->nachlauf = false;
         schalten(st, true, BP_REASON_BURNER, now_ms);
         return;
+    }
+
+    /*
+     * Nachlauf nach dem Brennerende, siehe boilerpump.h. Die Spreizung zaehlt
+     * erst danach, und ihre Haltezeit beginnt mit seinem Ende. Ein Neustart
+     * mitten im Nachlauf beginnt ohne ihn: Ob der Brenner lief, weiss das
+     * Geraet dann nicht mehr.
+     */
+    if (st->brenner_lief) {
+        st->brenner_lief = false;
+        st->brenner_aus_ms = now_ms;
+        st->nachlauf = cfg->overrun_s > 0;
+    }
+    if (st->nachlauf) {
+        if (verstrichen(now_ms, st->brenner_aus_ms) < cfg->overrun_s * 1000UL) {
+            st->cond_transfer = true;
+            st->cond_since_ms = now_ms;
+            schalten(st, true, BP_REASON_OVERRUN, now_ms);
+            return;
+        }
+        st->nachlauf = false;
     }
 
     /*
@@ -182,6 +206,7 @@ const char *bp_reason_text(bp_reason_t r)
     switch (r) {
     case BP_REASON_TRANSFER:     return "Kessel gibt Waerme ab";
     case BP_REASON_BURNER:       return "Brenner laeuft";
+    case BP_REASON_OVERRUN:      return "Nachlauf nach dem Brenner";
     case BP_REASON_NO_TRANSFER:  return "Kessel kaum waermer als der Speicher";
     case BP_REASON_EMERGENCY:    return "Notabfuhr, Kessel ueber der Grenze";
     case BP_REASON_NO_READING:   return "keine Kesselwerte, Pumpe laeuft sicherheitshalber";
@@ -199,6 +224,7 @@ const char *bp_reason_key(bp_reason_t r)
     switch (r) {
     case BP_REASON_TRANSFER:     return "transfer";
     case BP_REASON_BURNER:       return "burner";
+    case BP_REASON_OVERRUN:      return "overrun";
     case BP_REASON_NO_TRANSFER:  return "no_transfer";
     case BP_REASON_EMERGENCY:    return "emergency";
     case BP_REASON_NO_READING:   return "no_reading";
