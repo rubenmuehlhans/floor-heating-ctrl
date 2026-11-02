@@ -118,8 +118,8 @@ für Telefon und Rechner gleichermaßen gedacht.
 ![Übersicht der Verteilerplatine](screenshots/uebersicht.png)
 
 Der Verteilerbalken zeigt alle elf Kreise in der Reihenfolge am Verteiler, nach Räumen
-gruppiert. Ein **gestrichelter** Kreis gehört zu keinem Raum: er wird nicht geregelt und fährt
-nur von Hand. Ein **schraffierter** Kreis hat eine unbekannte Stellung — nach einem Neustart ohne
+gruppiert. Ein **gestrichelter** Kreis gehört zu keinem Raum: Er wird nicht geregelt, sondern
+zugefahren; auf fährt er nur von Hand. Ein **schraffierter** Kreis hat eine unbekannte Stellung — nach einem Neustart ohne
 gespeicherte Stellung, bis er das erste Mal auf Anschlag gefahren ist.
 
 **Kopfzeile.** Links die Bezeichnung des Geräts, daneben die übrigen Geräte im Haus. Darunter
@@ -146,7 +146,7 @@ verstellen Sie über die Schaltflächen **−** und **+** in Schritten von 0,5 K
 unmittelbare Eingabe der Zahl.
 
 Die Ventilstellung folgt der Abweichung proportional: Am Sollwert steht der Kreis halb offen.
-Liegt der Raum um das Proportionalband darunter — in der Vorgabe 1 K —, fährt er ganz auf, liegt
+Liegt der Raum um den Regelbereich darunter — in der Vorgabe 1 K —, fährt er ganz auf, liegt
 er um denselben Betrag darüber, ganz zu. Die Zeile unter den Kreisen nennt die Zielstellung und
 wann die Regelung das nächste Mal prüft.
 
@@ -179,8 +179,8 @@ Unter **Kreise** steht ganz oben die Handsteuerung. Wählen Sie den Kreis und fa
 
 Die Handsteuerung wirkt **unabhängig von der Stellung, die die Firmware für richtig hält**. Das
 ist der Notfall-Weg: Wenn die geschätzte Stellung nicht zur Wirklichkeit passt, fährt der Motor
-trotzdem in die gewünschte Richtung, bis die Endlage erkannt wird oder die Maximallaufzeit
-abläuft.
+trotzdem in die gewünschte Richtung, bis die Endlage erkannt wird oder die „Höchstlaufzeit bis
+Anschlag“ abläuft.
 
 Ein von Hand gefahrener Kreis bleibt aus der Regelung genommen, bis Sie ihn mit **Wieder regeln**
 freigeben. Die Übersicht weist das aus.
@@ -197,14 +197,14 @@ Stellungen:
 | Stellung | Wirkung |
 |---|---|
 | **Automatik** | Die Pumpe folgt dem Bedarf der zugeordneten Verteiler |
-| **Ein** | Die Pumpe läuft dauerhaft |
-| **Aus** | Die Pumpe steht dauerhaft |
+| **Hand ein** | Die Pumpe läuft dauerhaft |
+| **Hand aus** | Die Pumpe steht dauerhaft |
 
 ![Heizkreise](screenshots/heizung/heizkreise.png)
 
 Der Wechsel wirkt sofort; Mindestlaufzeit und Mindestpause werden dabei übergangen. Der
-Frostschutz geht auch der Stellung **Aus** vor: fällt eine Raumtemperatur unter die Frostgrenze,
-läuft die Pumpe.
+Frostschutz geht auch der Stellung **Hand aus** vor: Fällt eine Raumtemperatur unter den Wert
+„Frostschutz unter Raumtemperatur“, läuft die Pumpe.
 
 ## Räume einrichten
 
@@ -218,15 +218,16 @@ seine Temperatur liefert.
 | Name | erscheint auf der Übersicht, am Gerät und in Home Assistant |
 | Heizkreise | ein Kreis gehört zu höchstens einem Raum; Kreise ohne Raum werden zugefahren, siehe oben |
 | Thermometer | eines der empfangenen Geräte, siehe unten |
-| Sollwert | Zieltemperatur |
-| Proportionalband | Abweichung vom Sollwert, bei der der Kreis ganz auf (darunter) oder ganz zu (darüber) steht; am Sollwert steht er halb offen. Vorgabe 1 K |
-| Prüfintervall | wie oft die Regelung nachsteuert; Vorgabe 30 s |
-| Rasterung | Schrittweite der Zielstellung; Vorgabe 0,1 |
+| Solltemperatur | Raumtemperatur, auf die der Verteiler regelt |
+| Regelbereich | Abweichung von der Solltemperatur, bei der der Kreis ganz auf (darunter) oder ganz zu (darüber) steht; am Sollwert steht er halb offen. Vorgabe 1 K |
+| Regelung prüft alle | Abstand zwischen zwei Regelschritten; Vorgabe 30 s |
+| Stellschritt der Ventile | Schrittweite, auf die die Zielstellung gerundet wird; Vorgabe 0,1 |
+| Kleinste Fahrt | kleinere Abweichungen zwischen Ziel und Stellung lösen keine Fahrt aus; Vorgabe 0,01 |
 
 **Ohne zugeordnetes Thermometer wird nicht geregelt.** Der Raum erscheint dann mit dem Hinweis
-„kein Thermometer" und die Ventile bleiben stehen. Dasselbe gilt, wenn ein Messwert länger
-ausbleibt als die eingestellte Zeitgrenze — die Regelung rechnet dann nicht mit einem veralteten
-Wert weiter.
+„kein Thermometer“ und die Ventile bleiben stehen. Dasselbe gilt, wenn ein Messwert länger
+ausbleibt als unter „Thermometer gilt als ausgefallen nach“ eingestellt — die Regelung rechnet
+dann nicht mit einem veralteten Wert weiter.
 
 ### Thermometer
 
@@ -270,7 +271,8 @@ Außenfühler.
 
 ## Heizkreise und Messfahrt
 
-Unter **Kreise** stehen je Kreis die Fahrzeiten und die Auslöseschwelle der Endlagenerkennung.
+Unter **Kreise** stehen je Kreis die Fahrzeiten und die Schwelle der Endlagenerkennung
+(„Endlage erkannt ab“).
 
 Die Antriebe haben keine Endschalter. Die Endlage wird daran erkannt, dass der Motor am Anschlag
 blockiert und die Spannung über dem Messwiderstand steigt. Wie hoch diese Spannung ausfällt und
@@ -312,8 +314,8 @@ Ventilsitz den Druck auf.
 
 Zu fährt ein Kreis, bis der Motor am Ventilsitz blockiert. Die Spindel des Antriebs ist
 selbsthemmend; nach dem Abschalten bliebe die volle Blockierkraft deshalb auf Ventilstift und
-Dichtung stehen, im Sommer über Monate. Nach jeder Fahrt zu, die an der Endlage oder an der
-Maximallaufzeit endet, fährt der Antrieb daher eine Sekunde wieder auf. Das sind bei rund 40 s
+Dichtung stehen, im Sommer über Monate. Nach jeder Fahrt zu, die an der Endlage oder mit der
+„Höchstlaufzeit bis Anschlag“ endet, fährt der Antrieb daher eine Sekunde wieder auf. Das sind bei rund 40 s
 für den ganzen Hub etwa 0,1 mm, von denen das Spiel im Getriebe einen Teil aufnimmt. Die Kraft
 ist danach weitgehend abgebaut, das Ventil bleibt geschlossen; die Feder des Ventils hält den
 Stift am Stößel. Die Stellung bleibt bei 0 %, als Grund der letzten Fahrt bleibt „Endlage
@@ -342,10 +344,12 @@ Ordnen Sie ihn dann zu und speichern Sie.
 | `hk<n>_vl`, `hk<n>_rl` | Vor- und Rücklauf des Heizkreises n, hinter dem Mischer |
 | `aussen` | Außentemperatur; kommt vom RuuviTag an der Verteilerplatine und lässt sich hier nicht zuordnen |
 
-**Korrekturwert.** Sitzt ein Fühler nicht ganz an der richtigen Stelle, tragen Sie die Abweichung
+**Korrektur (K).** Sitzt ein Fühler nicht ganz an der richtigen Stelle, tragen Sie die Abweichung
 in Kelvin ein; sie wird auf jeden Messwert addiert. Anzumerken ist, dass ein fester Korrekturwert
 eine Abweichung nur an einem Betriebspunkt ausgleicht: bei einem geschichteten Speicher ändert
-sich der Fehler mit dem Ladezustand.
+sich der Fehler mit dem Ladezustand. Am Kesselvor- und -rücklauf verschiebt die Korrektur alle
+Schwellen der Kesselkreispumpe und das Ladungsende, am Speicher die Anzeige und die Sperre der
+Heizkreise. Am Abgasfühler wirkt sie nicht auf die Brennererkennung.
 
 **Fehlerzähler.** Die letzte Spalte zählt verworfene Messungen. Der Wert 85,0 °C ist der
 Einschaltwert eines DS18B20 nach einem Spannungseinbruch, −127 °C zeigt eine unterbrochene
@@ -410,10 +414,10 @@ Kennung und ihre Einstellungen.
 | Relais-Adresse (HTTP) | Adresse des Relais, falls kein Broker vorhanden ist |
 | Relaisnummer | 1 bis 8, bei mehrkanaligen Geräten |
 | Benutzer, Kennwort | nur wenn das Relais eine Anmeldung verlangt |
-| Nachlauf | wie lange die Pumpe nach dem letzten Bedarf weiterläuft; Vorgabe 300 s |
+| Nachlauf nach Bedarfsende | wie lange die Pumpe weiterläuft, nachdem kein versorgter Verteiler mehr Wärme anfordert; Vorgabe 300 s. Unabhängig vom Nachlauf der Kesselkreispumpe |
 | Mindestlaufzeit, Mindestpause | verhindern kurzes Takten; je 180 s |
-| Speicher mindestens | darunter bringt Umwälzen nichts; Vorgabe 40 °C |
-| Frostgrenze | darunter läuft die Pumpe in jedem Fall; Vorgabe 6 °C |
+| Pumpe aus unter Speicher | ist der Speicher kälter, bleibt die Pumpe aus, auch bei Wärmebedarf und im Nachlauf; Vorgabe 40 °C |
+| Frostschutz unter Raumtemperatur | fällt der kälteste Raum eines versorgten Verteilers darunter, läuft die Pumpe in jedem Fall; Vorgabe 6 °C |
 | Versorgte Verteiler | welche Platinen den Bedarf dieses Kreises melden |
 
 **Zu den beiden Wegen.** Ist ein Broker eingerichtet und die Verbindung steht, geht der Befehl
@@ -422,7 +426,7 @@ genügt die Adresse: der Befehl geht unmittelbar an die Schnittstelle `/cm` des 
 zwei Aufrufen bleibt eine Änderung am Relais dabei unbemerkt, deshalb wird der Sollzustand alle
 sechzig Sekunden nachgesendet. Die Oberfläche weist aus, welcher Weg gerade gilt.
 
-**Warum „Speicher mindestens" hoch liegt.** Der Mischer kann nur herunterregeln. Fällt der
+**Warum „Pumpe aus unter Speicher“ hoch liegt.** Der Mischer kann nur herunterregeln. Fällt der
 Speicher unter die benötigte Vorlauftemperatur, öffnet der Mischer vollständig und der Kreis
 bekommt trotzdem zu wenig. Der Wert gehört deshalb **über** die höchste benötigte
 Fußbodenvorlauftemperatur, nicht knapp über Raumtemperatur.
@@ -499,16 +503,29 @@ Sind die entsprechenden Fühler zugeordnet, erscheinen auf der **Übersicht** zw
 ### Brenner
 
 Erkannt wird am Abgasfühler. Ein fester Schwellwert wäre von der Raumtemperatur des Heizungsraums
-abhängig — im Sommer stünde er zu tief, im Winter zu hoch. Gemessen wird deshalb gegen eine
-gleitende Bezugslinie: das Minimum der letzten 24 Stunden, also die Temperatur des kalten Rohrs.
+abhängig — im Sommer stünde er zu tief, im Winter zu hoch. Gemessen wird deshalb gegen einen
+gleitenden Ruhewert: den kältesten Wert der letzten 24 Stunden, also die Temperatur des kalten
+Rohrs. Bei warmem Kessel wird das Ende eines Laufs am Abfall des Abgases erkannt, weil das Rohr
+dann nicht bis in die Nähe des Ruhewerts abkühlt.
 
 | Angabe | Vorgabe | Bedeutung |
 |---|---|---|
-| Einschaltschwelle | 12 K | so weit über dem kalten Rohr gilt der Brenner als laufend |
-| Ausschaltschwelle | 6 K | darunter als aus |
-| Haltezeit ein | 60 s | so lange muss die Bedingung anhalten |
-| Haltezeit aus | 300 s | länger, damit kurzes Abkühlen den Lauf nicht beendet |
+| Start ab Abgas über Ruhewert | 12 K | so weit über dem Ruhewert gilt der Brenner als gestartet |
+| Ende ab Abgas über Ruhewert | 6 K | darunter gilt er als aus |
+| Abfall und Anstieg des Abgases | 6 K | fällt das Abgas um diesen Betrag unter den Höchstwert des Laufs, gilt der Brenner als aus; ein neuer Start verlangt einen Anstieg um diesen Betrag über den Tiefstwert |
+| Brennerstart bestätigt nach | 60 s | so lange muss die Startbedingung ununterbrochen anstehen |
+| Brennerende bestätigt nach | 300 s | so lange muss das Abgas ununterbrochen fallen; verschiebt das erkannte Brennerende, **siehe unten** |
 | Düsendurchsatz | 2,2 l/h | Grundlage der Verbrauchsschätzung — **siehe unten** |
+
+**„Brennerende bestätigt nach“ und der Nachlauf der Kesselkreispumpe.** Bis zum Ablauf dieser
+Zeit gilt der Brenner als laufend. Die Einstellung verschiebt damit das erkannte Brennerende und
+mit ihm den Beginn des Nachlaufs der Kesselkreispumpe. Laufzeit und geschätzter Ölverbrauch
+werden bis dahin weitergezählt; ein höherer Wert erhöht deshalb beide je Lauf. Mit 1800 s statt
+300 s wird jeder Lauf um 1500 s, also 25 Minuten, länger gezählt; bei 2,2 l/h sind das rund
+0,9 l Öl je Lauf zu viel. Zudem verschmelzen Nachzündungen mit dem vorigen Lauf und werden nicht als eigene
+Starts gezählt. Für einen längeren Nachlauf der Pumpe ist diese Einstellung nicht vorgesehen; den
+Nachlauf stellen Sie unter **Kesselkreispumpe › Nachlauf nach Brennerende** ein, siehe
+[Kesselkreispumpe](#kesselkreispumpe).
 
 Laufzeit und Starts des Tages überdauern einen Neustart. Häufige kurze Starts bei geringer
 Gesamtlaufzeit werden als **Taktbetrieb** ausgewiesen — der Kessel geht dann öfter an, als er
@@ -633,38 +650,37 @@ entweder eine Messung oder eine Angabe zur Verdrahtung.
 
 | Feld | Vorgabe | Bedeutung |
 |---|---|---|
-| Ein ab (K über der Linie) | 12 K | So weit muss das Abgas über der Bezugslinie liegen, damit ein Anlauf erkannt wird. Zu klein: Ein warmer Aufstellraum löst aus. Zu groß: Ein kurzer Start bleibt unbemerkt. |
-| Aus unter (K) | 6 K | Fällt das Abgas so weit an die Bezugslinie heran, gilt der Brenner als aus. Greift nur bei kaltem Kessel; bei warmem entscheidet der Ausschlag. |
-| Ausschlag (K) | 6 K | Fällt das Abgas so weit unter den Höchstwert der laufenden Fahrt, ist der Brenner aus; steigt es danach so weit über den Tiefstwert, läuft er wieder. Dies ist das eigentliche Kriterium — die Bezugslinie beschreibt das kalte Rohr und versagt, solange der Kessel warm ist. Zu klein: Ein Messrauschen beendet die Fahrt. Zu groß: Kurze Takte verschmelzen zu einer Fahrt. |
-| Haltezeit ein | 60 s | So lange muss die Einschaltbedingung anliegen. |
-| Haltezeit aus | 300 s | Länger, damit kurzes Abkühlen den Lauf nicht beendet. |
+| Start ab Abgas über Ruhewert | 12 K | So weit muss das Abgas über dem Ruhewert liegen, damit ein Start erkannt wird. Höher: Starts werden später oder bei kurzen Läufen gar nicht erkannt, Laufzeit und Verbrauch fallen zu niedrig aus. Niedriger: Ein warmes Rohr kann einen Start vortäuschen. Muss über „Ende ab Abgas über Ruhewert“ liegen. |
+| Ende ab Abgas über Ruhewert | 6 K | Liegt das Abgas nur noch so weit über dem Ruhewert, gilt der Brenner als aus. Bei warmem Kessel greift meist vorher „Abfall und Anstieg des Abgases“. Muss unter „Start ab Abgas über Ruhewert“ liegen. |
+| Abfall und Anstieg des Abgases | 6 K | Fällt das Abgas so weit unter den Höchstwert des Laufs, ist der Brenner aus; ein neuer Start verlangt einen Anstieg um diesen Betrag über den Tiefstwert. Dies ist das maßgebliche Kriterium, denn der Ruhewert beschreibt das kalte Rohr und versagt, solange der Kessel warm ist. Höher: Das Ende wird später erkannt, Nachzündungen verschmelzen mit dem vorigen Lauf. Niedriger: Messschwankungen beenden Läufe, es werden zu viele Starts gezählt. |
+| Brennerstart bestätigt nach | 60 s | So lange muss die Startbedingung ununterbrochen anstehen; erst ab dann zählt die Laufzeit. Höher: Laufzeit und Verbrauch je Start zu niedrig, sehr kurze Läufe fehlen. |
+| Brennerende bestätigt nach | 300 s | So lange muss das Abgas ununterbrochen fallen, bevor der Brenner als aus gilt; erst danach beginnt der Nachlauf der Kesselkreispumpe. Höher: Laufzeit und Ölverbrauch je Lauf zu hoch, Nachzündungen werden nicht als eigene Starts erkannt. Nicht für den Nachlauf der Pumpe gedacht, siehe [Brenner](#brenner). |
 | Düsendurchsatz | 2,2 l/h | Siehe oben — der einzige Wert, den Sie an Ihrer Anlage nachschlagen sollten. |
 
 **Pufferspeicher** (Karte *Pufferspeicher*)
 
 | Feld | Vorgabe | Bedeutung |
 |---|---|---|
-| Speicherinhalt | 0 l | Nur zum Umrechnen entnommener Kelvin in Kilowattstunden. 0 lässt die Angabe in Kelvin stehen. Grob abzuschätzen aus einer Ladung: gelieferte Wärme geteilt durch den Temperaturhub des Speichers, beides steht im Ladungsprotokoll. |
-| Zapfung ab Einbruch | 2,0 K | So steil muss der Speicher fallen, damit es als Warmwasserzapfung gilt. Der Stillstandsverlust schafft im Vorgabefenster rund 0,2 K, ein Vollbad 6,5 K. |
-| im Fenster | 900 s | Zeitfenster, über das der Einbruch gemessen wird. |
-| Leer bei | 35 °C | Nullpunkt des Füllstands: die Temperatur, bei welcher der Kessel von sich aus anläuft. Wird selbst nachgemessen, sofern eingeschaltet. |
+| Speicherinhalt | 0 l | Nur zum Umrechnen entnommener Kelvin in Kilowattstunden; steuert nichts. 0 lässt die Angabe in Kelvin stehen. Grob abzuschätzen aus einer Ladung: gelieferte Wärme geteilt durch den Temperaturhub des Speichers, beides steht im Ladungsprotokoll. |
+| Zapfung erkannt ab Abfall um | 2,0 K | So weit muss der Speicher bei stehendem Brenner im Zeitfenster fallen, damit es als Warmwasserzapfung gilt. Der Stillstandsverlust schafft im Vorgabefenster rund 0,2 K, ein Vollbad 6,5 K. |
+| Zeitfenster der Zapfung | 900 s | Zeitraum, in dem der Abfall liegen muss. Ab etwa zwei Stunden erreicht der Stillstandsverlust die Schwelle. |
+| Leer bei | 35 °C | Nullpunkt des Füllstands: die Temperatur, bei welcher der Kessel von sich aus nachheizt. Schaltet nichts. Wird selbst nachgemessen, sofern eingeschaltet. |
 | Voll bei | 62 °C | Hundert Prozent. Sinnvoll ist der Wert, den der Speicher am Ende einer Ladung tatsächlich erreicht — er steht nach jeder Ladung im Ladungsprotokoll. **Auf beiden Heizungsgeräten gleich eintragen**, sonst zeigen sie verschiedene Füllstände für denselben Speicher. |
 | Leerpunkt selbst nachmessen | ein | Beim Anlaufen des Brenners wird der Nullpunkt zu 40 Prozent an den gemessenen Wert herangeführt. |
-| Nachmessen ab Abfall | 3 K | So weit muss der Speicher seit seinem Höchststand gefallen sein, damit ein Brennerstart als Messpunkt zählt. Verhindert, dass taktender Betrieb den Nullpunkt nach oben zieht. |
-| Spreizung „voll" | 8 K | Nähert sich der Kesselrücklauf dem Vorlauf so weit an, nimmt der Speicher keine Wärme mehr auf. |
-| Haltezeit | 300 s | So lange muss das anliegen. |
-| Vorlauf gilt als heiß ab | 60 °C | Zusatzbedingung für „voll" und für die Frage, ob ein Abschalten des Brenners eine fertige Ladung war. Ohne sie gälte der kalte Anlauf als fertige Ladung — dort liegen Vor- und Rücklauf ebenfalls dicht beieinander, weil beide kalt sind. |
-| Warnung Warmwasser | 40 °C | Darunter wird die Warmwasserreserve als knapp gemeldet. |
+| Nachmessen nur nach Abfall um | 3 K | So weit muss der Speicher seit seinem Höchststand gefallen sein, damit ein Brennerstart als Messpunkt zählt. Verhindert, dass taktender Betrieb den Nullpunkt nach oben zieht. |
+| Ladung fertig unter Spreizung | 8 K | Liegt der Kesselrücklauf bei laufendem Brenner weniger als diesen Betrag unter dem Vorlauf, nimmt der Speicher keine Wärme mehr auf. Nur Anzeige und Protokoll; Brenner und Pumpe schaltet der Wert nicht. |
+| Ladung fertig bestätigt nach | 300 s | So lange muss die Spreizung ununterbrochen unterschritten sein. |
+| Ladung fertig erst ab Vorlauf | 60 °C | Zusatzbedingung für „geladen“ und für die Frage, ob ein Abschalten des Brenners eine fertige Ladung war. Ohne sie gälte der kalte Anlauf als fertige Ladung — dort liegen Vor- und Rücklauf ebenfalls dicht beieinander, weil beide kalt sind. Nicht zu verwechseln mit „Kesselkreispumpe › Notlauf ab Kesselvorlauf“. |
+| Warnung „Warmwasser knapp“ unter | 40 °C | Darunter wird die Warmwasserreserve als knapp gemeldet. Nur eine Meldung; die Heizkreise sperrt „Heizkreis › Pumpe aus unter Speicher“. |
 
 **Zeit und Neustart** (Bereich System)
 
 | Feld | Vorgabe | Bedeutung |
 |---|---|---|
 | Zeitzone | `CET-1CEST,M3.5.0,M10.5.0/3` | Bestimmt, wann ein Tag im Protokoll endet und wann Termine fallen. |
-| Neustart Stunde / Minute | −1 | Täglicher Neustart; −1 schaltet ihn ab. Er wird verschoben, solange eine Pumpe in einer Mindestlaufzeit steht. |
-| Abfrage alle | 5 s | Wie oft die Verteiler nach Wärmebedarf gefragt werden. |
-| Zeitgrenze | 180 s | Ab wann ein Verteiler, der einmal geantwortet hat und dann verstummt, als bedarfsmeldend gilt. |
-
+| Täglicher Neustart um (Uhr), Minute | −1 | Nicht nötig; −1 schaltet ihn ab. Er entfällt für diesen Tag, wenn in dieser Minute eine Heizkreispumpe in ihrer Mindestlaufzeit steht. Ein Neustart bricht den Nachlauf der Kesselkreispumpe ab. |
+| Bedarf abfragen alle | 5 s | Wie oft die Verteiler nach Wärmebedarf gefragt werden. |
+| Verteiler gilt als verstummt nach | 180 s | Antwortet ein Verteiler, der schon einmal geantwortet hat, so lange nicht, gilt sein Kreis als mit Bedarf: Die Pumpe läuft im Zweifel. |
 ### Kesselkreispumpe
 
 Die Pumpe zwischen Kessel und Pufferspeicher wird am **Gerät am Kessel** eingerichtet, unter
@@ -690,31 +706,32 @@ dem Speicherfühler, etwa beim Entladen, gilt der Speicherfühler unverändert. 
 Speichertemperatur gilt auch bei stehender Pumpe der Rücklauf.
 
 Beim Anlaufen des Brenners steht die Pumpe zunächst: Der kalte Kessel würde sonst den warmen
-Speicher abkühlen. Sie springt an, sobald der Kesselvorlauf den Speicher um den Einschaltabstand
-übersteigt — das ist zugleich die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung
+Speicher abkühlen. Sie springt an, sobald der Kesselvorlauf den Bezug um den Wert „Ein ab Kessel
+wärmer als Speicher um“ übersteigt — das ist zugleich die Rücklaufanhebung, die dem Kessel die Taupunktunterschreitung
 erspart. Spätestens schaltet sie ein, wenn die Brennererkennung den Brenner meldet; das
 geschieht je nach Abgasrohr eine bis mehrere Minuten nach dem Zünden.
 
 | Einstellung | Vorgabe | Bedeutung |
 |---|---|---|
-| Ein ab Abstand | 3,0 K | So weit muss der Kesselvorlauf bei stehender Pumpe über dem Bezug liegen, damit sich das Fördern lohnt. |
-| Aus unter | 2,0 K | Liegt der Kesselvorlauf bei laufender Pumpe weniger als diesen Abstand über dem Rücklauf, kommt nichts mehr an. Muss kleiner sein als „ein", sonst taktet die Pumpe. |
-| Haltezeit | 120 s | so lange muss die Bedingung anliegen |
-| Nachlauf nach Brennerende | 1800 s | so lange läuft sie nach dem Brennerende weiter, gleich was die Spreizung sagt; 0 = kein Nachlauf |
-| Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten |
-| Notgrenze | 85 °C | darüber läuft sie in jedem Fall |
+| Ein ab Kessel wärmer als Speicher um | 3,0 K | Bei stehender Pumpe: So weit muss der Kesselvorlauf über der Speichertemperatur zuzüglich des zuletzt gemessenen Abstands des Rücklaufs liegen, damit die Pumpe anläuft. Gilt nur bei stehendem Brenner und nach dem Nachlauf. Muss über „Aus unter Spreizung“ liegen. |
+| Aus unter Spreizung | 2,0 K | Bei laufender Pumpe: Liegt der Kesselvorlauf weniger als diesen Betrag über dem Kesselrücklauf, gibt der Kessel keine Wärme mehr ab, und die Pumpe schaltet ab. Zwischen beiden Schwellen bleibt sie, wie sie ist. |
+| Schaltverzögerung | 120 s | So lange muss eine der beiden Schwellen ununterbrochen über- oder unterschritten sein, bevor die Pumpe schaltet. Nicht der Nachlauf. |
+| Nachlauf nach Brennerende | 30 min | So lange läuft sie nach dem erkannten Brennerende weiter, gleich was die Spreizung sagt; 0 = kein Nachlauf. Das Brennerende erkennt das Gerät erst nach „Brennererkennung › Brennerende bestätigt nach“. |
+| Mindestlaufzeit, Mindestpause | je 180 s | verhindert Takten, wenn die Pumpe nach der Spreizung schaltet; Brenner, Nachlauf, Notlauf und Handbetrieb gehen vor |
+| Notlauf ab Kesselvorlauf | 85 °C | darüber läuft sie in jedem Fall |
 
-Drei Regeln gehen der Spreizung vor. **Solange der Brenner läuft, läuft die Pumpe** — ohne
-Haltezeit und auch in einer Mindestpause. Aus geht sie erst, wenn die Brennererkennung den
-Brenner als aus meldet, und dann wie sonst nach Spreizung und Haltezeit; sie läuft also
-mindestens die Haltezeit nach. Die Spreizung allein reicht dafür nicht aus: Am 23. September lag
-der Kesselvorlauf während eines Brennerlaufs nur 0,9 K über dem Speicherfühler, die Pumpe stand,
-und der Kessel schaltete den Brenner nach gut zwölf Minuten selbst ab. Ein Lauf dauert sonst rund
+Drei Regeln und der Nachlauf gehen der Spreizung vor. **Solange der Brenner läuft, läuft die
+Pumpe** — ohne Schaltverzögerung und auch in einer Mindestpause. Meldet die Brennererkennung den
+Brenner als aus, läuft sie den Nachlauf nach Brennerende weiter; danach schaltet sie wie sonst
+nach Spreizung und Schaltverzögerung. Nach dem erkannten Brennerende läuft sie also den Nachlauf
+und danach mindestens die Schaltverzögerung. Die Spreizung allein reicht dafür nicht aus: Am
+23. September lag der Kesselvorlauf während eines Brennerlaufs nur 0,9 K über dem Speicherfühler,
+die Pumpe stand, und der Kessel schaltete den Brenner nach gut zwölf Minuten selbst ab. Ein Lauf dauert sonst rund
 eine Dreiviertelstunde. **Ohne gültige Messwerte läuft die Pumpe** — eine laufende Pumpe ohne Not
 ist verschwenderisch, ein heißer Kessel ohne Abfuhr ist es nicht. Und **überschreitet der
-Kesselvorlauf die Notgrenze, läuft sie ebenfalls**, gleich was die Spreizung sagt; ein
+Kesselvorlauf den Wert „Notlauf ab Kesselvorlauf“, läuft sie ebenfalls**, gleich was die Spreizung sagt; ein
 klemmender Fühler darf die Wärmeabfuhr nicht verhindern. Bei stehender Pumpe erreicht die Wärme
-des Kesselkörpers die Fühler am Rohr allerdings nur verzögert; die Notgrenze ersetzt deshalb die
+des Kesselkörpers die Fühler am Rohr allerdings nur verzögert; der Notlauf ersetzt deshalb die
 Kopplung an den Brenner nicht.
 
 **Nachlauf nach dem Brennerende.** Wärme bringt die Pumpe nach dem Brennerende kaum noch: Das
@@ -725,17 +742,17 @@ in einem Zug. Ohne Nachlauf bleibt der Kessel heiß stehen, kühlt aus und zünd
 80 Minuten zu einem kurzen Lauf nach, der den ausgekühlten Kessel jedes Mal neu aufheizt. Am
 24. Oktober waren das nach der Ladung vier Nachläufe, 3,35 l für einen Ladezyklus; mit
 30 Minuten Nachlauf am 25. Oktober eine Nachzündung nach vier Minuten und 1,85 l bei gleicher
-Außentemperatur. Nach dem Nachlauf entscheidet die Spreizung wie sonst, mit ihrer Haltezeit ab
-seinem Ende. Ein Neustart mitten im Nachlauf beginnt ohne ihn.
+Außentemperatur. Nach dem Nachlauf entscheidet die Spreizung wie sonst; die Schaltverzögerung
+beginnt mit seinem Ende. Ein Neustart mitten im Nachlauf beginnt ohne ihn.
 
 **Nach einem Neustart** des Geräts beginnt die Regel bei laufender Pumpe, und aus geht sie
-frühestens nach der Haltezeit. Die Brennererkennung setzt mit dem zuletzt gesicherten Zustand
+frühestens nach der Schaltverzögerung. Die Brennererkennung setzt mit dem zuletzt gesicherten Zustand
 fort: Lief der Brenner beim letzten Sichern und ist das Abgasrohr noch warm, gilt er weiter als
 laufend, ohne dass ein zweiter Start gezählt wird. Gesichert wird bei jedem Wechsel und während
 eines Laufs alle fünf Minuten.
 
 Ein Klick auf das Pumpensymbol im Anlagenschema schaltet die Betriebsart weiter: Automatik,
-Hand ein, Hand aus. **Hand aus** gilt auch bei laufendem Brenner und über der Notgrenze; die
+Hand ein, Hand aus. **Hand aus** gilt auch bei laufendem Brenner und im Notlauf; die
 Betriebsart ist für Arbeiten an der Pumpe gedacht, nicht für den Betrieb.
 
 **Warum nur am Kessel.** Die Regelung braucht Kesselvor- und -rücklauf am selben Gerät. Mit
@@ -853,7 +870,7 @@ Schnittstelle führt sie unter `findings` in `GET /api/state`, jeweils mit einer
 | Kessel überträgt schlechter | `flue_gap_rising` | Der Abgas-Vorlauf-Abstand der letzten Ladungen liegt mehr als 15 K über dem Stand nach der Reinigung, siehe oben. |
 
 Die Prüfung auf vertauschte Fühler urteilt nur, solange sich der Zustand beurteilen lässt; steht
-die Pumpe, ruht sie, statt von vorn zu beginnen. Die Standzeit zählt dabei nicht zur Haltezeit,
+die Pumpe, ruht sie, statt von vorn zu beginnen. Die Standzeit zählt dabei nicht zur halben Stunde,
 ebenso wenig die ersten fünf Minuten nach dem Anlaufen: In dieser Zeit steht noch das Wasser der
 Standzeit in den Rohren, und der Rücklauf ist oft wärmer als der Vorlauf. Gemeldet wird erst, wenn
 der Zustand eine halbe Stunde beurteilbar anliegt, und nur, solange die Pumpe läuft. Steht sie,
@@ -869,14 +886,14 @@ einer neuen Ladung.
 
 Im Sommer stehen die Ventile über Monate geschlossen und die Umwälzpumpen still. Beides setzt
 sich mit der Zeit fest. Einmal in der Woche fahren deshalb alle Ventile einmal durch und alle
-Pumpen laufen kurz an.
+Heizkreispumpen laufen kurz an.
 
 Der Termin steht auf beiden Gerätearten unter **System** und ist ab Werk **Samstag 11 Uhr** —
 eine Stunde nach dem täglichen Neustart der Verteilerplatinen, damit sich beides nicht in die
 Quere kommt. Wochentag auf „kein Termin" schaltet ihn ab.
 
-**An der Verteilerplatine.** Jeder Kreis fährt einmal auf, auf Anschlag wieder zu und danach auf
-seine vorherige Stellung zurück. Zu wird auf Anschlag gefahren, nicht auf eine Stellung: Das
+**An der Verteilerplatine.** Jeder Kreis fährt einmal auf (bis 92 %), auf Anschlag wieder zu und
+danach auf seine vorherige Stellung zurück. Zu wird auf Anschlag gefahren, nicht auf eine Stellung: Das
 Ventil schließt ganz, und die Stellung ist danach wieder gesichert statt geschätzt. Auf endet die
 Fahrt wie jede gewöhnliche Fahrt bei 92 % des Hubs (siehe
 [Abstand zum Anschlag auf](#abstand-zum-anschlag-auf)). Die Kreise fahren nacheinander, je
@@ -888,14 +905,17 @@ Messgruppe einer; für alle elf dauert das rund zwanzig Minuten.
 | Kreise in Notstellung von Hand | die Handbedienung hat Vorrang |
 | Kreise, die gerade vermessen werden | die Messfahrt darf nicht gestört werden |
 
+Nach einem Neustart der Verteilerplatine fahren bei der nächsten Schutzfahrt alle Kreise, auch
+die zwischenzeitlich gefahrenen.
+
 **Jetzt fahren** stößt die Schutzfahrt außerhalb des Termins an, **Alle Kreise fahren** nimmt
 auch die zwischenzeitlich gefahrenen mit. **Abbrechen** streicht die noch offenen Kreise;
 angefangene Fahrten laufen zu Ende, weil ein Ventil auf halbem Weg schlechter stünde als eines,
 das seine Fahrt abschließt.
 
-**Am Heizungsgerät.** Jede Heizkreispumpe läuft drei Minuten. Übergangen wird eine Pumpe, die in
-den letzten 24 Stunden ohnehin gelaufen ist. Die Kesselkreispumpe hat keinen Schutzlauf; sie läuft
-bei jeder Ladung. Der Schutzlauf gilt unabhängig von Bedarf und Speichertemperatur — er dient
+**Am Heizungsgerät.** Am Schutzlauf nehmen nur die Heizkreispumpen teil; jede läuft drei Minuten.
+Übergangen wird eine Pumpe, die in den letzten 24 Stunden ohnehin gelaufen ist oder auf
+**Hand aus** steht. Die Kesselkreispumpe hat keinen Schutzlauf; sie läuft bei jeder Ladung. Der Schutzlauf gilt unabhängig von Bedarf und Speichertemperatur — er dient
 dem Lager, nicht der Wärme.
 
 Gemessen wird der Termin an der Uhr, nicht an der Laufzeit seit dem Einschalten. Das ist der
@@ -1162,14 +1182,14 @@ und schreibt ein Ereignis `leitstand` mit `versorgung_aus` samt Ladestand, bei R
 
 | Schlüssel | Vorgabe | Bedeutung |
 |---|---|---|
-| `site` | Leitstand | Name in der Kopfzeile und in der App |
+| `site` | Leitstand | „Bezeichnung“: Name in der Kopfzeile und in der App |
 | `outdoor.mac` | leer | Adresse des Außenfühlers; leer heißt keiner |
-| `poll.heat_s` | 30 s | Abfragetakt der Heizungsgeräte |
-| `poll.manifold_s` | 30 s | Abfragetakt der Verteilerplatinen |
-| `display.brightness` | 160 | Helligkeit, 10 bis 255 |
+| `poll.heat_s` | 30 s | „Heizungsgeräte abfragen alle (s)“ |
+| `poll.manifold_s` | 30 s | „Verteiler abfragen alle (s)“ |
+| `display.brightness` | 160 | „Helligkeit der Anzeige“, 10 bis 255 |
 | `display.dim_after_min` | 2 | Abdunkeln nach so vielen Minuten ohne Bedienung; 0 heißt nie |
 | `display.night_from_h`, `display.night_to_h` | 23, 6 | Bildschirm nachts aus, zur vollen Stunde; −1 heißt nie |
-| `wifi.ssid`, `wifi.pass`, `wifi.hostname`, `wifi.ap_pass`, `wifi.timezone` | —, —, `leitstand`, —, Mitteleuropa | wie bei den anderen Geräten |
+| `wifi.ssid`, `wifi.pass`, `wifi.hostname`, `wifi.ap_pass`, `wifi.timezone` | —, —, `leitstand`, —, Mitteleuropa | wie bei den anderen Geräten; `wifi.ap_pass` ist das „Kennwort des Einrichtungszugangs“ |
 
 Einen täglichen Neustart gibt es am Leitstand nicht. Die Heizungsgeräte werden alle 30 statt alle
 10 Sekunden abgefragt, bis geklärt ist, ob ihre Neustarts am 23. September mit der häufigeren
@@ -1281,9 +1301,12 @@ WLAN-Zugangsdaten, auf dem Verteiler auch die Schlüssel verschlüsselter Thermo
 
 ### Täglicher Neustart
 
-Unter **System** lässt sich eine Uhrzeit für einen täglichen Neustart eintragen. Er wird
-verschoben, solange ein Ventil fährt beziehungsweise eine Pumpe in einer Mindestlaufzeit steht.
-Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
+Unter **System** lässt sich mit „Täglicher Neustart um (Uhr)“ und „Täglicher Neustart, Minute“
+eine Uhrzeit für einen täglichen Neustart eintragen; nötig ist er nicht, −1 schaltet ihn ab. Er
+entfällt für diesen Tag, wenn in dieser Minute an der Verteilerplatine ein Ventil fährt oder eine
+Messfahrt läuft, am Heizungsgerät eine Heizkreispumpe in ihrer Mindestlaufzeit steht. Am
+Heizungsgerät bricht ein Neustart den Nachlauf der Kesselkreispumpe und die laufende Ladung im
+Protokoll ab. Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 
 ## Fehlersuche
 
@@ -1312,34 +1335,38 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 
 | Bereich | Wert | Vorgabe |
 |---|---|---|
-| Regelung | Proportionalband | 1,0 K |
-| | Prüfintervall | 30 s |
-| | Rasterung | 0,1 |
-| | Zeitgrenze der Messwerte | 900 s |
-| Antriebe | Fahrzeit auf / zu | 39 s / 40 s |
-| | Maximallaufzeit | 45 s |
-| | Auslöseschwelle | 190 mV |
-| Pumpen | Nachlauf | 300 s |
+| Regelung | Regelbereich | 1,0 K |
+| | Regelung prüft alle | 30 s |
+| | Stellschritt der Ventile | 0,1 |
+| | Kleinste Fahrt | 0,01 |
+| | Thermometer gilt als ausgefallen nach | 900 s |
+| Antriebe | Fahrzeit öffnen / schließen | 39 s / 40 s |
+| | Höchstlaufzeit bis Anschlag | 45 s |
+| | Anlauf ohne Endlagenerkennung | 2 s |
+| | Endlage erkannt ab | 190 mV |
+| | Rückfall der Endlagenerkennung | 30 mV |
+| Heizkreispumpen | Nachlauf nach Bedarfsende | 300 s |
 | | Mindestlaufzeit, Mindestpause | je 180 s |
-| | Speicher mindestens | 40 °C |
-| | Frostgrenze | 6 °C |
+| | Pumpe aus unter Speicher | 40 °C |
+| | Frostschutz unter Raumtemperatur | 6 °C |
 | | Schutzlauf | alle 7 Tage, 3 min |
-| Bedarf | Abfrage | alle 5 s |
-| | Zeitgrenze | 180 s |
+| Bedarf | Bedarf abfragen alle | 5 s |
+| | Verteiler gilt als verstummt nach | 180 s |
 | | Schwelle | 5 % Ventilstellung |
-| Brenner | Ein / Aus | 12 K / 6 K über dem kalten Rohr |
-| | Ausschlag gegen den Extremwert | 6 K |
-| | Haltezeit ein / aus | 60 s / 300 s |
+| Brenner | Start / Ende ab Abgas über Ruhewert | 12 K / 6 K |
+| | Abfall und Anstieg des Abgases | 6 K |
+| | Brennerstart / Brennerende bestätigt nach | 60 s / 300 s |
 | | Düsendurchsatz | 2,2 l/h |
-| Speicher | Spreizung „geladen" | 8 K über 5 min, Vorlauf über 60 °C |
-| | voll / leer | 62 °C / 35 °C |
-| | Leerpunkt nachmessen ab | 3 K Abfall seit dem Höchststand |
-| | Warnung Warmwasser | 40 °C |
-| | Warmwasserzapfung ab | 2 K Einbruch in 900 s |
-| Kesselkreispumpe | Ein / Aus über dem Speicher | 3,0 K / 2,0 K |
-| | Haltezeit | 120 s |
+| Speicher | Ladung fertig unter Spreizung | 8 K, bestätigt nach 300 s, erst ab Vorlauf 60 °C |
+| | Voll bei / Leer bei | 62 °C / 35 °C |
+| | Nachmessen nur nach Abfall um | 3 K seit dem Höchststand |
+| | Warnung „Warmwasser knapp“ unter | 40 °C |
+| | Zapfung erkannt ab Abfall um | 2 K im Zeitfenster von 900 s |
+| Kesselkreispumpe | Ein ab Kessel wärmer als Speicher um / Aus unter Spreizung | 3,0 K / 2,0 K |
+| | Schaltverzögerung | 120 s |
+| | Nachlauf nach Brennerende | 30 min |
 | | Mindestlaufzeit, Mindestpause | je 180 s |
-| | Notgrenze | 85 °C |
+| | Notlauf ab Kesselvorlauf | 85 °C |
 | Auswertung | Verbrauchslinie ab | 14 Tagen, 3 K Spreizung der Gradtage |
 | | Befund ab | 3 Streuungen über der Linie |
 | | Abgasabstand ab | 10 Ladungen, Fenster 50 |
@@ -1347,10 +1374,10 @@ Auf den Heizungsgeräten ist er ab Werk abgeschaltet.
 | Befunde | Vorlauf und Rücklauf vertauscht | 1 K, 1800 s anliegend, gezählt ab 300 s Pumpenlauf |
 | | Fühler verwirft Messungen | über 5 %, ab 100 Messungen |
 | | Rückströmung in den Kesselrücklauf | 3 K Anstieg |
-| Außenfühler | Zeitgrenze | 900 s |
+| Außenfühler | Messwert gilt als veraltet nach | 900 s |
 | | Abfrage durch die Heizungsgeräte | alle 60 s |
-| Fühler | Abtastabstand | 10 s |
-| Netz | Zugangspunkt-Kennwort | `fussboden` |
+| Fühler | Fühler messen alle | 10 s |
+| Netz | Kennwort des Einrichtungszugangs | `fussboden` |
 
 ### Schnittstelle
 
@@ -1455,14 +1482,14 @@ Für das Zurückspielen einer Sicherung gelten andere Regeln, siehe **Einstellun
 | Schlüssel | Vorgabe | Bereich | Bedeutung |
 |---|---|---|---|
 | `cfg_version` | — | nur lesend | Aufbaustand der Konfiguration |
-| `site` | leer | Text | Bezeichnung des Geräts, in der Kopfzeile und bei den anderen Geräten im Haus. Solange sie fehlt, öffnet die Oberfläche den Einrichtungsassistenten. |
-| `onewire_pin` | `[13, -1]` | GPIO 0–33 außer 1, 3, 6–11 und 12; −1 = unbenutzt | Anschlüsse der beiden 1-Wire-Busse. Mindestens einer muss belegt sein, beide nicht am selben GPIO. Eine Änderung wirkt sofort. |
-| `poll_s` | 10 | 1–600 s | Abtastabstand der Fühler |
-| `demand_poll_s` | 5 | 1–300 s | Abfrageabstand der Verteiler |
-| `demand_timeout_s` | 180 | 10–3600 s | Antwortet ein Verteiler, der schon einmal geantwortet hat, länger nicht, zählt er als Bedarf |
+| `site` | leer | Text | „Bezeichnung“ des Geräts, in der Kopfzeile und bei den anderen Geräten im Haus. Solange sie fehlt, öffnet die Oberfläche den Einrichtungsassistenten. |
+| `onewire_pin` | `[13, -1]` | GPIO 0–33 außer 1, 3, 6–11 und 12; −1 = nicht belegt | „Bus 1 (GPIO)“, „Bus 2 (GPIO)“: Anschlüsse der beiden 1-Wire-Busse. Mindestens einer muss belegt sein, beide nicht am selben GPIO. Eine Änderung wirkt sofort. |
+| `poll_s` | 10 | 1–600 s | „Fühler messen alle“: Abstand zwischen zwei Messrunden aller Fühler am Bus. Feiner können Brennererkennung, Pumpen und Notlauf nicht reagieren. |
+| `demand_poll_s` | 5 | 1–300 s | „Bedarf abfragen alle“: wie oft die versorgten Verteiler nach Wärmebedarf gefragt werden |
+| `demand_timeout_s` | 180 | 10–3600 s | „Verteiler gilt als verstummt nach“: Antwortet ein Verteiler, der schon einmal geantwortet hat, länger nicht, zählt er als Bedarf |
 | `timezone` | `CET-1CEST,M3.5.0,M10.5.0/3` | POSIX-Zeitzone | Bestimmt den Tageswechsel der Protokolle und die Termine |
-| `reboot_hour`, `reboot_minute` | −1, 0 | −1 bis 23, 0–59 | Täglicher Neustart; −1 schaltet ihn ab |
-| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentlicher Schutzlauf der Pumpen; 0 = Sonntag, −1 schaltet ihn ab |
+| `reboot_hour`, `reboot_minute` | −1, 0 | −1 bis 23, 0–59 | „Täglicher Neustart um (Uhr)“, „Täglicher Neustart, Minute“; −1 schaltet ihn ab. Er entfällt für diesen Tag, wenn in dieser Minute eine Heizkreispumpe in ihrer Mindestlaufzeit steht. |
+| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentlicher Schutzlauf der Heizkreispumpen, die Kesselkreispumpe nimmt nicht teil; 0 = Sonntag, −1 schaltet ihn ab |
 
 GPIO 34 bis 39 sind reine Eingänge, 6 bis 11 gehören zum Flash-Speicher, 1 und 3 zur seriellen
 Schnittstelle, und GPIO 12 bestimmt beim Start die Flash-Spannung — der Anschlusswiderstand des
@@ -1475,7 +1502,7 @@ Busses würde dort den Start verhindern.
 | `rom` | 16 Hexadezimalziffern | Kennung des DS18B20, wie sie unter **Fühler** steht, etwa `42011453677EAA28`. Andere Zeichen werden übergangen, Groß- und Kleinschreibung ist gleichgültig. |
 | `role` | Rolle oder leer | Jede Rolle nur einmal; leer gibt den Fühler frei |
 | `name` | Text | Bezeichnung; leer ergibt den Namen der Rolle |
-| `offset_k` | −20 bis 20 K | Korrekturwert, wird auf jeden Messwert aufgeschlagen |
+| `offset_k` | −20 bis 20 K | „Korrektur (K)“: wird auf jeden Messwert aufgeschlagen; am Abgasfühler ohne Wirkung auf die Brennererkennung |
 
 Rollen: `abgas`, `kessel_vl`, `kessel_rl`, `puffer`, `puffer_unten`, `hk1_vl`, `hk1_rl`,
 `hk2_vl`, `hk2_rl`, `hk3_vl`, `hk3_rl`, `hk4_vl`, `hk4_rl`, `aussen`.
@@ -1489,11 +1516,11 @@ Rollen: `abgas`, `kessel_vl`, `kessel_rl`, `puffer`, `puffer_unten`, `hk1_vl`, `
 | `enabled` | ja | ja/nein | Ein abgeschalteter Kreis wird weder geregelt noch geschaltet |
 | `vl_role`, `rl_role` | `hk<n>_vl`, `hk<n>_rl` | Rolle | Vor- und Rücklauffühler des Kreises |
 | `peers` | leer | bis zu vier Kennungen | Verteiler, deren Bedarf der Kreis bedient, etwa `fbh_a1b2c3` |
-| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart der Pumpe. Der Frostschutz gilt auch bei `aus`. |
-| `overrun_s` | 300 | 0–3600 s | Nachlauf nach dem letzten Bedarf |
+| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart der Pumpe: Automatik, Hand ein, Hand aus. Der Frostschutz gilt auch bei `aus`. |
+| `overrun_s` | 300 | 0–3600 s | „Nachlauf nach Bedarfsende“: so lange läuft die Pumpe weiter, nachdem kein versorgter Verteiler mehr Wärme anfordert |
 | `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause |
-| `min_buffer_c` | 40 | 0–90 °C | Ist der Speicher kälter, läuft die Pumpe auch bei Bedarf nicht |
-| `frost_c` | 6 | −10 bis 20 °C | Meldet ein zugeordneter Verteiler einen Raum unter diesem Wert, läuft die Pumpe in jedem Fall. Unabhängig davon läuft sie bei einem Vorlauf unter 8 °C. |
+| `min_buffer_c` | 40 | 0–90 °C | „Pumpe aus unter Speicher“: Ist der Speicher kälter, läuft die Pumpe auch bei Bedarf und im Nachlauf nicht |
+| `frost_c` | 6 | −10 bis 20 °C | „Frostschutz unter Raumtemperatur“: Meldet ein zugeordneter Verteiler einen Raum unter diesem Wert, läuft die Pumpe in jedem Fall. Unabhängig davon läuft sie bei einem Vorlauf unter 8 °C. |
 | `pump.topic` | leer | Text | Tasmota-Thema; wird verwendet, solange MQTT verbunden ist |
 | `pump.host` | leer | Adresse | Tasmota-Adresse; wird über HTTP angesprochen, wenn kein Thema eingetragen oder MQTT nicht verbunden ist |
 | `pump.relay` | 1 | 1–8 | Relaisnummer am Tasmota-Gerät |
@@ -1503,30 +1530,30 @@ Rollen: `abgas`, `kessel_vl`, `kessel_rl`, `puffer`, `puffer_unten`, `hk1_vl`, `
 
 | Schlüssel | Vorgabe | Bereich | Bedeutung |
 |---|---|---|---|
-| `delta_on_k` | 12 | 1–100 K, über `delta_off_k` | Einschaltschwelle über der Bezugslinie |
-| `delta_off_k` | 6 | ab 0 K | Ausschaltschwelle über der Bezugslinie |
-| `swing_k` | 6 | 1–60 K | Ausschlag: um so viel unter dem Höchstwert der Fahrt gilt der Brenner als aus, um so viel über dem folgenden Tiefstwert wieder als an |
-| `on_hold_s` | 60 | 0–3600 s | So lange muss die Einschaltbedingung anstehen |
-| `off_hold_s` | 300 | 0–3600 s | So lange muss die Ausschaltbedingung anstehen |
-| `duese_l_h` | 2,2 | 0–20 l/h | Düsendurchsatz für die Verbrauchsschätzung; eine Annahme, keine Messung |
+| `delta_on_k` | 12 | 1–100 K, über `delta_off_k` | „Start ab Abgas über Ruhewert“ |
+| `delta_off_k` | 6 | ab 0 K | „Ende ab Abgas über Ruhewert“ |
+| `swing_k` | 6 | 1–60 K | „Abfall und Anstieg des Abgases“: um so viel unter dem Höchstwert des Laufs gilt der Brenner als aus, um so viel über dem folgenden Tiefstwert wieder als an |
+| `on_hold_s` | 60 | 0–3600 s | „Brennerstart bestätigt nach“: so lange muss die Startbedingung ununterbrochen anstehen |
+| `off_hold_s` | 300 | 0–3600 s | „Brennerende bestätigt nach“: so lange muss die Endbedingung ununterbrochen anstehen. Verschiebt das erkannte Brennerende und damit den Beginn des Nachlaufs der Kesselkreispumpe; den Nachlauf selbst stellt `boiler_pump.overrun_s` ein. |
+| `duese_l_h` | 2,2 | 0–20 l/h | „Düsendurchsatz“ für die Verbrauchsschätzung; eine Annahme, keine Messung |
 | `wartung_epoch` | 0 | Unix-Zeit, 0 = nicht gesetzt | Datum der letzten Kesselreinigung; Bezug für den Abgas-Vorlauf-Abstand |
 
 **Pufferspeicher** — `buffer`
 
 | Schlüssel | Vorgabe | Bereich | Bedeutung |
 |---|---|---|---|
-| `leer_c` | 35 | 15–90 °C | Nullpunkt des Füllstands |
-| `voll_c` | 62 | 20–95 °C, über `leer_c` | Hundertpunkt des Füllstands |
-| `leer_lernen` | ja | ja/nein | Nullpunkt beim Brennerstart nachmessen |
-| `lern_drop_k` | 3 | 0,5–30 K | Mindestabfall seit dem Höchststand, damit ein Brennerstart als Messpunkt zählt |
+| `leer_c` | 35 | 15–90 °C | „Leer bei“: Nullpunkt des Füllstands |
+| `voll_c` | 62 | 20–95 °C, über `leer_c` | „Voll bei“: Hundertpunkt des Füllstands |
+| `leer_lernen` | ja | ja/nein | „Leerpunkt selbst nachmessen“ beim Brennerstart |
+| `lern_drop_k` | 3 | 0,5–30 K | „Nachmessen nur nach Abfall um“: Mindestabfall seit dem Höchststand, damit ein Brennerstart als Messpunkt zählt |
 | `leer_epoch` | 0 | Unix-Zeit | Zeitpunkt der letzten Kalibrierung; setzt das Gerät |
-| `spread_full_k` | 8 | 1–40 K | Unterschreitet die Spreizung Kesselvorlauf – Kesselrücklauf diesen Wert, gilt der Speicher als geladen |
-| `spread_hold_s` | 300 | 0–3600 s | So lange muss die Spreizung darunter liegen |
-| `kessel_hot_c` | 60 | 20–95 °C | Zusätzlich muss der Kesselvorlauf diesen Wert übersteigen |
-| `warn_c` | 40 | 20–80 °C | Unter dieser Speichertemperatur erscheint die Warnung zur Warmwasserreserve |
-| `volumen_l` | 0 | 0–20000 l | Speicherinhalt, nur für die Umrechnung in Kilowattstunden; 0 = unbekannt |
-| `zapf_drop_k` | 2 | 0,2–40 K | Einbruch, ab dem eine Warmwasserzapfung gezählt wird |
-| `zapf_win_s` | 900 | 60–7200 s | Zeitfenster für diesen Einbruch |
+| `spread_full_k` | 8 | 1–40 K | „Ladung fertig unter Spreizung“: Unterschreitet die Spreizung Kesselvorlauf – Kesselrücklauf diesen Wert, gilt der Speicher als geladen |
+| `spread_hold_s` | 300 | 0–3600 s | „Ladung fertig bestätigt nach“: so lange muss die Spreizung ununterbrochen darunter liegen |
+| `kessel_hot_c` | 60 | 20–95 °C | „Ladung fertig erst ab Vorlauf“: Zusätzlich muss der Kesselvorlauf diesen Wert übersteigen |
+| `warn_c` | 40 | 20–80 °C | „Warnung ‚Warmwasser knapp‘ unter“: Unter dieser Speichertemperatur erscheint die Warnung zur Warmwasserreserve |
+| `volumen_l` | 0 | 0–20000 l | „Speicherinhalt“, nur für die Umrechnung in Kilowattstunden; 0 = unbekannt |
+| `zapf_drop_k` | 2 | 0,2–40 K | „Zapfung erkannt ab Abfall um“: Abfall, ab dem eine Warmwasserzapfung gezählt wird |
+| `zapf_win_s` | 900 | 60–7200 s | „Zeitfenster der Zapfung“ für diesen Abfall |
 
 Beide Heizungsgeräte berechnen den Füllstand und kalibrieren den Nullpunkt jeweils für sich,
 aus denselben Messwerten. Verpasst eines einen Brennerstart — etwa weil es gerade neu startete —,
@@ -1538,13 +1565,14 @@ der Unterschied auf 60 Prozent.
 
 | Schlüssel | Vorgabe | Bereich | Bedeutung |
 |---|---|---|---|
-| `enabled` | nein | ja/nein | Pumpe vorhanden und angeschlossen |
-| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart |
-| `on_k` | 3 | über 0 bis 20 K | Einschalten, wenn der Kesselvorlauf den Speicher um diesen Wert übersteigt; ohne Speicherwert gilt der Kesselrücklauf |
-| `off_k` | 2 | unter `on_k` | Ausschalten, wenn der Abstand nicht mehr darüber liegt |
-| `hold_s` | 120 | 0–3600 s | So lange muss die neue Bedingung anstehen |
-| `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause |
-| `emergency_c` | 85 | 60–110 °C | Über diesem Kesselvorlauf läuft die Pumpe in jedem Fall |
+| `enabled` | nein | ja/nein | „Kesselkreispumpe vorhanden“: Pumpe vorhanden und angeschlossen |
+| `mode` | `auto` | `auto`, `ein`, `aus` | Betriebsart: Automatik, Hand ein, Hand aus |
+| `overrun_s` | 1800 | 0–7200 s | „Nachlauf nach Brennerende“, in der Oberfläche in Minuten: so lange läuft die Pumpe nach dem erkannten Brennerende weiter, unabhängig von der Spreizung; 0 = kein Nachlauf. Das Brennerende verschiebt `burner.off_hold_s`. |
+| `on_k` | 3 | über 0 bis 20 K | „Ein ab Kessel wärmer als Speicher um“: Bei stehender Pumpe einschalten, wenn der Kesselvorlauf die Speichertemperatur zuzüglich des zuletzt gemessenen Abstands des Rücklaufs um diesen Wert übersteigt; ohne Speicherwert gilt der Kesselrücklauf |
+| `off_k` | 2 | unter `on_k` | „Aus unter Spreizung“: Bei laufender Pumpe ausschalten, wenn der Kesselvorlauf weniger als diesen Wert über dem Kesselrücklauf liegt |
+| `hold_s` | 120 | 0–3600 s | „Schaltverzögerung“: so lange muss die neue Bedingung ununterbrochen anstehen; nicht der Nachlauf |
+| `min_run_s`, `min_pause_s` | 180, 180 | 0–3600 s | Mindestlaufzeit und Mindestpause beim Schalten nach der Spreizung |
+| `emergency_c` | 85 | 60–110 °C | „Notlauf ab Kesselvorlauf“: Über diesem Kesselvorlauf läuft die Pumpe in jedem Fall |
 | `topic`, `host`, `relay`, `user`, `pass` | — | wie bei den Heizkreisen | Relais |
 
 **Netz** — `wifi`, `mqtt`
@@ -1553,8 +1581,8 @@ der Unterschied auf 60 Prozent.
 |---|---|---|
 | `wifi.ssid`, `wifi.pass` | leer | Heimnetz |
 | `wifi.hostname` | `heizung` | Gerätename im Netz |
-| `wifi.ap_pass` | `fussboden` | Kennwort des Einrichtungs-Zugangspunkts, mindestens acht Zeichen. Leer öffnet den Zugangspunkt ohne Kennwort. |
-| `mqtt.enabled` | nein | MQTT einschalten; verlangt `mqtt.uri` |
+| `wifi.ap_pass` | `fussboden` | „Kennwort des Einrichtungszugangs“, mindestens acht Zeichen. Leer öffnet den Zugangspunkt ohne Kennwort. |
+| `mqtt.enabled` | nein | „MQTT verwenden“; verlangt `mqtt.uri` |
 | `mqtt.uri` | leer | etwa `mqtt://192.168.1.10:1883` |
 | `mqtt.user`, `mqtt.pass` | leer | Anmeldung am Broker |
 | `mqtt.prefix` | `heiz` | Präfix der Themen |
@@ -1567,14 +1595,14 @@ der Unterschied auf 60 Prozent.
 |---|---|---|---|
 | `cfg_version` | — | nur lesend | Aufbaustand der Konfiguration |
 | `site` | leer | Text | Bezeichnung; solange sie fehlt, öffnet die Oberfläche den Einrichtungsassistenten |
-| `sensor_timeout_s` | 900 | 60–43200 s | Ist der letzte Messwert eines Raumthermometers älter, setzt die Regelung des Raums aus: Die Ventile bleiben stehen, und der Raum meldet keinen Bedarf. |
+| `sensor_timeout_s` | 900 | 60–43200 s | „Thermometer gilt als ausgefallen nach“: Ist der letzte Messwert eines Raumthermometers älter, setzt die Regelung des Raums aus: Die Ventile bleiben stehen, und der Raum meldet keinen Bedarf. |
 | `outdoor_mac` | leer | MAC oder `null` | RuuviTag für die Außentemperatur; `null` entfernt die Zuordnung, ein fehlender Schlüssel lässt sie bestehen |
-| `display_brightness` | 2 | 0–100 % | Helligkeit der Anzeige |
+| `display_brightness` | 2 | 0–100 % | „Helligkeit der Anzeige“ am Gehäuse; 0 ist praktisch dunkel |
 | `timezone` | `CET-1CEST,M3.5.0,M10.5.0/3` | POSIX-Zeitzone | wie beim Heizungsgerät |
-| `reboot_hour`, `reboot_minute` | 10, 0 | −1 bis 23, 0–59 | Täglicher Neustart; −1 schaltet ihn ab |
-| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentliche Schutzfahrt der Ventile; 0 = Sonntag, −1 schaltet sie ab |
+| `reboot_hour`, `reboot_minute` | 10, 0 | −1 bis 23, 0–59 | „Täglicher Neustart um (Uhr)“, „Täglicher Neustart, Minute“; −1 schaltet ihn ab. Er entfällt für diesen Tag, wenn in dieser Minute ein Ventil fährt oder eine Messfahrt läuft. |
+| `seize_weekday`, `seize_hour` | 6, 11 | −1 bis 6, 0–23 | Wöchentliche Schutzfahrt der Ventile: auf bis 92 %, auf Anschlag zu und zurück; nach einem Neustart fahren alle Kreise. 0 = Sonntag, −1 schaltet sie ab |
 | `touch.enabled` | ja | ja/nein | Tasten am Gehäuse verwenden |
-| `touch.thresholds` | `[1000, 870, 1000]` | Zahlen | Eine Taste gilt als berührt, solange ihr Messwert unter der Schwelle liegt. Die laufenden Werte zeigt die Seite **Sensoren**. |
+| `touch.thresholds` | `[1000, 870, 1000]` | Zahlen | Schwelle „Sollwert senken“, „Sollwert erhöhen“, „Raum wählen“. Eine Taste gilt als berührt, solange ihr Messwert unter der Schwelle liegt. Die laufenden Werte zeigt die Seite **Sensoren**. |
 
 **Räume** — `rooms[]`, höchstens elf
 
@@ -1585,22 +1613,22 @@ der Unterschied auf 60 Prozent.
 | `channels` | leer | Kreisnummern 1–11 | Zugehörige Heizkreise; jeder Kreis gehört höchstens einem Raum |
 | `sensor_mac` | keines | MAC oder `null` | Raumthermometer (ATC- oder pvvx-Firmware, RuuviTag) |
 | `mode` | `heat` | `heat`, `off` | `off` fährt die Ventile zu; der Raum meldet dann keinen Bedarf |
-| `target_c` | 20 | 5–35 °C | Solltemperatur |
-| `p_band_k` | 1,0 | 0,2–10 K | Proportionalband: um diesen Betrag unter dem Sollwert ganz auf, darüber ganz zu, am Sollwert halb offen |
-| `interval_s` | 30 | 5–3600 s | Prüfabstand der Regelung |
-| `step` | 0,1 | 0,01–0,5 | Rasterung der Zielstellung |
-| `min_delta` | 0,01 | 0–0,5 | Kleinere Änderungen der Zielstellung lösen keine Fahrt aus |
+| `target_c` | 20 | 5–35 °C | „Solltemperatur“ |
+| `p_band_k` | 1,0 | 0,2–10 K | „Regelbereich“: um diesen Betrag unter dem Sollwert ganz auf, darüber ganz zu, am Sollwert halb offen |
+| `interval_s` | 30 | 5–3600 s | „Regelung prüft alle“: Abstand zwischen zwei Regelschritten |
+| `step` | 0,1 | 0,01–0,5 | „Stellschritt der Ventile“: Schrittweite, auf die die Zielstellung gerundet wird |
+| `min_delta` | 0,01 | 0–0,5 | „Kleinste Fahrt“: Kleinere Abweichungen zwischen Ziel und Stellung lösen keine Fahrt aus; wirkt erst ab der Größe des Stellschritts |
 
 **Heizkreise** — `channels[]`, elf; die Werte stammen meist aus der Messfahrt
 
 | Schlüssel | Vorgabe | Bereich | Bedeutung |
 |---|---|---|---|
 | `id` | — | 1–11 | Kreisnummer; bestimmt, welcher Kreis geändert wird |
-| `open_ms`, `close_ms` | 39000, 40000 | 1000–300000 ms | Fahrzeit auf und zu |
-| `max_ms` | 45000 | längere Fahrzeit bis 600000 ms | Abbruch, wenn die Endlage ausbleibt. Die Messfahrt setzt die längere Fahrzeit plus ein Sechstel. |
-| `blank_ms` | 2000 | 0–30000 ms | Sperrzeit nach dem Anlaufen, in der die Endlagenerkennung nicht auslöst |
-| `bemf_mv` | 190 | 10–2200 mV | Schwelle der Endlagenerkennung an der Gegenspannung des Motors. Die Messfahrt legt sie in die Mitte zwischen dem Wert während der Fahrt und dem in der Endlage. |
-| `bemf_hyst_mv` | 30 | bis `bemf_mv` | Hysterese dazu; aus der Messfahrt ein Viertel desselben Abstands, mindestens 10 mV |
+| `open_ms`, `close_ms` | 39000, 40000 | 1000–300000 ms | „Fahrzeit öffnen“, „Fahrzeit schließen“ |
+| `max_ms` | 45000 | längere Fahrzeit bis 600000 ms | „Höchstlaufzeit bis Anschlag“: Abbruch, wenn die Endlage ausbleibt; gilt nur für Fahrten bis zum Anschlag. Die Messfahrt setzt die längere Fahrzeit plus ein Sechstel. |
+| `blank_ms` | 2000 | 0–30000 ms | „Anlauf ohne Endlagenerkennung“: Zeit nach dem Anlaufen, in der die Endlage nicht ausgewertet wird; 0 wirkt wie 2 s |
+| `bemf_mv` | 190 | 10–2200 mV | „Endlage erkannt ab“: Schwelle der Endlagenerkennung an der Gegenspannung des Motors, wirksam bis etwa 1750 mV. Die Messfahrt legt sie in die Mitte zwischen dem Wert während der Fahrt und dem in der Endlage. |
+| `bemf_hyst_mv` | 30 | bis `bemf_mv` | „Rückfall der Endlagenerkennung“: so weit muss die Spannung nach dem Auslösen unter die Schwelle fallen; aus der Messfahrt ein Viertel desselben Abstands, mindestens 10 mV |
 | `calibrated` | nein | ja/nein | Die Werte stammen aus einer Messfahrt |
 | `bemf_group` | — | nur lesend | Messgruppe; die Kreise einer Gruppe teilen sich einen Messeingang |
 
@@ -1613,14 +1641,14 @@ der Unterschied auf 60 Prozent.
 |---|---|
 | **Messgruppe** | Zwei Heizkreise teilen sich einen Messeingang für die Endlagenerkennung. Innerhalb einer Gruppe fährt immer nur ein Kreis. |
 | **Gegenspannung** | Die Spannung über dem Messwiderstand. Sie steigt, wenn der Motor am Anschlag blockiert — daran wird die Endlage erkannt. |
-| **Messfahrt** | Einmaliges Zu- und Auffahren mit Aufzeichnung, um Fahrzeiten und Auslöseschwelle zu ermitteln. |
+| **Messfahrt** | Einmaliges Zu- und Auffahren mit Aufzeichnung, um Fahrzeiten und die Schwelle „Endlage erkannt ab“ zu ermitteln. |
 | **Referenzfahrt** | Fahrt in eine Endlage, wenn die Stellung eines Kreises unbekannt ist — etwa nach einem Neustart ohne gespeicherte Stellung. |
 | **Bedarf** | Ein Verteiler meldet Bedarf, sobald bei einem seiner Kreise die Ist- oder Zielstellung über 5 % liegt. Gezählt wird nur, was geregelt wird: Kreise ausgeschalteter Räume, Räume ohne Messwert und Kreise ohne Raum bleiben außen vor. |
 | **Heizgradtag** | Je Stunde der positive Anteil von 20 °C minus Außentemperatur, gemittelt über die Stunden des Tages mit gültigem Außenwert. Ohne diese Größe ist Verbrauch nicht vergleichbar. Anders als die Gradtagzahl nach VDI 3807 (G20/15) gibt es keine Heizgrenze von 15 °C: Jede Stunde unter 20 °C zählt. Die Werte liegen deshalb nie unter veröffentlichten Gradtagzahlen, in der Übergangszeit deutlich darüber. |
-| **Nachlauf** | Zeit, die eine Pumpe nach dem letzten Bedarf weiterläuft, um die Restwärme abzuführen. |
-| **Schutzlauf** | Kurzer Lauf nach langer Standzeit, damit die Pumpe nicht festsitzt. |
-| **Bezugslinie** | Das Minimum des Abgasfühlers über 24 Stunden: die Temperatur des kalten Rohrs. Sie erkennt das Anlaufen des Brenners. |
-| **Ausschlag** | Wie weit das Abgas gegen den Höchst- beziehungsweise Tiefstwert seit dem letzten Wechsel ausschlägt. Daran wird das Ende eines Brennerlaufs erkannt — die Bezugslinie kann das nicht, weil ein warmer Kessel das Rohr dauerhaft über ihr hält. |
+| **Nachlauf** | Zwei getrennte Einstellungen. „Nachlauf nach Bedarfsende“: Zeit, die eine Heizkreispumpe weiterläuft, nachdem kein versorgter Verteiler mehr Wärme anfordert. „Nachlauf nach Brennerende“: Zeit, die die Kesselkreispumpe nach dem erkannten Brennerende weiterläuft. |
+| **Schutzlauf** | Kurzer Lauf der Heizkreispumpen nach langer Standzeit, damit sie nicht festsitzen. |
+| **Ruhewert** | Der kälteste Wert des Abgasfühlers der letzten 24 Stunden: die Temperatur des kalten Rohrs. An ihm wird das Anlaufen des Brenners erkannt. |
+| **Abfall und Anstieg des Abgases** | Wie weit das Abgas gegen den Höchst- beziehungsweise Tiefstwert seit dem letzten Wechsel fällt oder steigt. Daran wird das Ende eines Brennerlaufs erkannt — der Ruhewert kann das nicht, weil ein warmer Kessel das Rohr dauerhaft über ihm hält. |
 | **Spreizung** | Vorlauf minus Rücklauf. Am Kessel zeigt sie den Ladefortschritt, am Heizkreis die Wärmeabgabe. |
 
 ### Stand der Erprobung

@@ -676,25 +676,25 @@ final class AppModell {
             geraet = z.geraet
             eintrag = z.eintrag.flatMap(Int.init).map { .zahl(Double($0)) }
             titel = z.eintrag.flatMap { n in anlage.etage(z.geraet ?? "")?.raeume.first { "\($0.nummer)" == n }?.name }.map { "Regelung \($0)" } ?? "Regelung"
-            erklaerung = "Die Ventile stehen am Sollwert halb offen, ein Proportionalband darunter ganz offen und eines darüber ganz zu."
+            erklaerung = "Die Ventile stehen am Sollwert halb offen, etwa einen Regelbereich darunter offen und darüber zu."
         case "kanal":
             geraet = z.geraet
             eintrag = z.eintrag.flatMap(Int.init).map { .zahl(Double($0)) }
             titel = "Kanal \(z.eintrag ?? "")"
-            erklaerung = "Kalibrierte Werte stammen aus einer Messfahrt, alle anderen sind Vorgaben. Die Zuordnung der Kanäle zu Messgruppen ist verdrahtet."
+            erklaerung = "Die Messfahrt trägt diese Werte je Kreis ein. Ändern Sie sie von Hand nur, wenn keine Messfahrt möglich ist. Die Zuordnung der Kanäle zu Messgruppen ist verdrahtet."
         case "brenner":
             geraet = z.geraet ?? kesselID
             titel = "Brennererkennung"
-            erklaerung = "Der Brenner gilt als angelaufen, wenn das Abgas die Bezugslinie um die Einschaltschwelle übersteigt, und als aus, wenn es um den Ausschlag unter den Höchstwert der Fahrt fällt. Die Bezugslinie ist das Minimum der letzten 24 Stunden."
+            erklaerung = "Das Gerät erkennt am Abgasfühler, ob der Brenner läuft. Daraus ergeben sich Laufzeit, Starts und Ölverbrauch, die Ladungen des Speichers und der Nachlauf der Kesselkreispumpe. Wirksam ist die Erkennung nur an dem Gerät mit dem Abgasfühler. Die Vorgaben sind an dieser Anlage erprobt; ändern Sie sie nur, wenn erkannte und tatsächliche Brennerläufe nachweislich auseinanderliegen."
         case "speicher":
             geraet = z.geraet ?? speicherID ?? kesselID
             weitere = heizgeraetIDs.filter { $0 != geraet }
             titel = "Pufferspeicher"
-            erklaerung = "Der Ladezustand wird linear zwischen „leer“ und „voll“ geschätzt. Die App trägt diese Werte auf allen Heizungsgeräten gleich ein, weil jedes denselben Speicher schätzt."
+            erklaerung = "Füllstand, Ladungen und Zapfungen sind Anzeige und Auswertung; keine dieser Einstellungen schaltet Brenner oder Pumpen. Die App trägt sie auf beiden Heizungsgeräten gleich ein, weil beide denselben Speicher schätzen."
         case "kkp":
             geraet = z.geraet ?? (istBeispiel ? kesselID : betrieb.kesselkreispumpengeraet() ?? kesselID)
             titel = "Kesselkreispumpe"
-            erklaerung = "Die Pumpe läuft, solange der Kesselvorlauf wärmer ist als der Rücklauf aus dem Speicher; nur dann gibt der Kessel Wärme ab. Ohne gültige Messwerte oder über der Notgrenze läuft sie in jedem Fall."
+            erklaerung = "Die Pumpe zwischen Kessel und Speicher läuft, solange der Brenner läuft, und danach den Nachlauf lang. Anschließend schaltet sie nach der Spreizung: Sie läuft, solange der Kessel noch Wärme an den Speicher abgibt, und schaltet ab, bevor sie Speicherwärme in den auskühlenden Kessel fördert. Über der Notlaufgrenze und ohne Messwerte läuft sie immer."
         case "heizkreis":
             geraet = z.geraet ?? speicherID
             eintrag = z.eintrag.flatMap(Int.init).map { .zahl(Double($0)) }
@@ -711,7 +711,7 @@ final class AppModell {
             erklaerung = "Eine Taste gilt als berührt, sobald ihr Rohwert unter die Schwelle fällt. Die Rohwerte stehen unter „Sensoren“."
         case "zeit":
             geraet = z.geraet
-            titel = geraeteart(z.geraet ?? "") == .verteiler ? "Zeit und Schutzfahrt" : "Zeit und Schutzlauf"
+            titel = geraeteart(z.geraet ?? "") == .verteiler ? "Zeit und Schutzfahrt" : "Zeit und Schutzlauf der Heizkreispumpen"
         case "netz":
             geraet = z.geraet
             titel = "Netzwerk"
@@ -728,7 +728,7 @@ final class AppModell {
         case "bedarf":
             geraet = z.geraet
             titel = "Bedarfsabfrage"
-            erklaerung = "Wie oft die Verteiler nach Wärmebedarf gefragt werden und ab wann ein verstummter Verteiler als bedarfsmeldend gilt."
+            erklaerung = "Wie oft die Verteiler nach Wärmebedarf gefragt werden und ab wann ein verstummter Verteiler als bedarfsmeldend gilt. Normalerweise nicht ändern."
         default:
             return nil
         }

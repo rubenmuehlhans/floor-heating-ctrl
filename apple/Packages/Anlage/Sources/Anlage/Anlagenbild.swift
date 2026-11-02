@@ -414,8 +414,8 @@ public struct Speicher: Sendable {
 
 public enum Pumpenbetriebsart: String, CaseIterable, Sendable, Hashable {
     case automatik = "Automatik"
-    case ein = "Ein"
-    case aus = "Aus"
+    case ein = "Hand ein"
+    case aus = "Hand aus"
 }
 
 public struct Relais: Sendable, Hashable {

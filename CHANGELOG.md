@@ -7,6 +7,21 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ### Heizungsgeräte
 
+- **Verständliche Bezeichnungen und Hinweistexte der Einstellungen.** Anlass: Die Einstellung
+  „Haltezeit aus“ der Brennererkennung (`burner.off_hold_s`) wurde für den Nachlauf der
+  Kesselkreispumpe gehalten. Sie verschiebt aber das erkannte Brennerende; 1800 s statt 300 s
+  hätten jeden Lauf um 25 Minuten und rund 0,9 l Öl zu lang gezählt. Das Wort „Haltezeit“ entfällt:
+  „Brennerstart bestätigt nach“, „Brennerende bestätigt nach“, „Ladung fertig bestätigt nach“ und
+  „Schaltverzögerung“ an der Kesselkreispumpe; der Nachlauf am Heizkreis heißt „Nachlauf nach
+  Bedarfsende“. Jeder Abschnitt der Weboberfläche erklärt unter „Was diese Einstellungen
+  bewirken“, was ein höherer oder niedrigerer Wert an der Anlage bewirkt, mit Verweis auf die
+  richtige Einstellung, wo Verwechslungsgefahr besteht. Selten zu ändernde Werte stehen unter
+  „Erweitert“. Betriebsarten der Pumpen: „Automatik“, „Hand ein“, „Hand aus“. Berichtigt: Der
+  tägliche Neustart entfällt für den Tag, statt verschoben zu werden; am Schutzlauf nehmen nur die
+  Heizkreispumpen teil. Die Ersatzwerte der Oberfläche für die Schaltpunkte der
+  Kesselkreispumpe entsprechen jetzt der Firmware (3 und 2 K statt 1 und 0,5 K). JSON-Schlüssel
+  und API sind unverändert. Das Handbuch verwendet dieselben Bezeichnungen.
+
 - **Kesselkreispumpe: Nachlauf nach dem Brennerende als eigene Einstellung.** `boiler_pump.overrun_s`,
   Vorgabe 1800 s. Die Pumpe läuft nach dem Brennerende so lange weiter, gleich was die Spreizung
   sagt; danach gilt die Regel mit ihrer Haltezeit. Sie hält den Kessel auf Speichertemperatur,
@@ -22,6 +37,20 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   soll, das Relais aber stromlos ist. Oberfläche des Geräts und App zeigen „Relais ohne Strom“
   bzw. „von der Kesselregelung gesperrt“; die App meldet einen gesperrten Kreis nach einer
   Stunde als Hinweis statt das Relais als Störung.
+
+### Verteiler
+
+- **Bezeichnungen und Hinweistexte der Einstellungen** wie am Heizungsgerät, etwa „Regelbereich“
+  statt „Proportionalband“, „Stellschritt der Ventile“, „Endlage erkannt ab“ und „Thermometer gilt
+  als ausgefallen nach“; dazu Erläuterungen je Abschnitt und „Erweitert“. Berichtigt: Kreise ohne
+  Raum fahren zu, statt stehen zu bleiben; die Schutzfahrt öffnet bis 92 % und fährt auf Anschlag
+  zu; der tägliche Neustart entfällt für den Tag. Die Raumkarte nennt die Zeit bis zum Aussetzen
+  der Regelung aus `sensor_timeout_s` statt fest „Viertelstunde“.
+
+### Leitstand
+
+- **Bezeichnungen wie an den anderen Geräten,** Einheiten in Klammern, Erläuterungen zu Abfrage und
+  Anzeige.
 
 ### App
 
@@ -97,6 +126,16 @@ Ab Build 18 (27. Oktober, TestFlight):
 - **Nachlauf der Kesselkreispumpe einstellbar** unter Kesselkreispumpe › Schaltpunkte
   („Nachlauf nach Brennerende“, `boiler_pump.overrun_s`), als Grund „Nachlauf nach dem Brenner“
   (siehe Heizungsgeräte).
+
+Noch in keinem TestFlight-Build:
+
+- **Bezeichnungen und Hinweistexte der Einstellungen** wie in den Weboberflächen (siehe
+  Heizungsgeräte und Verteiler). Jeder Hinweis nennt Wirkung, Folge eines höheren oder niedrigeren
+  Werts und, wo nötig, die richtige Einstellung. Unter „Erweitert“ stehen zusätzlich die
+  Schwellen der Brennererkennung und der Kesselkreispumpe, der Nachlauf am Heizkreis, die
+  Bedarfsabfrage und der Messabstand der Fühler. Der Nachlauf der Kesselkreispumpe steht in
+  Minuten; auch Vorschläge der KI nennen ihn so. Meldungen der Prüfung, Pumpengründe und
+  Kennwerte der Kanäle tragen die neuen Namen.
 
 ## v0.6.0 — 5. Oktober 2026
 

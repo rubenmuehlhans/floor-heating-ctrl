@@ -133,12 +133,12 @@ struct SchreibwegTests {
             let teil = Schreibweg.teil([Wertaenderung(try p(id), eintrag: eintrag, wert: wert)], konfiguration: k)
             return Schreibweg.pruefen(Schreibweg.zusammengefuehrt(k, teil), art)
         }
-        #expect(try fehler("heizung/burner.delta_off_k", 12, heizung, .heizung).contains { $0.contains("Einschaltschwelle des Brenners") })
-        #expect(try fehler("heizung/buffer.leer_c", 72, heizung, .heizung).contains { $0.contains("„voll“") })
+        #expect(try fehler("heizung/burner.delta_off_k", 12, heizung, .heizung).contains { $0.contains("Start ab Abgas über Ruhewert") })
+        #expect(try fehler("heizung/buffer.leer_c", 72, heizung, .heizung).contains { $0.contains("„Voll bei“") })
         #expect(try fehler("heizung/probes[].role", "puffer", eintrag: "28AA000000000002", heizung, .heizung).contains { $0.contains("zweimal") })
         #expect(try fehler("heizung/onewire_pin[0]", 12, heizung, .heizung).contains { $0.contains("GPIO 12") })
-        #expect(try fehler("verteiler/channels[].max_ms", 30000, eintrag: 1, verteiler, .verteiler).contains { $0.contains("Maximallaufzeit") })
-        #expect(try fehler("verteiler/rooms[].target_c", 40, eintrag: 1, verteiler, .verteiler).contains { $0.contains("Sollwert") })
+        #expect(try fehler("verteiler/channels[].max_ms", 30000, eintrag: 1, verteiler, .verteiler).contains { $0.contains("Höchstlaufzeit") })
+        #expect(try fehler("verteiler/rooms[].target_c", 40, eintrag: 1, verteiler, .verteiler).contains { $0.contains("Solltemperatur") })
         #expect(try fehler("verteiler/rooms[].p_band_k", 2, eintrag: 1, verteiler, .verteiler).isEmpty)
     }
 

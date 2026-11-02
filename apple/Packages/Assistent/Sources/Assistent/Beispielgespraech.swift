@@ -50,7 +50,7 @@ extension Vorschlag {
         parameter: "aktion.messfahrt",
         bisher: "nicht kalibriert",
         neu: "Messfahrt nacheinander",
-        begruendung: "Keller 3 und Erdgeschoss 4, 6, 8, 10 sind Räumen zugeordnet, aber nie vermessen worden. Sie erkennen die Endlage nicht und fahren bei jeder Bewegung bis zur Maximallaufzeit.",
+        begruendung: "Keller 3 und Erdgeschoss 4, 6, 8, 10 sind Räumen zugeordnet, aber nie vermessen worden. Sie erkennen die Endlage nicht und fahren bei jeder Bewegung bis zur Höchstlaufzeit.",
         wirkung: "Je Kanal dauert die Fahrt etwa 90 Sekunden; es fährt immer nur ein Kanal je Messgruppe. Die ermittelten Fahrzeiten und Schwellen legt die App Ihnen einzeln zur Übernahme vor."
     )
 
@@ -137,7 +137,7 @@ extension Aenderung {
     public static let beispiele: [Aenderung] = [
         Aenderung(
             id: "a1", zeit: Beispielzeit.datum("2026-08-24T19:12:00"), geraet: "Kessel",
-            parameter: "Kesselkreispumpe · Ausschaltschwelle", bisher: "0,5 K", neu: "2,0 K",
+            parameter: "Kesselkreispumpe · Aus unter Spreizung", bisher: "0,5 K", neu: "2,0 K",
             ausloeser: "von Hand"
         ),
         Aenderung(

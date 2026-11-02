@@ -120,3 +120,17 @@ h3.sub{margin:1.3rem 0 .55rem; font-size:.7rem; font-weight:600;
   text-transform:uppercase; letter-spacing:.1em; color:var(--faint)}
 h3.sub:first-child{margin-top:0}
 
+
+/* ---------------- Erläuterungen und Erweitert ---------------- */
+
+/* Was die Einstellungen eines Abschnitts bewirken: aufklappbar unter den Feldern,
+   Bezeichnung und Text wie in der App */
+details.hilfe, details.erweitert{margin:.7rem 0 0; max-width:62ch}
+details.hilfe>summary, details.erweitert>summary{cursor:pointer; font-size:.8rem;
+  color:var(--accent); list-style-position:inside}
+details.erweitert>summary{color:var(--muted); font-weight:600}
+details.erweitert[open]>summary{margin-bottom:.6rem}
+dl.hilfe{margin:.5rem 0 0; font-size:.82rem; line-height:1.45}
+dl.hilfe dt{font-weight:600; color:var(--ink); margin-top:.55rem}
+dl.hilfe dt:first-child{margin-top:0}
+dl.hilfe dd{margin:.1rem 0 0; color:var(--muted)}

@@ -113,10 +113,15 @@ public struct EinstellungenWerkzeug: Tool {
             case .zahl(let b, let schritt, _): m["bereich"] = [.zahl(b.lowerBound), .zahl(b.upperBound)]; m["schritt"] = .zahl(schritt)
             case .ganzzahl(let b, let schritt): m["bereich"] = [.zahl(Double(b.lowerBound)), .zahl(Double(b.upperBound))]; m["schritt"] = .zahl(Double(schritt))
             case .millisekunden(let b, _): m["bereich_s"] = [.zahl(b.lowerBound), .zahl(b.upperBound)]; m["einheit"] = "ms"
+            case .minuten(let b, let schritt):
+                // Werte und Vorschläge in Minuten; in der Konfiguration stehen Sekunden
+                m["bereich"] = [.zahl(Double(b.lowerBound)), .zahl(Double(b.upperBound))]; m["schritt"] = .zahl(Double(schritt))
+                m["gespeichert_in"] = "s"
             case .auswahl(let wahl): m["werte"] = .objekt(Dictionary(wahl.map { ($0.wert.alsText ?? $0.wert.kompakt, JSONWert.text($0.bezeichnung)) }, uniquingKeysWith: { x, _ in x }))
             case .schalter, .text, .kennwort: break
             }
             m["vorgabe"] = p.vorgabe
+            if case .minuten = p.art { m["vorgabe"] = .zahl((p.vorgabe.alsZahl ?? 0) / 60) }
             if p.kiFreigegeben { m["ki"] = true }
             if p.anlagenweit { m["auf_allen_heizungsgeraeten_gleich"] = true }
             if p.wirkung != .sofort { m["wirkt"] = .text(p.wirkung == .neustart ? "nach Neustart" : "nach Neuverbindung") }

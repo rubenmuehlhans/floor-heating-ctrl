@@ -152,7 +152,7 @@ td.empty{color:var(--muted); text-align:center; padding:1.4rem}
     <div class="card">
       <h2>Gerät</h2>
       <div class="fields">
-        <label class="f"><span>Ort</span><input id="c-site" maxlength="31"></label>
+        <label class="f"><span>Bezeichnung</span><input id="c-site" maxlength="31"></label>
         <label class="f"><span>Gerätename im Netz</span><input id="c-host" maxlength="31"></label>
       </div>
       <p class="hint">Der Gerätename erscheint als <span class="mono" id="c-host-show"></span>.local und im Namen
@@ -175,14 +175,25 @@ td.empty{color:var(--muted); text-align:center; padding:1.4rem}
     <div class="card">
       <h2>Abfrage und Anzeige</h2>
       <div class="fields">
-        <label class="f"><span>Heizungsgeräte, s</span><input id="c-heat" type="number" min="5" max="300"></label>
-        <label class="f"><span>Verteiler, s</span><input id="c-man" type="number" min="10" max="600"></label>
+        <label class="f"><span>Heizungsgeräte abfragen alle (s)</span><input id="c-heat" type="number" min="5" max="300"></label>
+        <label class="f"><span>Verteiler abfragen alle (s)</span><input id="c-man" type="number" min="10" max="600"></label>
         <label class="f"><span>Helligkeit</span><input id="c-bright" type="number" min="10" max="255"></label>
-        <label class="f"><span>Abdunkeln nach, min</span><input id="c-dim" type="number" min="0" max="120"></label>
-        <label class="f"><span>Nachts aus ab, Uhr</span><input id="c-nf" type="number" min="-1" max="23"></label>
-        <label class="f"><span>bis, Uhr</span><input id="c-nt" type="number" min="0" max="23"></label>
+        <label class="f"><span>Abdunkeln nach (min)</span><input id="c-dim" type="number" min="0" max="120"></label>
+        <label class="f"><span>Nachts aus ab (Uhr)</span><input id="c-nf" type="number" min="-1" max="23"></label>
+        <label class="f"><span>Nachts aus bis (Uhr)</span><input id="c-nt" type="number" min="0" max="23"></label>
       </div>
-      <p class="hint">Abdunkeln 0 heißt nie; „Nachts aus ab“ −1 heißt nie. Jede Taste schaltet die Anzeige wieder ein.</p>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Heizungsgeräte abfragen alle</dt><dd>So oft holt der Leitstand Zustand und Messwerte der Heizungsgeräte ab.
+          Diese Werte zeigen Bildschirm und Weboberfläche, sie gehen ins Protokoll und an Apple Home. Kürzer: aktuellere
+          Anzeige, mehr Netzlast. Auf die Regelung wirkt der Wert nicht.</dd>
+        <dt>Verteiler abfragen alle</dt><dd>Wie oben, für die Verteiler.</dd>
+        <dt>Helligkeit</dt><dd>Helligkeit des Bildschirms, 10 bis 255; kleinere Werte setzt der Leitstand auf 10.</dd>
+        <dt>Abdunkeln nach</dt><dd>So viele Minuten nach der letzten Bedienung sinkt die Helligkeit auf ein Sechstel,
+          mindestens auf 12. 0 heißt nie.</dd>
+        <dt>Nachts aus ab / bis</dt><dd>In dieser Zeit ist der Bildschirm aus, auch über Mitternacht. Das gilt nur bei
+          gestellter Uhr und frühestens eine Minute nach der letzten Bedienung. −1 bei „ab“ oder gleiche Stunden heißt
+          nie. Jede Berührung schaltet ihn wieder ein, ebenso eine neue Meldung eines Heizungsgeräts.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="c-save">Speichern</button></div>
       <p class="msg" id="c-msg"></p>
     </div>

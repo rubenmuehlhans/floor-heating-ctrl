@@ -196,18 +196,18 @@ public enum Schreibweg {
                 let n = c["id"]?.alsGanzzahl ?? 0
                 let laengste = max(c["open_ms"]?.alsZahl ?? 0, c["close_ms"]?.alsZahl ?? 0)
                 if let m = c["max_ms"]?.alsZahl, m < laengste {
-                    fehler.append("Kanal \(n): Die Maximallaufzeit ist kürzer als die Fahrzeit.")
+                    fehler.append("Kanal \(n): Die Höchstlaufzeit bis Anschlag ist kürzer als die Fahrzeit.")
                 }
                 if let h = c["bemf_hyst_mv"]?.alsZahl, let s = c["bemf_mv"]?.alsZahl, h > s {
-                    fehler.append("Kanal \(n): Die Hysterese ist größer als die Auslöseschwelle.")
+                    fehler.append("Kanal \(n): Der Rückfall der Endlagenerkennung ist größer als „Endlage erkannt ab“.")
                 }
             }
         case .heizung:
             if let an = z("burner.delta_on_k"), let aus = z("burner.delta_off_k"), an <= aus {
-                fehler.append("Die Einschaltschwelle des Brenners muss über der Ausschaltschwelle liegen.")
+                fehler.append("„Start ab Abgas über Ruhewert“ muss über „Ende ab Abgas über Ruhewert“ liegen.")
             }
             if let voll = z("buffer.voll_c"), let leer = z("buffer.leer_c"), voll <= leer {
-                fehler.append("Der Wert für „voll“ muss über dem für „leer“ liegen.")
+                fehler.append("„Voll bei“ muss über „Leer bei“ liegen.")
             }
             let rollen = (k["probes"]?.alsListe ?? []).compactMap { $0["role"]?.alsText }.filter { !$0.isEmpty }
             if (k["probes"]?.alsListe ?? []).count > 12 { fehler.append("Höchstens 12 Fühler sind möglich.") }
@@ -227,7 +227,7 @@ public enum Schreibweg {
                     fehler.append("Die Kesselkreispumpe braucht Kesselvor- und -rücklauf an diesem Gerät.")
                 }
                 if let an = z("boiler_pump.on_k"), let aus = z("boiler_pump.off_k"), aus >= an {
-                    fehler.append("Die Ausschaltschwelle der Kesselkreispumpe muss unter der Einschaltschwelle liegen.")
+                    fehler.append("Bei der Kesselkreispumpe muss „Aus unter Spreizung“ unter „Ein ab Kessel wärmer als Speicher um“ liegen.")
                 }
             }
             let pins = (k["onewire_pin"]?.alsListe ?? []).compactMap(\.alsGanzzahl)
@@ -275,6 +275,10 @@ public enum Schreibweg {
             return bereich.contains(x) ? nil : "\(p.bezeichnung) muss zwischen \(f(bereich.lowerBound)) und \(f(bereich.upperBound))\(einheit) liegen"
         case .ganzzahl(let bereich, _):
             guard let x = w.alsZahl else { return nil }
+            return (Double(bereich.lowerBound)...Double(bereich.upperBound)).contains(x) ? nil
+                : "\(p.bezeichnung) muss zwischen \(bereich.lowerBound) und \(bereich.upperBound)\(einheit) liegen"
+        case .minuten(let bereich, _):
+            guard let x = w.alsZahl.map({ $0 / 60 }) else { return nil }
             return (Double(bereich.lowerBound)...Double(bereich.upperBound)).contains(x) ? nil
                 : "\(p.bezeichnung) muss zwischen \(bereich.lowerBound) und \(bereich.upperBound)\(einheit) liegen"
         case .millisekunden(let bereich, _):

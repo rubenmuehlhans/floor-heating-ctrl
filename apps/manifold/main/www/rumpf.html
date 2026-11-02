@@ -12,7 +12,7 @@
 .gauge.moving{border-color:var(--heat)}
 .gauge.moving>i{animation:breathe 1.6s ease-in-out infinite}
 .gauge.unknown{background:repeating-linear-gradient(135deg,var(--sunken) 0 4px,var(--line) 4px 5px)}
-/* Kreis ohne Raum: er wird nicht geregelt und faehrt nur von Hand. */
+/* Kreis ohne Raum: er wird nicht geregelt, faehrt zu und sonst nur von Hand. */
 .gauge.free{border-style:dashed; border-color:var(--line-strong)}
 .gauge.free>i{background:var(--faint)}
 @keyframes breathe{50%{opacity:.55}}
@@ -128,6 +128,9 @@ tbody tr:hover td{background:var(--sunken)}
 td.num,th.num{font-family:var(--data); text-align:right}
 td.mono{font-family:var(--data); font-size:.82rem}
 td.empty{color:var(--muted); text-align:center; padding:1.4rem}
+/* Fahrzeiten und Schwellen: Die Spaltenkoepfe tragen die vollen Bezeichnungen
+   und duerfen umbrechen, sonst wird die Tabelle breiter als jedes Telefon. */
+table.cfg th{white-space:normal; vertical-align:bottom; line-height:1.35}
 
 /* ---------------- Kalibrierung ---------------- */
 
@@ -282,8 +285,35 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card">
       <h2>Räume und Kreiszuordnung</h2>
       <p class="lede">Jeder Heizkreis gehört zu höchstens einem Raum. Nicht zugeordnete Kreise
-        bleiben stehen und lassen sich nur von Hand fahren.</p>
+        fahren zu und lassen sich nur von Hand fahren.</p>
       <div id="roomEdit"></div>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Solltemperatur</dt>
+        <dd>Die Raumtemperatur, auf die der Verteiler regelt. Am Sollwert stehen die Ventile halb
+          offen; braucht der Raum mehr oder weniger Wärme, pendelt er sich etwas darunter oder
+          darüber ein.</dd>
+        <dt>Betriebsart</dt>
+        <dd>„Ausgeschaltet“ fährt die Ventile des Raums zu; er meldet keinen Wärmebedarf. Einen
+          eigenen Frostschutz hat der Verteiler nicht, den übernimmt das Heizungsgerät mit
+          „Heizkreis › Frostschutz unter Raumtemperatur“.</dd>
+        <dt>Regelbereich</dt>
+        <dd>Wie weit die Raumtemperatur vom Sollwert abweichen darf, bis die Ventile ganz öffnen
+          oder schließen: am Sollwert halb offen, etwa einen Regelbereich darunter offen, darüber
+          zu. Kleiner: Die Ventile reagieren schärfer und fahren öfter, die Temperatur schwankt
+          stärker. Größer: ruhiger, aber der Raum weicht weiter vom Sollwert ab.</dd>
+        <dt>Regelung prüft alle</dt>
+        <dd>Abstand zwischen zwei Regelschritten des Raums. Kürzer: schnellere Reaktion auf neue
+          Messwerte. Länger: Ein hier geänderter Sollwert wirkt später; über die Übersicht oder
+          die Tasten geändert, wirkt er sofort.</dd>
+        <dt>Stellschritt der Ventile</dt>
+        <dd>Die Ventilstellung wird auf Schritte dieser Größe gerundet; erst wenn sich der
+          gerundete Wert ändert, fährt das Ventil. 0,1 entspricht etwa 4 s Motorlauf. Kleiner:
+          viele kleine Fahrten, mehr Verschleiß, die geschätzte Stellung wird ungenauer. Größer:
+          wenige grobe Sprünge.</dd>
+        <dt>Kleinste Fahrt</dt>
+        <dd>Kleinere Abweichungen zwischen Ziel und Stellung lösen keine Fahrt aus. Wirkt erst,
+          wenn der Wert mindestens so groß ist wie der Stellschritt.</dd>
+      </dl></details>
       <div class="actions">
         <button class="btn quiet" id="roomAdd">Raum hinzufügen</button>
         <button class="btn" id="roomSave">Speichern</button>
@@ -339,20 +369,50 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
 
     <div class="card">
       <h2>Fahrzeiten und Schwellen</h2>
-      <p class="lede">Die Zuordnung Kreis zu Messgruppe ist verdrahtet und nicht änderbar.
-        Kalibrierte Werte stammen aus einer Messfahrt, alle anderen sind Vorgaben.</p>
-      <div class="scroll"><table><thead><tr>
-        <th>Kreis</th><th class="num">Öffnen s</th><th class="num">Schließen s</th>
-        <th class="num">Maximal s</th><th class="num">Sperrzeit s</th>
-        <th class="num">Schwelle mV</th><th class="num">Hysterese mV</th><th></th>
+      <p class="lede">Die Messfahrt trägt diese Werte je Kreis ein. Ändern Sie sie von Hand nur,
+        wenn keine Messfahrt möglich ist.</p>
+      <div class="scroll"><table class="cfg"><thead><tr>
+        <th>Kreis</th><th class="num">Fahrzeit öffnen (s)</th>
+        <th class="num">Fahrzeit schließen (s)</th>
+        <th class="num" title="Höchstlaufzeit bis Anschlag">Höchstlaufzeit (s)</th>
+        <th class="num" title="Anlauf ohne Endlagenerkennung">Anlauf ohne Erkennung (s)</th>
+        <th class="num">Endlage erkannt ab (mV)</th>
+        <th class="num" title="Rückfall der Endlagenerkennung">Rückfall (mV)</th><th></th>
       </tr></thead><tbody id="chanCfgBody"></tbody></table></div>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Fahrzeit öffnen</dt>
+        <dd>Zeit des Antriebs von ganz zu bis ganz offen; daraus schätzt der Verteiler die
+          Ventilstellung. Zu kurz: Das Ventil öffnet weniger weit als angezeigt, der Raum bleibt
+          kühler. Zu lang: Es öffnet weiter als angezeigt.</dd>
+        <dt>Fahrzeit schließen</dt>
+        <dd>Zeit von ganz offen bis ganz zu. Zu kurz: Das Ventil bleibt vor dem Sitz stehen, es
+          fließt weiter Wasser, obwohl 0 % angezeigt wird.</dd>
+        <dt>Höchstlaufzeit bis Anschlag</dt>
+        <dd>Spätestens dann schaltet der Verteiler den Motor ab, wenn er die Endlage nicht
+          erkennt. Gilt nur für Fahrten bis zum Anschlag (Notfahrt, Schutzfahrt, Handsteuerung).
+          Mindestens so lang wie die längere Fahrzeit.</dd>
+        <dt>Anlauf ohne Endlagenerkennung</dt>
+        <dd>So lange nach dem Anlaufen wird die Endlage nicht ausgewertet, weil der Anlaufstrom
+          sie sonst vortäuschen würde. 0 wirkt wie 2 s. Zu kurz: Fahrten enden sofort. Zu lang:
+          Eine kurze Fahrt in den Anschlag bleibt unerkannt.</dd>
+        <dt>Endlage erkannt ab</dt>
+        <dd>Steigt die Spannung am Messeingang über diesen Wert, gilt die Endlage als erreicht.
+          Zu niedrig: Fahrten enden vor der Endlage, die angezeigte Stellung stimmt nicht. Zu
+          hoch: Der Motor drückt bis zum Ende der Fahrzeit gegen den Anschlag. Wirksam bis etwa
+          1750 mV.</dd>
+        <dt>Rückfall der Endlagenerkennung</dt>
+        <dd>Nach dem Auslösen muss die Spannung um diesen Betrag unter die Schwelle fallen, bevor
+          die Endlage erneut erkannt wird. Höchstens so groß wie „Endlage erkannt ab“. Zu groß:
+          Nach dem Anlaufen wird die Endlage nicht mehr erkannt.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="chanSave">Speichern</button></div>
     </div>
 
     <div class="card" id="calibCard">
       <h2>Endlagen kalibrieren</h2>
       <p class="lede">Der gewählte Kreis fährt einmal ganz zu und einmal ganz auf. Aus dem
-        Spannungsverlauf ergeben sich Fahrzeiten und Auslöseschwelle. Der Antrieb muss dabei
+        Spannungsverlauf ergeben sich die Fahrzeiten und die Schwelle „Endlage erkannt ab“. Der
+        Antrieb muss dabei
         frei laufen können.</p>
       <div class="row">
         <select id="calibCh"></select>
@@ -446,7 +506,7 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
         <label class="f"><span>WLAN-Name</span><input id="sysSsid" style="width:15rem"></label>
         <label class="f"><span>WLAN-Kennwort</span><input id="sysPass" type="password" style="width:15rem"></label>
         <label class="f"><span>Gerätename im Netz</span><input id="sysHost" style="width:15rem"></label>
-        <label class="f"><span>Kennwort Zugangspunkt</span><input id="sysApPass" type="password" minlength="8" title="Mindestens acht Zeichen" style="width:15rem"></label>
+        <label class="f"><span>Kennwort des Einrichtungszugangs</span><input id="sysApPass" type="password" minlength="8" title="Mindestens acht Zeichen" style="width:15rem"></label>
       </div>
       <p class="lede" style="margin:.4rem 0 0">Kennwortfelder leer lassen, um das gespeicherte
         Kennwort beizubehalten.</p>
@@ -467,22 +527,48 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card">
       <h2>Betrieb</h2>
       <div class="fields">
-        <label class="f"><span>Bezeichnung der Anlage</span>
+        <label class="f"><span>Bezeichnung</span>
           <input id="sysSite" style="width:14rem" placeholder="z. B. Erdgeschoss"></label>
         <label class="f"><span>Zeitzone</span><input id="sysTz" style="width:18rem"></label>
-        <label class="f"><span>Messwert veraltet nach s</span>
+        <label class="f"><span>Thermometer gilt als ausgefallen nach (s)</span>
           <input id="sysTimeout" type="number" min="60" max="43200"></label>
-        <label class="f"><span>Neustart Stunde</span>
+      </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label class="f"><span>Täglicher Neustart um (Uhr)</span>
           <input id="sysRebootH" type="number" min="-1" max="23"></label>
-        <label class="f"><span>Neustart Minute</span>
+        <label class="f"><span>Täglicher Neustart, Minute</span>
           <input id="sysRebootM" type="number" min="0" max="59"></label>
-        <label class="f"><span>Helligkeit Anzeige %</span>
+        <label class="f"><span>Helligkeit der Anzeige (%)</span>
           <input id="sysBright" type="number" min="0" max="100"></label>
       </div>
-      <p class="lede" style="margin:.2rem 0 .6rem">Stunde auf −1 setzen, um den täglichen
-        Neustart abzuschalten. Er wird verschoben, solange ein Ventil fährt.</p>
+      <p class="lede" style="margin:.2rem 0 0">Setzen Sie „Täglicher Neustart um“ auf −1, um den
+        täglichen Neustart abzuschalten. Er entfällt für diesen Tag, wenn in dieser Minute ein
+        Ventil fährt oder eine Messfahrt läuft.</p></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Thermometer gilt als ausgefallen nach</dt>
+        <dd>Ist der letzte Messwert eines Raums älter, setzt dessen Regelung aus: Die Ventile
+          bleiben stehen, der Raum meldet keinen Wärmebedarf. Höher: Bei ausgefallenem
+          Thermometer wird länger nach einem alten Wert geregelt. Niedriger: Bei selten sendenden
+          Thermometern setzt die Regelung öfter aus.</dd>
+        <dt>Täglicher Neustart um</dt>
+        <dt>Täglicher Neustart, Minute</dt>
+        <dd>Nicht nötig; −1 schaltet ihn ab. Er entfällt für diesen Tag, wenn in dieser Minute
+          ein Ventil fährt oder eine Messfahrt läuft.</dd>
+        <dt>Helligkeit der Anzeige</dt>
+        <dd>Helligkeit der Anzeige am Gehäuse; 0 ist praktisch dunkel.</dd>
+      </dl></details>
+
+      <h3 class="sub">Tasten am Gerät</h3>
       <label class="inline"><input type="checkbox" id="sysTouchOn"> Tasten am Gerät verwenden</label>
       <div class="fields" id="sysTouchThresh"></div>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Schwelle „Sollwert senken“</dt>
+        <dt>Schwelle „Sollwert erhöhen“</dt>
+        <dt>Schwelle „Raum wählen“</dt>
+        <dd>Eine Taste gilt als berührt, sobald ihr Rohwert unter die Schwelle fällt. Lesen Sie
+          unter „Sensoren“ Ruhe- und Berührwert ab und setzen Sie die Schwelle etwa mittig
+          dazwischen.</dd>
+      </dl></details>
       <div class="actions">
         <button class="btn" id="sysSave">Speichern</button>
         <button class="btn quiet" id="sysWizard">Einrichtung erneut durchlaufen</button>
@@ -494,7 +580,8 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card">
       <h2>Einstellungen sichern</h2>
       <p class="lede">Die Sicherung enthält alles, was Sie hier eingerichtet haben: Räume und
-         ihre Kreise, Thermometer, Fahrzeiten und Auslöseschwellen, Zeiten und Grenzwerte.
+         ihre Kreise, Thermometer, Fahrzeiten und Schwellen der Endlagenerkennung, Zeiten und
+         Grenzwerte.
          <b>Die Zugangsdaten stehen im Klartext darin</b> — ohne sie ließe sich nichts
          zurückspielen, was den Namen verdient. Bewahren Sie die Datei entsprechend auf.</p>
       <p class="lede">Beim Zurückspielen wird von den Werkseinstellungen aus aufgebaut, damit
@@ -510,10 +597,10 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
     <div class="card" id="seizeCard">
       <h2>Schutzfahrt</h2>
       <p class="lede">Im Sommer stehen die Ventile über Monate geschlossen. Damit sie nicht
-        festsitzen, fährt jeder Kreis einmal in der Woche auf Anschlag auf, wieder zu und
-        danach auf seine vorherige Stellung zurück. Übergangen wird, wer seit der letzten
-        Schutzfahrt ohnehin gefahren ist, von Hand gehalten wird oder gerade vermessen
-        wird.</p>
+        festsitzen, fährt jeder Kreis einmal in der Woche auf (bis 92 %), auf Anschlag zu und
+        danach zurück auf seine vorherige Stellung. Übergangen wird ein Kreis, der seit der
+        letzten Schutzfahrt ohnehin gefahren ist, von Hand gehalten oder gerade vermessen wird;
+        nach einem Neustart fahren alle.</p>
       <div class="row" id="seizeState" style="margin-bottom:.8rem"></div>
       <div class="fields">
         <label class="f"><span>Wochentag</span>
@@ -530,6 +617,15 @@ canvas{width:100%; height:240px; display:block; background:var(--sunken);
         <label class="f"><span>Stunde</span>
           <input id="seizeHour" type="number" min="0" max="23"></label>
       </div>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Wochentag</dt>
+        <dt>Stunde</dt>
+        <dd>Im Sommer stehen die Ventile über Monate geschlossen. Zum Termin fährt jeder Kreis
+          auf (bis 92 %), auf Anschlag zu und zurück auf seine vorherige Stellung, damit er nicht
+          festsitzt. Übergangen wird ein Kreis, der seit der letzten Schutzfahrt ohnehin gefahren
+          ist, von Hand gehalten oder gerade vermessen wird; nach einem Neustart fahren
+          alle.</dd>
+      </dl></details>
       <div class="actions">
         <button class="btn" id="seizeSave">Speichern</button>
         <button class="btn quiet" id="seizeNow">Jetzt fahren</button>
@@ -807,14 +903,28 @@ function renderRooms() {
   bindTargets();
 }
 
+/* Dauer im Dativ für „seit über …“: unter einer Stunde in ganzen Minuten,
+   darüber in Stunden. Abgerundet, damit „über“ stimmt. */
+function dauerSeit(s) {
+  if (s < 3600) {
+    const m = Math.max(1, Math.floor(s / 60));
+    return m === 1 ? "einer Minute" : `${m} Minuten`;
+  }
+  const h = Math.floor(s / 360) / 10;
+  return h === 1 ? "einer Stunde" : `${num(h, Number.isInteger(h) ? 0 : 1)} Stunden`;
+}
+
 /* Die beiden zeitabhängigen Zeilen einer Raumkarte. Sie werden im
    Sekundentakt fortgeschrieben, ohne dafür das Gerät zu fragen. */
 function roomTexts(r) {
   const age = Math.round(r.temp_age_s + since());
   const next = Math.max(0, Math.round(r.next_check_s - since()));
+  /* Die Konfiguration kommt erst nach dem ersten Zustand; bis dahin die
+     Vorgabe der Firmware. */
+  const timeout = config?.sensor_timeout_s > 0 ? config.sensor_timeout_s : 900;
   return {
     meta: !r.sensor_set ? "Ohne zugeordnetes Thermometer wird nicht geregelt."
-        : !r.temp_valid ? "Seit über einer Viertelstunde kein Messwert — die Regelung ruht."
+        : !r.temp_valid ? `Seit über ${dauerSeit(timeout)} kein Messwert — die Regelung ruht.`
         : `Luftfeuchte ${num(r.humidity,0)} %, Batterie ${r.battery} %, Messwert ${age} s alt`,
     foot: r.mode === "heat" && r.temp_valid
         ? `Zielstellung ${pct(r.target_position)} % · nächste Prüfung in ${next} s`
@@ -907,6 +1017,11 @@ function sensorOptions(mac) {
 function renderRoomEditor() {
   if (!config) return;
 
+  /* Aufgeklapptes „Erweitert“ bleibt beim Neuaufbau offen, etwa nach dem
+     Abhaken eines Kreises. */
+  const offen = new Set([...document.querySelectorAll("#roomEdit details.erweitert[open]")]
+    .map(d => +d.dataset.room));
+
   $("#roomEdit").innerHTML = config.rooms.map((r, i) => {
     const taken = {};
     config.rooms.forEach((o, j) => { if (j !== i) o.channels.forEach(n => taken[n] = o.name); });
@@ -930,22 +1045,24 @@ function renderRoomEditor() {
       <select data-room="${i}" data-k="sensor_mac" style="min-width:20rem">${sensorOptions(r.sensor_mac)}</select>
       <h3 class="sub">Regelung</h3>
       <div class="fields">
-        <label class="f"><span>Sollwert °C</span>
+        <label class="f"><span>Solltemperatur (°C)</span>
           <input type="number" step="0.1" data-room="${i}" data-k="target_c" value="${r.target_c}"></label>
-        <label class="f"><span>Proportionalband K</span>
+        <label class="f"><span>Regelbereich (K)</span>
           <input type="number" step="0.1" data-room="${i}" data-k="p_band_k" value="${r.p_band_k}"></label>
-        <label class="f"><span>Prüfintervall s</span>
-          <input type="number" data-room="${i}" data-k="interval_s" value="${r.interval_s}"></label>
-        <label class="f"><span>Rasterung</span>
-          <input type="number" step="0.01" data-room="${i}" data-k="step" value="${r.step}"></label>
-        <label class="f"><span>Mindeständerung</span>
-          <input type="number" step="0.01" data-room="${i}" data-k="min_delta" value="${r.min_delta}"></label>
         <label class="f"><span>Betriebsart</span>
           <select data-room="${i}" data-k="mode">
             <option value="heat"${r.mode === "heat" ? " selected" : ""}>Regelung aktiv</option>
             <option value="off"${r.mode === "off" ? " selected" : ""}>ausgeschaltet</option>
           </select></label>
       </div>
+      <details class="erweitert" data-room="${i}"${offen.has(i) ? " open" : ""}><summary>Erweitert</summary><div class="fields">
+        <label class="f"><span>Regelung prüft alle (s)</span>
+          <input type="number" data-room="${i}" data-k="interval_s" value="${r.interval_s}"></label>
+        <label class="f"><span>Stellschritt der Ventile</span>
+          <input type="number" step="0.01" data-room="${i}" data-k="step" value="${r.step}"></label>
+        <label class="f"><span>Kleinste Fahrt</span>
+          <input type="number" step="0.01" data-room="${i}" data-k="min_delta" value="${r.min_delta}"></label>
+      </div></details>
     </div>`;
   }).join("") || '<p class="lede">Noch kein Raum eingerichtet.</p>';
 
@@ -963,7 +1080,7 @@ function renderRoomEditor() {
 }
 
 function delRoom(i) {
-  if (!confirm(`Raum „${config.rooms[i].name}“ entfernen? Seine Heizkreise bleiben stehen.`)) return;
+  if (!confirm(`Raum „${config.rooms[i].name}“ entfernen? Seine Heizkreise fahren zu.`)) return;
   config.rooms.splice(i, 1);
   renderRoomEditor();
 }
@@ -1063,7 +1180,7 @@ function renderManual() {
   $("#manHint").textContent = c.pending
     ? `Wartet — in Messgruppe ${c.group} fährt gerade ein anderer Kreis.`
     : `Der Motor läuft, bis Sie ihn ausschalten, die Endlage erreicht ist oder die `
-      + `Maximallaufzeit von ${max} s abgelaufen ist. Zum Weiterfahren erneut drücken.`;
+      + `Höchstlaufzeit bis Anschlag von ${max} s abgelaufen ist. Zum Weiterfahren erneut drücken.`;
 }
 
 async function allCmd(cmd) {
@@ -1174,11 +1291,11 @@ function renderCalib() {
     const item = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
     res.innerHTML = `<h3 class="sub">Ergebnis für Kreis ${c.channel}</h3>
       <dl class="result" style="margin:0">
-        ${item("Fahrzeit zu", (s.close_ms/1000).toFixed(1) + " s")}
-        ${item("Fahrzeit auf", (s.open_ms/1000).toFixed(1) + " s")}
-        ${item("Maximallaufzeit", (s.max_ms/1000).toFixed(1) + " s")}
-        ${item("Auslöseschwelle", s.bemf_mv + " mV")}
-        ${item("Hysterese", s.hyst_mv + " mV")}
+        ${item("Fahrzeit schließen", (s.close_ms/1000).toFixed(1) + " s")}
+        ${item("Fahrzeit öffnen", (s.open_ms/1000).toFixed(1) + " s")}
+        ${item("Höchstlaufzeit bis Anschlag", (s.max_ms/1000).toFixed(1) + " s")}
+        ${item("Endlage erkannt ab", s.bemf_mv + " mV")}
+        ${item("Rückfall der Endlagenerkennung", s.hyst_mv + " mV")}
         ${item("Fahrniveau", m.baseline_close_mv + " / " + m.baseline_open_mv + " mV")}
         ${item("Endlage", m.stall_close_mv + " / " + m.stall_open_mv + " mV")}
       </dl>
@@ -1283,7 +1400,7 @@ function drawChart() {
     ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
     ctx.restore();
     ctx.fillStyle = col("--heat"); ctx.font = "10px " + col("--data");
-    ctx.fillText("Schwelle " + calibInfo.suggestion.bemf_mv + " mV", pad.l + 8, yy - 5);
+    ctx.fillText("Endlage erkannt ab " + calibInfo.suggestion.bemf_mv + " mV", pad.l + 8, yy - 5);
   }
 }
 window.addEventListener("resize", () => drawChart());
@@ -1438,7 +1555,7 @@ function renderLocalSensors() {
 function renderTouchThresholds() {
   if (!config || !config.touch) return;
   $("#sysTouchThresh").innerHTML = config.touch.thresholds.map((v, i) =>
-    `<label class="f"><span>Schwelle Taste ${i+1}</span>
+    `<label class="f"><span>Schwelle „${TOUCH_NAMES[i] || "Taste " + (i+1)}“</span>
      <input type="number" data-touch="${i}" value="${v}"></label>`).join("");
   $("#sysTouchThresh").querySelectorAll("[data-touch]").forEach(el => el.onchange = () => {
     config.touch.thresholds[+el.dataset.touch] = parseInt(el.value, 10);
@@ -1554,7 +1671,8 @@ async function seizeStart(alle) {
 }
 $("#seizeNow").onclick = () => seizeStart(false);
 $("#seizeAll").onclick = () => {
-  if (!confirm("Alle elf Kreise fahren einmal auf Anschlag auf und zu. Das dauert rund "
+  if (!confirm("Alle elf Kreise fahren einmal auf (bis 92 %), auf Anschlag zu und zurück auf "
+             + "ihre vorherige Stellung. Das dauert rund "
              + "zwanzig Minuten und stört die Regelung so lange. Fortfahren?")) return;
   seizeStart(true);
 };
@@ -1763,7 +1881,7 @@ function wizStepSite() {
         <input type="radio" name="wizFn" value="outdoor" ${wiz.outdoor_only ? "checked" : ""}>
         <span>Nur Außenfühler — empfängt den Außenfühler, ohne Stellantriebe und ohne Räume</span></label>
     </div>
-    <label class="f"><span>Bezeichnung der Anlage</span>
+    <label class="f"><span>Bezeichnung</span>
       <input id="wizSite" value="${wiz.site}" placeholder="z. B. Erdgeschoss" style="width:100%"></label>
     <div class="pick">${["Erdgeschoss","Obergeschoss","Dachgeschoss","Keller","Anbau"]
       .map(s => `<button type="button" data-site="${s}">${s}</button>`).join("")}</div>
@@ -1792,7 +1910,7 @@ function wizStepRooms() {
   $("#wizTitle").textContent = "Welche Räume versorgt der Verteiler?";
   $("#wizLede").textContent = "Legen Sie je Raum einen Eintrag an und haken Sie die Heizkreise ab, "
     + "die dorthin führen. Jeder Kreis gehört zu höchstens einem Raum; nicht zugeordnete Kreise "
-    + "bleiben stehen.";
+    + "fahren zu.";
 
   const rows = wiz.rooms.map((r, i) => {
     const taken = {};

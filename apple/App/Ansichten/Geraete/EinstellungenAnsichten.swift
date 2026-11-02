@@ -247,6 +247,9 @@ struct ParameterZeile: View {
             zahlzeile(wert: (wert.alsZahl ?? 0) / 1000, bereich: bereich, schritt: schritt, stellen: 1) {
                 wert = .zahl(($0 * 1000).rounded())
             }
+        case .minuten(let bereich, let schritt):
+            zahlzeile(wert: ((wert.alsZahl ?? 0) / 60).rounded(), bereich: Double(bereich.lowerBound)...Double(bereich.upperBound),
+                      schritt: Double(schritt), stellen: 0) { wert = .zahl($0.rounded() * 60) }
         }
     }
 
@@ -354,6 +357,7 @@ struct ParameterZeile: View {
 
     private var vorgabe: Double {
         if case .millisekunden = parameter.art { return (parameter.vorgabe.alsZahl ?? 0) / 1000 }
+        if case .minuten = parameter.art { return (parameter.vorgabe.alsZahl ?? 0) / 60 }
         return parameter.vorgabe.alsZahl ?? 0
     }
 }

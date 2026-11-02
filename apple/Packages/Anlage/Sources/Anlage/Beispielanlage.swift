@@ -258,7 +258,7 @@ enum Beispiel {
         ),
         Befund(
             id: "unkalibriert", schwere: .hinweis, titel: "5 belegte Kanäle ohne Messfahrt",
-            text: "Keller 3; Erdgeschoss 4, 6, 8, 10. Ohne Messfahrt erkennen sie die Endlage nicht und laufen bis zur Maximallaufzeit.",
+            text: "Keller 3; Erdgeschoss 4, 6, 8, 10. Ohne Messfahrt erkennen sie die Endlage nicht und laufen bis zur Höchstlaufzeit.",
             ort: "Keller, Erdgeschoss", quelle: "App"
         ),
         Befund(

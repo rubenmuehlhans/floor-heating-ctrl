@@ -412,15 +412,15 @@ struct KanalAnsicht: View {
                 } header: {
                     Text("Zwischenstellung")
                 } footer: {
-                    Text("Fährt auf die gewählte Stellung, ohne den Handbetrieb zu setzen. Die Regelung kann sie beim nächsten Prüfintervall wieder ändern; für eine feste Stellung den Raum ausschalten.")
+                    Text("Fährt auf die gewählte Stellung, ohne den Handbetrieb zu setzen. Die Regelung kann sie beim nächsten Regelschritt wieder ändern; für eine feste Stellung den Raum ausschalten.")
                 }
                 Section("Fahrzeiten und Schwellen") {
-                    Kennwert(titel: "Öffnen", wert: "\(Format.zahl(kanal.fahrzeitAuf)) s")
-                    Kennwert(titel: "Schließen", wert: "\(Format.zahl(kanal.fahrzeitZu)) s")
-                    Kennwert(titel: "Maximal", wert: "\(Format.zahl(kanal.maximal)) s")
-                    Kennwert(titel: "Sperrzeit", wert: "\(Format.zahl(kanal.sperrzeit)) s")
-                    Kennwert(titel: "Auslöseschwelle", wert: "\(kanal.schwelle) mV")
-                    Kennwert(titel: "Hysterese", wert: "\(kanal.hysterese) mV")
+                    Kennwert(titel: "Fahrzeit öffnen", wert: "\(Format.zahl(kanal.fahrzeitAuf)) s")
+                    Kennwert(titel: "Fahrzeit schließen", wert: "\(Format.zahl(kanal.fahrzeitZu)) s")
+                    Kennwert(titel: "Höchstlaufzeit bis Anschlag", wert: "\(Format.zahl(kanal.maximal)) s")
+                    Kennwert(titel: "Anlauf ohne Endlagenerkennung", wert: "\(Format.zahl(kanal.sperrzeit)) s")
+                    Kennwert(titel: "Endlage erkannt ab", wert: "\(kanal.schwelle) mV")
+                    Kennwert(titel: "Rückfall der Endlagenerkennung", wert: "\(kanal.hysterese) mV")
                     Kennwert(titel: "Herkunft", wert: kanal.kalibriert ? "Messfahrt" : "Vorgabe")
                     ZielLink(Ziel.einstellungen("kanal", geraet: etageID, eintrag: "\(nummer)")) {
                         Label("Fahrzeiten und Schwellen bearbeiten", systemImage: "slider.horizontal.3")
@@ -528,16 +528,16 @@ struct MessfahrtAnsicht: View {
                 } header: {
                     Text("Kanal \(m.kanal) · \(m.raum)")
                 } footer: {
-                    Text("Schließen, drei Sekunden Pause, Öffnen. An jeder Endlage steigt die Gegenspannung des blockierenden Motors; daraus ergeben sich Fahrzeiten und Auslöseschwelle.")
+                    Text("Schließen, drei Sekunden Pause, Öffnen. An jeder Endlage steigt die Gegenspannung des blockierenden Motors; daraus ergeben sich Fahrzeiten und die Schwelle der Endlagenerkennung.")
                 }
 
                 if m.zustand == .fertig, let v = m.vorschlag {
                     Section("Ergebnis") {
-                        Kennwert(titel: "Fahrzeit zu", wert: Format.mitEinheit(Format.zahl(v.fahrzeitZu), "s"))
-                        Kennwert(titel: "Fahrzeit auf", wert: Format.mitEinheit(Format.zahl(v.fahrzeitAuf), "s"))
-                        Kennwert(titel: "Maximallaufzeit", wert: Format.mitEinheit(Format.zahl(v.maximal), "s"))
-                        Kennwert(titel: "Auslöseschwelle", wert: Format.mitEinheit("\(v.schwelle)", "mV"))
-                        Kennwert(titel: "Hysterese", wert: Format.mitEinheit("\(v.hysterese)", "mV"))
+                        Kennwert(titel: "Fahrzeit schließen", wert: Format.mitEinheit(Format.zahl(v.fahrzeitZu), "s"))
+                        Kennwert(titel: "Fahrzeit öffnen", wert: Format.mitEinheit(Format.zahl(v.fahrzeitAuf), "s"))
+                        Kennwert(titel: "Höchstlaufzeit bis Anschlag", wert: Format.mitEinheit(Format.zahl(v.maximal), "s"))
+                        Kennwert(titel: "Endlage erkannt ab", wert: Format.mitEinheit("\(v.schwelle)", "mV"))
+                        Kennwert(titel: "Rückfall der Endlagenerkennung", wert: Format.mitEinheit("\(v.hysterese)", "mV"))
                     }
                     Section {
                         Button("Werte übernehmen", systemImage: "checkmark") {

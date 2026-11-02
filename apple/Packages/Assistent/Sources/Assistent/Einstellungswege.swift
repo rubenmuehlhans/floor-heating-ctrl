@@ -130,6 +130,9 @@ public enum Zielwerte {
         case .millisekunden:
             guard let x = wert.alsZahl else { return "–" }
             return (x / 1000).formatted(.number.precision(.fractionLength(0...1)).locale(deutsch)) + einheit
+        case .minuten:
+            guard let x = wert.alsZahl else { return "–" }
+            return (x / 60).formatted(.number.precision(.fractionLength(0...1)).locale(deutsch)) + einheit
         case .schalter:
             return wert.alsBool.map { $0 ? "ein" : "aus" } ?? "–"
         case .auswahl(let wahl):

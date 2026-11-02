@@ -255,6 +255,14 @@ public enum Vorschlagsbau {
                 return .failure(Meldungen("\(p.bezeichnung) muss zwischen \(bereich.lowerBound) und \(bereich.upperBound)\(einheit) liegen."))
             }
             return .success(.zahl(Double(n)))
+        case .minuten(let bereich, let schritt):
+            // Vorgeschlagen in Minuten, gespeichert in Sekunden
+            guard let x = zahl(t) else { return .failure(Meldungen("„\(t)“ ist keine Zahl für „\(p.bezeichnung)“.")) }
+            let n = Int((x / Double(schritt)).rounded()) * schritt
+            guard bereich.contains(n) else {
+                return .failure(Meldungen("\(p.bezeichnung) muss zwischen \(bereich.lowerBound) und \(bereich.upperBound)\(einheit) liegen."))
+            }
+            return .success(.zahl(Double(n * 60)))
         case .auswahl(let wahl):
             if let w = wahl.first(where: { Aufloesung.vereinfacht($0.bezeichnung) == einfach || Aufloesung.vereinfacht($0.wert.alsText ?? $0.wert.kompakt) == einfach }) {
                 return .success(w.wert)

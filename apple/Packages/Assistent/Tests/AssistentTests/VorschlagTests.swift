@@ -50,7 +50,7 @@ struct VorschlagsbauTests {
     @Test func gegenseitigeBedingungen() async throws {
         let anlage = try Testanlage()
         let f = fehler(await bau([.init(parameter: "buffer.voll_c", wert: "50")], anlage))
-        #expect(f.contains { $0.contains("„voll“ muss über dem für „leer“") })
+        #expect(f.contains { $0.contains("„Voll bei“ muss über „Leer bei“") })
         // Zusammen in einem Vorschlag geht es.
         let v = try vorschlag(await bau([.init(parameter: "buffer.leer_c", wert: "45"), .init(parameter: "buffer.voll_c", wert: "50")], anlage))
         #expect(v.ziele.count == 4)
@@ -64,7 +64,7 @@ struct VorschlagsbauTests {
         let v = try vorschlag(await bau([.init(parameter: "rooms[].p_band_k", eintrag: "kuche", wert: "1,5")], geraet: "Erdgeschoss", anlage))
         #expect(v.ziele.first?.geraet == "fbh_a1b2c3")
         #expect(v.ziele.first?.eintrag == 1)
-        #expect(v.ziele.first?.bezeichnung == "Proportionalband · Küche (Erdgeschoss)")
+        #expect(v.ziele.first?.bezeichnung == "Regelbereich · Küche (Erdgeschoss)")
         let soll = try vorschlag(await bau([.init(parameter: "verteiler/rooms[].target_c", eintrag: "2", wert: "21.5")], geraet: "fbh_d4e5f6", anlage))
         #expect(soll.ziele.first?.neu == 21.5)
     }
@@ -74,8 +74,8 @@ struct VorschlagsbauTests {
         // Die Brennererkennung wirkt am Kessel; ohne Angabe wählt die App ihn.
         let v = try vorschlag(await bau([.init(parameter: "burner.delta_on_k", wert: "14")], anlage))
         #expect(v.ziele.map(\.geraet) == ["heiz_9a1b2c"])
-        // Die Einschaltschwelle muss über der Ausschaltschwelle bleiben.
-        #expect(fehler(await bau([.init(parameter: "burner.delta_off_k", wert: "13")], geraet: "Kessel", anlage)).contains { $0.contains("Einschaltschwelle") })
+        // Die Startschwelle muss über der Endschwelle bleiben.
+        #expect(fehler(await bau([.init(parameter: "burner.delta_off_k", wert: "13")], geraet: "Kessel", anlage)).contains { $0.contains("Start ab Abgas über Ruhewert") })
         // Die Verteiler haben beide einen Schutzfahrttermin: ohne Gerät keine Wahl.
         #expect(fehler(await bau([.init(parameter: "verteiler/seize_hour", wert: "14")], anlage)).first?.contains("mehreren Geräten") == true)
     }

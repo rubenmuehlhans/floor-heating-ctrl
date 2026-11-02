@@ -325,7 +325,7 @@ struct KesselkreispumpeKarte: View {
                                   farbe: pumpe.laeuft ? Farbe.waerme : Farbe.gedaempft)
                 }
             }
-            Text("Läuft, solange der Kesselvorlauf \(Format.kelvin(pumpe.einschaltschwelle)) wärmer ist als der Speicher, und geht unter \(Format.kelvin(pumpe.ausschaltschwelle)) aus. Ohne gültige Messwerte oder über \(Format.temperatur(pumpe.notgrenze, stellen: 0)) läuft sie immer.")
+            Text("Läuft mit dem Brenner und danach den Nachlauf lang. Anschließend läuft sie an, sobald der Kesselvorlauf \(Format.kelvin(pumpe.einschaltschwelle)) wärmer ist als der Speicher, und geht aus, wenn er weniger als \(Format.kelvin(pumpe.ausschaltschwelle)) über dem Rücklauf liegt. Ohne gültige Messwerte oder über \(Format.temperatur(pumpe.notgrenze, stellen: 0)) läuft sie immer.")
                 .font(Schrift.erklaerung)
                 .foregroundStyle(Farbe.gedaempft)
                 .fixedSize(horizontal: false, vertical: true)

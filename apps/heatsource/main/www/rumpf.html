@@ -269,12 +269,12 @@ a.btn:hover{filter:none}
     </div>
     <div class="card" id="charge-card" hidden>
       <h2>Pufferspeicher</h2>
-      <p class="lede">Der Füllstand ist eine Schätzung aus dem Pufferfühler. Ob eine Ladung
-         läuft und wann sie fertig ist, ergibt sich aus Brennerzustand und Kesselspreizung —
-         nähert sich der Rücklauf dem Vorlauf, nimmt der Speicher keine Wärme mehr auf.</p>
+      <p class="lede">Füllstand, Ladungen und Zapfungen sind Anzeige und Auswertung; keine dieser
+         Einstellungen schaltet Brenner oder Pumpen. Die App trägt sie auf beiden Heizungsgeräten
+         gleich ein, weil beide denselben Speicher schätzen.</p>
       <div id="charge-body"></div>
 
-      <h3 class="sub">Was leer und voll bedeutet</h3>
+      <h3 class="sub">Leer und voll</h3>
       <p class="lede" id="leer-lede"></p>
       <div class="fields">
         <label>Leer bei (°C)<input type="number" id="s-leer" step="0.5" min="15" max="90"
@@ -284,10 +284,31 @@ a.btn:hover{filter:none}
       </div>
       <label class="inline" style="margin:.6rem 0">
         <input type="checkbox" id="s-leer-lernen"> Leerpunkt selbst nachmessen</label>
-      <div class="fields">
-        <label>Nachmessen ab Abfall (K)<input type="number" id="s-lerndrop" step="0.5"
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Nachmessen nur nach Abfall um (K)<input type="number" id="s-lerndrop" step="0.5"
                min="0.5" max="30" style="width:6rem"></label>
-      </div>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Leer bei</dt>
+        <dd>Speichertemperatur, die als 0 % angezeigt wird: die Temperatur, bei der die
+          Kesselregelung nachheizt. Schaltet nichts. Wann der Kessel nachheizt, entscheidet seine
+          eigene Regelung; wann die Heizkreise abschalten, entscheidet „Heizkreis › Pumpe aus unter
+          Speicher“. Ist „Leerpunkt selbst nachmessen“ eingeschaltet, führt das Gerät den Wert
+          selbst nach, auch einen von Hand eingetragenen.</dd>
+        <dt>Voll bei</dt>
+        <dd>Speichertemperatur, die als 100 % angezeigt wird. Tragen Sie die Temperatur ein, die
+          der Speicher am Ende einer Ladung tatsächlich erreicht (Ladungsprotokoll). Zu niedrig:
+          Die Anzeige steht lange auf 100 %. Wann eine Ladung fertig ist, bestimmt dieser Wert
+          nicht. Muss über „Leer bei“ liegen.</dd>
+        <dt>Leerpunkt selbst nachmessen</dt>
+        <dd>Startet der Brenner, nachdem der Speicher durch Verbrauch gefallen ist, nimmt das
+          Gerät die Speichertemperatur in diesem Moment als Messpunkt und führt „Leer bei“
+          schrittweise dorthin nach. Eingeschaltet lassen.</dd>
+        <dt>Nachmessen nur nach Abfall um</dt>
+        <dd>Ein Brennerstart zählt nur als Messpunkt, wenn der Speicher seit seinem Höchststand
+          mindestens so weit gefallen ist. Niedriger: Starts beim Takten oder nach einer Zapfung
+          verschieben den Leerpunkt nach oben. Höher: Es gibt seltener Messpunkte.</dd>
+      </dl></details>
 
       <h3 class="sub">Warmwasser</h3>
       <p class="lede">Eine Zapfung lässt den Speicher steil einbrechen, der Stillstandsverlust
@@ -299,54 +320,130 @@ a.btn:hover{filter:none}
       <div class="fields">
         <label>Speicherinhalt (l)<input type="number" id="s-volumen" step="10" min="0"
                max="20000" style="width:7rem"></label>
-        <label>Zapfung ab Einbruch (K)<input type="number" id="s-zapfdrop" step="0.1" min="0.2"
-               max="40" style="width:7rem"></label>
-        <label>im Fenster (s)<input type="number" id="s-zapfwin" min="60" max="7200"
-               style="width:6rem"></label>
+        <label>Warnung „Warmwasser knapp“ unter (°C)<input type="number" id="s-warn" step="0.5"
+               min="20" max="80" style="width:7rem"></label>
       </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Zapfung erkannt ab Abfall um (K)<input type="number" id="s-zapfdrop" step="0.1"
+               min="0.2" max="40" style="width:7rem"></label>
+        <label>Zeitfenster der Zapfung (s)<input type="number" id="s-zapfwin" min="60" max="7200"
+               style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Speicherinhalt</dt>
+        <dd>Rechnet Zapfungen und Ladungen von Kelvin in Kilowattstunden um; steuert nichts.
+          Tragen Sie den Nenninhalt vom Typenschild ein. Bei 0 bleiben die Angaben in Kelvin.</dd>
+        <dt>Warnung „Warmwasser knapp“ unter</dt>
+        <dd>Fällt der Speicher darunter, meldet das Gerät „Warmwasserreserve knapp“. Nur eine
+          Meldung: Die Heizkreise sperrt „Heizkreis › Pumpe aus unter Speicher“.</dd>
+        <dt>Zapfung erkannt ab Abfall um</dt>
+        <dd>Fällt der Speicher bei stehendem Brenner innerhalb des Zeitfensters mindestens so weit,
+          zählt das als Warmwasserzapfung. Im Stillstand kühlt er an dieser Anlage um etwa 0,8 K
+          je Stunde ab. Höher: Kleine Zapfungen fehlen. Niedriger: Stillstandsverlust zählt als
+          Zapfung.</dd>
+        <dt>Zeitfenster der Zapfung</dt>
+        <dd>In diesem Zeitraum muss der Abfall liegen. Länger: Auch langsame Abfälle zählen; ab
+          etwa zwei Stunden erreicht der Stillstandsverlust die Schwelle. Kürzer: Langsame
+          Zapfungen fehlen.</dd>
+      </dl></details>
 
       <h3 class="sub">Wann eine Ladung fertig ist</h3>
       <p class="lede">Nähert sich der Kesselrücklauf dem Vorlauf, nimmt der Speicher keine Wärme
          mehr auf. Verlangt wird dazu ein heißer Vorlauf — beim Anfahren aus dem kalten Kessel
          liegen beide ebenfalls dicht beieinander, weil beide kalt sind.</p>
-      <div class="fields">
-        <label>Spreizung „voll" (K)<input type="number" id="s-spreadfull" step="0.5" min="1"
-               max="40" style="width:6rem"></label>
-        <label>Haltezeit (s)<input type="number" id="s-spreadhold" min="0" max="3600"
-               style="width:6rem"></label>
-        <label>Vorlauf gilt als heiß ab (°C)<input type="number" id="s-kesselhot" step="0.5"
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Ladung fertig unter Spreizung (K)<input type="number" id="s-spreadfull" step="0.5"
+               min="1" max="40" style="width:6rem"></label>
+        <label>Ladung fertig bestätigt nach (s)<input type="number" id="s-spreadhold" min="0"
+               max="3600" style="width:6rem"></label>
+        <label>Ladung fertig erst ab Vorlauf (°C)<input type="number" id="s-kesselhot" step="0.5"
                min="20" max="95" style="width:7rem"></label>
-        <label>Warnung Warmwasser (°C)<input type="number" id="s-warn" step="0.5" min="20"
-               max="80" style="width:7rem"></label>
-      </div>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Ladung fertig unter Spreizung</dt>
+        <dd>Läuft der Brenner und liegt der Kesselrücklauf weniger als diesen Betrag unter dem
+          Vorlauf, nimmt der Speicher keine Wärme mehr auf: Die Ladung gilt als fertig. Nur Anzeige
+          und Protokoll; Brenner und Pumpe schaltet der Wert nicht. Höher: „geladen“ erscheint zu
+          früh. Niedriger: spät oder nie.</dd>
+        <dt>Ladung fertig bestätigt nach</dt>
+        <dd>So lange muss die Spreizung ununterbrochen unterschritten sein, bevor die Ladung als
+          fertig gilt. Höher: „geladen“ erscheint später. Niedriger: Schon kurze Engstellen
+          reichen.</dd>
+        <dt>Ladung fertig erst ab Vorlauf</dt>
+        <dd>Die Ladung gilt nur als fertig, wenn der Kesselvorlauf mindestens so warm ist, denn
+          beim Anfahren aus dem kalten Kessel liegen Vor- und Rücklauf ebenfalls dicht
+          beieinander. Endet der Brenner bei heißerem Vorlauf, gilt die Ladung ebenfalls als
+          fertig. Nur ändern, wenn der Kessel regulär kühler lädt. Nicht zu verwechseln mit
+          „Kesselkreispumpe › Notlauf ab Kesselvorlauf“.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="s-leer-save">Speichern</button></div>
     </div>
     <div class="card" id="burner-card" hidden>
       <h2>Brenner</h2>
       <p class="lede">Erkannt am Abgasfühler: liegt er deutlich über der Temperatur des kalten
-         Rohrs, läuft der Brenner. Die Bezugslinie ist das Minimum der letzten 24 Stunden und
-         wandert mit der Jahreszeit mit.</p>
+         Rohrs, läuft der Brenner. Dieser Ruhewert ist der kälteste Wert der letzten 24 Stunden
+         und folgt so der Jahreszeit.</p>
       <div id="burner-body"></div>
 
-      <h3 class="sub">Erkennung</h3>
-      <p class="lede">Angelaufen ist er, wenn das Abgas die Bezugslinie um den Einschaltwert
-         übersteigt und dabei um den Ausschlag über seinen Tiefstwert gestiegen ist. Aus ist er,
-         wenn es um denselben Ausschlag unter den Höchstwert der Fahrt fällt — daran erkennt man
-         das Ende auch bei warmem Kessel, wo die Bezugslinie versagt.</p>
+      <h3 class="sub">Brennererkennung</h3>
+      <p class="lede">Das Gerät erkennt am Abgasfühler, ob der Brenner läuft. Daraus ergeben sich
+         Laufzeit, Starts und Ölverbrauch, die Ladungen des Speichers und der Nachlauf der
+         Kesselkreispumpe. Wirksam ist die Erkennung nur an dem Gerät mit dem Abgasfühler. Die
+         Vorgaben sind an dieser Anlage erprobt; ändern Sie sie nur, wenn erkannte und
+         tatsächliche Brennerläufe nachweislich auseinanderliegen.</p>
       <div class="fields">
-        <label>Ein ab (K über der Linie)<input type="number" id="s-bon" step="0.5" min="1"
-               max="100" style="width:7rem"></label>
-        <label>Aus unter (K)<input type="number" id="s-boff" step="0.5" min="0" max="100"
-               style="width:6rem"></label>
-        <label>Ausschlag (K)<input type="number" id="s-bswing" step="0.5" min="1" max="60"
-               style="width:6rem"></label>
-        <label>Haltezeit ein (s)<input type="number" id="s-bonhold" min="0" max="3600"
-               style="width:6rem"></label>
-        <label>Haltezeit aus (s)<input type="number" id="s-boffhold" min="0" max="3600"
-               style="width:6rem"></label>
         <label>Düsendurchsatz (l/h)<input type="number" id="s-duese" step="0.1" min="0" max="20"
                style="width:6rem"></label>
       </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Start ab Abgas über Ruhewert (K)<input type="number" id="s-bon" step="0.5" min="1"
+               max="100" style="width:7rem"></label>
+        <label>Ende ab Abgas über Ruhewert (K)<input type="number" id="s-boff" step="0.5" min="0"
+               max="100" style="width:6rem"></label>
+        <label>Abfall und Anstieg des Abgases (K)<input type="number" id="s-bswing" step="0.5"
+               min="1" max="60" style="width:6rem"></label>
+        <label>Brennerstart bestätigt nach (s)<input type="number" id="s-bonhold" min="0"
+               max="3600" style="width:6rem"></label>
+        <label>Brennerende bestätigt nach (s)<input type="number" id="s-boffhold" min="0"
+               max="3600" style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Düsendurchsatz</dt>
+        <dd>Ölmenge je Stunde Brennerlaufzeit; daraus schätzt das Gerät den Verbrauch. Auf die
+          Regelung wirkt der Wert nicht. Tragen Sie den Wert der eingebauten Düse ein (Tabelle im
+          Handbuch) oder, genauer, den aus zwei Tankablesungen ermittelten. Eine Änderung gilt ab
+          dem laufenden Tag. 0 schaltet die Schätzung ab.</dd>
+        <dt>Start ab Abgas über Ruhewert</dt>
+        <dd>Der Brenner gilt als gestartet, wenn das Abgas so weit über seinem Ruhewert liegt, dem
+          kältesten Wert der letzten 24 Stunden. Höher: Starts werden später oder bei kurzen
+          Läufen gar nicht erkannt, Laufzeit und Verbrauch fallen zu niedrig aus. Niedriger: Ein
+          warmes Rohr kann einen Start vortäuschen. Muss über „Ende ab Abgas über Ruhewert“
+          liegen.</dd>
+        <dt>Ende ab Abgas über Ruhewert</dt>
+        <dd>Der Brenner gilt als aus, wenn das Abgas nur noch so weit über dem Ruhewert liegt. Bei
+          warmem Kessel greift meist vorher „Abfall und Anstieg des Abgases“. Nach einem Neustart
+          gilt ein laufender Brenner als aus, wenn das Abgas darunter liegt. Muss unter „Start ab
+          Abgas über Ruhewert“ liegen.</dd>
+        <dt>Abfall und Anstieg des Abgases</dt>
+        <dd>Der Brenner gilt als aus, sobald das Abgas um diesen Betrag unter den Höchstwert des
+          Laufs fällt; ein neuer Start verlangt einen Anstieg um diesen Betrag über den
+          Tiefstwert. So wird das Ende auch bei warmem Kessel erkannt. Höher: Das Ende wird später
+          erkannt, Nachzündungen verschmelzen mit dem vorigen Lauf, Laufzeit und Verbrauch steigen.
+          Niedriger: Messschwankungen beenden Läufe, es werden zu viele Starts gezählt.</dd>
+        <dt>Brennerstart bestätigt nach</dt>
+        <dd>So lange muss die Startbedingung ununterbrochen anstehen, bevor der Brenner als
+          gestartet gilt; erst ab dann zählt die Laufzeit, und erst dann schaltet die
+          Brennererkennung die Kesselkreispumpe ein. Höher: Laufzeit und Verbrauch je Start um
+          diesen Betrag zu niedrig, sehr kurze Läufe fehlen. Niedriger: Kurze Störungen zählen als
+          Start.</dd>
+        <dt>Brennerende bestätigt nach</dt>
+        <dd>So lange muss das Abgas ununterbrochen fallen, bevor der Brenner als aus gilt. Bis
+          dahin zählt die Laufzeit weiter; erst danach beginnt der Nachlauf der Kesselkreispumpe.
+          Höher: Laufzeit und Ölverbrauch je Lauf zu hoch, Nachzündungen werden nicht als eigene
+          Starts erkannt, die Pumpe läuft entsprechend länger. Niedriger: Ein kurzer Einbruch des
+          Abgases beendet den Lauf vorzeitig. Den Nachlauf der Pumpe stellen Sie unter
+          „Kesselkreispumpe › Nachlauf nach Brennerende“ ein.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="s-burner-save">Speichern</button></div>
     </div>
     <div class="card">
@@ -362,15 +459,15 @@ a.btn:hover{filter:none}
         <h2>Kesselkreispumpe</h2>
         <div class="seg" id="bp-mode">
           <button data-m="auto">Automatik</button>
-          <button data-m="ein">Ein</button>
-          <button data-m="aus">Aus</button>
+          <button data-m="ein">Hand ein</button>
+          <button data-m="aus">Hand aus</button>
         </div>
       </div>
-      <p class="lede">Die Pumpe zwischen Kessel und Pufferspeicher. Solange der Brenner läuft,
-         läuft sie. Danach entscheidet der Abstand zwischen Kesselvorlauf und Speicher: Sie
-         läuft, solange der Kessel wärmer ist als der Speicher — nur dann gibt er Wärme ab.
-         Kehrt sich das um, fördert sie Wärme aus dem Speicher in den Kessel und von dort in den
-         Schornstein; deshalb wird sie dann abgeschaltet.</p>
+      <p class="lede">Die Pumpe zwischen Kessel und Speicher läuft, solange der Brenner läuft, und
+         danach den Nachlauf lang. Anschließend schaltet sie nach der Spreizung: Sie läuft, solange
+         der Kessel noch Wärme an den Speicher abgibt, und schaltet ab, bevor sie Speicherwärme in
+         den auskühlenden Kessel fördert. Über der Notlaufgrenze und ohne Messwerte läuft sie
+         immer.</p>
       <div class="pump-state">
         <i class="pump-dot" id="bp-dot"></i>
         <div id="bp-state"></div>
@@ -379,6 +476,12 @@ a.btn:hover{filter:none}
 
       <label class="inline" style="margin-bottom:.8rem">
         <input type="checkbox" id="bp-on"> Kesselkreispumpe vorhanden</label>
+      <details class="hilfe"><summary>Was diese Einstellung bewirkt</summary><dl class="hilfe">
+        <dt>Kesselkreispumpe vorhanden</dt>
+        <dd>Die Pumpe zwischen Kessel und Speicher. Braucht Kesselvor- und -rücklauf an diesem
+          Gerät. Ausgeschaltet sendet das Gerät keine Befehle mehr; das Relais bleibt im letzten
+          Zustand.</dd>
+      </dl></details>
 
       <h3 class="sub">Relais</h3>
       <p class="lede">Geschaltet wird wie bei den Heizkreispumpen über ein Tasmota-Relais:
@@ -399,28 +502,66 @@ a.btn:hover{filter:none}
       <p class="lede">Zwischen Ein- und Ausschaltschwelle bleibt es, wie es war — sonst
          schaltete die Pumpe im Minutentakt, sobald die Spreizung um null pendelt. Die
          Schwellen gelten nur bei ausgeschaltetem Brenner: Meldet die Brennererkennung ihn als
-         laufend, läuft die Pumpe ohne Haltezeit, und nach dem Brennerende läuft sie den
+         laufend, läuft die Pumpe ohne Schaltverzögerung, und nach dem Brennerende läuft sie den
          Nachlauf lang weiter: Der Kessel bleibt so auf Speichertemperatur und zündet nach, solange
          die Ladung noch angefordert ist, statt heiß stehen zu bleiben und später einzeln
-         nachzuheizen. Über der Notgrenze läuft sie in jedem Fall,
+         nachzuheizen. Über der Notlaufgrenze läuft sie in jedem Fall,
          auch gegen die Schwellen: Ein klemmender Fühler darf die Wärmeabfuhr nicht verhindern.
          Fehlen die Kesselwerte ganz, läuft sie ebenfalls.</p>
       <div class="fields">
-        <label>Ein ab Spreizung (K)<input type="number" id="bp-onk" step="0.1" min="0.1"
-               max="20" style="width:6rem"></label>
-        <label>Aus unter (K)<input type="number" id="bp-offk" step="0.1" min="0" max="20"
-               style="width:6rem"></label>
-        <label>Haltezeit (s)<input type="number" id="bp-hold" min="0" max="3600"
-               style="width:6rem"></label>
         <label>Nachlauf nach Brennerende (min)<input type="number" id="bp-overrun" min="0" max="120"
+               style="width:6rem"></label>
+      </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Ein ab Kessel wärmer als Speicher um (K)<input type="number" id="bp-onk" step="0.1"
+               min="0.1" max="20" style="width:6rem"></label>
+        <label>Aus unter Spreizung (K)<input type="number" id="bp-offk" step="0.1" min="0" max="20"
+               style="width:6rem"></label>
+        <label>Schaltverzögerung (s)<input type="number" id="bp-hold" min="0" max="3600"
                style="width:6rem"></label>
         <label>Mindestlaufzeit (s)<input type="number" id="bp-minrun" min="0" max="3600"
                style="width:6rem"></label>
         <label>Mindestpause (s)<input type="number" id="bp-minpause" min="0" max="3600"
                style="width:6rem"></label>
-        <label>Notgrenze (°C)<input type="number" id="bp-emerg" step="0.5" min="60" max="110"
-               style="width:6rem"></label>
-      </div>
+        <label>Notlauf ab Kesselvorlauf (°C)<input type="number" id="bp-emerg" step="0.5" min="60"
+               max="110" style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Nachlauf nach Brennerende</dt>
+        <dd>So lange läuft die Pumpe nach dem erkannten Brennerende weiter, unabhängig von der
+          Spreizung. Der Kessel bleibt dabei auf Speichertemperatur und zündet gleich nach,
+          solange die Ladung angefordert ist, statt auszukühlen und später einzeln nachzuheizen.
+          Höher: mehr Pumpenstrom und Wärmeverlust über den Kessel. 0: kein Nachlauf. Das
+          Brennerende erkennt das Gerät erst nach „Brennererkennung › Brennerende bestätigt
+          nach“.</dd>
+        <dt>Ein ab Kessel wärmer als Speicher um</dt>
+        <dd>Steht die Pumpe, läuft sie an, sobald der Kesselvorlauf so viel wärmer ist als das
+          Wasser, das aus dem Speicher zurückkäme. Gilt nur bei stehendem Brenner und nach dem
+          Nachlauf. Höher: Restwärme im Kessel wird seltener abgeholt. Niedriger: Die Pumpe läuft
+          öfter kurz an. Muss über „Aus unter Spreizung“ liegen.</dd>
+        <dt>Aus unter Spreizung</dt>
+        <dd>Läuft die Pumpe, schaltet sie ab, sobald der Kesselvorlauf weniger als diesen Betrag
+          über dem Rücklauf liegt; dann gibt der Kessel keine Wärme mehr ab. Niedriger: Sie läuft
+          lange weiter und fördert Speicherwasser durch den auskühlenden Kessel. Zwischen beiden
+          Schwellen bleibt sie, wie sie ist.</dd>
+        <dt>Schaltverzögerung</dt>
+        <dd>So lange muss eine der beiden Schwellen ununterbrochen über- oder unterschritten sein,
+          bevor die Pumpe schaltet. Nach dem Nachlauf läuft sie deshalb mindestens so lange
+          weiter. Das ist nicht der Nachlauf; den stellen Sie unter „Nachlauf nach Brennerende“
+          ein.</dd>
+        <dt>Mindestlaufzeit</dt>
+        <dd>Kürzer läuft die Pumpe nicht, wenn sie nach der Spreizung schaltet. Brenner, Nachlauf,
+          Notlauf und Handbetrieb gehen vor.</dd>
+        <dt>Mindestpause</dt>
+        <dd>Kürzer steht die Pumpe nicht, wenn sie nach der Spreizung schaltet. Brenner, Nachlauf,
+          Notlauf und Handbetrieb gehen vor.</dd>
+        <dt>Notlauf ab Kesselvorlauf</dt>
+        <dd>Darüber läuft die Pumpe in jedem Fall, auch gegen die Schwellen, damit ein falsch
+          messender Fühler die Wärmeabfuhr nicht verhindert. Ersetzt nicht den
+          Sicherheitstemperaturbegrenzer des Kessels. Niedriger, nahe der üblichen
+          Vorlauftemperatur: Die Pumpe läuft bei jedem heißen Stillstand und kühlt den Speicher
+          über den Kessel aus.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="bp-save">Speichern</button></div>
     </div>
 
@@ -439,6 +580,14 @@ a.btn:hover{filter:none}
          Einbaulage. Um einen Fühler zu erkennen, fassen Sie ihn an: die Spalte
          <b>30 s</b> zeigt die Änderung der letzten halben Minute.</p>
       <div class="scroll"><table id="probe-table"></table></div>
+      <details class="hilfe"><summary>Was diese Einstellung bewirkt</summary><dl class="hilfe">
+        <dt>Korrektur</dt>
+        <dd>Wird zu jedem Messwert addiert, etwa wenn ein Anlegefühler schlecht am Rohr anliegt. Am
+          Kesselvor- und -rücklauf verschiebt die Korrektur alle Schwellen der Kesselkreispumpe und
+          das Ladungsende, am Speicher die Anzeige und die Sperre der Heizkreise. Am Abgasfühler
+          wirkt sie nicht auf die Brennererkennung. Nur ändern, wenn ein Fühler nachweislich falsch
+          misst.</dd>
+      </dl></details>
       <div class="actions">
         <button class="btn" id="probe-save">Zuordnung speichern</button>
         <button class="btn quiet" id="probe-rescan">
@@ -550,12 +699,12 @@ a.btn:hover{filter:none}
     </div>
 
     <div class="card">
-      <h2>Schutzlauf der Pumpen</h2>
-      <p class="lede">Im Sommer stehen die Umwälzpumpen über Monate still. Zum eingestellten
-         Termin läuft jede Pumpe drei Minuten, damit sie nicht festsitzt. Übergangen wird,
-         wer am selben Tag ohnehin gelaufen ist. Gemessen wird an der Uhr, nicht an der
-         Laufzeit seit dem Einschalten — sonst begänne die Zählung nach jedem Stromausfall
-         von vorn.</p>
+      <h2>Schutzlauf der Heizkreispumpen</h2>
+      <p class="lede">Im Sommer stehen die Heizkreispumpen über Monate still. Zum Termin läuft
+         jede drei Minuten, die in den letzten 24 Stunden nicht gelaufen ist und nicht auf Hand
+         aus steht. Die Kesselkreispumpe hat keinen Schutzlauf. Gemessen wird an der Uhr, nicht
+         an der Laufzeit seit dem Einschalten — sonst begänne die Zählung nach jedem
+         Stromausfall von vorn.</p>
       <div class="fields">
         <label>Wochentag
           <select id="s-seize-day">
@@ -577,25 +726,45 @@ a.btn:hover{filter:none}
     <div class="card">
       <h2>Zeit und Neustart</h2>
       <p class="lede">Die Zeitzone bestimmt, wann ein Tag im Protokoll endet und wann Termine
-         fallen. Ein täglicher Neustart ist zulässig, aber nicht nötig; er wird verschoben,
-         solange eine Pumpe in einer Mindestlaufzeit steht. −1 schaltet ihn ab.</p>
+         fallen. Ein täglicher Neustart ist zulässig, aber nicht nötig; er entfällt für diesen
+         Tag, wenn in dieser Minute eine Heizkreispumpe in ihrer Mindestlaufzeit steht. −1
+         schaltet ihn ab.</p>
       <div class="fields">
         <label>Zeitzone<input id="s-tz" style="width:17rem"></label>
-        <label>Neustart Stunde<input type="number" id="s-rebooth" min="-1" max="23"
-               style="width:6rem"></label>
-        <label>Minute<input type="number" id="s-rebootm" min="0" max="59"
-               style="width:6rem"></label>
       </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Täglicher Neustart um (Uhr)<input type="number" id="s-rebooth" min="-1" max="23"
+               style="width:6rem"></label>
+        <label>Täglicher Neustart, Minute<input type="number" id="s-rebootm" min="0" max="59"
+               style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Täglicher Neustart um</dt>
+        <dd>Nicht nötig; −1 schaltet ihn ab. Er entfällt für diesen Tag, wenn in dieser Minute
+          eine Heizkreispumpe in ihrer Mindestlaufzeit steht. Ein Neustart bricht den Nachlauf
+          der Kesselkreispumpe und die laufende Ladung im Protokoll ab.</dd>
+        <dt>Täglicher Neustart, Minute</dt>
+        <dd>Minute des täglichen Neustarts.</dd>
+      </dl></details>
 
       <h3 class="sub">Bedarfsabfrage bei den Verteilern</h3>
       <p class="lede">Wie oft die Verteiler nach Wärmebedarf gefragt werden und ab wann ein
          Verteiler, der einmal geantwortet hat und dann verstummt, als bedarfsmeldend gilt.</p>
-      <div class="fields">
-        <label>Abfrage alle (s)<input type="number" id="s-dpoll" min="1" max="300"
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Bedarf abfragen alle (s)<input type="number" id="s-dpoll" min="1" max="300"
                style="width:6rem"></label>
-        <label>Zeitgrenze (s)<input type="number" id="s-dtimeout" min="10" max="3600"
-               style="width:6rem"></label>
-      </div>
+        <label>Verteiler gilt als verstummt nach (s)<input type="number" id="s-dtimeout" min="10"
+               max="3600" style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Bedarf abfragen alle</dt>
+        <dd>Wie oft das Gerät die versorgten Verteiler nach Wärmebedarf fragt. Höher: Pumpen
+          starten und stoppen bis zu diesem Abstand später. Niedriger: mehr Netzlast.</dd>
+        <dt>Verteiler gilt als verstummt nach</dt>
+        <dd>Antwortet ein Verteiler, der schon einmal geantwortet hat, so lange nicht, gilt sein
+          Kreis als mit Bedarf: Die Pumpe läuft im Zweifel. Niedriger: Kurze WLAN-Aussetzer lassen
+          die Pumpe anlaufen. Höher: Ein Ausfall wird später bemerkt.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="s-sys-save">Speichern</button></div>
     </div>
 
@@ -605,12 +774,21 @@ a.btn:hover{filter:none}
          Belegung hier und nicht in der Firmware. Eine Änderung wirkt sofort. Der Bus
          braucht einen Anschlusswiderstand von 4,7 kΩ nach 3,3 V; nicht geeignet sind
          GPIO 6 bis 11 (Flash-Speicher), 34 bis 39 (nur Eingang), 1 und 3 (serielle
-         Schnittstelle) sowie 12 (Flash-Spannung beim Start).</p>
+         Schnittstelle) sowie 12 (Flash-Spannung beim Start). −1 bedeutet „nicht belegt“.</p>
       <div class="fields">
-        <label>Bus 1<input type="number" id="s-bus0" min="-1" max="33"></label>
-        <label>Bus 2<input type="number" id="s-bus1" min="-1" max="33"></label>
-        <label>Abtastabstand (s)<input type="number" id="s-poll" min="1" max="600"></label>
+        <label>Bus 1 (GPIO)<input type="number" id="s-bus0" min="-1" max="33"
+               title="−1: nicht belegt"></label>
+        <label>Bus 2 (GPIO)<input type="number" id="s-bus1" min="-1" max="33"
+               title="−1: nicht belegt"></label>
       </div>
+      <details class="erweitert"><summary>Erweitert</summary><div class="fields">
+        <label>Fühler messen alle (s)<input type="number" id="s-poll" min="1" max="600"></label>
+      </div></details>
+      <details class="hilfe"><summary>Was diese Einstellung bewirkt</summary><dl class="hilfe">
+        <dt>Fühler messen alle</dt>
+        <dd>Abstand zwischen zwei Messrunden aller Fühler am Bus. Feiner als in diesem Abstand
+          können Brennererkennung, Pumpen und Notlauf nicht reagieren.</dd>
+      </dl></details>
       <div class="actions"><button class="btn" id="s-bus-save">Speichern</button></div>
     </div>
 
@@ -625,7 +803,7 @@ a.btn:hover{filter:none}
         <label>WLAN-Name<input id="s-ssid" maxlength="32" style="width:15rem"></label>
         <label>WLAN-Kennwort<input id="s-pass" type="password" style="width:15rem"></label>
         <label>Gerätename im Netz<input id="s-host" maxlength="31" style="width:15rem"></label>
-        <label>Kennwort Zugangspunkt<input id="s-appass" type="password" minlength="8" title="Mindestens acht Zeichen" style="width:15rem"></label>
+        <label>Kennwort des Einrichtungszugangs<input id="s-appass" type="password" minlength="8" title="Mindestens acht Zeichen" style="width:15rem"></label>
       </div>
       <p class="lede" style="margin:.4rem 0 0">Kennwortfelder leer lassen, um das
          gespeicherte Kennwort beizubehalten.</p>
@@ -639,7 +817,7 @@ a.btn:hover{filter:none}
       <p class="lede">Für Home Assistant. Die Entitäten meldet das Gerät selbst an;
          in Stufe 1 wird noch nichts veröffentlicht.</p>
       <div class="fields">
-        <label class="inline"><input type="checkbox" id="s-mq-on">eingeschaltet</label>
+        <label class="inline"><input type="checkbox" id="s-mq-on">MQTT verwenden</label>
         <label>Broker<input id="s-mq-uri" placeholder="mqtt://192.168.1.10:1883"></label>
         <label>Benutzer<input id="s-mq-user"></label>
         <label>Kennwort<input id="s-mq-pass" type="password"></label>
@@ -1221,7 +1399,7 @@ function renderBurner() {
          <div class="foot">gemessen am Kessel</div></div>`
     : `<div class="tile ${b.known ? "hot" : "off"}"><dt>Abgas</dt>
          <dd>${num(abgas, 1)}<small>°C</small></dd>
-         ${b.known ? `<div class="foot">kaltes Rohr ${num(b.baseline_c, 1)} °C</div>` : ""}</div>
+         ${b.known ? `<div class="foot">Ruhewert ${num(b.baseline_c, 1)} °C</div>` : ""}</div>
        <div class="tile"><dt>Laufzeit heute</dt>
          <dd>${laufzeit(b.runtime_today_s)}</dd>
          <div class="foot">gestern ${laufzeit(b.runtime_yesterday_s)}</div></div>
@@ -1300,11 +1478,11 @@ const freieKennung = () => {
 const BP_GRUND = {
   transfer: "der Kessel gibt Wärme ab",
   burner: "der Brenner läuft",
-  overrun: "Nachlauf nach dem Brenner — hält den Kessel auf Speichertemperatur, damit die Ladung in einem Zug endet",
+  overrun: "Nachlauf nach Brennerende — hält den Kessel auf Speichertemperatur, damit die Ladung in einem Zug endet",
   no_transfer: "Kessel kaum wärmer als der Speicher — Fördern brächte keine Wärme in den Speicher",
-  emergency: "Notabfuhr, Kesselvorlauf über der Grenze",
+  emergency: "Notlauf, Kesselvorlauf über der Notlaufgrenze",
   no_reading: "keine Kesselwerte, sie läuft sicherheitshalber",
-  hold: "Haltezeit — die Bedingung hat eben erst gewechselt",
+  hold: "Schaltverzögerung — die Bedingung hat eben erst gewechselt",
   min_run: "Mindestlaufzeit",
   min_pause: "Mindestpause",
   manual: "Handbetrieb",
@@ -1360,8 +1538,8 @@ function renderBoilerPump() {
   $("#bp-relay").value = c.relay ?? 1;
   $("#bp-user").value = c.user || "";
   $("#bp-pass").placeholder = c.pass_set ? "gespeichert" : "nicht gesetzt";
-  $("#bp-onk").value = c.on_k ?? 1;
-  $("#bp-offk").value = c.off_k ?? 0.5;
+  $("#bp-onk").value = c.on_k ?? 3;
+  $("#bp-offk").value = c.off_k ?? 2;
   $("#bp-hold").value = c.hold_s ?? 120;
   $("#bp-overrun").value = Math.round((c.overrun_s ?? 1800) / 60);
   $("#bp-minrun").value = c.min_run_s ?? 180;
@@ -1415,7 +1593,7 @@ function renderCircuitAdd() {
        einzurichten, löschen Sie zuerst einen bestehenden.`
     : n
     ? `${n} von ${MAX_CIRCUITS} Heizkreisen angelegt. Der nächste bekommt die Kennung ${id}
-       und damit die Fühlerrollen „Vorlauf Heizkreis ${id}“ und „Rücklauf Heizkreis ${id}“.`
+       und damit die Fühlerrollen „Heizkreis ${id} Vorlauf“ und „Heizkreis ${id} Rücklauf“.`
     : `Jeder Heizkreis bekommt eigene Fühler, ein eigenes Relais für seine Umwälzpumpe und
        eigene Zeiten. Vorgesehen sind bis zu ${MAX_CIRCUITS}.`;
   $("#circ-add").disabled = voll;
@@ -1429,6 +1607,10 @@ function renderCircuits() {
 
   const quellen = state.demand_sources || [];
   const kcfg = (cfg?.circuits) || [];
+  /* Die Karten werden bei jeder Abfrage neu gezeichnet. Ohne das klappten
+     „Erweitert“ und die Erläuterungen alle fünf Sekunden wieder zu. */
+  const aufgeklappt = new Set($$("#circ-list details[open]").map(d => d.dataset.auf));
+  const auf = key => aufgeklappt.has(key) ? " open" : "";
 
   $("#circ-list").innerHTML = ks.map(k => {
     const c = kcfg.find(x => x.id === k.id) || {};
@@ -1473,7 +1655,7 @@ function renderCircuits() {
         <div class="seg" data-mode="${k.id}">
           ${["auto", "ein", "aus"].map(m =>
             `<button data-m="${m}" class="${k.mode === m ? "on" : ""}">${
-              m === "auto" ? "Automatik" : m === "ein" ? "Ein" : "Aus"}</button>`).join("")}
+              m === "auto" ? "Automatik" : m === "ein" ? "Hand ein" : "Hand aus"}</button>`).join("")}
         </div>
       </div>
       <div class="pump-state">
@@ -1513,17 +1695,48 @@ function renderCircuits() {
         <label>Kennwort am Relais<input data-k="ppass" type="password"
                placeholder="${c.pump?.pass_set ? "gespeichert" : "nicht gesetzt"}"
                style="width:8rem"></label>
-        <label>Nachlauf (s)<input type="number" data-k="overrun_s" min="0" max="3600"
-               value="${c.overrun_s ?? 300}" style="width:6rem"></label>
+      </div>
+
+      <h3 class="sub">Pumpe</h3>
+      <div class="fields">
+        <label>Pumpe aus unter Speicher (°C)<input type="number" data-k="min_buffer_c" step="0.5"
+               value="${c.min_buffer_c ?? 40}" style="width:6rem"></label>
+      </div>
+      <details class="erweitert" data-auf="erw-${k.id}"${auf(`erw-${k.id}`)}>
+        <summary>Erweitert</summary><div class="fields">
+        <label>Nachlauf nach Bedarfsende (s)<input type="number" data-k="overrun_s" min="0"
+               max="3600" value="${c.overrun_s ?? 300}" style="width:6rem"></label>
         <label>Mindestlaufzeit (s)<input type="number" data-k="min_run_s" min="0" max="3600"
                value="${c.min_run_s ?? 180}" style="width:6rem"></label>
         <label>Mindestpause (s)<input type="number" data-k="min_pause_s" min="0" max="3600"
                value="${c.min_pause_s ?? 180}" style="width:6rem"></label>
-        <label>Speicher mindestens (°C)<input type="number" data-k="min_buffer_c" step="0.5"
-               value="${c.min_buffer_c ?? 40}" style="width:6rem"></label>
-        <label>Frostgrenze (°C)<input type="number" data-k="frost_c" step="0.5"
-               value="${c.frost_c ?? 6}" style="width:6rem"></label>
-      </div>
+        <label>Frostschutz unter Raumtemperatur (°C)<input type="number" data-k="frost_c"
+               step="0.5" value="${c.frost_c ?? 6}" style="width:6rem"></label>
+      </div></details>
+      <details class="hilfe" data-auf="hilfe-${k.id}"${auf(`hilfe-${k.id}`)}>
+        <summary>Was diese Einstellungen bewirken</summary><dl class="hilfe">
+        <dt>Pumpe aus unter Speicher</dt>
+        <dd>Ist der Speicher kälter, bleibt die Pumpe aus, auch bei Wärmebedarf und im Nachlauf.
+          Liegt bewusst über der nötigen Vorlauftemperatur, weil der Mischer nur herunterregeln
+          kann. Höher: Zwischen diesem Wert und dem Nachheizen des Kessels bekommen die Räume
+          keine Wärme. Niedriger: Die Räume werden mit zu kaltem Wasser versorgt.</dd>
+        <dt>Nachlauf nach Bedarfsende</dt>
+        <dd>So lange läuft die Pumpe weiter, nachdem kein versorgter Verteiler mehr Wärme
+          anfordert, damit die schließenden Ventile noch durchströmt werden. Höher: mehr
+          Pumpenstrom. Hat mit dem Nachlauf der Kesselkreispumpe nichts zu tun.</dd>
+        <dt>Mindestlaufzeit</dt>
+        <dd>Kürzer läuft die Pumpe nicht; das verhindert Takten. Frostschutz, Handbetrieb und
+          Schutzlauf gehen vor. Solange eine Pumpe in ihrer Mindestlaufzeit steht, entfällt der
+          tägliche Neustart.</dd>
+        <dt>Mindestpause</dt>
+        <dd>Kürzer steht die Pumpe nicht; das verhindert Takten. Frostschutz, Handbetrieb und
+          Schutzlauf gehen vor.</dd>
+        <dt>Frostschutz unter Raumtemperatur</dt>
+        <dd>Fällt der kälteste Raum eines versorgten Verteilers darunter, auch ein ausgeschalteter,
+          läuft die Pumpe in jedem Fall, auch auf „Hand aus“. Unabhängig davon läuft sie, wenn ihr
+          Vorlauf unter 8 °C fällt. Höher: Die Pumpe läuft dauernd, sobald ein unbeheizter Raum
+          kühl ist.</dd>
+      </dl></details>
       <h3 class="sub">Versorgte Verteiler</h3>
       <div class="row" id="peers-${k.id}">${
         peers.filter(p => p.role !== "heat").map(p => `<label class="inline">
@@ -1620,7 +1833,7 @@ function renderProbes() {
   }).join("");
   $("#probe-table").innerHTML = `<thead><tr>
       <th>Kennung</th><th class="num">Messwert</th><th class="num">30 s</th>
-      <th>Rolle</th><th>Name</th><th>Korrektur</th><th class="num">Fehler</th>
+      <th>Rolle</th><th>Name</th><th>Korrektur (K)</th><th class="num">Fehler</th>
     </tr></thead><tbody>${zeilen}</tbody>`;
 }
 
@@ -1934,7 +2147,7 @@ function renderWizard() {
       Er braucht einen Anschlusswiderstand von 4,7 kΩ nach 3,3 V. Nicht geeignet sind
       GPIO 6 bis 11 (Flash-Speicher), 34 bis 39 (nur Eingang), 1 und 3 (serielle
       Schnittstelle) sowie 12 (entscheidet beim Start über die Flash-Spannung).</p>
-      <label>Anschluss (GPIO)<input type="number" id="wiz-pin" value="${wizPin}"
+      <label>Bus 1 (GPIO)<input type="number" id="wiz-pin" value="${wizPin}"
         min="0" max="33" style="width:6rem"></label>
       <div class="pick">${GPIO_EMPFOHLEN.map(g =>
         `<button data-v="${g}">${g}</button>`).join("")}</div>

@@ -386,11 +386,11 @@ public enum Zusammenfuehrung {
         switch schluessel {
         case "transfer": "der Kessel gibt Wärme ab"
         case "burner": "der Brenner läuft"
-        case "overrun": "Nachlauf nach dem Brenner"
+        case "overrun": "Nachlauf nach Brennerende"
         case "no_transfer": "Kessel kaum wärmer als der Speicher, Fördern brächte keine Wärme in den Speicher"
         case "emergency": "Notabfuhr, Kesselvorlauf über der Grenze"
         case "no_reading": "keine Kesselwerte, sie läuft sicherheitshalber"
-        case "hold": "Haltezeit, die Bedingung hat eben erst gewechselt"
+        case "hold": "Schaltverzögerung, die Bedingung hat eben erst gewechselt"
         case "min_run": "Mindestlaufzeit"
         case "min_pause": "Mindestpause"
         case "manual": "Handbetrieb"
