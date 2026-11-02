@@ -127,7 +127,7 @@ Ab Build 18 (27. Oktober, TestFlight):
   („Nachlauf nach Brennerende“, `boiler_pump.overrun_s`), als Grund „Nachlauf nach dem Brenner“
   (siehe Heizungsgeräte).
 
-Noch in keinem TestFlight-Build:
+Ab Build 19 (2. November, TestFlight):
 
 - **Bezeichnungen und Hinweistexte der Einstellungen** wie in den Weboberflächen (siehe
   Heizungsgeräte und Verteiler). Jeder Hinweis nennt Wirkung, Folge eines höheren oder niedrigeren
