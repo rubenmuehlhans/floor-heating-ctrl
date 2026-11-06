@@ -79,7 +79,7 @@ struct VerlaufAnsicht: View {
             .pickerStyle(.segmented)
             .labelsHidden()
         } footer: {
-            Text("Jede Gruppe hat ihre eigene Skala. Tippen oder waagerecht ziehen wählt eine Zeit: Die Linie erscheint in allen Diagrammen, die Werte stehen neben dem Finger. Tippen außerhalb der Diagramme hebt die Auswahl auf; die Legende blendet Reihen aus und ein.")
+            Text("Jede Gruppe hat ihre eigene Skala. Tippen oder waagerecht ziehen wählt eine Zeit: Linie und Werte erscheinen in allen Diagrammen, im berührten neben dem Finger. Tippen außerhalb der Diagramme hebt die Auswahl auf; die Legende blendet Reihen aus und ein.")
         }
     }
 

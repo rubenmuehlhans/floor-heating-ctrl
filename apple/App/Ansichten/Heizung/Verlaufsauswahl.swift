@@ -3,9 +3,9 @@ import Charts
 import Verlauf
 
 // Auswahl einer Zeit in den Verlaufstafeln. Tippen oder waagerecht Ziehen wählt die Zeit; das
-// Schild mit den Werten steht neben dem Finger und folgt ihm. Die Linie erscheint in allen
-// Tafeln der Seite, das Schild nur in der berührten. Tippen außerhalb der Tafeln hebt die
-// Auswahl auf. Senkrechtes Ziehen bleibt der Seite: Es scrollt.
+// Schild mit den Werten steht in der berührten Tafel neben dem Finger und folgt ihm, in allen
+// anderen Tafeln der Seite oben an der Linie. Tippen außerhalb der Tafeln hebt die Auswahl auf.
+// Senkrechtes Ziehen bleibt der Seite: Es scrollt.
 
 /// Gewählte Zeit, die Tafel, in der sie gewählt wurde, und wo der Finger zuletzt war
 struct Verlaufsauswahl: Equatable {
@@ -49,14 +49,14 @@ private struct Auswahlgeste: ViewModifier {
                 let flaeche = proxy.plotFrame.map { geo[$0] } ?? CGRect(origin: .zero, size: geo.size)
                 ZStack(alignment: .topLeading) {
                     beruehrflaeche(proxy, flaeche)
-                    if let a = auswahl, a.tafel == tafel, let (mitte, platz) = auszug.platz(a.zeit),
+                    if let a = auswahl, let (mitte, platz) = auszug.platz(a.zeit),
                        let x = proxy.position(forX: mitte) {
                         let z = zeilen(platz)
                         if !z.isEmpty {
                             Auswahlschild(zeit: a.zeit, zeilen: z)
                                 .fixedSize()
                                 .onGeometryChange(for: CGSize.self) { $0.size } action: { schild = $0 }
-                                .offset(lage(linie: flaeche.minX + x, finger: a.hoehe, in: flaeche))
+                                .offset(lage(linie: flaeche.minX + x, finger: a.tafel == tafel ? a.hoehe : nil, in: flaeche))
                                 .allowsHitTesting(false)
                         }
                     }
@@ -65,13 +65,14 @@ private struct Auswahlgeste: ViewModifier {
         }
     }
 
-    /// Neben der Linie auf der Seite mit mehr Platz, etwas über dem Finger, innerhalb der Tafel
-    private func lage(linie: CGFloat, finger: CGFloat, in f: CGRect) -> CGSize {
+    /// Neben der Linie auf der Seite mit mehr Platz, innerhalb der Tafel: etwas über dem Finger,
+    /// in den übrigen Tafeln oben
+    private func lage(linie: CGFloat, finger: CGFloat?, in f: CGRect) -> CGSize {
         let abstand: CGFloat = 14
         let rechts = linie < f.midX
         var x = rechts ? linie + abstand : linie - abstand - schild.width
         x = min(max(x, f.minX), max(f.minX, f.maxX - schild.width))
-        var y = finger - schild.height - 24
+        var y = finger.map { $0 - schild.height - 24 } ?? f.minY
         y = min(max(y, f.minY), max(f.minY, f.maxY - schild.height))
         return CGSize(width: x, height: y)
     }

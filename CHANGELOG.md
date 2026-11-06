@@ -142,8 +142,9 @@ Ab Build 20 (6. November, TestFlight):
 - **Werte im Verlauf folgen dem Finger.** Tippen oder waagerecht Ziehen wählt eine Zeit; das
   Schild mit den Werten steht neben dem Finger, auf der Seite mit mehr Platz, und wandert beim
   Ziehen mit. Senkrechtes Ziehen scrollt weiterhin die Seite; bisher verlangte die Auswahl in
-  der Scroll-Ansicht erst ein Halten. Die Linie erscheint in allen Tafeln, das Schild nur in der
-  berührten. Tippen außerhalb der Tafeln hebt die Auswahl auf. Die Zeile mit der gewählten Zeit
+  der Scroll-Ansicht erst ein Halten. Die übrigen Tafeln der Seite zeigen das Schild zur selben
+  Zeit oben an der Linie; so stehen alle Werte zur Zeit des Fingers nebeneinander. Tippen
+  außerhalb der Tafeln hebt die Auswahl auf. Die Zeile mit der gewählten Zeit
   über den Tafeln entfällt; sie schob die Tafeln beim ersten Tippen nach unten.
 - **Verlauf nach der Rückkehr aus dem Hintergrund vollständig.** Kehrt die App in den
   Vordergrund zurück, gleicht sie den Verlauf des Leitstands sofort ab und holt den
