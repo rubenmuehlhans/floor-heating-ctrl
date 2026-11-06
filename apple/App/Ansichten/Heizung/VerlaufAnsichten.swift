@@ -14,7 +14,7 @@ struct VerlaufAnsicht: View {
     @State private var auszug: Verlaufsauszug?
     @State private var ereignisse: [Ereignis] = []
     /// Gemeinsame Auswahl aller Tafeln
-    @State private var auswahl: Date?
+    @State private var auswahl: Verlaufsauswahl?
     /// Heizkreise, deren Tafel die Außentemperatur zeigt
     @State private var aussenAus: Set<Int> = []
 
@@ -62,6 +62,7 @@ struct VerlaufAnsicht: View {
                 .formularStil()
             }
         }
+        .verlaufsauswahlAufheben($auswahl)
         .seitentitel("Verlauf")
         .fragenKnopf("Verlauf, \(zeitraum.rawValue)")
         .task(id: Ladeschluessel(zeitraum: zeitraum, revision: modell.verlaufsrevision)) {
@@ -77,9 +78,8 @@ struct VerlaufAnsicht: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            Auswahlzeile(auswahl: $auswahl)
         } footer: {
-            Text("Jede Gruppe hat ihre eigene Skala. Tippen oder ziehen wählt eine Zeit und zeigt ihre Werte in allen Diagrammen; die Legende blendet Reihen aus und ein.")
+            Text("Jede Gruppe hat ihre eigene Skala. Tippen oder waagerecht ziehen wählt eine Zeit: Die Linie erscheint in allen Diagrammen, die Werte stehen neben dem Finger. Tippen außerhalb der Diagramme hebt die Auswahl auf; die Legende blendet Reihen aus und ein.")
         }
     }
 
@@ -219,7 +219,8 @@ struct Ladeschluessel: Hashable {
 struct Betriebsdiagramm: View {
     let auszug: Verlaufsauszug
     let zeitraum: Verlaufszeitraum
-    var auswahl: Binding<Date?> = .constant(nil)
+    var auswahl: Binding<Verlaufsauswahl?> = .constant(nil)
+    @State private var kennung = UUID()
 
     static func hatDaten(_ a: Verlaufsauszug) -> Bool {
         a.reihen.contains { $0.schluessel == "brenner" || $0.schluessel == "fuellstand" }
@@ -250,11 +251,11 @@ struct Betriebsdiagramm: View {
                                  groesse: "Anteil", farbe: .orange)
                 }
             }
-            if let (mitte, i) = auszug.platz(auswahl.wrappedValue) {
-                Auswahlmarke(zeit: mitte, schritt: auszug.schritt, zeilen: werte(i))
+            if let (mitte, _) = auszug.platz(auswahl.wrappedValue?.zeit) {
+                Auswahlmarke(zeit: mitte)
             }
         }
-        .chartXSelection(value: Binding.haltend(auswahl, raster: auszug))
+        .verlaufsauswahl(auswahl, auszug: auszug, tafel: kennung, zeilen: werte)
         .chartLegend(.hidden)
         .chartYScale(domain: 0...100)
         .chartYAxisLabel("%")

@@ -16,6 +16,7 @@
 		1860BDE887DC8F1601FC50A0 /* Menueleiste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 881707C1F335FE111D8B3D6E /* Menueleiste.swift */; };
 		1996A01EDC970B1018AF2771 /* Adressnachfuehrung.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F7B5526D3507855D1D5E99 /* Adressnachfuehrung.swift */; };
 		1C64F5F6747EBDA765CACD5A /* Mitteilungen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE23CDBB9E7412393163FFC /* Mitteilungen.swift */; };
+		1E0244024C21D7ABA0A3568D /* Verlaufsauswahl.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5DB93B02F9F07F5D5B97F1C /* Verlaufsauswahl.swift */; };
 		1F0BE23E9A67557D96F4E198 /* HeizungAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */; };
 		25EA68C348D6545D78A78D56 /* Anlagenschema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264CF3F756FA5D3DC4A4C184 /* Anlagenschema.swift */; };
 		37CEC2078FF85A27E4EDAE27 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 525D9206D8125B514A525BF2 /* Assets.xcassets */; };
@@ -108,6 +109,7 @@
 		B6EF3382BEAEBBBAC08C44DA /* Bausteine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bausteine.swift; sourceTree = "<group>"; };
 		C0F7B5526D3507855D1D5E99 /* Adressnachfuehrung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Adressnachfuehrung.swift; sourceTree = "<group>"; };
 		C413D5D56EA7D41BAFCD41F3 /* Geraeteschnittstelle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Geraeteschnittstelle; path = Packages/Geraeteschnittstelle; sourceTree = SOURCE_ROOT; };
+		C5DB93B02F9F07F5D5B97F1C /* Verlaufsauswahl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Verlaufsauswahl.swift; sourceTree = "<group>"; };
 		CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeizungAnsicht.swift; sourceTree = "<group>"; };
 		D165BE3A4DB30172765E2CD6 /* HeizungApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeizungApp.swift; sourceTree = "<group>"; };
 		D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerlaufAnsichten.swift; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 				3A3B3F99194A2B70720F0293 /* Ereignismarken.swift */,
 				CFA09452A8CF2B7055A841D4 /* HeizungAnsicht.swift */,
 				D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */,
+				C5DB93B02F9F07F5D5B97F1C /* Verlaufsauswahl.swift */,
 				6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */,
 				732BA319362C0F74A32EAD3C /* WaermepumpencheckAnsicht.swift */,
 			);
@@ -453,6 +456,7 @@
 				6FBB2C0A0FD7E382AC0BFEF2 /* Stellrad.swift in Sources */,
 				93EC333A55EC35241B269454 /* UebersichtAnsicht.swift in Sources */,
 				3821287EDCF30F0CE6C9AB65 /* VerlaufAnsichten.swift in Sources */,
+				1E0244024C21D7ABA0A3568D /* Verlaufsauswahl.swift in Sources */,
 				451278FCE8F6B8243C59996A /* Verlaufstafeln.swift in Sources */,
 				7AF8EFC79707B2BB24C117EE /* Verlaufszeitraum.swift in Sources */,
 				EE5A8F90F4FBAE04C557140D /* WaermepumpencheckAnsicht.swift in Sources */,

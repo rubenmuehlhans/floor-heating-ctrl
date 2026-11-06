@@ -62,10 +62,11 @@ struct Temperaturtafel: View {
     var aussen: Verlaufsauszug.Reihe?
     var aussenAn: Binding<Bool>?
     var ereignisse: [Ereignis] = []
-    @Binding var auswahl: Date?
+    @Binding var auswahl: Verlaufsauswahl?
     var hoehe: CGFloat = 180
 
     @State private var ausgeblendet: Set<String> = []
+    @State private var kennung = UUID()
 
     private var aussenSichtbar: Bool { aussen != nil && (aussenAn?.wrappedValue ?? false) }
 
@@ -97,8 +98,8 @@ struct Temperaturtafel: View {
                                      serie: "aussen#\(i)", groesse: "Temperatur", farbe: Farbe.gut)
                     }
                 }
-                if let (zeit, platz) = auszug.platz(auswahl) {
-                    Auswahlmarke(zeit: zeit, schritt: auszug.schritt, zeilen: werte(platz, sichtbar))
+                if let (zeit, _) = auszug.platz(auswahl?.zeit) {
+                    Auswahlmarke(zeit: zeit)
                 }
             }
             .chartLegend(.hidden)
@@ -116,7 +117,7 @@ struct Temperaturtafel: View {
             }
             .chartXScale(domain: auszug.beginn...auszug.ende)
             .chartXAxis { verlaufsachse(zeitraum) }
-            .chartXSelection(value: Binding.haltend($auswahl, raster: auszug))
+            .verlaufsauswahl($auswahl, auszug: auszug, tafel: kennung) { werte($0, sichtbar) }
             .frame(height: hoehe)
             .padding(.top, 6)
             .accessibilityLabel(reihen.map(\.name).joined(separator: ", ") + ", \(zeitraum.rawValue)")
@@ -199,20 +200,15 @@ extension Verlaufsauszug {
 }
 
 /// Senkrechte Linie der gewählten Zeit mit den Werten daneben
+/// Linie der gewählten Zeit; das Schild dazu zeichnet `verlaufsauswahl` in der berührten Tafel.
 struct Auswahlmarke: ChartContent {
-    /// Mitte des Platzes; das Schild nennt dessen Beginn
+    /// Mitte des Platzes
     let zeit: Date
-    let schritt: TimeInterval
-    let zeilen: [(String, String, Color)]
 
     var body: some ChartContent {
         RuleMark(x: .value("Auswahl", zeit))
             .foregroundStyle(Color.secondary.opacity(0.6))
             .lineStyle(StrokeStyle(lineWidth: 1))
-            .annotation(position: .trailing, alignment: .top, spacing: 6,
-                        overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))) {
-                Auswahlschild(zeit: zeit.addingTimeInterval(-schritt / 2), zeilen: zeilen)
-            }
     }
 }
 
@@ -308,7 +304,7 @@ struct Heizkreistafel: View {
     let zeitraum: Verlaufszeitraum
     let bereich: ClosedRange<Double>
     var ereignisse: [Ereignis] = []
-    @Binding var auswahl: Date?
+    @Binding var auswahl: Verlaufsauswahl?
     @Binding var aussenAn: Bool
     var hoehe: CGFloat = 180
 
@@ -341,7 +337,7 @@ struct HeizkreisVerlaufAnsicht: View {
     @State private var zeitraum: Verlaufszeitraum = .woche
     @State private var auszug: Verlaufsauszug?
     @State private var ereignisse: [Ereignis] = []
-    @State private var auswahl: Date?
+    @State private var auswahl: Verlaufsauswahl?
     @State private var aussenAn = true
 
     var body: some View {
@@ -353,7 +349,6 @@ struct HeizkreisVerlaufAnsicht: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                Auswahlzeile(auswahl: $auswahl)
             }
             if let kreis, let a = auszug {
                 let r = Verlaufsgliederung.heizkreis(kreis, in: a)
@@ -368,7 +363,7 @@ struct HeizkreisVerlaufAnsicht: View {
                     } header: {
                         Text("Verlauf")
                     } footer: {
-                        Text("Tippen oder ziehen wählt eine Zeit und zeigt ihre Werte. Grau hinterlegt: Die Pumpe läuft. Die Außentemperatur steht auf der rechten Achse, fest von −10 bis 20 °C.")
+                        Text("Tippen oder waagerecht ziehen wählt eine Zeit; ihre Werte stehen neben dem Finger. Tippen außerhalb des Diagramms hebt die Auswahl auf. Grau hinterlegt: Die Pumpe läuft. Die Außentemperatur steht auf der rechten Achse, fest von −10 bis 20 °C.")
                     }
                     HeizkurveAbschnitt(auszug: a, reihen: r)
                 }
@@ -379,6 +374,7 @@ struct HeizkreisVerlaufAnsicht: View {
             }
         }
         .formularStil()
+        .verlaufsauswahlAufheben($auswahl)
         .seitentitel(kreis?.name ?? "Heizkreis")
         .fragenKnopf("Heizkreis \(nummer), Verlauf und Heizkurve, \(zeitraum.rawValue)")
         .task(id: Ladeschluessel(zeitraum: zeitraum, revision: modell.verlaufsrevision)) {
@@ -466,34 +462,3 @@ struct HeizkurveAbschnitt: View {
     }
 }
 
-extension Binding where Value == Date? {
-    /// Auswahl, die nach dem Loslassen stehen bleibt. `chartXSelection` setzt sie am Ende der
-    /// Berührung auf nil; zum Vergleich mehrerer Tafeln muss sie beim Blättern bleiben.
-    /// Die Zeit wird auf den Beginn ihres Platzes gerundet; so zeigen alle Tafeln und die
-    /// Zeile darüber dieselbe Zeit wie die Dateien des Leitstands.
-    static func haltend(_ b: Binding<Date?>, raster a: Verlaufsauszug) -> Binding<Date?> {
-        Binding(get: { b.wrappedValue }, set: { neu in
-            guard let neu, let (mitte, _) = a.platz(neu) else { return }
-            b.wrappedValue = mitte.addingTimeInterval(-a.schritt / 2)
-        })
-    }
-}
-
-/// Zeigt die gewählte Zeit und hebt die Auswahl auf
-struct Auswahlzeile: View {
-    @Binding var auswahl: Date?
-
-    var body: some View {
-        if let zeit = auswahl {
-            HStack {
-                Label {
-                    Text(zeit, format: .dateTime.weekday(.wide).hour().minute())
-                } icon: {
-                    Image(systemName: "line.diagonal").rotationEffect(.degrees(45))
-                }
-                Spacer()
-                Button("Aufheben") { auswahl = nil }
-            }
-        }
-    }
-}

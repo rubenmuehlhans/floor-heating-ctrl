@@ -6,6 +6,8 @@ struct Hauptansicht: View {
     @Environment(AppModell.self) private var modell
     @Environment(\.horizontalSizeClass) private var breite
     @Environment(\.scenePhase) private var phase
+    /// War die App seit dem letzten Aktivwerden im Hintergrund?
+    @State private var warImHintergrund = false
     /// Breite des Assistenten als Seitenbereich; mit Faltlinie genau die rechte Hälfte
     @State private var assistentbreite: CGFloat = 400
 
@@ -98,8 +100,13 @@ struct Hauptansicht: View {
         .onChange(of: phase) { _, neu in
             modell.vordergrund = neu == .active
             if neu != .active {
+                if neu == .background { warImHintergrund = true }
                 Task { await modell.verlaufSichern() }
             } else {
+                if warImHintergrund {
+                    warImHintergrund = false
+                    modell.verlaufAuffrischen()
+                }
                 modell.adressenNachfuehren(.vordergrund)
                 modell.lageberichtPruefen()
                 modell.wirkungskontrollenPruefen()

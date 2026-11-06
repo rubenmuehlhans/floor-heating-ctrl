@@ -137,6 +137,21 @@ Ab Build 19 (2. November, TestFlight):
   Minuten; auch Vorschläge der KI nennen ihn so. Meldungen der Prüfung, Pumpengründe und
   Kennwerte der Kanäle tragen die neuen Namen.
 
+Ab Build 20 (6. November, TestFlight):
+
+- **Werte im Verlauf folgen dem Finger.** Tippen oder waagerecht Ziehen wählt eine Zeit; das
+  Schild mit den Werten steht neben dem Finger, auf der Seite mit mehr Platz, und wandert beim
+  Ziehen mit. Senkrechtes Ziehen scrollt weiterhin die Seite; bisher verlangte die Auswahl in
+  der Scroll-Ansicht erst ein Halten. Die Linie erscheint in allen Tafeln, das Schild nur in der
+  berührten. Tippen außerhalb der Tafeln hebt die Auswahl auf. Die Zeile mit der gewählten Zeit
+  über den Tafeln entfällt; sie schob die Tafeln beim ersten Tippen nach unten.
+- **Verlauf nach der Rückkehr aus dem Hintergrund vollständig.** Kehrt die App in den
+  Vordergrund zurück, gleicht sie den Verlauf des Leitstands sofort ab und holt den
+  24-Stunden-Verlauf der Heizungsgeräte neu. Bisher kam der nächste Abgleich erst nach dem Takt
+  von fünf Minuten beziehungsweise einer halben Stunde, und eine Abfrage, die beim Anhalten der
+  App abbrach, zählte als erledigt; die fehlende Zeit erschien oft erst nach einem Neustart.
+  Eine gescheiterte Abfrage des Gerätverlaufs wird jetzt nach einer Minute wiederholt.
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler

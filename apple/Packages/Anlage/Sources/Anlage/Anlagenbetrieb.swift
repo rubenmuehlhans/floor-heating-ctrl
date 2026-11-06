@@ -35,6 +35,8 @@ public final class Anlagenbetrieb {
     /// Ein Stand hat sich seit dem letzten Bild geändert.
     @ObservationIgnored private var bildVeraltet = false
     @ObservationIgnored private var bildGeplant: Task<Void, Never>?
+    /// Steigt mit jedem `auffrischen()`; die Abfragen holen dann den Verlauf sofort neu.
+    @ObservationIgnored private var auffrischung = 0
     /// Der umgerechnete Verlauf der Heizungsgeräte mit der Kennung der Antworten, aus denen er stammt
     @ObservationIgnored private var kurzverlauf: (kennung: String, wert: Kurzverlauf)?
     /// Der letzte Kontakt allein zählt erst nach dieser Zeit als Änderung. Er ändert sich mit jeder
@@ -321,11 +323,19 @@ public final class Anlagenbetrieb {
         aendern(id) { $0.messreihe = vorhanden }
     }
 
+    /// Nach der Rückkehr aus dem Hintergrund: Die Heizungsgeräte liefern ihren 24-Stunden-Verlauf
+    /// sofort statt erst nach dem Takt, damit die Zeit, in der die App angehalten war, nicht fehlt.
+    public func auffrischen() {
+        auffrischung += 1
+        wecker.values.forEach { $0.wecken() }
+    }
+
     private func heizgeraetAbfragen(_ g: BekanntesGeraet, wecker: Wecker) async {
         let client = Heizgeraet(adresse: g.adresse, sitzung: sitzung)
         let uhr = ContinuousClock()
         var konfigGelesen: ContinuousClock.Instant?
         var verlaufGelesen: ContinuousClock.Instant?
+        var aufgefrischt = auffrischung
         var protokolleGelesen: ContinuousClock.Instant?
         var nachbarnGelesen: ContinuousClock.Instant?
         var protokollstand: Heizgeraetezustand.Protokollstand?
@@ -347,13 +357,18 @@ public final class Anlagenbetrieb {
                         konfigGelesen = jetzt
                     }
                 }
-                if verlaufGelesen.map({ jetzt - $0 >= takt.verlauf }) ?? true {
+                if aufgefrischt != auffrischung || verlaufGelesen.map({ jetzt - $0 >= takt.verlauf }) ?? true {
                     // Das volle Raster zu zwei Minuten, 24 Stunden
                     if let v = try? await client.verlauf(schritt: 1, hoechstens: 720) {
                         aendern(g.id) { $0.verlauf = v }
                         verlauf?.verlaufUebernehmen(geraet: g.id, zustand: staende[g.id]?.heizgeraet, antwort: v)
+                        verlaufGelesen = jetzt
+                        aufgefrischt = auffrischung
+                    } else {
+                        // Gescheitert, etwa weil die App eben angehalten wurde: in einer Minute
+                        // erneut, nicht erst nach dem vollen Takt.
+                        verlaufGelesen = jetzt - takt.verlauf + .seconds(60)
                     }
-                    verlaufGelesen = jetzt
                 }
                 let stand = staende[g.id]?.heizgeraet?.protokolle
                 if stand != protokollstand || protokolleGelesen.map({ jetzt - $0 >= takt.protokolle }) ?? true {

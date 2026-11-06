@@ -63,6 +63,16 @@ final class Leitstandabgleich {
         }
     }
 
+    /// Nach der Rückkehr aus dem Hintergrund sofort abgleichen. iOS hält die App dort an; eine
+    /// laufende Abfrage bricht ab, und der nächste Versuch käme erst nach dem Takt von fünf
+    /// Minuten. Die Abgleiche beginnen deshalb neu, sobald die alten beendet sind.
+    func sofort(_ eintraege: [BekannterLeitstand], speicher: Verlaufsspeicher?) async {
+        let laufend = Array(aufgaben.values)
+        beenden()
+        for a in laufend { await a.value }
+        abgleichen(eintraege, speicher: speicher)
+    }
+
     func beenden() {
         aufgaben.values.forEach { $0.cancel() }
         aufgaben.removeAll()

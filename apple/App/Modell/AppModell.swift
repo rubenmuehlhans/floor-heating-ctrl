@@ -532,6 +532,14 @@ final class AppModell {
         adressnachfuehrung.anstossen(anlass)
     }
 
+    /// Nach der Rückkehr aus dem Hintergrund: Verlauf von Leitstand und Heizungsgeräten sofort
+    /// nachladen, statt auf den nächsten Takt zu warten.
+    func verlaufAuffrischen() {
+        guard !istBeispiel else { return }
+        betrieb.auffrischen()
+        Task { await leitstandabgleich.sofort(verzeichnis.leitstaende, speicher: verlaufsspeicher) }
+    }
+
     func geraetEntfernen(_ id: String) {
         verzeichnis.entfernen(id)
         betriebAbgleichen()
