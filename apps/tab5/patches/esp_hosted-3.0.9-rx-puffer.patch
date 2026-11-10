@@ -1,0 +1,69 @@
+--- a/host/mcu/eh_host_mcu_transport/src/eh_host_bus_sdio.c
++++ b/host/mcu/eh_host_mcu_transport/src/eh_host_bus_sdio.c
+@@ -42,6 +42,11 @@
+ 
+ #include "esp_err.h"
+ #include "esp_log.h"
++#if defined(ESP_PLATFORM)
++/* camperSense Tab5 (TAB5_RXBUF_PATCH): RX staging buffers in PSRAM. */
++#include "esp_heap_caps.h"
++#include "sdkconfig.h"
++#endif
+ 
+ #include "eh_host_port_err.h"
+ #include "eh_host_port_dma.h"
+@@ -1329,6 +1334,28 @@
+ 			*buf = NULL;
+ 			double_buf.buffer[index].buf_size = 0;
+ 		}
++#if defined(ESP_PLATFORM) && CONFIG_SPIRAM
++		/* camperSense Tab5 (TAB5_RXBUF_PATCH): the staging buffer used to come from
++		 * internal DMA RAM, grown on demand. 25–28 s after boot that RAM is busy and
++		 * fragmented; a 6–11 KB block failed, the read was skipped, and host and
++		 * co-processor waited on each other for good (esp-hosted-mcu#167, comment of
++		 * 2026-10-07). The P4 SDMMC DMA reads into PSRAM if address and length are
++		 * cache-line aligned (sd_host_check_buffer_alignment); reads are 512-byte
++		 * multiples. Start at 16 KB so the buffer practically never grows. */
++		{
++			/* PSRAM DMA needs L2 cache-line alignment (128 B on the Tab5). */
++#ifdef CONFIG_CACHE_L2_CACHE_LINE_SIZE
++			const size_t ausr = CONFIG_CACHE_L2_CACHE_LINE_SIZE > 64 ? CONFIG_CACHE_L2_CACHE_LINE_SIZE : 64;
++#else
++			const size_t ausr = 128;
++#endif
++			len = (len + 4095u) & ~4095u;
++			if (len < 16384u)
++				len = 16384u;
++			*buf = (uint8_t *)heap_caps_aligned_alloc(ausr, len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
++		}
++		if (!*buf)
++#endif
+ 		*buf = (uint8_t *)eh_host_port_dma_alloc_aligned(len, HOSTED_MEM_ALIGNMENT_64);
+ 		if (!*buf) {
+ 			ESP_LOGW(TAG, "dma_alloc(%lu) failed; dropping read",
+@@ -1663,10 +1690,22 @@
+ 
+ 		rxbuff = sdio_rx_get_buffer(len_from_slave);
+ 		if (!rxbuff) {
+-			ESP_LOGW(TAG, "rx_get_buffer(%lu) failed; skipping read",
+-			         (unsigned long)len_from_slave);
++			/* camperSense Tab5 (TAB5_RXBUF_PATCH): never skip a read on the first
++			 * failure — the co-processor keeps the data and does not interrupt
++			 * again, so a skipped read stalls the link. Wait for memory instead. */
+ 			SDIO_DRV_UNLOCK();
+-			continue;
++			for (int w = 0; !rxbuff && w < 300 && s_running; w++) {
++				eh_host_port_task_delay_ms(10);
++				rxbuff = sdio_rx_get_buffer(len_from_slave);
++			}
++			if (!rxbuff) {
++				ESP_LOGE(TAG, "rx_get_buffer(%lu) failed for 3 s; skipping read",
++				         (unsigned long)len_from_slave);
++				continue;
++			}
++			ESP_LOGW(TAG, "rx_get_buffer(%lu) recovered after waiting",
++			         (unsigned long)len_from_slave);
++			SDIO_DRV_LOCK();
+ 		}
+ 
+ 		data_left = len_from_slave;

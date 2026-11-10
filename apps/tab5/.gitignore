@@ -1,0 +1,4 @@
+tools/node_modules/
+host/build/
+host/shots/
+build.log

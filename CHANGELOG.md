@@ -5,6 +5,18 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
 
 ## Unveröffentlicht
 
+### Bedientafel (M5Stack Tab5)
+
+- **Neu: die App als Firmware für den M5Stack Tab5** (`apps/tab5`). Fünf Bereiche wie die App —
+  Übersicht, Räume, Assistent, Heizung, Geräte — im Aufbau der iPad-Fassung, mit den Farben,
+  Formaten und Texten der App: Raumkarten mit Stellrad, Anlagenschema, Verlauf, Befunde, Geräte.
+  Die Tafel findet die Geräte per mDNS, fragt sie im Takt der App ab, führt die Werte zusammen,
+  prüft die Anlage mit den Befundregeln der App und zeichnet sieben Tage Verlauf auf. Der
+  Assistent spricht mit Claude über den eigenen API-Schlüssel, mit den zehn Werkzeugen der App,
+  Vorschlagskarten zum Übernehmen und Lagebericht; ohne Zustimmung „Daten an Anthropic“ stellt er
+  keine Anfrage. Bis ein Gerät antwortet, zeigt die Tafel die Beispielanlage. Am Gerät noch nicht
+  geprüft; was fehlt, steht in `apps/tab5/README.md`.
+
 ### Heizungsgeräte
 
 - **Verständliche Bezeichnungen und Hinweistexte der Einstellungen.** Anlass: Die Einstellung

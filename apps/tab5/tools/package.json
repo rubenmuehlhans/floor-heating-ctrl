@@ -1,0 +1,9 @@
+{
+  "name": "tafel-tools",
+  "private": true,
+  "description": "Erzeugt Schriften und Symbole der Bedientafel. lv_font_conv (MIT) ist das Werkzeug von LVGL, lucide-static (ISC) liefert die Symbole.",
+  "devDependencies": {
+    "lv_font_conv": "1.5.3",
+    "lucide-static": "1.52.0"
+  }
+}

@@ -1,0 +1,20 @@
+## Bedientafel — Abhängigkeiten. Fassungen wie am Tab5 von camperSense, dort am
+## Gerät erprobt (satellite-display/tab5/main/idf_component.yml).
+dependencies:
+  idf:
+    version: ">=6.0"
+  # Board-Unterstützung: erkennt alle drei Display-Bestückungen ab 1.3.0.
+  espressif/m5stack_tab5: "^1.3.1"
+  # ⚠️ NICHT 2.9.0: setzt on_frame_buf_complete, das ESP-IDF 6.0.2 nicht kennt.
+  espressif/esp_lvgl_port: "~2.8.0"
+  # Funk über den ESP32-C6. ⚠️ Fest auf 3.0.9, weil der Patch in patches/ genau
+  # für diese Fassung gilt.
+  espressif/esp_hosted: "==3.0.9"
+  espressif/esp_wifi_remote: ">=1.3.1"
+  lvgl/lvgl: "^9.2"
+  # ESP-IDF 6 enthält cJSON nicht mehr.
+  espressif/cjson: "^1.7.19"
+  # Geräte im Heimnetz finden (_fbhctrl._tcp), wie die App.
+  espressif/mdns: "^1.8.0"
+  # Verlauf und Gesprächsablage auf der Partition `cache`.
+  joltwallet/littlefs: "^1.22.3"
