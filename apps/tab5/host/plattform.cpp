@@ -5,6 +5,7 @@
 #include <fstream>
 #include <map>
 #include <sstream>
+#include "bootmenu.h"
 #include "daten.h"
 #include "eins.h"
 #include "json.h"
@@ -143,6 +144,12 @@ void plattform_start(const char *beispiel)
 }
 
 void plattform_hell(bool hell) { s_eins[eins::k::ANSICHT] = hell ? "1" : "2"; }
+
+namespace bootmenu {
+bool vorhanden() { return false; }
+void beim_start() {}
+void neustart() {}
+}  // namespace bootmenu
 
 namespace daten {
 std::shared_ptr<const anlage::Bild> bild() { return s_bild; }

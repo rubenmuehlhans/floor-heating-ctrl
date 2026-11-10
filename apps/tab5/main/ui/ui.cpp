@@ -309,6 +309,11 @@ bool seite_nach_name(const std::string &n)
     if (n.rfind("geraet:", 0) == 0) return nach(Bereich::geraete, {Ziel::Art::wurzel, id});
     if (n == "einstellungen") return nach(Bereich::geraete, {Ziel::Art::einstellungen, ""});
     if (n == "wlan") return nach(Bereich::geraete, {Ziel::Art::wlan, ""});
+    if (n == "zustimmung") {
+        nach(Bereich::geraete, {Ziel::Art::einstellungen, ""});
+        zustimmung_zeigen();
+        return true;
+    }
     return false;
 }
 

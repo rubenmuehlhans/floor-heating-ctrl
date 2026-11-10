@@ -1,5 +1,6 @@
 #include "http.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 #include "esp_http_client.h"
@@ -16,14 +17,14 @@ struct Sammler {
 esp_err_t ereignis(esp_http_client_event_t *e)
 {
     auto *s = (Sammler *)e->user_data;
-    if (e->event_id == HTTP_EVENT_ON_DATA && s->body->size() < 512 * 1024) s->body->append((const char *)e->data, e->data_len);
+    if (e->event_id == HTTP_EVENT_ON_DATA && s->body->size() < 2 * 1024 * 1024) s->body->append((const char *)e->data, e->data_len);
     if (e->event_id == HTTP_EVENT_ON_HEADER && e->header_key && !strcasecmp(e->header_key, "ETag")) *s->etag = e->header_value;
     return ESP_OK;
 }
 }  // namespace
 
 Antwort anfrage(const std::string &ip, const char *methode, const std::string &pfad, const std::string &rumpf, const std::string &etag,
-                int zeit_ms)
+                int zeit_ms, int64_t ab)
 {
     Antwort a;
     std::string url = "http://" + ip + pfad;
@@ -39,6 +40,11 @@ Antwort anfrage(const std::string &ip, const char *methode, const std::string &p
     esp_http_client_handle_t h = esp_http_client_init(&c);
     if (!h) return a;
     if (!etag.empty()) esp_http_client_set_header(h, "If-None-Match", etag.c_str());
+    char range[32];
+    if (ab >= 0) {
+        snprintf(range, sizeof range, "bytes=%lld-", (long long)ab);
+        esp_http_client_set_header(h, "Range", range);
+    }
     if (c.method != HTTP_METHOD_GET) {
         esp_http_client_set_header(h, "Content-Type", "application/json");
         esp_http_client_set_post_field(h, rumpf.data(), (int)rumpf.size());

@@ -3,7 +3,8 @@
 //   info                    Firmware, WLAN, Geräte, freier Speicher
 //   seite <name>            Seite öffnen (ui::seite_nach_name: uebersicht, raeume, raum:<id>, …)
 //   wifi <ssid> [kennwort]  mit einem Netz verbinden
-//   shot                    Bildschirmfoto als @@BILD-Base64 (tools/aufnahme.py)
+//   ki_schluessel <sk-ant-…> API-Schlüssel von Anthropic ins NVS (tools/schluessel.py)
+//   shot                    Bildschirmfoto Zeile für Zeile (tools/aufnahme.py)
 //   neustart
 //
 // ⚠️ Nie Kennwörter oder den API-Schlüssel ausgeben.
@@ -14,6 +15,8 @@
 #include <string>
 #include "bsp/esp-bsp.h"
 #include "daten.h"
+#include "eins.h"
+#include "esp_log.h"
 #include "esp_app_desc.h"
 #include "esp_console.h"
 #include "linenoise/linenoise.h"
@@ -22,34 +25,34 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "geraet.h"
+#include "ki.h"
 #include "ui.h"
 
 namespace konsole {
 
 namespace {
 
-void base64_zeilen(const uint8_t *d, size_t n)
+// Base64 eines Puffers in eine Zeichenkette
+std::string base64(const uint8_t *d, size_t n)
 {
     static const char Z[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    char zeile[77];
-    int p = 0;
+    std::string o;
+    o.reserve((n + 2) / 3 * 4);
     for (size_t i = 0; i < n; i += 3) {
         uint32_t v = (uint32_t)d[i] << 16 | (i + 1 < n ? d[i + 1] << 8 : 0) | (i + 2 < n ? d[i + 2] : 0);
-        zeile[p++] = Z[v >> 18 & 63];
-        zeile[p++] = Z[v >> 12 & 63];
-        zeile[p++] = i + 1 < n ? Z[v >> 6 & 63] : '=';
-        zeile[p++] = i + 2 < n ? Z[v & 63] : '=';
-        if (p >= 76) {
-            zeile[p] = 0;
-            puts(zeile);
-            p = 0;
-            if ((i & 0x3FFF) == 0) vTaskDelay(1);   // ⚠️ sonst gehen Zeilen verloren (camperSense, Falle 9)
-        }
+        o += Z[v >> 18 & 63];
+        o += Z[v >> 12 & 63];
+        o += i + 1 < n ? Z[v >> 6 & 63] : '=';
+        o += i + 2 < n ? Z[v & 63] : '=';
     }
-    zeile[p] = 0;
-    if (p) puts(zeile);
+    return o;
 }
 
+// Bildschirmfoto Zeile für Zeile: „@@Z <nr> <base64>“. Das Werkzeug setzt die Zeilen nach
+// Nummer zusammen und holt fehlende aus einer zweiten Aufnahme (wie camperSense, Falle 9).
+// ⚠️ Das Protokoll schweigt währenddessen: eine Meldung eines anderen Tasks mitten in einer
+// Zeile machte sie unbrauchbar. ⚠️ Nach jeder Zeile die CPU freigeben, sonst schlägt der
+// Task-Watchdog an (am Gerät gesehen, 10.11.2026).
 void shot()
 {
     bsp_display_lock(0);
@@ -59,9 +62,15 @@ void shot()
         puts("@@FEHLER kein Speicher für das Bild");
         return;
     }
+    esp_log_level_set("*", ESP_LOG_NONE);
     printf("@@BILD %d %d %d\n", (int)b->header.w, (int)b->header.h, (int)b->header.stride);
-    base64_zeilen(b->data, (size_t)b->header.stride * b->header.h);
+    for (int y = 0; y < (int)b->header.h; y++) {
+        std::string z = base64(b->data + (size_t)y * b->header.stride, (size_t)b->header.w * 2);
+        printf("@@Z %d %s\n", y, z.c_str());
+        vTaskDelay(1);
+    }
     puts("@@ENDE");
+    esp_log_level_set("*", ESP_LOG_INFO);
     lv_draw_buf_destroy(b);
 }
 
@@ -75,6 +84,7 @@ void befehl(const std::string &z)
                w.ssid.c_str(), w.ip.c_str(), w.rssi, (unsigned)b->geraete.size(), b->beispiel ? " (Beispiel)" : "",
                (unsigned)b->befunde.size(), (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+        printf("Leitstand: %s\nVerlauf: %u Reihen\n", daten::leitstand_info().c_str(), (unsigned)daten::reihen().size());
     } else if (cmd == "seite") {
         bsp_display_lock(0);
         bool ok = ui::seite_nach_name(arg);
@@ -84,9 +94,23 @@ void befehl(const std::string &z)
         std::string ssid = arg.substr(0, arg.find(' ')), pw = arg.find(' ') == std::string::npos ? "" : arg.substr(arg.find(' ') + 1);
         daten::wlan_verbinden(ssid, pw);
         puts("verbinde");
+    } else if (cmd == "ki_schluessel") {
+        // ⚠️ Nie zurückgeben oder protokollieren; nur die letzten vier Zeichen zur Kontrolle.
+        std::string k = arg;
+        while (!k.empty() && (k.back() == ' ' || k.back() == '\r')) k.pop_back();
+        if (k.rfind("sk-ant-", 0) != 0 || k.size() < 40) puts("@@SCHLUESSEL abgelehnt: erwartet sk-ant-…");
+        else {
+            eins::text_setzen(eins::k::KI_SCHLUESSEL, k);
+            printf("@@SCHLUESSEL gespeichert, endet auf …%s\n", k.substr(k.size() - 4).c_str());
+        }
+        k.assign(k.size(), '\0');
+        linenoiseHistoryFree();   // die Zeile mit dem Schlüssel nicht im Verlauf der Konsole halten
+    } else if (cmd == "ki_pruefen") {
+        ki::verbindung_pruefen();
+        puts("Verbindungstest eingereiht, Ergebnis im Protokoll");
     } else if (cmd == "shot") shot();
     else if (cmd == "neustart") esp_restart();
-    else if (!cmd.empty()) puts("Befehle: info, seite <name>, wifi <ssid> [kennwort], shot, neustart");
+    else if (!cmd.empty()) puts("Befehle: info, seite <name>, wifi <ssid> [kennwort], ki_schluessel <sk-ant-…>, shot, neustart");
 }
 
 int ausfuehren(int argc, char **argv)
@@ -110,7 +134,7 @@ void start()
     // ⚠️⚠️ Immer der einfache Modus: antwortet das Terminal auf ESC[5n (idf.py monitor), schaltet
     // die Konsole sonst in den Vollmodus und verschluckt Eingaben (camperSense, Falle 10.16).
     linenoiseSetDumbMode(1);
-    for (const char *n : {"info", "seite", "wifi", "shot", "neustart"}) {
+    for (const char *n : {"info", "seite", "wifi", "ki_schluessel", "ki_pruefen", "shot", "neustart"}) {
         esp_console_cmd_t c = {};
         c.command = n;
         c.help = "";

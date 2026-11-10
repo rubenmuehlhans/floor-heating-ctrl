@@ -19,6 +19,7 @@
 #include <time.h>
 #include <atomic>
 #include <deque>
+#include <tuple>
 #include <map>
 #include <mutex>
 #include "daten.h"
@@ -422,6 +423,123 @@ std::string geraet_mit(anlage::Rolle rolle)
     return "";
 }
 
+// ---- Verlauf vom Leitstand --------------------------------------------------------------
+// Wie Leitstandabgleich.swift der App: Der Leitstand schreibt je Gerät und Tag eine Datei
+// `<kennung>[.<teil>].5min.csv` (Kopfzeile `zeit,<schlüssel…>`, Zeit am Beginn des Platzes in
+// UTC). Die Tafel holt je Datei nur das Neue (Range) und übernimmt die Werte mit Vorrang vor
+// der eigenen Aufzeichnung — der Leitstand zeichnet lückenlos auf, die Tafel nur, solange sie
+// läuft. Schlüssel wie docs/katalog-messgroessen.md: Räume und Kanäle der Verteiler bekommen die
+// Kennung davor, die Werte der Heizungsgeräte und `aussen` gelten anlagenweit.
+
+struct LsDatei {
+    int64_t stelle = 0;
+    std::vector<std::string> spalten;
+};
+std::map<std::string, LsDatei> s_ls;   // „tag/name“
+std::atomic<int64_t> s_ls_zuletzt{0};
+std::atomic<int> s_ls_plaetze{0};
+
+std::string ls_schluessel(const std::string &kennung, const std::string &k)
+{
+    bool vt = kennung.rfind("fbh_", 0) == 0, hz = kennung.rfind("heiz_", 0) == 0;
+    if (vt && (k.rfind("raum.", 0) == 0 || k.rfind("kanal.", 0) == 0)) return kennung + "/" + k;
+    if (vt && k == "aussen") return "aussen";
+    if (hz && (k.rfind("fuehler.", 0) == 0 || k == "brenner" || k == "fuellstand" || k.rfind("pumpe.", 0) == 0 || k == "kkp")) return k;
+    return "";
+}
+
+// Übernimmt die vollständigen Zeilen ab der Stelle; gibt die Zahl der Plätze zurück.
+int ls_lesen(LsDatei &d, const std::string &kennung, const std::string &daten)
+{
+    size_t a = 0;
+    int plaetze = 0;
+    std::vector<std::tuple<std::string, int64_t, float>> werte;
+    while (true) {
+        size_t e = daten.find('\n', a);
+        if (e == std::string::npos) break;   // ⚠️ nur vollständige Zeilen; der Rest kommt beim nächsten Mal
+        std::string z = daten.substr(a, e - a);
+        if (!z.empty() && z.back() == '\r') z.pop_back();
+        std::vector<std::string> f;
+        size_t p = 0;
+        while (true) {
+            size_t q = z.find(',', p);
+            f.push_back(z.substr(p, q == std::string::npos ? std::string::npos : q - p));
+            if (q == std::string::npos) break;
+            p = q + 1;
+        }
+        if (d.spalten.empty()) d.spalten = f;   // Kopfzeile
+        else if (f.size() == d.spalten.size()) {
+            int64_t t = fmt::aus_iso_utc(f[0]);
+            if (t) {
+                plaetze++;
+                for (size_t i = 1; i < f.size(); i++) {
+                    if (f[i].empty()) continue;
+                    std::string k = ls_schluessel(kennung, d.spalten[i]);
+                    if (!k.empty()) werte.push_back({k, t, strtof(f[i].c_str(), nullptr)});
+                }
+            }
+        }
+        a = e + 1;
+    }
+    d.stelle += (int64_t)a;
+    if (!werte.empty()) {
+        std::lock_guard<std::mutex> l(s_mx);
+        for (auto &w : werte) s_verlauf.setzen(std::get<0>(w), std::get<1>(w), std::get<2>(w));
+    }
+    return plaetze;
+}
+
+void ls_abgleich(const std::string &ip)
+{
+    http::Antwort a = http::anfrage(ip, "GET", "/api/log/days", "", "", 15000);
+    if (!a.ok()) return;
+    json::Baum j = json::lesen(a.body);
+    std::string ab_tag = fmt::tag_utc(uhr() - 8 * 86400);   // sieben Tage reichen dem Verlauf der Tafel
+    int plaetze = 0;
+    for (const cJSON *t : json::liste(j.get(), "tage")) {
+        if (!cJSON_IsString(t) || std::string(t->valuestring) < ab_tag) continue;
+        std::string tag = t->valuestring;
+        http::Antwort l = http::anfrage(ip, "GET", "/api/log/days?tag=" + tag, "", "", 15000);
+        if (!l.ok()) continue;
+        json::Baum lj = json::lesen(l.body);
+        for (const cJSON *f : json::liste(lj.get(), "dateien")) {
+            std::string name = json::text(f, "name");
+            int64_t byte = (int64_t)json::zahl_d(f, "byte", 0);
+            if (name.size() < 10 || name.compare(name.size() - 9, 9, ".5min.csv") != 0) continue;
+            std::string kennung = name.substr(0, name.find('.'));
+            LsDatei &d = s_ls[tag + "/" + name];
+            if (byte < d.stelle) d = LsDatei{};   // Karte getauscht oder neu angelegt: von vorn
+            if (byte <= d.stelle) continue;
+            http::Antwort x = http::anfrage(ip, "GET", "/log/" + tag + "/" + name, "", "", 60000, d.stelle);
+            if (x.status == 416 || !x.ok()) continue;
+            // Antwortet der Leitstand ohne Range mit der ganzen Datei (200 statt 206), von vorn lesen
+            if (x.status == 200 && d.stelle > 0) d = LsDatei{};
+            plaetze += ls_lesen(d, kennung, x.body);
+        }
+    }
+    s_ls_zuletzt = uhr();
+    s_ls_plaetze += plaetze;
+    ESP_LOGI(TAG, "Leitstand %s: %d Plätze übernommen, %u Dateien", ip.c_str(), plaetze, (unsigned)s_ls.size());
+    if (plaetze) s_gen++;   // Diagramme neu
+}
+
+void ls_task(void *)
+{
+    vTaskDelay(pdMS_TO_TICKS(20000));
+    while (true) {
+        std::string ip;
+        {
+            std::lock_guard<std::mutex> l(s_mx);
+            for (const auto &e : s_geraete)
+                if (e.s.art == anlage::Art::leitstand && e.s.erreichbar) ip = e.s.ip;
+        }
+        bool versucht = !ip.empty() && uhr_gueltig() && wlan().zustand == Netz::verbunden;
+        if (versucht) ls_abgleich(ip);
+        // Alle fünf Minuten wie die App; solange der Leitstand noch nicht gefunden ist, alle 30 s.
+        vTaskDelay(pdMS_TO_TICKS(versucht ? 300000 : 30000));
+    }
+}
+
 void task(void *)
 {
     int64_t naechst_suche = 0, naechst_speichern = ms() + 1800000, letzt_bild = 0;
@@ -510,6 +628,13 @@ void task(void *)
 
 }  // namespace
 
+std::string leitstand_info()
+{
+    int64_t z = s_ls_zuletzt;
+    if (!z) return "noch nicht abgeglichen";
+    return "zuletzt " + fmt::uhrzeit(z) + ", " + std::to_string(s_ls_plaetze.load()) + " Plätze übernommen";
+}
+
 void start()
 {
     beispiel_laden();
@@ -517,6 +642,7 @@ void start()
     bild_bauen();
     // ⚠️ Stapel im PSRAM erlaubt (FREERTOS_TASK_CREATE_ALLOW_EXT_MEM); cJSON und HTTP brauchen Platz.
     xTaskCreate(task, "abfrage", 12288, nullptr, 4, nullptr);
+    xTaskCreate(ls_task, "leitstand", 8192, nullptr, 3, nullptr);
 }
 
 // ---- Schnittstelle -------------------------------------------------------------------

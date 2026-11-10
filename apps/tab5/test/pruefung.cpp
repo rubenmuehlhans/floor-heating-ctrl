@@ -108,6 +108,31 @@ int main(int argc, char **argv)
         PRUEFE(json::lesen(anweisungen::lagebericht_schema()) != nullptr);
         printf("Systemanweisungen %zu Zeichen, Werkzeuge %zu Zeichen\n", anweisungen::system().size(), werkzeuge::definitionen().size());
     }
+    // ---- Modelle: neuestes der Reihe, Fähigkeiten aus der API
+    {
+        std::string m = R"({"data":[
+            {"id":"claude-haiku-4-5","created_at":"2025-10-01T00:00:00Z","capabilities":{"effort":{"supported":false},"thinking":{"types":{"adaptive":{"supported":false}}}}},
+            {"id":"claude-haiku-5-5","created_at":"2026-09-01T00:00:00Z","capabilities":{"effort":{"supported":true},"thinking":{"types":{"adaptive":{"supported":true}}}}},
+            {"id":"claude-opus-5-5","created_at":"2026-08-01T00:00:00Z"},
+            {"id":"claude-opus-5","created_at":"2026-03-01T00:00:00Z"}]})";
+        auto h = claude::modell_waehlen(m, "haiku");
+        PRUEFE(h.id == "claude-haiku-5-5" && h.denken && h.aufwand);
+        PRUEFE(claude::modell_waehlen(m, "opus").id == "claude-opus-5-5");
+        PRUEFE(claude::modell_waehlen("", "haiku").id == "claude-haiku-5-5");
+        auto alt = claude::modell_waehlen(R"({"data":[{"id":"claude-haiku-4-5","created_at":"2025-10-01T00:00:00Z"}]})", "haiku");
+        PRUEFE(alt.id == "claude-haiku-4-5" && !alt.denken && !alt.aufwand);
+        PRUEFE(claude::mit_ersatzmodell("claude-opus-5-5") && claude::mit_ersatzmodell("claude-sonnet-5-5"));
+        PRUEFE(!claude::mit_ersatzmodell("claude-haiku-5-5") && !claude::mit_ersatzmodell("claude-sonnet-5"));
+        claude::Anfrage x;
+        x.modell = "claude-haiku-4-5";
+        x.denken = false;
+        x.aufwand = nullptr;
+        x.system = "t";
+        std::string r = claude::rumpf(x, {claude::nutzer("a")});
+        PRUEFE(json::lesen(r) != nullptr && r.find("effort") == std::string::npos && r.find("output_config") == std::string::npos);
+        x.format = "{}";
+        PRUEFE(json::lesen(claude::rumpf(x, {claude::nutzer("a")})) != nullptr);
+    }
     // ---- Werkzeuge gegen die Beispielanlage
     {
         plattform_start(argc > 1 ? argv[1] : "main/beispiel/beispiel.json");
@@ -136,6 +161,20 @@ int main(int argc, char **argv)
         }
         PRUEFE(angelegt == 3);
         PRUEFE(werkzeuge::ausfuehren("anlage_status", "{\"bereich\":\"alle\"}", k).text.find("\"pass\"") == std::string::npos);
+    }
+    // ---- Verlauf: Werte des Leitstands haben Vorrang, der laufende Platz bleibt der eigene
+    {
+        verlauf::Speicher v3;
+        int64_t t0 = 1787932800;   // Beginn eines Platzes
+        v3.abtasten(t0 + 10, {{"aussen", 10.f}});
+        v3.abtasten(t0 + 310, {{"aussen", 11.f}});
+        v3.setzen("aussen", t0, 9.5f);         // fertiger Platz: überschrieben
+        v3.setzen("aussen", t0 + 300, 99.f);   // laufender Platz: bleibt
+        v3.setzen("fuehler.puffer", t0 - 3600, 50.f);
+        auto r3 = v3.reihe("aussen", t0, t0 + 600);
+        PRUEFE(r3.size() == 2 && r3[0].v == 9.5f && r3[1].v == 11.f);
+        PRUEFE(v3.reihe("fuehler.puffer", t0 - 7200, t0).size() == 1);
+        PRUEFE(fmt::aus_iso_utc("2026-08-28T16:00:00Z") == 1787932800 && fmt::tag_utc(1787932800) == "2026-08-28");
     }
     printf(s_fehler ? "%d Fehler\n" : "alle Prüfungen bestanden\n", s_fehler);
     return s_fehler ? 1 : 0;

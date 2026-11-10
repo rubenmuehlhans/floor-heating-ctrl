@@ -1,6 +1,7 @@
 // Einstellungen der Tafel (wie „Einstellungen der App“, EinstellungenAnsichten.swift):
 // Darstellung, Assistent (Schlüssel, Zustimmung, Modell, Lagebericht) und Angaben zur Tafel.
 // Dazu die WLAN-Seite.
+#include "bootmenu.h"
 #include "daten.h"
 #include "eins.h"
 #include "fmt.h"
@@ -39,9 +40,10 @@ const char *firmware()
 #endif
 }
 
+}  // namespace
+
 void zustimmung_zeigen()
 {
-    const Palette &p = pal();
     // Wortlaut der App (ClaudeZustimmung.swift), auf die Tafel bezogen
     std::string t =
         "Für Antworten mit Claude überträgt die Tafel bei jeder Frage und bei jedem Lagebericht Daten an Anthropic, den Anbieter "
@@ -53,14 +55,11 @@ void zustimmung_zeigen()
         "Kennwörter, WLAN-Zugangsdaten und die Adressen der Relais überträgt die Tafel nicht.\n\n"
         "Die Übertragung läuft über Ihr eigenes Konto bei Anthropic; dort gelten die Bedingungen und die Datenschutzerklärung von "
         "Anthropic. Ohne Zustimmung stellt die Tafel keine Anfrage an Claude. Widerrufen können Sie die Zustimmung jederzeit hier.";
-    (void)p;
     rueckfrage("Daten an Anthropic", t, "Zustimmen", [] {
         ki::zustimmen(true);
         neu();
     });
 }
-
-}  // namespace
 
 void einstellungen_aufbauen(lv_obj_t *inhalt)
 {
@@ -105,6 +104,13 @@ void einstellungen_aufbauen(lv_obj_t *inhalt)
     kennwert(kt, "Signal", fmt::signal(w.rssi), p.gedaempft);
     auto b = daten::bild();
     kennwert(kt, "Geräte", std::to_string(b->geraete.size()) + (b->beispiel ? " (Beispielanlage)" : ""), p.gedaempft);
+    if (bootmenu::vorhanden()) {
+        lv_obj_t *zb = zeile_neu(kt, 12);
+        lv_obj_set_style_pad_top(zb, 10, 0);
+        knopf(zb, "Bootmenü", false, [] {
+            rueckfrage("Bootmenü", "Die Tafel startet neu und zeigt das Bootmenü.", "Neu starten", [] { bootmenu::neustart(); });
+        }, "restart");
+    }
 
     // Assistent
     abschnitt(sp.rechts, "Assistent");

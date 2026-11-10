@@ -32,6 +32,9 @@ public:
     // Einen fertigen Wert in einen Platz setzen, wenn dort noch keiner steht (Lücken füllen,
     // Verlauf des Heizungsgeräts).
     void nachtragen(const std::string &schluessel, int64_t t, float v);
+    // Einen fertigen Wert setzen, auch über einen vorhandenen (Protokoll des Leitstands, das
+    // Vorrang vor der eigenen Aufzeichnung hat). Der laufende Platz bleibt der eigene.
+    void setzen(const std::string &schluessel, int64_t t, float v);
 
     // Punkte von `von` bis `bis` im Raster `raster_s` (Vielfaches von 300), Mittel je Raster.
     std::vector<Punkt> reihe(const std::string &schluessel, int64_t von, int64_t bis, int raster_s = PLATZ_S) const;

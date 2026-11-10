@@ -135,12 +135,28 @@ void rueckfrage(const std::string &titel, const std::string &t, const std::strin
     const Palette &p = pal();
     schliessen(&s_dunkel);
     s_dunkel = grund();
+    // Lange Texte (Zustimmung) breiter und kleiner gesetzt
+    bool lang = t.size() > 300;
     lv_obj_t *k = karte(s_dunkel);
-    lv_obj_set_width(k, 620);
+    lv_obj_set_width(k, lang ? 900 : 620);
     lv_obj_center(k);
     spalte(k, 16);
     text(k, titel, &f_t3_s, p.tinte);
-    text_umbruch(k, t, &f_body, p.tinte);
+    // ⚠️ Nur der Text scrollt, die Knöpfe bleiben im Bild: Ein Fenster, das höher wird als der
+    // Schirm, schob sie sonst unter den Rand, und man konnte nicht zustimmen (am Gerät, 10.11.2026).
+    lv_obj_t *lauf = flaeche(k);
+    lv_obj_set_width(lauf, LV_PCT(100));
+    lv_obj_set_style_max_height(lauf, HOEHE - 240, 0);
+    lv_obj_set_scrollable(lauf, true);
+    lv_obj_set_clickable(lauf, true);
+    lv_obj_set_scroll_dir(lauf, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(lauf, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_style_bg_color(lauf, p.linie_stark, LV_PART_SCROLLBAR);
+    lv_obj_set_style_bg_opa(lauf, LV_OPA_COVER, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(lauf, 6, LV_PART_SCROLLBAR);
+    lv_obj_set_style_radius(lauf, 3, LV_PART_SCROLLBAR);
+    lv_obj_t *l = text_umbruch(lauf, t, lang ? &f_sub : &f_body, p.tinte);
+    if (lang) lv_obj_set_style_pad_right(l, 14, 0);
     lv_obj_t *z = zeile_neu(k, 12);
     dehnung(z);
     knopf(z, "Abbrechen", false, [] { schliessen(&s_dunkel); });

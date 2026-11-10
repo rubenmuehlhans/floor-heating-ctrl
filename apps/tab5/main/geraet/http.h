@@ -4,6 +4,7 @@
 // ⚠️ Weiterleitungen werden nicht verfolgt: 3xx heißt, das Gerät steht im
 // Zugangspunktbetrieb (Geraeteverbindung.swift).
 #pragma once
+#include <stdint.h>
 #include <string>
 
 namespace http {
@@ -15,8 +16,9 @@ struct Antwort {
 };
 
 // `etag`: If-None-Match senden; 304 kommt als status 304 mit leerem Rumpf.
+// `ab` ≥ 0: nur ab dieser Stelle (Range: bytes=ab-); 416 heißt „nichts Neues“.
 Antwort anfrage(const std::string &ip, const char *methode, const std::string &pfad, const std::string &rumpf = "",
-                const std::string &etag = "", int zeit_ms = 6000);
+                const std::string &etag = "", int zeit_ms = 6000, int64_t ab = -1);
 
 // Fehlermeldung eines Befehls: {"ok":false,"error":"…"} auch mit Status 200.
 // Leer = Erfolg.

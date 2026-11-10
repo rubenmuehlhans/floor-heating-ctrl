@@ -86,6 +86,7 @@ void einstellungen_aufbauen(lv_obj_t *inhalt);
 void einstellungen_takt();
 void wlan_aufbauen(lv_obj_t *inhalt);
 void wlan_takt();
+void zustimmung_zeigen();   // Fenster „Daten an Anthropic“
 
 // Bausteine, die mehrere Seiten teilen
 // Stellrad für den Sollwert (Stellrad.swift): waagerecht wischbare Skala 5…35 °C in

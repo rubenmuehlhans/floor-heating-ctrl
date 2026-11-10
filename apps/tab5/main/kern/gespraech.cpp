@@ -16,10 +16,6 @@ namespace {
 
 constexpr int RUNDEN = 16;   // Werkzeugrunden je Frage; die App kennt keine Grenze, die Tafel schützt ihr Kontingent
 
-bool denkt(const std::string &modell) { return modell.find("haiku-4") == std::string::npos; }
-
-std::string jetzt_iso() { return fmt::iso(daten::jetzt()); }
-
 }  // namespace
 
 ki::Stand Assistent::stand()
@@ -165,8 +161,9 @@ void Assistent::frage(const std::string &text)
         geaendert();
     }
     claude::Anfrage a;
-    a.modell = modell_;
-    a.denken = denkt(modell_);
+    a.modell = modell_.id;
+    a.denken = modell_.denken;
+    a.aufwand = modell_.aufwand ? "medium" : nullptr;
     a.system = anweisungen::system();
     a.werkzeuge = werkzeuge::definitionen();
     werkzeuge::Kontext k;
@@ -238,8 +235,9 @@ void Assistent::lagebericht()
     uint32_t epoche = epoche_;
     status(stand().lage, true);
     claude::Anfrage a;
-    a.modell = modell_;
-    a.denken = denkt(modell_);
+    a.modell = modell_.id;
+    a.denken = modell_.denken;
+    a.aufwand = modell_.aufwand ? "medium" : nullptr;
     a.system = anweisungen::system();
     a.werkzeuge = werkzeuge::definitionen(true);
     a.format = anweisungen::lagebericht_schema();
@@ -279,7 +277,7 @@ void Assistent::lagebericht()
             if (lb.hinweise.size() == 3) break;
         }
         lb.erstellt = daten::jetzt();
-        lb.modell = claude::modellname(modell_);
+        lb.modell = claude::modellname(modell_.id);
         st_.bericht = lb;
     }
     geaendert();
@@ -522,9 +520,9 @@ void Assistent::verwerfen(const std::string &id)
 std::string Assistent::verbindung_pruefen()
 {
     claude::Anfrage a;
-    a.modell = modell_;
+    a.modell = modell_.id;
     a.denken = false;
-    a.aufwand = "low";
+    a.aufwand = modell_.aufwand ? "low" : nullptr;
     a.max_tokens = 16;
     a.system = "Antworten Sie ausschließlich mit dem Wort OK.";
     std::vector<std::string> n = {claude::nutzer("Verbindungstest")};

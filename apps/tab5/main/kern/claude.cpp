@@ -1,6 +1,7 @@
 #include "claude.h"
 
 #include <ctype.h>
+#include <stdio.h>
 #include "json.h"
 
 namespace claude {
@@ -97,9 +98,14 @@ std::string rumpf(const Anfrage &a, const std::vector<std::string> &nachrichten)
     if (!a.werkzeuge.empty()) r += ",\"tools\":" + a.werkzeuge;
     r += ",\"system\":[{\"type\":\"text\",\"text\":" + escape(a.system) + ",\"cache_control\":{\"type\":\"ephemeral\"}}]";
     if (a.denken) r += ",\"thinking\":{\"type\":\"adaptive\",\"display\":\"summarized\"}";
-    r += ",\"output_config\":{\"effort\":\"" + std::string(a.aufwand) + "\"";
-    if (!a.format.empty()) r += ",\"format\":{\"type\":\"json_schema\",\"schema\":" + a.format + "}";
-    r += "},\"messages\":[";
+    if (mit_ersatzmodell(a.modell)) r += ",\"fallbacks\":\"default\"";
+    if (a.aufwand || !a.format.empty()) {
+        r += ",\"output_config\":{";
+        if (a.aufwand) r += "\"effort\":\"" + std::string(a.aufwand) + "\"";
+        if (!a.format.empty()) r += std::string(a.aufwand ? "," : "") + "\"format\":{\"type\":\"json_schema\",\"schema\":" + a.format + "}";
+        r += "}";
+    }
+    r += ",\"messages\":[";
     for (size_t i = 0; i < nachrichten.size(); i++) r += (i ? "," : "") + nachrichten[i];
     r += "]}";
     return r;
@@ -157,6 +163,49 @@ std::string fehlertext(int status, const std::string &body)
 }
 
 bool wiederholen(int status, const std::string &t) { return status >= 500 || status == 529 || t == "overloaded_error" || t == "api_error"; }
+
+namespace {
+
+// Fassung aus der Kennung: claude-opus-5-5 → 5.5, claude-sonnet-5 → 5, sonst 0
+double fassung(const std::string &id, const std::string &reihe)
+{
+    std::string p = "claude-" + reihe + "-";
+    if (id.rfind(p, 0) != 0 || id.size() <= p.size() || !isdigit((unsigned char)id[p.size()])) return 0;
+    int a = 0, b = 0;
+    sscanf(id.c_str() + p.size(), "%d-%d", &a, &b);
+    if (b > 99) b = 0;   // Datum statt Unterfassung
+    return a + b / 10.0;
+}
+
+}  // namespace
+
+Modell modell_vorgabe(const std::string &reihe)
+{
+    if (reihe == "haiku") return {"claude-haiku-5-5", true, true};
+    if (reihe == "sonnet") return {"claude-sonnet-5-5", true, true};
+    return {"claude-opus-5-5", true, true};
+}
+
+Modell modell_waehlen(const std::string &antwort, const std::string &reihe)
+{
+    Modell m = modell_vorgabe(reihe);
+    json::Baum j = json::lesen(antwort);
+    std::string juengst;
+    for (const cJSON *e : json::liste(j.get(), "data")) {
+        std::string id = json::text(e, "id"), zeit = json::text(e, "created_at");
+        if (fassung(id, reihe) == 0 || zeit <= juengst) continue;
+        juengst = zeit;
+        m.id = id;
+        // Ohne Angabe der API: Haiku vor 5 kann weder Denken noch Aufwand, alle übrigen beides
+        bool alt = reihe == "haiku" && fassung(id, reihe) < 5;
+        m.denken = json::hat(e, "capabilities.thinking.types.adaptive.supported")
+                       ? json::wahr(e, "capabilities.thinking.types.adaptive.supported") : !alt;
+        m.aufwand = json::hat(e, "capabilities.effort.supported") ? json::wahr(e, "capabilities.effort.supported") : !alt;
+    }
+    return m;
+}
+
+bool mit_ersatzmodell(const std::string &id) { return fassung(id, "opus") >= 5 || fassung(id, "sonnet") >= 5.5; }
 
 std::string modellname(const std::string &id)
 {

@@ -24,6 +24,7 @@ Benutzung. Wie die Firmware aufgebaut ist und warum, steht in den Konzepten:
 - [Schutzfahrt und Schutzlauf](#schutzfahrt-und-schutzlauf)
 - [Verlauf und Aufzeichnung](#verlauf-und-aufzeichnung)
 - [Leitstand](#leitstand)
+- [Bedientafel](#bedientafel)
 - [Home Assistant](#home-assistant)
 - [Wartung](#wartung)
 - [Fehlersuche](#fehlersuche)
@@ -55,6 +56,7 @@ unangetastet. Die Firmware misst mit und schaltet ausschließlich die beiden Umw
 | Gerät am Kessel | Abgas sowie Vor- und Rücklauf messen, Brennerlauf erkennen | Übersicht, Fühler, Verlauf, System |
 | Gerät am Pufferspeicher | Speicher und Heizkreise messen, Pumpen schalten | zusätzlich Heizkreise |
 | Leitstand (M5Stack Core), wahlweise | Anlage anzeigen, Funkthermometer empfangen, Außentemperatur liefern; regelt nichts | Übersicht, Funk, Einstellungen, System |
+| Bedientafel (M5Stack Tab5), wahlweise | Anlage anzeigen und bedienen, Assistent; regelt nichts | Übersicht, Räume, Assistent, Heizung, Geräte am eigenen Bildschirm |
 
 Alle Geräte melden sich im Netz gegenseitig an und erscheinen in der Kopfzeile als Verweise. Ein
 Klick öffnet die Oberfläche des anderen Geräts; bedient wird stets nur das gerade geöffnete.
@@ -1217,6 +1219,88 @@ Abfrage zusammenhingen.
 | `POST /api/log/lasttest`, `GET /api/log/lasttest` | Dauerlastprüfung: `{"mb":1024}` schreibt ein Muster auf die Karte, liest es zurück und vergleicht; der Betrieb läuft dabei weiter |
 | `POST /api/log/format` | ganze Karte als FAT32 formatieren; nur mit `{"bestaetigung":"KARTE LOESCHEN"}` |
 | `GET /api/coredump`, `POST /api/coredump/erase` | letzter Absturz: Task, Programmzähler, Ursache, Rücksprungadressen und Prüfsumme des ELF; löschen |
+
+## Bedientafel
+
+Die Bedientafel ist ein M5Stack Tab5 mit eigener Firmware (`apps/tab5`). Sie zeigt dieselben fünf
+Bereiche wie die App und bedient die Anlage über dieselben Schnittstellen. Sie regelt nichts: Fällt
+sie aus, arbeiten die Geräte unverändert weiter.
+
+![Übersicht der Bedientafel](screenshots/tafel/uebersicht.png)
+
+Die Aufnahmen dieses Kapitels zeigen die Beispielanlage.
+
+### Einrichten
+
+1. Firmware über USB aufspielen: im Verzeichnis `apps/tab5` mit `idf.py -p <Port> flash`.
+2. Unter **Geräte › WLAN** das Netz wählen, in dem auch die Geräte der Anlage sind, und das Kennwort
+   eingeben. Gespeichert wird es erst nach einer erfolgreichen Verbindung.
+3. Die Tafel findet Verteilerplatinen, Heizungsgeräte und Leitstand von selbst per mDNS. Solange
+   kein Gerät geantwortet hat, zeigt sie eine Beispielanlage; Befehle wirken dort nicht. Nach einem
+   Neustart kann das bis zu einer Minute dauern.
+
+Unter **Geräte › Einstellungen der Tafel** stehen Erscheinungsbild, Helligkeit und die Zeit, nach der
+die Anzeige dunkler wird.
+
+### Bedienung
+
+**Übersicht.** Geräte mit Erreichbarkeit, Lagebericht, Wärmeerzeugung, die drei schwersten Befunde
+und die Räume je Etage. Ein Tipp auf eine Kachel öffnet den Raum, ein Tipp auf einen Befund seine
+Beschreibung.
+
+**Räume.** Je Etage zeigt der Verteilerbalken die Ventilstellungen, die Raumkarten darunter Ist-Wert
+und Zustand. Den Sollwert stellt das Stellrad in Schritten von 0,5 K zwischen 5 und 35 °C: Die Skala
+wird waagerecht gewischt, die Nadel in der Mitte zeigt den Wert. Gesendet wird er, sobald das Rad
+900 ms steht. Danach liest die Tafel den Zustand zurück und meldet, wenn das Gerät den Wert nicht
+übernommen hat.
+
+| | |
+|---|---|
+| ![Räume](screenshots/tafel/raeume.png) | ![Raum](screenshots/tafel/raum-hell.png) |
+
+**Heizung.** Anlagenschema mit den Messwerten an ihren Fühlern, Pufferspeicher, Brenner, Heizkreise
+und Kesselkreispumpe. Die Betriebsart der Pumpen ist hier wählbar: Automatik, Hand ein, Hand aus.
+Unter **Auswertung › Verlauf** stehen die Diagramme für 6 Stunden, 24 Stunden und 7 Tage.
+
+| | |
+|---|---|
+| ![Heizung](screenshots/tafel/heizung.png) | ![Verlauf](screenshots/tafel/verlauf.png) |
+
+**Geräte.** Links die Liste, rechts das gewählte Gerät mit Zustand, Kanälen beziehungsweise Fühlern
+und **Neu starten**. Einstellungen der Geräte, Messfahrt, Sicherung und Firmware erreichen Sie
+weiterhin in der Weboberfläche des jeweiligen Geräts.
+
+![Geräte](screenshots/tafel/geraete.png)
+
+### Verlauf
+
+Die Tafel zeichnet im Raster von fünf Minuten auf und hält sieben Tage vor. Ist ein Leitstand im
+Netz, übernimmt sie alle fünf Minuten dessen Aufzeichnung; seine Werte haben Vorrang vor den eigenen,
+weil er auch dann aufzeichnet, wenn die Tafel nicht läuft. Der erste Abgleich nach einem Neustart
+dauert einige Minuten.
+
+### Assistent
+
+Der Assistent arbeitet wie in der App mit Claude von Anthropic und benötigt ein eigenes Konto.
+
+![Assistent](screenshots/tafel/assistent.png)
+
+1. Unter **Geräte › Einstellungen der Tafel** den API-Schlüssel eingeben. Für die Eingabe über USB
+   statt am Bildschirm gibt es `apps/tab5/tools/schluessel.py`.
+2. Dort der Übertragung an Anthropic zustimmen. Ohne Zustimmung stellt die Tafel keine Anfrage.
+   Übertragen werden Messwerte, Einstellungen, Befunde und Protokolle der Anlage, die Namen der Räume
+   und Geräte, Ihre Fragen und das Handbuch. Kennwörter, WLAN-Zugangsdaten und die Adressen der Relais
+   werden nicht übertragen.
+3. Die Modellreihe wählen: Opus, Sonnet oder Haiku. Die Tafel verwendet das jeweils neueste Modell
+   der Reihe.
+
+Der Knopf **Fragen** öffnet den Assistenten mit Bezug auf die aktuelle Seite. Eingriffe schlägt der
+Assistent nur vor: Eine Karte zeigt den bisherigen und den neuen Wert, wirksam wird die Änderung erst
+mit **Übernehmen**. Die Tafel liest den Wert danach zurück; **Rückgängig** stellt ihn wieder her.
+
+Den Lagebericht auf der Übersicht erstellt der Assistent höchstens alle sechs Stunden und nach neuen
+Befunden frühestens nach 30 Minuten. Ohne Schlüssel und Zustimmung bildet die Tafel ihn aus den
+Befunden.
 
 ## Home Assistant
 

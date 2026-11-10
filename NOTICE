@@ -49,3 +49,14 @@ MIT und Apache-2.0 lassen sich mit der GPL-3.0 zusammenführen:
   espressif/mqtt           (Apache-2.0)
   espressif/onewire_bus    (Apache-2.0)
   espressif/ds18b20        (Apache-2.0)
+
+Die Bedientafel unter apps/tab5 bindet zusätzlich ein:
+
+  lvgl/lvgl                (MIT)
+  espressif/m5stack_tab5, esp_lvgl_port, esp_hosted, esp_wifi_remote, mdns
+                           (Apache-2.0)
+  joltwallet/littlefs      (MIT, BSD-3-Clause)
+
+In apps/tab5/assets/fonts liegen die Schriften Inter und JetBrains Mono unter der
+SIL Open Font License 1.1 (Lizenztexte daneben); apps/tab5/main/gen enthält daraus
+erzeugte Schriften sowie Symbole aus Lucide (ISC).

@@ -17,6 +17,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "bootmenu.h"
 #include "geraet.h"
 #include "nvs_flash.h"
 #include "ui.h"
@@ -33,6 +34,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(e);
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     eins::init();
+    bootmenu::beim_start();   // nur mit Bootmenü (bootmenu.h)
     konsole::start();
 
     bsp_i2c_init();

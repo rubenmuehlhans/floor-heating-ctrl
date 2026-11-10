@@ -36,6 +36,10 @@ std::string wochentag_kurz(int64_t unix);              // „Mo“
 std::string iso(int64_t unix);                         // „2026-09-22T14:05:00+02:00“ (Ortszeit mit Versatz)
 int ortsversatz(int64_t unix);                         // Sekunden, MEZ/MESZ nach EU-Regel
 
+// UTC: „2026-09-23T05:35:00Z“ → Unix (0 = nicht lesbar); Unix → „2026-09-23“
+int64_t aus_iso_utc(const std::string &s);
+std::string tag_utc(int64_t unix);
+
 // Geschütztes Leerzeichen zwischen Zahl und Einheit in Fließtext (Befunde, Antworten der KI).
 std::string einheiten_fest(const std::string &text);
 

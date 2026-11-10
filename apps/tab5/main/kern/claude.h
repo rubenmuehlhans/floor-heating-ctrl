@@ -52,10 +52,25 @@ private:
     bool g_ = false;
 };
 
+// Was ein Modell kann (GET /v1/models, capabilities).
+struct Modell {
+    std::string id;
+    bool denken = true;    // adaptives Denken
+    bool aufwand = true;   // output_config.effort
+};
+
+// Festes Modell einer Reihe (opus, sonnet, haiku), solange die API nicht gefragt werden konnte.
+Modell modell_vorgabe(const std::string &reihe);
+// Neuestes Modell der Reihe aus der Antwort von GET /v1/models (jüngstes created_at), sonst die
+// Vorgabe — wie ClaudeModelle.swift der App.
+Modell modell_waehlen(const std::string &antwort, const std::string &reihe);
+// Server-seitiges Ersatzmodell bei einer Ablehnung: Opus ab 5, Sonnet ab 5.5, nicht Haiku.
+bool mit_ersatzmodell(const std::string &id);
+
 struct Anfrage {
     std::string modell;
-    bool denken = true;            // adaptives Denken (nicht bei Haiku 4.5)
-    const char *aufwand = "medium";
+    bool denken = true;            // adaptives Denken
+    const char *aufwand = "medium";   // nullptr = das Modell kennt `effort` nicht
     std::string system;            // Anweisungen und Wissen
     std::string werkzeuge;         // JSON-Liste der Werkzeuge, leer = keine
     std::string format;            // JSON-Schema für output_config.format, leer = frei

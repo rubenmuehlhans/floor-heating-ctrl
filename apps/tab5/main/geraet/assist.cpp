@@ -13,6 +13,7 @@
 #include "daten.h"
 #include "eins.h"
 #include "esp_crt_bundle.h"
+#include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -59,12 +60,58 @@ TaskHandle_t s_task;
 int64_t s_letzter_bericht;   // Unix-Sekunden
 uint32_t s_befund_gen;
 
-const char *MODELLE[] = {"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"};
+const char *REIHEN[] = {"opus", "sonnet", "haiku"};
+std::string s_modelle;        // letzte Antwort von GET /v1/models
+int64_t s_modelle_zeit;       // Unix-Sekunden
+std::mutex s_modelle_mx;
 
-std::string modell()
+std::string reihe()
 {
     int i = (int)eins::zahl(eins::k::KI_MODELL, 0);
-    return MODELLE[i < 0 || i > 2 ? 0 : i];
+    return REIHEN[i < 0 || i > 2 ? 0 : i];
+}
+
+// Das neueste Modell der gewählten Reihe; ohne Antwort der API die Vorgabe.
+claude::Modell modell()
+{
+    std::lock_guard<std::mutex> l(s_modelle_mx);
+    return s_modelle.empty() ? claude::modell_vorgabe(reihe()) : claude::modell_waehlen(s_modelle, reihe());
+}
+
+// Modellliste höchstens einmal am Tag holen (wie die App). Scheitert es, gilt die Vorgabe.
+void modelle_auffrischen()
+{
+    int64_t jetzt = daten::jetzt();
+    if (s_modelle_zeit && jetzt - s_modelle_zeit < 86400) return;
+    std::string schluessel = eins::text(eins::k::KI_SCHLUESSEL);
+    if (schluessel.empty()) return;
+    std::string antwort;
+    esp_http_client_config_t c = {};
+    c.url = "https://api.anthropic.com/v1/models?limit=1000";
+    c.crt_bundle_attach = esp_crt_bundle_attach;
+    c.timeout_ms = 20000;
+    c.buffer_size = 4096;
+    c.user_agent = "heizung-tafel/1";
+    esp_http_client_handle_t h = esp_http_client_init(&c);
+    if (!h) return;
+    esp_http_client_set_header(h, "x-api-key", schluessel.c_str());
+    esp_http_client_set_header(h, "anthropic-version", "2023-06-01");
+    int status = 0;
+    if (esp_http_client_open(h, 0) == ESP_OK && esp_http_client_fetch_headers(h) >= 0) {
+        status = esp_http_client_get_status_code(h);
+        char buf[1024];
+        int n;
+        while (antwort.size() < 512 * 1024 && (n = esp_http_client_read(h, buf, sizeof buf)) > 0) antwort.append(buf, n);
+    }
+    esp_http_client_close(h);
+    esp_http_client_cleanup(h);
+    schluessel.assign(schluessel.size(), '\0');
+    if (status == 200) {
+        std::lock_guard<std::mutex> l(s_modelle_mx);
+        s_modelle = std::move(antwort);
+        s_modelle_zeit = jetzt;
+    }
+    ESP_LOGI(TAG, "Modellliste: %d", status);
 }
 
 void einreihen(Job j)
@@ -106,8 +153,14 @@ int senden(const std::string &rumpf, std::function<bool(const char *, size_t)> e
         esp_http_client_set_header(h, "anthropic-version", "2023-06-01");
         esp_http_client_set_header(h, "content-type", "application/json");
         esp_http_client_set_header(h, "accept", "text/event-stream");
+        // Zum Rumpffeld `fallbacks` gehört dieser Kopf (claude::mit_ersatzmodell)
+        if (rumpf.find("\"fallbacks\":\"default\"") != std::string::npos)
+            esp_http_client_set_header(h, "anthropic-beta", "server-side-fallback-2026-07-01");
+        else esp_http_client_delete_header(h, "anthropic-beta");
         int64_t t0 = esp_timer_get_time();
-        if (esp_http_client_open(h, (int)rumpf.size()) == ESP_OK) {
+        esp_err_t offen = esp_http_client_open(h, (int)rumpf.size());
+        size_t geschrieben = 0;
+        if (offen == ESP_OK) {
             // Rumpf in Stücken: System mit Handbuch rund 170 KB
             size_t gesendet = 0;
             while (gesendet < rumpf.size()) {
@@ -115,10 +168,12 @@ int senden(const std::string &rumpf, std::function<bool(const char *, size_t)> e
                 if (n <= 0) break;
                 gesendet += n;
             }
+            geschrieben = gesendet;
             if (gesendet == rumpf.size() && esp_http_client_fetch_headers(h) >= 0) status = esp_http_client_get_status_code(h);
         }
-        ESP_LOGI(TAG, "POST /v1/messages (%u B) -> %d nach %d ms", (unsigned)rumpf.size(), status,
-                 (int)((esp_timer_get_time() - t0) / 1000));
+        ESP_LOGI(TAG, "POST /v1/messages (%u B) -> %d nach %d ms; open %s, gesendet %u, intern frei %u", (unsigned)rumpf.size(), status,
+                 (int)((esp_timer_get_time() - t0) / 1000), esp_err_to_name(offen), (unsigned)geschrieben,
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
         if (status == 0) esp_http_client_close(h);   // gehaltene Verbindung war tot: einmal neu
     }
     schluessel.assign(schluessel.size(), '\0');
@@ -163,6 +218,12 @@ void task(void *)
     // Wissen und Systemtext einmal bauen (rund 170 KB im PSRAM)
     ESP_LOGI(TAG, "Systemanweisungen: %u Zeichen", (unsigned)anweisungen::system().size());
     laden();
+    // ⚠️ Aus der Ablage, sonst löste jeder Neustart einen Lagebericht aus — und mit dem Bootmenü
+    // ist jeder Wechsel ein Neustart.
+    {
+        ki::Stand st = s_a.stand();
+        if (!st.bericht.aus_befunden) s_letzter_bericht = st.bericht.erstellt;
+    }
     while (true) {
         ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(60000));
         // Lagebericht: von selbst höchstens alle sechs Stunden, nach neuen Befunden frühestens nach 30 min
@@ -189,6 +250,7 @@ void task(void *)
                 j = std::move(s_jobs.front());
                 s_jobs.pop_front();
             }
+            modelle_auffrischen();
             s_a.modell_setzen(modell());
             switch (j.art) {
             case Auftrag::frage: s_a.frage(j.text); break;
@@ -236,14 +298,14 @@ bool braucht_zustimmung() { return !eins::text(eins::k::KI_SCHLUESSEL).empty() &
 const char *modellname()
 {
     static std::string n;
-    n = claude::modellname(modell());
+    n = claude::modellname(modell().id);
     return n.c_str();
 }
 
 const char *modell_id()
 {
     static std::string n;
-    n = modell();
+    n = modell().id;
     return n.c_str();
 }
 

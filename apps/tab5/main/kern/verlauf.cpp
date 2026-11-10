@@ -53,6 +53,19 @@ void Speicher::nachtragen(const std::string &k, int64_t t, float v)
     if (isnan(w)) w = v;
 }
 
+void Speicher::setzen(const std::string &k, int64_t t, float v)
+{
+    if (isnan(v) || t < 1600000000) return;
+    int64_t platz = t - t % PLATZ_S;
+    if (!kopf_) kopf_ = platz;
+    if (platz > kopf_) vorruecken(platz);   // der Leitstand ist weiter als die eigene Aufzeichnung
+    if (platz <= kopf_ - (int64_t)PLAETZE * PLATZ_S) return;
+    Reihe &r = reihen_[k];
+    if (r.wert.empty()) r.wert.assign(PLAETZE, NAN);
+    if (r.platz == platz && r.anzahl > 0) return;   // der laufende Platz bleibt der eigene
+    r.wert[index(platz)] = v;
+}
+
 std::vector<Punkt> Speicher::reihe(const std::string &k, int64_t von, int64_t bis, int raster_s) const
 {
     std::vector<Punkt> out;

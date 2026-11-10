@@ -44,6 +44,12 @@ Heizungsgeräte; diese fragen ihn zuerst und erst danach die Verteilerplatinen.
 Er regelt nichts. Aufzeichnung auf SD-Karte und HomeKit sind geplant, siehe
 [Konzept Leitstand](docs/konzept-leitstand.md).
 
+**Bedientafel**, wahlweise. Ein M5Stack Tab5 mit eigener Firmware
+([`apps/tab5`](apps/tab5/)) zeigt dieselben Bereiche wie die App: Übersicht, Räume,
+Heizung, Geräte und den Assistenten. Sie findet die Geräte im Heimnetz von selbst, stellt
+Sollwerte und Betriebsarten und übernimmt den Verlauf vom Leitstand. Sie regelt nichts;
+fällt sie aus, läuft die Anlage unverändert weiter. Siehe [Bedientafel](#bedientafel).
+
 Welche Aufgabe ein Heizungsgerät übernimmt, ergibt sich allein aus den
 zugeordneten Fühlerrollen. Beide Aufgaben sind dabei an eigene Messwerte
 gebunden, nicht an solche aus dem Netz: Heizkreise lassen sich nur auf dem Gerät
@@ -106,6 +112,7 @@ darin; siehe [Lizenz](#lizenz).
 - [Übersetzen und Einspielen](#übersetzen-und-einspielen)
 - [Erste Inbetriebnahme](#erste-inbetriebnahme)
 - [Weboberfläche](#weboberfläche)
+- [Bedientafel](#bedientafel)
 - [Home Assistant](#home-assistant)
 - [Funktionsweise](#funktionsweise)
 - [Vorgabewerte](#vorgabewerte)
@@ -128,6 +135,7 @@ darin; siehe [Lizenz](#lizenz).
 | [Konzept: Wärmeerzeugung und Pumpensteuerung](docs/konzept-waermeerzeuger.md) | Messstellen, Brennererkennung, Ladezustand, Pumpenlogik |
 | [Umbau auf zwei Anwendungen](docs/umbau-projektstruktur.md) | Aufteilung des Projekts und gemeinsame Komponenten |
 | [Konzept: Auswertung der Anlage](docs/konzept-auswertung.md) | Anomalien und Wirkungsgrad aus den erfassten Daten — Datengrundlage, Verfahren, Reihenfolge |
+| [Bedientafel](apps/tab5/README.md) | Aufbau, Bauen und Prüfen der Firmware für den M5Stack Tab5 |
 | [Änderungen](CHANGELOG.md) | was sich seit welcher Fassung geändert hat |
 
 Diese Seite beschreibt Hardware, Aufbau und Funktionsweise. Wer die Geräte bedienen
@@ -300,6 +308,29 @@ und lädt ohne Internetzugang.
 
 <img src="docs/screenshots/uebersicht-dark.png" width="49%" alt="Dunkles Farbschema">
 <img src="docs/screenshots/mobil.png" width="24%" alt="Ansicht auf dem Telefon">
+
+## Bedientafel
+
+Die Firmware unter [`apps/tab5`](apps/tab5/) bringt die App auf einen M5Stack Tab5 (ESP32-P4,
+5 Zoll, 1280 × 720, WLAN über den ESP32-C6): Seitenleiste mit fünf Bereichen, zwei Spalten wie auf
+dem iPad, Farben, Formate und Texte der App. Bedienung und Einrichtung beschreibt das
+[Handbuch](docs/handbuch.md#bedientafel), Aufbau und Prüfungen
+[`apps/tab5/README.md`](apps/tab5/README.md).
+
+| | |
+|---|---|
+| ![Übersicht](docs/screenshots/tafel/uebersicht.png) | ![Räume](docs/screenshots/tafel/raeume.png) |
+| **Übersicht** — Geräte, Lagebericht, Wärmeerzeugung, Befunde, Räume | **Räume** — Verteilerbalken und Raumkarten mit Stellrad |
+| ![Heizung](docs/screenshots/tafel/heizung.png) | ![Assistent](docs/screenshots/tafel/assistent.png) |
+| **Heizung** — Anlagenschema, Speicher, Brenner, Pumpen | **Assistent** — Claude mit Werkzeugen, Vorschläge zum Übernehmen |
+
+Die Aufnahmen zeigen die Beispielanlage in der Vorschau auf dem Mac (`apps/tab5/host/vorschau.sh`).
+
+```bash
+. ~/esp/esp-idf-6.0.2/export.sh
+idf.py -C apps/tab5 build
+idf.py -C apps/tab5 -p /dev/cu.usbmodemXXXX flash
+```
 
 ### Abfragetakt
 
@@ -532,6 +563,11 @@ apps/manifold/    Verteiler-Firmware
 apps/heatsource/  Firmware der Heizungsgeräte (Kessel und Pufferspeicher)
   components/     eigene Konfiguration, verdrängt die gemeinsame
   main/           Fühlererfassung, Verlauf, Weboberfläche
+apps/tab5/        Bedientafel auf dem M5Stack Tab5
+  main/kern/      Anlagenbild, Befunde, Verlauf, Assistent — ohne ESP-IDF, prüfbar auf dem Rechner
+  main/ui/        Oberfläche in LVGL
+  main/geraet/    WLAN, Abfrage der Geräte, HTTPS zu Anthropic
+  host/           Vorschau auf dem Rechner: zeichnet jede Seite als PNG
 www/stil.css      gemeinsames Gerüst beider Oberflächen: Farben, Schriften,
                   Kopfzeile, Reiter — die Bedienelemente bleiben je Anwendung eigen
 cmake/embed_www   Bauregel: Oberfläche zusammenfügen, komprimieren, einbetten
@@ -815,6 +851,16 @@ nicht Teil dieses Quelltextbestands sind:
 | `espressif/mqtt` | Apache-2.0 |
 | `espressif/onewire_bus` | Apache-2.0 |
 | `espressif/ds18b20` | Apache-2.0 |
+
+Die Bedientafel (`apps/tab5`) bindet zusätzlich ein:
+
+| Komponente | Lizenz |
+|---|---|
+| `lvgl/lvgl` | MIT |
+| `espressif/m5stack_tab5`, `esp_lvgl_port`, `esp_hosted`, `esp_wifi_remote`, `mdns` | Apache-2.0 |
+| `joltwallet/littlefs` | MIT, BSD-3-Clause |
+| Schriften Inter und JetBrains Mono (`apps/tab5/assets/fonts`, daraus `main/gen`) | SIL Open Font License 1.1 |
+| Symbole Lucide (daraus `main/gen`) | ISC |
 
 Die Raumthermometer senden mit der freien Fremdfirmware ATC beziehungsweise
 pvvx. Das Gehäuse ist mit CadQuery konstruiert.

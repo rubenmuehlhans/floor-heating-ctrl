@@ -178,6 +178,24 @@ std::string iso(int64_t unix)
     return b;
 }
 
+int64_t aus_iso_utc(const std::string &s)
+{
+    int y, mo, d, h = 0, mi = 0, se = 0;
+    if (sscanf(s.c_str(), "%d-%d-%dT%d:%d:%d", &y, &mo, &d, &h, &mi, &se) < 3) return 0;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return 0;
+    return tage(y, mo, d) * 86400 + h * 3600 + mi * 60 + se;
+}
+
+std::string tag_utc(int64_t unix)
+{
+    time_t t = (time_t)unix;
+    struct tm u;
+    gmtime_r(&t, &u);
+    char b[32];
+    snprintf(b, sizeof b, "%04d-%02d-%02d", u.tm_year + 1900, u.tm_mon + 1, u.tm_mday);
+    return b;
+}
+
 std::string einheiten_fest(const std::string &t)
 {
     static const char *EINHEITEN[] = {"\xC2\xB0" "C", "dBm", "l/h", "min", "ms", "mV", "k\xCE\xA9", "K", "%", "l", "h", "s", "V"};

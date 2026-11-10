@@ -14,8 +14,8 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   prüft die Anlage mit den Befundregeln der App und zeichnet sieben Tage Verlauf auf. Der
   Assistent spricht mit Claude über den eigenen API-Schlüssel, mit den zehn Werkzeugen der App,
   Vorschlagskarten zum Übernehmen und Lagebericht; ohne Zustimmung „Daten an Anthropic“ stellt er
-  keine Anfrage. Bis ein Gerät antwortet, zeigt die Tafel die Beispielanlage. Am Gerät noch nicht
-  geprüft; was fehlt, steht in `apps/tab5/README.md`.
+  keine Anfrage. Den Verlauf übernimmt sie vom Leitstand. Bis ein Gerät antwortet, zeigt die Tafel
+  die Beispielanlage. Was noch fehlt, steht in `apps/tab5/README.md`.
 
 ### Heizungsgeräte
 

@@ -25,8 +25,8 @@ class Assistent {
 public:
     void senden_setzen(Senden s) { senden_ = std::move(s); }
     void schlafen_setzen(std::function<void(int)> f) { schlafen_ = std::move(f); }
-    void modell_setzen(const std::string &id) { modell_ = id; }
-    const std::string &modell() const { return modell_; }
+    void modell_setzen(const claude::Modell &m) { modell_ = m; }
+    const std::string &modell() const { return modell_.id; }
 
     ki::Stand stand();
     uint32_t generation() const { return gen_; }
@@ -66,7 +66,7 @@ private:
     std::atomic<uint32_t> gen_{1}, epoche_{0};
     Senden senden_;
     std::function<void(int)> schlafen_;
-    std::string modell_ = "claude-opus-5-5";
+    claude::Modell modell_ = claude::modell_vorgabe("opus");
     uint32_t naechste_id_ = 1;
 };
 
