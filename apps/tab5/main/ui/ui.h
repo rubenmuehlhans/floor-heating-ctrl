@@ -56,6 +56,10 @@ void kopf_knopf(const char *sf, const std::string &text, std::function<void()> w
 void kopf_leeren();   // Knöpfe der Titelzeile entfernen (Neuaufbau einer Seite)
 // Bedienung läuft (Stellrad, Bildlauf): Seiten bauen dann zwei Sekunden lang nicht neu,
 // sonst risse ein Datenstand dem Finger das Rad weg.
+// Generation für Seiten, die die Anlage zeigen: steigt nur, wenn sich etwas Angezeigtes
+// ändert (Werte, Zustände, Befunde, Erreichbarkeit), dazu einmal je Minute für Altersangaben —
+// nicht bei jeder Abfrage alle 5 s wie daten::generation().
+uint32_t anzeige_generation();
 void bedienung_merken();
 bool bedienung_kuerzlich();
 // Doppelseite: zwei Spalten, die je für sich scrollen. `rechts` = nullptr, wenn die

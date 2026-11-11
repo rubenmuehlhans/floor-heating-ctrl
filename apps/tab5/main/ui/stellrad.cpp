@@ -7,6 +7,8 @@
 // ⚠️ Nur eine Bewegung durch die Hand setzt den Wert, nicht Aufbau oder Nachführung.
 // Gesendet wird erst 900 ms nach dem letzten Rastschritt (daten::sollwert).
 #include <math.h>
+#include <stdint.h>
+#include <stdio.h>
 #include "daten.h"
 #include "fmt.h"
 #include "stil.h"
@@ -99,6 +101,47 @@ void ereignis(lv_event_t *e)
     }
 }
 
+// Striche und Zahlen der Skala, nur im sichtbaren Ausschnitt des Bildlaufs
+void skala_zeichnen(lv_event_t *e)
+{
+    const Palette &p = pal();
+    lv_obj_t *o = (lv_obj_t *)lv_event_get_current_target(e);
+    lv_obj_t *lauf = lv_obj_get_parent(o);
+    lv_layer_t *layer = lv_event_get_layer(e);
+    int rand = (int)(intptr_t)lv_event_get_user_data(e);
+    lv_area_t a;
+    lv_obj_get_coords(o, &a);
+    int32_t sx = lv_obj_get_scroll_x(lauf), b = lv_obj_get_width(lauf);
+    int von = (sx - rand) / TEILUNG - 2, bis = (sx - rand + b) / TEILUNG + 2;
+    if (von < 0) von = 0;
+    if (bis > SCHRITTE) bis = SCHRITTE;
+    lv_draw_rect_dsc_t r;
+    lv_draw_rect_dsc_init(&r);
+    r.radius = 2;
+    lv_draw_label_dsc_t l;
+    lv_draw_label_dsc_init(&l);
+    l.font = &f_mono_k;
+    l.color = p.gedaempft;
+    l.align = LV_TEXT_ALIGN_CENTER;
+    char zahl[4];
+    for (int i = von; i <= bis; i++) {
+        bool ganz = i % 2 == 0;
+        int sb = ganz ? 3 : 2, sh = ganz ? 38 : 20;
+        int x = a.x1 + rand + i * TEILUNG - sb / 2;
+        r.bg_color = ganz ? p.gedaempft : p.linie_stark;
+        lv_area_t s = {x, a.y1 + 4, x + sb - 1, a.y1 + 4 + sh - 1};
+        lv_draw_rect(layer, &r, &s);
+        if (ganz) {
+            snprintf(zahl, sizeof zahl, "%d", (int)(MIN + i * SCHRITT));
+            l.text = zahl;
+            l.text_local = 1;
+            int mx = a.x1 + rand + i * TEILUNG;
+            lv_area_t t = {mx - 20, a.y1 + 51, mx + 20, a.y1 + 51 + f_mono_k.line_height};
+            lv_draw_label(layer, &l, &t);
+        }
+    }
+}
+
 }  // namespace
 
 lv_obj_t *stellrad(lv_obj_t *parent, float wert, bool gedimmt, std::function<void(float)> geaendert)
@@ -121,23 +164,12 @@ lv_obj_t *stellrad(lv_obj_t *parent, float wert, bool gedimmt, std::function<voi
     if (b <= 0) b = 480;
     // Seitliche Ränder: der erste und der letzte Strich kommen unter die Nadel
     int rand = b / 2;
+    // ⚠️⚠️ Die Skala ist EIN Objekt, das nur die sichtbaren Striche zeichnet. Mit einem Objekt je
+    // Strich und Zahl (92 je Rad, acht Räder auf der Seite Räume) dauerten Aufbau und Abbau der
+    // Seite am Gerät je rund 1,3 s (gemessen am 11.11.2026).
     lv_obj_t *skala = flaeche(lauf);
     lv_obj_set_size(skala, SCHRITTE * TEILUNG + 2 * rand, HOEHE_RAD);
-    for (int i = 0; i <= SCHRITTE; i++) {
-        bool ganz = i % 2 == 0;
-        lv_obj_t *s = flaeche(skala);
-        int sb = ganz ? 3 : 2, sh = ganz ? 38 : 20;
-        lv_obj_set_size(s, sb, sh);
-        lv_obj_set_pos(s, rand + i * TEILUNG - sb / 2, 4);
-        lv_obj_set_style_radius(s, 2, 0);
-        lv_obj_set_style_bg_color(s, ganz ? p.gedaempft : p.linie_stark, 0);
-        lv_obj_set_style_bg_opa(s, LV_OPA_COVER, 0);
-        if (ganz) {
-            lv_obj_t *z = text(skala, std::to_string((int)(MIN + i * SCHRITT)), &f_mono_k, p.gedaempft);
-            lv_obj_update_layout(z);
-            lv_obj_set_pos(z, rand + i * TEILUNG - lv_obj_get_width(z) / 2, 4 + 38 + 9);
-        }
-    }
+    lv_obj_add_event_cb(skala, skala_zeichnen, LV_EVENT_DRAW_MAIN, (void *)(intptr_t)rand);
     // Randverlauf in der Hintergrundfarbe der Karte
     for (int seite = 0; seite < 2; seite++) {
         lv_obj_t *v = flaeche(huelle);

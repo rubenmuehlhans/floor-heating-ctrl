@@ -5,6 +5,8 @@
 #include <fstream>
 #include <map>
 #include <sstream>
+#include <stdlib.h>
+#include "akku.h"
 #include "bootmenu.h"
 #include "daten.h"
 #include "eins.h"
@@ -145,6 +147,20 @@ void plattform_start(const char *beispiel)
 
 void plattform_hell(bool hell) { s_eins[eins::k::ANSICHT] = hell ? "1" : "2"; }
 
+namespace akku {
+void start() {}
+bool vorhanden() { return true; }
+Stand stand()
+{
+    Stand s;
+    s.zustand = getenv("AKKU_NETZ") ? Zustand::netz : Zustand::laedt;
+    s.prozent = 76;
+    return s;
+}
+void laden(bool) {}
+std::string register_text() { return ""; }
+}  // namespace akku
+
 namespace bootmenu {
 bool vorhanden() { return false; }
 void beim_start() {}
@@ -154,6 +170,7 @@ void neustart() {}
 namespace daten {
 std::shared_ptr<const anlage::Bild> bild() { return s_bild; }
 uint32_t generation() { return s_gen; }
+uint32_t verlauf_generation() { return 1; }
 std::vector<anlage::Geraetestand> staende() { return s_staende; }
 int64_t jetzt() { return s_jetzt; }
 std::vector<verlauf::Punkt> reihe(const std::string &k, int64_t von, int64_t bis, int r) { return s_verlauf.reihe(k, von, bis, r); }

@@ -175,7 +175,7 @@ void geraete_aufbauen(lv_obj_t *inhalt, const std::string &auswahl)
 {
     auto b = daten::bild();
     s_auswahl = auswahl;
-    s_nb.merken(inhalt, daten::generation());
+    s_nb.merken(inhalt, anzeige_generation());
     kopf_knopf("sparkles", "Fragen", [] { fragen("Geräte"); });
     Spalten sp = doppelseite(inhalt);
     s_nb.spalten(sp);
@@ -187,7 +187,7 @@ void geraete_aufbauen(lv_obj_t *inhalt, const std::string &auswahl)
 
 void geraete_takt()
 {
-    if (s_nb.geaendert(daten::generation())) s_nb.neu([](lv_obj_t *i) { geraete_aufbauen(i, s_auswahl); });
+    if (s_nb.geaendert(anzeige_generation())) s_nb.neu([](lv_obj_t *i) { geraete_aufbauen(i, s_auswahl); });
 }
 
 }  // namespace ui

@@ -27,6 +27,8 @@ std::vector<anlage::Geraetestand> staende();
 int64_t jetzt();   // Unix-Sekunden; im Beispielbetrieb der Stand der Beispielanlage
 
 // Verlauf einer Reihe (verlauf.h) — Kopie unter der Sperre.
+// Steigt, wenn ein Platz des Verlaufs fertig wird oder Werte vom Leitstand kommen.
+uint32_t verlauf_generation();
 std::vector<verlauf::Punkt> reihe(const std::string &schluessel, int64_t von, int64_t bis, int raster_s = verlauf::PLATZ_S);
 std::vector<std::string> reihen();
 std::vector<befunde::Erledigt> erledigte_befunde();

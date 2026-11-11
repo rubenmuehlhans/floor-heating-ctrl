@@ -19,6 +19,7 @@
 #include <time.h>
 #include <atomic>
 #include <deque>
+#include <set>
 #include <tuple>
 #include <map>
 #include <mutex>
@@ -61,6 +62,9 @@ std::mutex s_mx;                       // schützt alles hier
 std::vector<Eintrag> s_geraete;
 std::shared_ptr<const anlage::Bild> s_bild = std::make_shared<anlage::Bild>();
 std::atomic<uint32_t> s_gen{1};
+// Steigt, wenn ein Platz des Verlaufs fertig wird oder Werte vom Leitstand kommen — nicht bei
+// jeder Abfrage. Die Diagramme richten sich danach (ui/diagramm.cpp).
+std::atomic<uint32_t> s_verlauf_gen{1};
 befunde::Gedaechtnis s_gedaechtnis;
 verlauf::Speicher s_verlauf;
 std::deque<Befehl> s_befehle;
@@ -198,7 +202,14 @@ void bild_bauen()
             uint32_t g0 = s_gedaechtnis.generation();
             b->befunde = s_gedaechtnis.fortschreiben(bef, jetzt, b->vollstaendig);
             (void)g0;
-            if (uhr_gueltig()) s_verlauf.abtasten(jetzt, verlauf::abtastung(*b));
+            if (uhr_gueltig()) {
+                static int64_t platz;
+                if (jetzt / verlauf::PLATZ_S != platz) {
+                    platz = jetzt / verlauf::PLATZ_S;
+                    s_verlauf_gen++;
+                }
+                s_verlauf.abtasten(jetzt, verlauf::abtastung(*b));
+            }
         } else {
             // Beispiel: die Befunde stehen schon lange an (eigenes Gedächtnis, nicht gespeichert)
             static befunde::Gedaechtnis g;
@@ -433,9 +444,11 @@ std::string geraet_mit(anlage::Rolle rolle)
 
 struct LsDatei {
     int64_t stelle = 0;
-    std::vector<std::string> spalten;
+    std::vector<std::string> schluessel;   // je Spalte der Schlüssel im Verlauf, leer = nicht übernommen
+    bool kopf = false;                     // Kopfzeile gelesen
 };
-std::map<std::string, LsDatei> s_ls;   // „tag/name“
+std::map<std::string, LsDatei> s_ls;      // „tag/name“
+std::set<std::string> s_ls_fertig;        // vollständig gelesene, abgeschlossene Tage
 std::atomic<int64_t> s_ls_zuletzt{0};
 std::atomic<int> s_ls_plaetze{0};
 
@@ -449,44 +462,105 @@ std::string ls_schluessel(const std::string &kennung, const std::string &k)
 }
 
 // Übernimmt die vollständigen Zeilen ab der Stelle; gibt die Zahl der Plätze zurück.
+// ⚠️ Ohne Teilzeichenketten je Feld: ein Tag hat bis zu 288 Zeilen mit 40 Spalten, und die
+// Zerlegung mit std::string kostete beim ersten Abgleich nach dem Einschalten spürbar Rechenzeit.
 int ls_lesen(LsDatei &d, const std::string &kennung, const std::string &daten)
 {
-    size_t a = 0;
+    struct Wert {
+        int spalte;
+        int64_t t;
+        float v;
+    };
+    std::vector<Wert> werte;
+    werte.reserve(daten.size() / 6);
+    const char *p = daten.data(), *ende = p + daten.size();
     int plaetze = 0;
-    std::vector<std::tuple<std::string, int64_t, float>> werte;
-    while (true) {
-        size_t e = daten.find('\n', a);
-        if (e == std::string::npos) break;   // ⚠️ nur vollständige Zeilen; der Rest kommt beim nächsten Mal
-        std::string z = daten.substr(a, e - a);
-        if (!z.empty() && z.back() == '\r') z.pop_back();
-        std::vector<std::string> f;
-        size_t p = 0;
-        while (true) {
-            size_t q = z.find(',', p);
-            f.push_back(z.substr(p, q == std::string::npos ? std::string::npos : q - p));
-            if (q == std::string::npos) break;
-            p = q + 1;
-        }
-        if (d.spalten.empty()) d.spalten = f;   // Kopfzeile
-        else if (f.size() == d.spalten.size()) {
-            int64_t t = fmt::aus_iso_utc(f[0]);
+    while (p < ende) {
+        const char *nl = (const char *)memchr(p, '\n', ende - p);
+        if (!nl) break;   // ⚠️ nur vollständige Zeilen; der Rest kommt beim nächsten Mal
+        if (!d.kopf) {
+            d.kopf = true;
+            d.schluessel.clear();
+            const char *f = p;
+            while (f <= nl) {
+                const char *k = f;
+                while (k < nl && *k != ',' && *k != '\r') k++;
+                d.schluessel.push_back(d.schluessel.empty() ? std::string() : ls_schluessel(kennung, std::string(f, k)));
+                f = k + 1;
+                if (k >= nl || *k == '\r') break;
+            }
+        } else {
+            int64_t t = fmt::aus_iso_utc(std::string(p, std::min<size_t>(20, nl - p)));
             if (t) {
                 plaetze++;
-                for (size_t i = 1; i < f.size(); i++) {
-                    if (f[i].empty()) continue;
-                    std::string k = ls_schluessel(kennung, d.spalten[i]);
-                    if (!k.empty()) werte.push_back({k, t, strtof(f[i].c_str(), nullptr)});
+                const char *f = (const char *)memchr(p, ',', nl - p);
+                int spalte = 1;
+                while (f && f < nl) {
+                    f++;
+                    if (spalte < (int)d.schluessel.size() && !d.schluessel[spalte].empty() && f < nl && *f != ',' && *f != '\r') {
+                        char *e;
+                        float v = strtof(f, &e);
+                        if (e != f) werte.push_back({spalte, t, v});
+                    }
+                    f = (const char *)memchr(f, ',', nl - f);
+                    spalte++;
                 }
             }
         }
-        a = e + 1;
+        p = nl + 1;
     }
-    d.stelle += (int64_t)a;
+    d.stelle += (int64_t)(p - daten.data());
     if (!werte.empty()) {
         std::lock_guard<std::mutex> l(s_mx);
-        for (auto &w : werte) s_verlauf.setzen(std::get<0>(w), std::get<1>(w), std::get<2>(w));
+        for (const auto &w : werte) s_verlauf.setzen(d.schluessel[w.spalte], w.t, w.v);
     }
     return plaetze;
+}
+
+// Stand des Abgleichs und Verlauf ZUSAMMEN sichern: Stünde eine gelesene Stelle ohne die
+// zugehörigen Werte in der Ablage, fehlten diese nach einem Neustart für immer.
+void ls_sichern()
+{
+    if (!s_fs) return;
+    cJSON *o = cJSON_CreateObject();
+    cJSON *f = cJSON_AddArrayToObject(o, "fertig");
+    for (const auto &t : s_ls_fertig) cJSON_AddItemToArray(f, cJSON_CreateString(t.c_str()));
+    cJSON *d = cJSON_AddObjectToObject(o, "dateien");
+    for (const auto &kv : s_ls) cJSON_AddNumberToObject(d, kv.first.c_str(), (double)kv.second.stelle);
+    std::string stand = json::schreiben(o), v;
+    cJSON_Delete(o);
+    {
+        std::lock_guard<std::mutex> l(s_mx);
+        v = s_verlauf.speichern();
+    }
+    datei_schreiben("/d/verlauf.bin", v);
+    datei_schreiben("/d/leitstand.json", stand);
+}
+
+void ls_laden()
+{
+    std::string t;
+    if (!datei_lesen("/d/leitstand.json", t)) return;
+    json::Baum j = json::lesen(t);
+    for (const cJSON *x : json::liste(j.get(), "fertig"))
+        if (cJSON_IsString(x)) s_ls_fertig.insert(x->valuestring);
+    const cJSON *d = json::weg(j.get(), "dateien");
+    // Nur die Stelle; die Kopfzeile wird beim nächsten Abruf aus den ersten Bytes neu gelesen
+    for (const cJSON *x = d ? d->child : nullptr; x; x = x->next) s_ls[x->string].stelle = (int64_t)x->valuedouble;
+}
+
+// Kopfzeile einer Datei holen, wenn ab einer gespeicherten Stelle weitergelesen wird.
+bool ls_kopf(const std::string &ip, const std::string &pfad, const std::string &kennung, LsDatei &d)
+{
+    http::Antwort k = http::anfrage(ip, "GET", pfad, "", "", 15000, 0);
+    if (!k.ok()) return false;
+    size_t nl = k.body.find('\n');
+    if (nl == std::string::npos) return false;
+    LsDatei kopf;
+    ls_lesen(kopf, kennung, k.body.substr(0, nl + 1));
+    d.schluessel = kopf.schluessel;
+    d.kopf = true;
+    return true;
 }
 
 void ls_abgleich(const std::string &ip)
@@ -495,37 +569,69 @@ void ls_abgleich(const std::string &ip)
     if (!a.ok()) return;
     json::Baum j = json::lesen(a.body);
     std::string ab_tag = fmt::tag_utc(uhr() - 8 * 86400);   // sieben Tage reichen dem Verlauf der Tafel
+    std::string gestern = fmt::tag_utc(uhr() - 86400 - 600);
+    std::vector<std::string> tage;
+    for (const cJSON *t : json::liste(j.get(), "tage"))
+        if (cJSON_IsString(t) && std::string(t->valuestring) >= ab_tag && !s_ls_fertig.count(t->valuestring)) tage.push_back(t->valuestring);
+    // ⚠️ Neueste Tage zuerst: nach dem Einschalten zeigen die Diagramme der letzten 24 Stunden
+    // so nach dem ersten Tag Werte, statt erst nach allen acht.
+    std::sort(tage.rbegin(), tage.rend());
     int plaetze = 0;
-    for (const cJSON *t : json::liste(j.get(), "tage")) {
-        if (!cJSON_IsString(t) || std::string(t->valuestring) < ab_tag) continue;
-        std::string tag = t->valuestring;
+    for (const std::string &tag : tage) {
         http::Antwort l = http::anfrage(ip, "GET", "/api/log/days?tag=" + tag, "", "", 15000);
         if (!l.ok()) continue;
         json::Baum lj = json::lesen(l.body);
+        int am_tag = 0;
+        bool ganz = true;
         for (const cJSON *f : json::liste(lj.get(), "dateien")) {
             std::string name = json::text(f, "name");
             int64_t byte = (int64_t)json::zahl_d(f, "byte", 0);
             if (name.size() < 10 || name.compare(name.size() - 9, 9, ".5min.csv") != 0) continue;
-            std::string kennung = name.substr(0, name.find('.'));
+            std::string kennung = name.substr(0, name.find('.')), pfad = "/log/" + tag + "/" + name;
             LsDatei &d = s_ls[tag + "/" + name];
             if (byte < d.stelle) d = LsDatei{};   // Karte getauscht oder neu angelegt: von vorn
             if (byte <= d.stelle) continue;
-            http::Antwort x = http::anfrage(ip, "GET", "/log/" + tag + "/" + name, "", "", 60000, d.stelle);
-            if (x.status == 416 || !x.ok()) continue;
+            if (d.stelle > 0 && !d.kopf && !ls_kopf(ip, pfad, kennung, d)) {
+                ganz = false;
+                continue;
+            }
+            http::Antwort x = http::anfrage(ip, "GET", pfad, "", "", 60000, d.stelle);
+            if (x.status == 416) continue;
+            if (!x.ok()) {
+                ganz = false;
+                continue;
+            }
             // Antwortet der Leitstand ohne Range mit der ganzen Datei (200 statt 206), von vorn lesen
             if (x.status == 200 && d.stelle > 0) d = LsDatei{};
-            plaetze += ls_lesen(d, kennung, x.body);
+            am_tag += ls_lesen(d, kennung, x.body);
+            if (d.stelle < byte) ganz = false;
+            vTaskDelay(pdMS_TO_TICKS(20));   // der Oberfläche Luft lassen
+        }
+        plaetze += am_tag;
+        // Abgeschlossen: ganz gelesen und älter als gestern (das letzte Mittel eines Tages kommt
+        // erst mit dem ersten Platz des nächsten)
+        if (ganz && tag < gestern) {
+            s_ls_fertig.insert(tag);
+            for (auto it = s_ls.begin(); it != s_ls.end();)
+                it = it->first.rfind(tag + "/", 0) == 0 ? s_ls.erase(it) : std::next(it);
+        }
+        if (am_tag) {
+            s_verlauf_gen++;   // Diagramme zeigen den Tag sofort
+            s_gen++;
         }
     }
+    // Tage, die aus dem Fenster gefallen sind, vergessen
+    for (auto it = s_ls_fertig.begin(); it != s_ls_fertig.end();) it = *it < ab_tag ? s_ls_fertig.erase(it) : std::next(it);
     s_ls_zuletzt = uhr();
     s_ls_plaetze += plaetze;
-    ESP_LOGI(TAG, "Leitstand %s: %d Plätze übernommen, %u Dateien", ip.c_str(), plaetze, (unsigned)s_ls.size());
-    if (plaetze) s_gen++;   // Diagramme neu
+    ESP_LOGI(TAG, "Leitstand %s: %d Plätze übernommen, %u Tage abgeschlossen", ip.c_str(), plaetze, (unsigned)s_ls_fertig.size());
+    if (plaetze) ls_sichern();
 }
 
 void ls_task(void *)
 {
-    vTaskDelay(pdMS_TO_TICKS(20000));
+    ls_laden();
+    vTaskDelay(pdMS_TO_TICKS(15000));
     while (true) {
         std::string ip;
         {
@@ -542,7 +648,7 @@ void ls_task(void *)
 
 void task(void *)
 {
-    int64_t naechst_suche = 0, naechst_speichern = ms() + 1800000, letzt_bild = 0;
+    int64_t naechst_suche = 0, naechst_speichern = ms() + 600000, letzt_bild = 0;
     while (true) {
         int64_t t = ms();
         bool netz = wlan().zustand == Netz::verbunden;
@@ -611,7 +717,7 @@ void task(void *)
             bild_bauen();
         }
         if (s_fs && ms() >= naechst_speichern && uhr_gueltig()) {
-            naechst_speichern = ms() + 1800000;
+            naechst_speichern = ms() + 600000;
             std::string v, b;
             {
                 std::lock_guard<std::mutex> l(s_mx);
@@ -642,7 +748,8 @@ void start()
     bild_bauen();
     // ⚠️ Stapel im PSRAM erlaubt (FREERTOS_TASK_CREATE_ALLOW_EXT_MEM); cJSON und HTTP brauchen Platz.
     xTaskCreate(task, "abfrage", 12288, nullptr, 4, nullptr);
-    xTaskCreate(ls_task, "leitstand", 8192, nullptr, 3, nullptr);
+    // ⚠️ Unter der Oberfläche (LVGL 4) und der Abfrage (4): der erste Abgleich darf warten
+    xTaskCreate(ls_task, "leitstand", 8192, nullptr, 2, nullptr);
 }
 
 // ---- Schnittstelle -------------------------------------------------------------------
@@ -654,6 +761,7 @@ std::shared_ptr<const anlage::Bild> bild()
 }
 
 uint32_t generation() { return s_gen; }
+uint32_t verlauf_generation() { return s_verlauf_gen; }
 
 std::vector<anlage::Geraetestand> staende()
 {

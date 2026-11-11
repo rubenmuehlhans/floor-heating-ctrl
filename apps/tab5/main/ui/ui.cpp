@@ -2,8 +2,10 @@
 // Rückmeldung — wie Hauptansicht.swift auf dem iPad.
 #include "ui.h"
 
+#include <math.h>
 #include <map>
 #include <vector>
+#include "akku.h"
 #include "daten.h"
 #include "eins.h"
 #include "fmt.h"
@@ -14,6 +16,8 @@ namespace ui {
 
 namespace {
 
+lv_obj_t *s_akku, *s_akku_zahl, *s_akku_blitz;
+std::string s_akku_sig;
 lv_obj_t *s_scr, *s_titel, *s_kopf_rechts, *s_zurueck, *s_inhalt, *s_uhr, *s_netz, *s_marke_befunde, *s_meldung;
 Bereich s_bereich = Bereich::uebersicht;
 std::map<Bereich, std::vector<Ziel>> s_stapel;
@@ -59,6 +63,57 @@ void netz_setzen()
     const char *s = w.zustand == daten::Netz::verbunden ? "wifi" : "wifi.exclamationmark";
     lv_label_set_text(s_netz, sym(s));
     lv_obj_set_style_text_color(s_netz, w.zustand == daten::Netz::verbunden && !b->beispiel ? p.gedaempft : p.warnung, 0);
+}
+
+// Ladestand des eingebauten Akkus: Batterieumriss mit der Prozentzahl, daneben ein Blitz,
+// solange er lädt (wie akku_symbol am Tab5 von camperSense), ein Stecker am Netz ohne Ladestrom. Bis 15 % rot, bis 30 % bernstein.
+void akku_setzen()
+{
+    if (!s_akku) return;
+    const Palette &p = pal();
+    akku::Stand a = akku::stand();
+    // Blitz beim Laden, Stecker am Netz ohne Ladestrom (voll, oder Laden aus), sonst nichts
+    bool laedt = a.zustand == akku::Zustand::laedt;
+    bool netz = a.zustand == akku::Zustand::voll || a.zustand == akku::Zustand::netz;
+    std::string sig = std::to_string(a.prozent) + "/" + std::to_string((int)a.zustand);
+    if (sig == s_akku_sig) return;
+    s_akku_sig = sig;
+    lv_obj_set_hidden(s_akku_blitz, !laedt && !netz);
+    lv_label_set_text(s_akku_blitz, sym(laedt ? "zap" : "powerplug"));
+    lv_obj_set_style_text_color(s_akku_blitz, laedt ? p.gut : p.gedaempft, 0);
+    if (a.prozent < 0) {
+        lv_label_set_text(s_akku_zahl, fmt::STRICH);
+        lv_obj_set_style_text_color(s_akku_zahl, p.gedaempft, 0);
+        return;
+    }
+    // „100%“ ohne Leerzeichen: mit passt es nicht in den Umriss
+    lv_label_set_text(s_akku_zahl, (std::to_string(a.prozent) + "%").c_str());
+    lv_obj_set_style_text_color(s_akku_zahl, a.prozent <= 15 ? p.stoerung : a.prozent <= 30 ? p.warnung : p.tinte, 0);
+}
+
+void akku_bauen(lv_obj_t *parent)
+{
+    s_akku = nullptr;
+    if (!akku::vorhanden()) return;
+    const Palette &p = pal();
+    s_akku = flaeche(parent);
+    zeile(s_akku, 2);
+    lv_obj_t *koerper = flaeche(s_akku);
+    lv_obj_set_size(koerper, 66, 30);
+    lv_obj_set_style_radius(koerper, 7, 0);
+    lv_obj_set_style_border_width(koerper, 2, 0);
+    lv_obj_set_style_border_color(koerper, p.gedaempft, 0);
+    s_akku_zahl = text(koerper, "", &f_cap_m, p.tinte);
+    lv_obj_center(s_akku_zahl);
+    lv_obj_t *pol = flaeche(s_akku);
+    lv_obj_set_size(pol, 4, 11);
+    lv_obj_set_style_radius(pol, 2, 0);
+    lv_obj_set_style_bg_color(pol, p.gedaempft, 0);
+    lv_obj_set_style_bg_opa(pol, LV_OPA_COVER, 0);
+    s_akku_blitz = symbol(s_akku, "zap", &f_sym19, p.gut);
+    lv_obj_set_style_margin_left(s_akku_blitz, 2, 0);
+    s_akku_sig.clear();
+    akku_setzen();
 }
 
 void leiste_aufbauen()
@@ -110,7 +165,8 @@ void leiste_aufbauen()
         }
     }
     dehnung(l);
-    // Uhr und Netz unten in der Leiste
+    // Akku, Uhr und Netz unten in der Leiste
+    akku_bauen(l);
     s_uhr = text(l, "", &f_wert, p.tinte);
     s_netz = text(l, "", &f_sym24, p.gedaempft);
     lv_obj_set_style_margin_bottom(s_netz, 20, 0);
@@ -165,6 +221,80 @@ void kopf_knopf(const char *sf, const std::string &t, std::function<void()> wenn
     lv_obj_t *b = knopf(s_kopf_rechts, t, betont, std::move(wenn), sf);
     lv_obj_set_style_min_height(b, 52, 0);
     lv_obj_set_style_pad_ver(b, 8, 0);
+}
+
+uint32_t anzeige_generation()
+{
+    static uint32_t gen_daten, ergebnis = 1;
+    static uint64_t sig_alt;
+    static int64_t minute_alt;
+    int64_t minute = daten::jetzt() / 60;
+    if (daten::generation() == gen_daten && minute == minute_alt) return ergebnis;
+    gen_daten = daten::generation();
+    auto b = daten::bild();
+    uint64_t h = 0xCBF29CE484222325ull;
+    auto m = [&](uint64_t v) { h = (h ^ v) * 0x100000001B3ull; };
+    auto z = [&](float v, float f) { m(isnan(v) ? 0x7FFFFFFF : (uint64_t)(int64_t)lroundf(v * f)); };
+    auto t = [&](const std::string &s) {
+        for (char c : s) m((uint8_t)c);
+    };
+    m(minute);
+    m(b->beispiel);
+    for (const auto &g : b->geraete) {
+        t(g.id);
+        m(g.erreichbar);
+        t(g.version);
+    }
+    for (const auto &e : b->etagen) {
+        m(e.bedarf);
+        for (const auto &r : e.raeume) {
+            m(r.nr);
+            t(r.name);
+            m(r.an);
+            m((int)r.zustand());
+            z(r.soll, 10);
+            z(r.ist, 10);
+            z(r.feuchte, 1);
+            m(r.batterie);
+            z(r.zielstellung, 100);
+            m(r.thermometer);
+        }
+        for (const auto &k : e.kanaele) {
+            z(k.stellung, 100);
+            m(k.hand);
+            m(k.kalibriert);
+            t(k.op);
+        }
+    }
+    z(b->aussen.temperatur, 10);
+    z(b->aussen.feuchte, 1);
+    m(b->kessel.laeuft);
+    z(b->kessel.abgas, 10);
+    z(b->kessel.vorlauf, 10);
+    z(b->kessel.ruecklauf, 10);
+    m(b->kessel.starts_heute);
+    z(b->speicher.temperatur, 10);
+    z(b->speicher.ladung, 100);
+    t(b->speicher.phase);
+    for (const auto &k : b->heizkreise) {
+        m((int)k.modus);
+        m(k.pumpe);
+        m(k.gesperrt);
+        z(k.vorlauf, 10);
+        z(k.ruecklauf, 10);
+        t(k.grund);
+    }
+    m((int)b->kkp.modus);
+    m(b->kkp.laeuft);
+    for (const auto &f : b->befunde) {
+        t(f.id);
+        m(f.stumm);
+    }
+    if (h != sig_alt) {
+        sig_alt = h;
+        ergebnis++;
+    }
+    return ergebnis;
 }
 
 static uint32_t s_bedienung;
@@ -357,6 +487,7 @@ static void takt(lv_timer_t *)
         s_uhr_min = min;
         lv_label_set_text(s_uhr, fmt::uhrzeit(jetzt).c_str());
     }
+    akku_setzen();
     if (daten::wlan_generation() != s_netz_gen) {
         s_netz_gen = daten::wlan_generation();
         netz_setzen();

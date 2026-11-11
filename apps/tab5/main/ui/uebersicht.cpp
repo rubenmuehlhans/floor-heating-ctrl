@@ -259,7 +259,7 @@ void uebersicht_aufbauen(lv_obj_t *inhalt)
 {
     const Palette &p = pal();
     auto b = daten::bild();
-    s_nb.merken(inhalt, daten::generation() + ki::generation());
+    s_nb.merken(inhalt, anzeige_generation() + ki::generation());
     kopf_knopf("sparkles", "Fragen", [] { fragen("Übersicht"); });
     Spalten sp = doppelseite(inhalt);
     s_nb.spalten(sp);
@@ -293,7 +293,7 @@ void uebersicht_aufbauen(lv_obj_t *inhalt)
 
 void uebersicht_takt()
 {
-    if (s_nb.geaendert(daten::generation() + ki::generation())) s_nb.neu([](lv_obj_t *i) { uebersicht_aufbauen(i); });
+    if (s_nb.geaendert(anzeige_generation() + ki::generation())) s_nb.neu([](lv_obj_t *i) { uebersicht_aufbauen(i); });
 }
 
 }  // namespace ui

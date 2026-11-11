@@ -75,6 +75,7 @@ void verteilerbalken(lv_obj_t *c, const anlage::Etage &e)
         lv_obj_t *n = text(g, raum.empty() ? "ohne Raum" : raum, &f_cap, raum.empty() ? p.blass : p.tinte);
         lv_obj_set_width(n, std::max(60, (int)(j - i) * 41 - 8));
         lv_label_set_long_mode(n, LV_LABEL_LONG_MODE_DOTS);
+        lv_obj_set_height(n, f_cap.line_height);   // ⚠️ Pünktchen nur mit fester Höhe, sonst bricht es um
         i = j;
     }
 }
@@ -142,7 +143,7 @@ lv_obj_t *raumkarte(lv_obj_t *c, const anlage::Raum &r, const anlage::Etage &e)
 void raeume_aufbauen(lv_obj_t *inhalt)
 {
     auto b = daten::bild();
-    s_nb_raeume.merken(inhalt, daten::generation());
+    s_nb_raeume.merken(inhalt, anzeige_generation());
     kopf_knopf("sparkles", "Fragen", [] { fragen("Räume"); });
     Spalten sp = doppelseite(inhalt);
     s_nb_raeume.spalten(sp);
@@ -189,7 +190,7 @@ void raeume_aufbauen(lv_obj_t *inhalt)
 
 void raeume_takt()
 {
-    if (s_nb_raeume.geaendert(daten::generation())) s_nb_raeume.neu([](lv_obj_t *i) { raeume_aufbauen(i); });
+    if (s_nb_raeume.geaendert(anzeige_generation())) s_nb_raeume.neu([](lv_obj_t *i) { raeume_aufbauen(i); });
 }
 
 // ---- Raumdetail ----------------------------------------------------------------------
@@ -199,7 +200,7 @@ void raum_aufbauen(lv_obj_t *inhalt, const std::string &id)
     const Palette &p = pal();
     s_raum = id;
     auto b = daten::bild();
-    s_nb_raum.merken(inhalt, daten::generation());
+    s_nb_raum.merken(inhalt, anzeige_generation());
     const anlage::Raum *r = b->raum(id);
     const anlage::Etage *e = r ? b->etage(r->geraet) : nullptr;
     if (!r || !e) {
@@ -311,7 +312,7 @@ void raum_aufbauen(lv_obj_t *inhalt, const std::string &id)
 
 void raum_takt()
 {
-    if (s_nb_raum.geaendert(daten::generation())) s_nb_raum.neu([](lv_obj_t *i) { raum_aufbauen(i, s_raum); });
+    if (s_nb_raum.geaendert(anzeige_generation())) s_nb_raum.neu([](lv_obj_t *i) { raum_aufbauen(i, s_raum); });
 }
 
 }  // namespace ui

@@ -44,7 +44,7 @@ void befunde_aufbauen(lv_obj_t *inhalt, const std::string &auswahl)
     const Palette &p = pal();
     auto b = daten::bild();
     s_auswahl = auswahl;
-    s_nb.merken(inhalt, daten::generation());
+    s_nb.merken(inhalt, anzeige_generation());
     titel_setzen("Befunde");
     Spalten sp = doppelseite(inhalt);
     s_nb.spalten(sp);
@@ -103,7 +103,7 @@ void befunde_aufbauen(lv_obj_t *inhalt, const std::string &auswahl)
 
 void befunde_takt()
 {
-    if (s_nb.geaendert(daten::generation())) s_nb.neu([](lv_obj_t *i) { befunde_aufbauen(i, s_auswahl); });
+    if (s_nb.geaendert(anzeige_generation())) s_nb.neu([](lv_obj_t *i) { befunde_aufbauen(i, s_auswahl); });
 }
 
 }  // namespace ui

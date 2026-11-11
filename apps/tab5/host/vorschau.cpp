@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <zlib.h>
+#include <chrono>
 #include <string>
 #include <vector>
 #include "lvgl.h"
@@ -96,6 +97,26 @@ int main(int argc, char **argv)
     lv_display_set_flush_cb(d, flush);
     ui::start(d);
     laufen(100);
+    // Messung: `messen seite` zeichnet die Seite 20-mal neu, wie beim Bildlauf, und gibt die
+    // mittlere Zeit je Bild aus (Vorschau auf dem Mac, nur als Vergleich zwischen Fassungen).
+    if (i < argc && !strcmp(argv[i], "messen")) {
+        for (i++; i < argc; i++) {
+            auto t0 = std::chrono::steady_clock::now();
+            ui::seite_nach_name(argv[i]);
+            laufen(50);
+            lv_refr_now(d);
+            auto t1 = std::chrono::steady_clock::now();
+            for (int k = 0; k < 20; k++) {
+                lv_obj_invalidate(lv_screen_active());
+                lv_refr_now(d);
+            }
+            auto t2 = std::chrono::steady_clock::now();
+            printf("  %-24s Aufbau %6.1f ms, je Bild %6.1f ms\n", argv[i],
+                   std::chrono::duration<double, std::milli>(t1 - t0).count(),
+                   std::chrono::duration<double, std::milli>(t2 - t1).count() / 20);
+        }
+        return 0;
+    }
     for (; i < argc; i++) {
         std::string name = argv[i];
         if (!ui::seite_nach_name(name)) {

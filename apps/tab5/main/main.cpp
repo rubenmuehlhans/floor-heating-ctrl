@@ -17,6 +17,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "akku.h"
 #include "bootmenu.h"
 #include "geraet.h"
 #include "nvs_flash.h"
@@ -55,6 +56,9 @@ extern "C" void app_main(void)
     bsp_display_brightness_set((int)eins::zahl(eins::k::HELL, 80));
 
     bool c6 = daten::funk_starten();
+    // Akku messen, bevor das Laden eingeschaltet wird: nach einem Neustart steht CHG_EN aus,
+    // der Akku liegt kurz in Ruhe — die beste Gelegenheit für einen Ladestand aus der Spannung.
+    akku::start();
 
     daten::start();
     ki::start();
@@ -66,6 +70,10 @@ extern "C" void app_main(void)
         lv_timer_create([](lv_timer_t *) { anzeige::takt(); }, 1000, nullptr);
         bsp_display_unlock();
     }
+    // ⚠️⚠️ Laden einschalten wie die Werksfirmware; HIER im Hauptablauf, nicht im Akku-Task:
+    // bsp_io_expander1_init() ist nicht gegen gleichzeitige Aufrufe geschützt (camperSense,
+    // Falle 27).
+    akku::laden(true);
     if (c6) daten::wlan_start();
     else ESP_LOGE(TAG, "ohne Funkmodul: kein WLAN, die Tafel zeigt die Beispielanlage");
     ESP_LOGI(TAG, "Start abgeschlossen");

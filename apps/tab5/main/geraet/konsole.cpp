@@ -4,6 +4,8 @@
 //   seite <name>            Seite öffnen (ui::seite_nach_name: uebersicht, raeume, raum:<id>, …)
 //   wifi <ssid> [kennwort]  mit einem Netz verbinden
 //   ki_schluessel <sk-ant-…> API-Schlüssel von Anthropic ins NVS (tools/schluessel.py)
+//   akku [an|aus|register]  Spannung, Strom (negativ = Laden), Zustand; Laden ein/aus
+//   hell <0–100>            Helligkeit vorübergehend setzen (Prüfung des Ladestroms)
 //   shot                    Bildschirmfoto Zeile für Zeile (tools/aufnahme.py)
 //   neustart
 //
@@ -11,8 +13,10 @@
 // ⚠️ LVGL nur unter bsp_display_lock(); `shot` zeichnet im Konsolen-Task, deshalb 16 KB Stapel
 // (camperSense, Falle 19).
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <string>
+#include "akku.h"
 #include "bsp/esp-bsp.h"
 #include "daten.h"
 #include "eins.h"
@@ -108,9 +112,27 @@ void befehl(const std::string &z)
     } else if (cmd == "ki_pruefen") {
         ki::verbindung_pruefen();
         puts("Verbindungstest eingereiht, Ergebnis im Protokoll");
+    } else if (cmd == "akku") {
+        if (arg == "an" || arg == "aus") akku::laden(arg == "an");
+        if (arg == "register") {
+            printf("@@AKKU %s\n", akku::register_text().c_str());
+            return;
+        }
+        if (!akku::vorhanden()) {
+            puts("INA226 nicht gefunden");
+            return;
+        }
+        static const char *Z[] = {"unbekannt", "entlädt", "lädt", "voll", "Netz ohne Ladestrom"};
+        akku::Stand s = akku::stand();
+        printf("@@AKKU %.3f V, Strom %+.3f A (geglättet %+.3f A), %d %%, %s, Laden %s\n", (double)s.spannung,
+               (double)s.strom_roh, (double)s.strom_mittel, s.prozent, Z[(int)s.zustand], s.lade_an ? "ein" : "aus");
+    } else if (cmd == "hell") {
+        // nur zur Prüfung: hält bis zum nächsten Wechsel zwischen hell und gedimmt
+        bsp_display_brightness_set(atoi(arg.c_str()));
+        puts("ok");
     } else if (cmd == "shot") shot();
     else if (cmd == "neustart") esp_restart();
-    else if (!cmd.empty()) puts("Befehle: info, seite <name>, wifi <ssid> [kennwort], ki_schluessel <sk-ant-…>, shot, neustart");
+    else if (!cmd.empty()) puts("Befehle: info, seite <name>, wifi <ssid> [kennwort], ki_schluessel <sk-ant-…>, akku [an|aus|register], hell <n>, shot, neustart");
 }
 
 int ausfuehren(int argc, char **argv)
@@ -134,7 +156,7 @@ void start()
     // ⚠️⚠️ Immer der einfache Modus: antwortet das Terminal auf ESC[5n (idf.py monitor), schaltet
     // die Konsole sonst in den Vollmodus und verschluckt Eingaben (camperSense, Falle 10.16).
     linenoiseSetDumbMode(1);
-    for (const char *n : {"info", "seite", "wifi", "ki_schluessel", "ki_pruefen", "shot", "neustart"}) {
+    for (const char *n : {"info", "seite", "wifi", "ki_schluessel", "ki_pruefen", "akku", "hell", "shot", "neustart"}) {
         esp_console_cmd_t c = {};
         c.command = n;
         c.help = "";

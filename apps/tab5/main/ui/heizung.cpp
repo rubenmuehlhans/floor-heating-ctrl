@@ -173,7 +173,7 @@ void heizung_aufbauen(lv_obj_t *inhalt)
 {
     const Palette &p = pal();
     auto b = daten::bild();
-    s_nb.merken(inhalt, daten::generation());
+    s_nb.merken(inhalt, anzeige_generation());
     kopf_knopf("sparkles", "Fragen", [] { fragen("Heizung"); });
     Spalten ganz = doppelseite(inhalt, false);
     s_nb.spalten(ganz);
@@ -209,21 +209,24 @@ void heizung_aufbauen(lv_obj_t *inhalt)
 
 void heizung_takt()
 {
-    if (s_nb.geaendert(daten::generation())) s_nb.neu([](lv_obj_t *i) { heizung_aufbauen(i); });
+    if (s_nb.geaendert(anzeige_generation())) s_nb.neu([](lv_obj_t *i) { heizung_aufbauen(i); });
 }
 
 // ---- Verlauf (Heizung › Verlauf) ------------------------------------------------------
 
 static int s_vz = 1;   // 0 = 6 Std., 1 = 24 Std., 2 = 7 Tage
 static lv_obj_t *s_v_inhalt;
+static Neubau s_v_nb;
 
 void verlauf_aufbauen(lv_obj_t *inhalt)
 {
     const Palette &p = pal();
     s_v_inhalt = inhalt;
+    s_v_nb.merken(inhalt, daten::verlauf_generation());
     titel_setzen("Verlauf");
     auto b = daten::bild();
     Spalten sp = doppelseite(inhalt);
+    s_v_nb.spalten(sp);
     lv_obj_t *wahl = karte(sp.links);
     lv_obj_set_style_pad_all(wahl, 12, 0);
     segmente(wahl, {"6 Std.", "24 Std.", "7 Tage"}, s_vz, [](int i) {
@@ -292,8 +295,14 @@ void verlauf_aufbauen(lv_obj_t *inhalt)
             if (r.thermometer)
                 raeume.push_back({reihe(e.geraet + "/raum." + std::to_string(r.nr) + ".ist"), lv_color_hex(FARBEN[fi++ % 10]), false, false, false, r.name});
     tafel(sp.rechts, "Räume", raeume, 300, 4, false);
+    s_v_nb.wiederherstellen();
 }
 
-void verlauf_takt() {}
+// Neue Plätze und Werte vom Leitstand: neu aufbauen (die Diagramme kommen aus dem Zwischenspeicher,
+// solange sich ihre Daten nicht geändert haben)
+void verlauf_takt()
+{
+    if (s_v_nb.geaendert(daten::verlauf_generation())) s_v_nb.neu([](lv_obj_t *i) { verlauf_aufbauen(i); });
+}
 
 }  // namespace ui

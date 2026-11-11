@@ -16,6 +16,11 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   Vorschlagskarten zum Übernehmen und Lagebericht; ohne Zustimmung „Daten an Anthropic“ stellt er
   keine Anfrage. Den Verlauf übernimmt sie vom Leitstand. Bis ein Gerät antwortet, zeigt die Tafel
   die Beispielanlage. Was noch fehlt, steht in `apps/tab5/README.md`.
+- **Bedientafel: Akkustand in der Seitenleiste.** Ladestand in Prozent, ein Blitz beim Laden, ein
+  Stecker bei Netzbetrieb ohne Ladestrom. Das Ladegerät des Tab5 nimmt das Laden nach dem
+  Einschalten nicht in jedem Fall auf; die Tafel erkennt das nach 10 s ohne Ladestrom und schaltet
+  das Laden erneut ein. Die Leitungen des Ladegeräts am Portexpander sind wie in der Bibliothek von
+  M5Stack eingerichtet (Ladestrom 500 mA).
 
 ### Heizungsgeräte
 

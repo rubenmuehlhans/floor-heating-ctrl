@@ -8,6 +8,7 @@
 #include "json.h"
 #include "verlauf.h"
 #include "claude.h"
+#include "akkustand.h"
 #include "anweisungen.h"
 #include "daten.h"
 #include "werkzeuge.h"
@@ -107,6 +108,16 @@ int main(int argc, char **argv)
         PRUEFE(claude::modellname("claude-opus-5-5") == "Claude Opus 5.5");
         PRUEFE(json::lesen(anweisungen::lagebericht_schema()) != nullptr);
         printf("Systemanweisungen %zu Zeichen, Werkzeuge %zu Zeichen\n", anweisungen::system().size(), werkzeuge::definitionen().size());
+    }
+    // ---- Akku: Ladestand aus der Ruhespannung, beim Laden mitgezählt
+    {
+        PRUEFE(akkustand::prozent_aus_spannung(8.40f) == 100 && akkustand::prozent_aus_spannung(6.4f) == 0);
+        akkustand::Rechner r;
+        r.schritt(7.68f, 0.0f, 1);
+        PRUEFE(r.soc > 45 && r.soc < 55);
+        float vorher = r.soc;
+        for (int i = 0; i < 360; i++) r.schritt(8.0f, -0.5f, 10);   // eine Stunde mit 0,5 A
+        PRUEFE(r.soc > vorher + 20 && r.soc <= 99);
     }
     // ---- Modelle: neuestes der Reihe, Fähigkeiten aus der API
     {
