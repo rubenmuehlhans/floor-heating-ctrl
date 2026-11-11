@@ -1,11 +1,12 @@
 // Räume und Raumdetail — wie apple/App/Ansichten/Raeume/RaeumeAnsicht.swift.
 //
-// Räume: je Etage ein Abschnitt, zweispaltig mit dem Verteilerbalken als erster Zelle, dann
-// die Raumkarten mit Stellrad. Raum: links Messung und Bedienung, Kennzahlen; rechts
+// Räume: eine gemeinsam scrollende Fläche; je Etage ein Abschnitt, der Verteilerbalken über
+// die volle Breite und darunter die Raumkarten mit Stellrad, zwei je Zeile. Raum: links Messung und Bedienung, Kennzahlen; rechts
 // Ventile und Verlauf.
 #include <math.h>
 #include <stdlib.h>
 #include <algorithm>
+#include <vector>
 #include "daten.h"
 #include "fmt.h"
 #include "seite.h"
@@ -73,14 +74,18 @@ void verteilerbalken(lv_obj_t *c, const anlage::Etage &e)
         lv_obj_set_style_bg_color(strich, p.linie_stark, 0);
         lv_obj_set_style_bg_opa(strich, LV_OPA_COVER, 0);
         lv_obj_t *n = text(g, raum.empty() ? "ohne Raum" : raum, &f_cap, raum.empty() ? p.blass : p.tinte);
-        lv_obj_set_width(n, std::max(60, (int)(j - i) * 41 - 8));
+        // Mindestens so breit wie die Säulen; kurze Namen ganz, lange gekürzt
+        lv_obj_set_width(n, LV_SIZE_CONTENT);
+        lv_obj_set_style_min_width(n, (int)(j - i) * 41 - 8, 0);
+        lv_obj_set_style_max_width(n, 220, 0);
         lv_label_set_long_mode(n, LV_LABEL_LONG_MODE_DOTS);
         lv_obj_set_height(n, f_cap.line_height);   // ⚠️ Pünktchen nur mit fester Höhe, sonst bricht es um
         i = j;
     }
 }
 
-lv_obj_t *raumkarte(lv_obj_t *c, const anlage::Raum &r, const anlage::Etage &e)
+// `unten`: Zeile mit dem Schaltknopf; ab ihr rückt der Rest nach unten, wenn die Karte höher gezogen wird.
+lv_obj_t *raumkarte(lv_obj_t *c, const anlage::Raum &r, const anlage::Etage &e, lv_obj_t **unten)
 {
     const Palette &p = pal();
     lv_obj_t *k = karte(c);
@@ -112,6 +117,7 @@ lv_obj_t *raumkarte(lv_obj_t *c, const anlage::Raum &r, const anlage::Etage &e)
         text_umbruch(k, "Ohne zugeordnetes Thermometer wird nicht geregelt.", &f_cap, p.gedaempft);
     }
     lv_obj_t *zk = zeile_neu(k, 10);
+    *unten = zk;
     dehnung(zk);
     bool an = r.an;
     knopf(zk, an ? "Ausschalten" : "Einschalten", false, [id, an] { daten::betriebsart(id, !an); });
@@ -145,46 +151,67 @@ void raeume_aufbauen(lv_obj_t *inhalt)
     auto b = daten::bild();
     s_nb_raeume.merken(inhalt, anzeige_generation());
     kopf_knopf("sparkles", "Fragen", [] { fragen("Räume"); });
-    Spalten sp = doppelseite(inhalt);
+    // ⚠️ Eine Fläche, die als Ganzes scrollt — nicht die Doppelseite. Mit zwei unabhängig
+    // scrollenden Spalten standen Raumkarten neben Karten einer anderen Etage, und der
+    // Verteilerbalken lief aus dem Blick (Rückmeldung Ruben, 11.11.2026).
+    Spalten sp = doppelseite(inhalt, false);
     s_nb_raeume.spalten(sp);
+    lv_obj_t *c = sp.links;
+    struct Karte { lv_obj_t *k, *unten; };
+    std::vector<std::pair<Karte, Karte>> paare;
     bool etwas = false;
     for (const auto &e : b->etagen) {
         if (e.nur_aussen && e.raeume.empty()) continue;
         etwas = true;
-        // Abschnitt über beide Spalten; rechts ein leerer gleicher Höhe, damit beide auf einer Linie beginnen
-        abschnitt(sp.links, e.name, e.bedarf ? "Wärmebedarf" : "kein Bedarf");
-        abschnitt(sp.rechts, " ", "");
+        abschnitt(c, e.name, e.bedarf ? "Wärmebedarf" : "kein Bedarf");
         if (e.raeume.empty()) {
-            text_umbruch(sp.links,
-                         "Noch kein Raum eingerichtet. Räume legen Sie in der Weboberfläche des Verteilers unter Räume an.",
+            text_umbruch(c, "Noch kein Raum eingerichtet. Räume legen Sie in der Weboberfläche des Verteilers unter Räume an.",
                          &f_sub, pal().gedaempft);
             continue;
         }
-        // Verteilerbalken als erste Zelle, dann die Raumkarten abwechselnd
-        verteilerbalken(sp.links, e);
-        int n = 1;
-        for (const auto &r : e.raeume) raumkarte(n++ % 2 ? sp.rechts : sp.links, r, e);
-        // Spalten auf gleiche Höhe bringen, damit die nächste Etage auf einer Linie beginnt
-        lv_obj_update_layout(sp.links);
-        lv_obj_update_layout(sp.rechts);
-        auto hoehe = [](lv_obj_t *s) {
-            int h = 0;
-            for (uint32_t i = 0; i < lv_obj_get_child_count(s); i++) {
-                lv_obj_t *c = lv_obj_get_child(s, (int32_t)i);
-                h = std::max(h, (int)(lv_obj_get_y(c) + lv_obj_get_height(c)));
-            }
-            return h;
+        // Verteilerbalken über die volle Breite, darunter die Räume der Etage paarweise
+        verteilerbalken(c, e);
+        // Räume in der Reihenfolge ihrer Heizkreise, wie im Verteilerbalken darüber
+        std::vector<const anlage::Raum *> rs;
+        for (const auto &r : e.raeume) rs.push_back(&r);
+        auto erster = [](const anlage::Raum *r) {
+            return r->kanaele.empty() ? 1000 : *std::min_element(r->kanaele.begin(), r->kanaele.end());
         };
-        int hl2 = hoehe(sp.links), hr2 = hoehe(sp.rechts);
-        lv_obj_t *kurz = hl2 < hr2 ? sp.links : sp.rechts;
-        int diff = abs(hl2 - hr2) - ABSTAND;
-        if (diff > 0) {
-            lv_obj_t *f = flaeche(kurz);
-            lv_obj_set_size(f, 1, diff);
+        std::stable_sort(rs.begin(), rs.end(), [&](auto a, auto b) { return erster(a) < erster(b); });
+        for (size_t i = 0; i < rs.size(); i += 2) {
+            lv_obj_t *z = zeile_neu(c, FUGE, LV_FLEX_ALIGN_START);
+            // ⚠️ Kinder werden auf die Zeile beschnitten (lv_obj_redraw: Fläche + ext draw size);
+            // ohne den Zuschlag fehlt der Schatten der Karten unten (hell, 18 px + 8 px Versatz).
+            lv_obj_set_overflow_visible(z, true);
+            lv_obj_add_event_cb(z, [](lv_event_t *ev) { lv_event_set_ext_draw_size(ev, 28); }, LV_EVENT_REFR_EXT_DRAW_SIZE, nullptr);
+            lv_obj_refresh_ext_draw_size(z);
+            Karte l{}, r{};
+            l.k = raumkarte(z, *rs[i], e, &l.unten);
+            lv_obj_set_width(l.k, SPALTE_B);
+            if (i + 1 < rs.size()) {
+                r.k = raumkarte(z, *rs[i + 1], e, &r.unten);
+                lv_obj_set_width(r.k, SPALTE_B);
+            }
+            paare.push_back({l, r});
         }
     }
     if (!etwas)
-        leer_hinweis(sp.links, "square.grid.2x2", "Kein Verteiler gefunden", "Verteiler im Heimnetz erscheinen hier von selbst.");
+        leer_hinweis(c, "square.grid.2x2", "Kein Verteiler gefunden", "Verteiler im Heimnetz erscheinen hier von selbst.");
+    // Karten einer Zeile auf gleiche Höhe, damit die Zeilen als Raster lesbar bleiben
+    if (!paare.empty()) {
+        lv_obj_update_layout(c);
+        for (auto &[l, r] : paare) {
+            if (!r.k) continue;
+            int hl = lv_obj_get_height(l.k), hr = lv_obj_get_height(r.k);
+            if (hl == hr) continue;
+            // Die kürzere Karte wächst; ihr unterer Teil (Knopf, Kreise, Fuß) rückt nach unten,
+            // damit beide Karten unten auf einer Linie enden
+            Karte &kurz = hl < hr ? l : r;
+            lv_obj_t *d = dehnung(kurz.k);
+            lv_obj_move_to_index(d, lv_obj_get_index(kurz.unten));
+            lv_obj_set_height(kurz.k, std::max(hl, hr));
+        }
+    }
     s_nb_raeume.wiederherstellen();
 }
 

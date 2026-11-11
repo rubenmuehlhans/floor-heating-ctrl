@@ -2,10 +2,11 @@
 // legt sie als PNG ab — ohne Fenster, ohne Gerät.
 //
 //   host/vorschau.sh                       alle Seiten, hell und dunkel → host/shots/
-//   host/build/vorschau <beispiel.json> <ziel> [hell] seite…
+//   host/build/vorschau <beispiel.json> <ziel> [hell] seite[@y]…   (@y: um y Pixel gescrollt)
 //
 // Die Seiten laufen mit der Beispielanlage (host/plattform.cpp).
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
 #include <chrono>
@@ -68,6 +69,17 @@ static void png_schreiben(const std::string &pfad)
     fclose(f);
 }
 
+// Erste senkrecht scrollende Fläche unter `o` (für `seite@y` in der Vorschau)
+static lv_obj_t *bildlauf(lv_obj_t *o)
+{
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+        lv_obj_t *c = lv_obj_get_child(o, (int32_t)i);
+        if (lv_obj_get_scroll_dir(c) == LV_DIR_VER && lv_obj_get_scroll_bottom(c) > 0) return c;
+        if (lv_obj_t *t = bildlauf(c)) return t;
+    }
+    return nullptr;
+}
+
 static void laufen(int ms)
 {
     for (int t = 0; t < ms; t += 10) {
@@ -118,12 +130,24 @@ int main(int argc, char **argv)
         return 0;
     }
     for (; i < argc; i++) {
+        // `seite@y`: Seite um y Pixel gescrollt
         std::string name = argv[i];
+        int y = 0;
+        if (size_t at = name.find('@'); at != std::string::npos) {
+            y = atoi(name.c_str() + at + 1);
+            name.resize(at);
+        }
         if (!ui::seite_nach_name(name)) {
             fprintf(stderr, "unbekannte Seite: %s\n", name.c_str());
             continue;
         }
         laufen(400);
+        if (y) {
+            lv_obj_update_layout(lv_screen_active());
+            if (lv_obj_t *b = bildlauf(lv_screen_active())) lv_obj_scroll_to_y(b, y, LV_ANIM_OFF);
+            laufen(50);
+            name = std::string(argv[i]);
+        }
         lv_refr_now(d);
         std::string datei = name;
         for (char &c : datei)

@@ -21,6 +21,9 @@ Die veröffentlichten Fassungen stehen mit Abbildern unter
   Einschalten nicht in jedem Fall auf; die Tafel erkennt das nach 10 s ohne Ladestrom und schaltet
   das Laden erneut ein. Die Leitungen des Ladegeräts am Portexpander sind wie in der Bibliothek von
   M5Stack eingerichtet (Ladestrom 500 mA).
+- **Bedientafel: Räume als eine Fläche.** Die Seite scrollt als Ganzes statt in zwei unabhängigen
+  Spalten. Je Etage steht der Verteilerbalken über die volle Breite, darunter die Raumkarten in der
+  Reihenfolge der Heizkreise, zwei je Zeile und gleich hoch.
 
 ### Heizungsgeräte
 

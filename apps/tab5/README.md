@@ -14,7 +14,7 @@ die dort Zeit gekostet haben, sind an den betreffenden Stellen im Quelltext verm
 | Bereich | Umfang | Vorlage in der App |
 |---|---|---|
 | Übersicht | Geräteleiste, Beispielanlage, Lagebericht mit Hinweisen, Wärmeerzeugung, drei schwerste Befunde, Räume als Kacheln je Etage; Befunde und Befund als Unterseite | `UebersichtAnsicht.swift` |
-| Räume | je Etage Verteilerbalken und Raumkarten mit Stellrad und Ein/Aus; Raumdetail mit Messung, Stellrad, „Jetzt prüfen“, Kennzahlen, Ventilen und Verlauf (24 Std., 7 Tage) | `RaeumeAnsicht.swift`, `Stellrad.swift` |
+| Räume | eine gemeinsam scrollende Fläche: je Etage Verteilerbalken über die volle Breite, darunter Raumkarten in der Reihenfolge der Heizkreise, zwei je Zeile, mit Stellrad und Ein/Aus; Raumdetail mit Messung, Stellrad, „Jetzt prüfen“, Kennzahlen, Ventilen und Verlauf (24 Std., 7 Tage) | `RaeumeAnsicht.swift`, `Stellrad.swift` |
 | Heizung | Anlagenschema (Querfassung) über die volle Breite, Pufferspeicher, Brenner, Heizkreise und Kesselkreispumpe mit Betriebsart, Verlauf (6 Std. bis 7 Tage) | `HeizungAnsicht.swift`, `Anlagenschema.swift`, `VerlaufAnsichten.swift` |
 | Geräte | Liste und gewähltes Gerät: Zustand, Kanäle bzw. Fühler am Bus, „Alle auf/zu/an die Regelung“, Neustart; WLAN; Einstellungen der Tafel | `GeraeteAnsicht.swift` |
 | Assistent | Gespräch mit Werkzeugen, Überlegung und Werkzeugzeilen zum Aufklappen, Vorschlagskarten mit Übernehmen, Verwerfen und Rückgängig, Bezug aus „Fragen“, Lagebericht von selbst (höchstens alle sechs Stunden), frühere Lageberichte | `AssistentAnsicht.swift`, Packages `Assistent`, `Sprachmodelle` |

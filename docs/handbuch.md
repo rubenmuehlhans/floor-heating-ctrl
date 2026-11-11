@@ -1248,8 +1248,9 @@ die Anzeige dunkler wird.
 und die Räume je Etage. Ein Tipp auf eine Kachel öffnet den Raum, ein Tipp auf einen Befund seine
 Beschreibung.
 
-**Räume.** Je Etage zeigt der Verteilerbalken die Ventilstellungen, die Raumkarten darunter Ist-Wert
-und Zustand. Den Sollwert stellt das Stellrad in Schritten von 0,5 K zwischen 5 und 35 °C: Die Skala
+**Räume.** Die Seite scrollt als Ganzes. Je Etage zeigt der Verteilerbalken über die volle Breite die
+Ventilstellungen, nach Räumen gruppiert. Darunter folgen die Raumkarten mit Ist-Wert, Zustand und
+den Stellungen ihrer Heizkreise, zwei je Zeile und in der Reihenfolge der Heizkreise am Verteiler. Den Sollwert stellt das Stellrad in Schritten von 0,5 K zwischen 5 und 35 °C: Die Skala
 wird waagerecht gewischt, die Nadel in der Mitte zeigt den Wert. Gesendet wird er, sobald das Rad
 900 ms steht. Danach liest die Tafel den Zustand zurück und meldet, wenn das Gerät den Wert nicht
 übernommen hat.
