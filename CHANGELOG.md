@@ -173,7 +173,7 @@ Ab Build 20 (6. November, TestFlight):
   App abbrach, zählte als erledigt; die fehlende Zeit erschien oft erst nach einem Neustart.
   Eine gescheiterte Abfrage des Gerätverlaufs wird jetzt nach einer Minute wiederholt.
 
-Noch in keinem TestFlight-Build:
+Ab Build 21 (12. November, TestFlight):
 
 - **Erklärungen zu Befunden.** Der Betreiber kann einen Befund, der an seiner Anlage bekannt oder
   gewollt ist, einmal erklären, etwa Relais hinter der Kesselregelung, die nachts stromlos sind.
