@@ -173,6 +173,28 @@ Ab Build 20 (6. November, TestFlight):
   App abbrach, zählte als erledigt; die fehlende Zeit erschien oft erst nach einem Neustart.
   Eine gescheiterte Abfrage des Gerätverlaufs wird jetzt nach einer Minute wiederholt.
 
+Noch in keinem TestFlight-Build:
+
+- **Erklärungen zu Befunden.** Der Betreiber kann einen Befund, der an seiner Anlage bekannt oder
+  gewollt ist, einmal erklären, etwa Relais hinter der Kesselregelung, die nachts stromlos sind.
+  Der Assistent legt die Erklärung mit dem neuen Werkzeug `befund_erklaeren` als Karte im
+  Gespräch an; sie wirkt erst nach „Merken“. Alternativ lässt sich ein Befund in seiner Ansicht
+  über „Erklären …“ ohne Gespräch erklären. Eine Erklärung enthält Befund, Orte und Schwere zum
+  Zeitpunkt des Erklärens, den Wortlaut, das Datum, die Geltung (bis auf Widerruf oder befristet)
+  und optional eine Höchstdauer am Stück.
+- **Wirkung einer Erklärung.** Der erklärte Befund zählt nicht mehr im Lagebericht, in der
+  Übersicht, in der Menüleiste und auf der Anzeigetafel. Er löst keine Mitteilung aus, und eine
+  bereits zugestellte wird zurückgenommen. Die Befundliste führt ihn im Abschnitt „Von Ihnen
+  erklärt“ mit dem Wortlaut. Das Werkzeug `befunde` liefert erklärte Befunde getrennt unter
+  `erklaert`, und die Anweisungen verlangen, sie im Lagebericht und in Antworten nicht als Problem
+  zu werten. Sind die Relais erklärt, zeigt die Kachel „Pumpen“ sie als stromlos statt gestört.
+- **Schutz vor verdeckten Störungen.** Eine Erklärung gilt nur für denselben Befund an denselben
+  Orten und höchstens bis zu der Schwere beim Erklären. Kommt ein Ort hinzu, etwa ein weiteres
+  Relais, steigt die Schwere, läuft die Geltung ab oder steht der Befund länger als die
+  Höchstdauer an, erscheint er wieder und löst eine Mitteilung aus, auch bei gleicher Schwere.
+  Andere Befunde bleiben unberührt. Die Erklärungen stehen im Assistenten unter „Erklärungen zu
+  Befunden“ mit ihrem Zustand und lassen sich dort und in der Ansicht des Befunds löschen.
+
 ## v0.6.0 — 5. Oktober 2026
 
 ### Verteiler

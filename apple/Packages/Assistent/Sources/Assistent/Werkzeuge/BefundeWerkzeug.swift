@@ -11,8 +11,9 @@ public struct BefundeWerkzeug: Tool {
         Liest die offenen Befunde: Meldungen der Firmware (etwa Rückströmung, vertauschter \
         Vorlauf, Taktung) und der Prüfungen der App (etwa Gerät nicht erreichbar, Raum ohne \
         Thermometer, Heizkreis ohne Verteiler, fehlende Sicherung), je mit Schwere, Text als \
-        Beleg, Ort, Quelle und seit wann er ansteht. Auf Wunsch die in den letzten 30 Tagen \
-        erledigten.
+        Beleg, Ort, Quelle und seit wann er ansteht. Unter erklaert die Befunde, die der \
+        Betreiber als bekannt und gewollt erklärt hat, mit seiner Erklärung; sie sind kein \
+        Problem. Auf Wunsch die in den letzten 30 Tagen erledigten.
         """
 
     @Generable
@@ -51,6 +52,18 @@ public struct BefundeWerkzeug: Tool {
         }
         var ergebnis: JSONWert = ["offen": .liste(offen)]
         if offen.isEmpty { ergebnis["hinweis"] = "Keine offenen Befunde." }
+        if !lage.erklaert.isEmpty {
+            ergebnis["erklaert"] = .liste(lage.erklaert.map { x in
+                var e: JSONWert = [
+                    "id": .text(x.stand.befund.id), "schwere": .text(schwere(x.stand.befund.schwere)),
+                    "titel": .text(x.stand.befund.titel), "ort": .text(x.stand.befund.ort),
+                    "erklaerung": .text(x.erklaerung.text), "erklaert_am": .text(Zeitangabe.text(x.erklaerung.gemerkt ?? x.erklaerung.erstellt)),
+                    "geltung": .text(BefundErklaerenWerkzeug.geltung(x.erklaerung)),
+                ]
+                if let seit = x.stand.seit { e["seit"] = .text(Zeitangabe.text(seit)) }
+                return e
+            })
+        }
         if erledigte {
             ergebnis["erledigt"] = .liste(lage.erledigt.map { e in
                 ["id": .text(e.id), "schwere": .text(schwere(e.befundschwere)), "titel": .text(e.titel), "ort": .text(e.ort),

@@ -103,6 +103,9 @@ struct AssistentAnsicht: View {
                             Label("Frühere Lageberichte", systemImage: "doc.text.magnifyingglass")
                         }
                     }
+                    ZielLink(Ziel.erklaerungen) {
+                        Label("Erklärungen zu Befunden", systemImage: "text.badge.checkmark")
+                    }
                     Divider()
                     Picker("Modell", selection: Bindable(modell).kiModell) {
                         ForEach(AppModell.KIModell.allCases) { m in
@@ -208,6 +211,8 @@ struct BeitragAnsicht: View {
                             .fixedSize(horizontal: false, vertical: true)
                     case .vorschlag(let id):
                         VorschlagKarte(vorschlagID: id)
+                    case .erklaerung(let id):
+                        ErklaerungKarte(erklaerungID: id)
                     case .bild(let beschreibung):
                         Bildanhang(beschreibung: beschreibung)
                     case .fehler(let text):

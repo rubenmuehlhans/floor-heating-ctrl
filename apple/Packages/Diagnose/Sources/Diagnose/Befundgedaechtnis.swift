@@ -14,6 +14,9 @@ import Anlage
 ///   Mitteilung kehrt still zurück, ohne Ton und Banner. So bleibt die Mitteilungszentrale
 ///   richtig, ohne dass ein flatterndes Gerät ständig meldet.
 /// - Erledigte Befunde bleiben `aufbewahrung` lang für die Liste des Erledigten.
+/// - Deckt eine Erklärung des Betreibers den Befund ab, wird er nicht gemeldet, und eine frühere
+///   Mitteilung wird zurückgenommen. Passt die Erklärung nicht mehr, etwa weil ein weiterer Ort
+///   betroffen ist, wird er erneut gemeldet, auch bei gleicher Schwere.
 @MainActor
 @Observable
 public final class Befundgedaechtnis {
@@ -35,6 +38,8 @@ public final class Befundgedaechtnis {
         public var stumm: Bool
         /// Die Mitteilung wurde beim Erledigen zurückgenommen.
         public var zurueckgenommen: Bool? = nil
+        /// Eine Erklärung des Betreibers deckte den Befund beim letzten Abgleich ab.
+        public var erklaert: Bool? = nil
 
         public var befundschwere: Befund.Schwere { Befund.Schwere(rawValue: schwere) ?? .hinweis }
     }
@@ -67,7 +72,7 @@ public final class Befundgedaechtnis {
         public var sichtbar: [Stand] = []
         /// Neu zu meldende Befunde
         public var mitteilungen: [Mitteilung] = []
-        /// Erledigte Befunde, deren Mitteilung zurückgenommen werden kann
+        /// Erledigte oder erklärte Befunde, deren Mitteilung zurückgenommen werden kann
         public var erledigt: [String] = []
     }
 
@@ -103,9 +108,11 @@ public final class Befundgedaechtnis {
 
     /// Gleicht die Befunde des jetzigen Stands ab. `vollstaendig` heißt: Alle Geräte wurden
     /// mindestens einmal abgefragt. Vorher gilt kein Befund als erledigt, nur weil ein Gerät
-    /// noch nicht geantwortet hat.
+    /// noch nicht geantwortet hat. `erklaert` sagt, ob eine Erklärung des Betreibers einen Befund
+    /// seit Beginn seines Ablaufs abdeckt: nil ohne Erklärung, false, wenn sie nicht mehr passt.
     @discardableResult
-    public func abgleichen(_ befunde: [Befund], jetzt: Date, vollstaendig: Bool, melden: Set<Befund.Schwere>) -> Ergebnis {
+    public func abgleichen(_ befunde: [Befund], jetzt: Date, vollstaendig: Bool, melden: Set<Befund.Schwere>,
+                           erklaert: (Befund, Date) -> Bool? = { _, _ in nil }) -> Ergebnis {
         var ergebnis = Ergebnis()
         var geaendert = false
         let ids = Set(befunde.map(\.id))
@@ -138,7 +145,28 @@ public final class Befundgedaechtnis {
                     geaendert = true
                 }
                 ergebnis.sichtbar.append(Stand(befund: b, seit: e.erstmals, stumm: e.stumm))
-                let hoeher = e.gemeldeteSchwere.map { b.schwere.rawValue > $0 } ?? true
+                let deckung = erklaert(b, e.erstmals)
+                if deckung == true {
+                    // Erklärt: nicht melden; eine frühere Mitteilung verschwindet.
+                    if e.erklaert != true {
+                        if e.gemeldeteSchwere != nil, e.zurueckgenommen != true { ergebnis.erledigt.append(b.id) }
+                        e.erklaert = true
+                        geaendert = true
+                    }
+                    if e.gemeldeteSchwere == nil {
+                        e.gemeldeteSchwere = b.schwere.rawValue
+                        geaendert = true
+                    }
+                    eintraege[b.id] = e
+                    continue
+                }
+                // Passt die Erklärung nicht mehr, wird erneut gemeldet. Ist sie gelöscht, nicht.
+                let wiederOffen = e.erklaert == true && deckung == false
+                if e.erklaert != nil {
+                    e.erklaert = nil
+                    geaendert = true
+                }
+                let hoeher = wiederOffen || (e.gemeldeteSchwere.map { b.schwere.rawValue > $0 } ?? true)
                 if hoeher, !e.stumm, !ersterLauf, melden.contains(b.schwere) {
                     ergebnis.mitteilungen.append(Mitteilung(id: b.id, schwere: b.schwere, titel: b.titel, text: b.text, ort: b.ort))
                     e.gemeldeteSchwere = b.schwere.rawValue

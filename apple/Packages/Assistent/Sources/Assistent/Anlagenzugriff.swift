@@ -19,6 +19,9 @@ public protocol Anlagenzugriff: Sendable {
     func aenderungen() async -> [Aenderung]
     /// Legt einen Vorschlag an; er erscheint als Karte im Gespräch und unter „Offene Vorschläge“.
     func vorschlagAnlegen(_ vorschlag: Vorschlag) async
+    /// Legt eine Erklärung des Betreibers an; sie erscheint als Karte im Gespräch und wirkt erst,
+    /// wenn der Betreiber sie bestätigt.
+    func erklaerungAnlegen(_ erklaerung: Erklaerung) async
     /// Ereignisse aus dem Protokoll des Leitstands, zeitlich geordnet; leer ohne Leitstand
     func ereignisse(von: Date, bis: Date) async -> [Ereignis]
     /// Messwerte im Takt der Abfrage oder in gröberem Raster, vom Leitstand berechnet. Wirft,
@@ -56,13 +59,17 @@ extension Anlagenzugriff {
 
 /// Befunde mit dem, was das Befundgedächtnis über sie weiß
 public struct Befundlage: Sendable {
+    /// Befunde, die keine Erklärung des Betreibers abdeckt
     public var offen: [Befundgedaechtnis.Stand]
     /// Erledigte Befunde der letzten 30 Tage, jüngste zuerst
     public var erledigt: [Befundgedaechtnis.Eintrag]
+    /// Befunde, die der Betreiber erklärt hat, mit seiner Erklärung
+    public var erklaert: [Erklaerungsliste.Erklaert]
 
-    public init(offen: [Befundgedaechtnis.Stand], erledigt: [Befundgedaechtnis.Eintrag]) {
+    public init(offen: [Befundgedaechtnis.Stand], erledigt: [Befundgedaechtnis.Eintrag], erklaert: [Erklaerungsliste.Erklaert] = []) {
         self.offen = offen
         self.erledigt = erledigt
+        self.erklaert = erklaert
     }
 }
 

@@ -25,7 +25,8 @@ final class Anlagenanbindung: Vorschlagsausfuehrung {
     }
 
     func befundlage() async -> Befundlage {
-        Befundlage(offen: modell.befundgedaechtnis.sichtbar, erledigt: modell.befundgedaechtnis.erledigte)
+        let e = modell.erklaerungen.einordnen(modell.befundgedaechtnis.sichtbar, jetzt: .now)
+        return Befundlage(offen: e.offen, erledigt: modell.befundgedaechtnis.erledigte, erklaert: e.erklaert)
     }
 
     func verlauf(von: Date, bis: Date, schritt: TimeInterval, schluessel: Set<String>?) async -> Verlaufsauszug? {
@@ -46,6 +47,10 @@ final class Anlagenanbindung: Vorschlagsausfuehrung {
     func feinverlauf(geraet: String, schluessel: [String], von: Date, bis: Date, raster: Int) async throws -> Leitstand.Protokollreihe {
         guard let e = modell.verzeichnis.leitstaende.first else { throw Feinverlaufsfehler.keinLeitstand }
         return try await Leitstand(adresse: e.adresse).reihe(geraet: geraet, schluessel: schluessel, von: von, bis: bis, raster: raster)
+    }
+
+    func erklaerungAnlegen(_ erklaerung: Erklaerung) async {
+        modell.erklaerungen.anlegen(erklaerung)
     }
 
     func vorschlagAnlegen(_ vorschlag: Vorschlag) async {

@@ -27,6 +27,9 @@ public enum Darstellung {
                     if let ausgabe, let id = vorschlagskennung(a.toolName, ausgabe) {
                         bausteine.append(.vorschlag(id))
                     }
+                    if let ausgabe, let id = erklaerungskennung(a.toolName, ausgabe) {
+                        bausteine.append(.erklaerung(id))
+                    }
                 }
             case .response(let r):
                 let t = text(r.segments).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -56,6 +59,11 @@ public enum Darstellung {
         guard werkzeug == "aenderung_vorschlagen" || werkzeug == "aktion_vorschlagen",
               let json = try? JSONWert.lesen(Data(ausgabe.utf8)), json["angelegt"] == true else { return nil }
         return json["vorschlag"]?.alsText
+    }
+
+    static func erklaerungskennung(_ werkzeug: String, _ ausgabe: String) -> String? {
+        guard werkzeug == "befund_erklaeren", let json = try? JSONWert.lesen(Data(ausgabe.utf8)), json["angelegt"] == true else { return nil }
+        return json["erklaerung"]?.alsText
     }
 
     /// Eine Zeile, was das Werkzeug gelesen oder angelegt hat
@@ -102,6 +110,9 @@ public enum Darstellung {
         case "aenderung_vorschlagen", "aktion_vorschlagen":
             guard let ausgabe else { return "Vorschlag wird geprüft" }
             return vorschlagskennung(werkzeug, ausgabe) != nil ? "Vorschlag angelegt" : "Vorschlag abgelehnt, die KI berichtigt"
+        case "befund_erklaeren":
+            guard let ausgabe else { return "Erklärung wird geprüft" }
+            return erklaerungskennung(werkzeug, ausgabe) != nil ? "Erklärung zum Merken angelegt" : "Erklärung abgelehnt, die KI berichtigt"
         default:
             return werkzeug
         }
@@ -127,9 +138,11 @@ public enum Darstellung {
         case "befunde":
             guard let json else { break }
             let offen = json["offen"]?.alsListe ?? []
-            if offen.isEmpty { return "keine offenen Befunde" }
-            return offen.prefix(3).compactMap { $0["titel"]?.alsText }.joined(separator: "; ") + (offen.count > 3 ? " und \(offen.count - 3) weitere" : "")
-        case "aenderung_vorschlagen", "aktion_vorschlagen":
+            let erklaert = json["erklaert"]?.alsListe?.count ?? 0
+            let zusatz = erklaert == 0 ? "" : erklaert == 1 ? ", einer erklärt" : ", \(erklaert) erklärt"
+            if offen.isEmpty { return "keine offenen Befunde" + zusatz }
+            return offen.prefix(3).compactMap { $0["titel"]?.alsText }.joined(separator: "; ") + (offen.count > 3 ? " und \(offen.count - 3) weitere" : "") + zusatz
+        case "aenderung_vorschlagen", "aktion_vorschlagen", "befund_erklaeren":
             guard let json else { break }
             if json["angelegt"] == true { return json["titel"]?.alsText ?? "angelegt" }
             return (json["fehler"]?.alsListe ?? []).compactMap(\.alsText).joined(separator: " ")

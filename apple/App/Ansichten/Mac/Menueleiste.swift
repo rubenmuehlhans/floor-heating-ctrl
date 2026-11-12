@@ -53,7 +53,7 @@ struct Menueleiste: View {
             }
             .font(.callout)
 
-            let befunde = a.befundeNachSchwere
+            let befunde = modell.offeneBefunde
             if !befunde.isEmpty {
                 Divider()
                 ForEach(Array(befunde.prefix(5))) { b in

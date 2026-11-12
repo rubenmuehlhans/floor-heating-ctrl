@@ -212,6 +212,8 @@ public struct Beitrag: Identifiable, Sendable, Hashable, Codable {
         case ueberlegung(String)
         case werkzeug(Werkzeugaufruf)
         case vorschlag(String)
+        /// Erklärung des Betreibers zu einem Befund, als Karte zum Merken
+        case erklaerung(String)
         case bild(String)
         /// Eine gescheiterte Anfrage; der Text erklärt, was zu tun ist.
         case fehler(String)

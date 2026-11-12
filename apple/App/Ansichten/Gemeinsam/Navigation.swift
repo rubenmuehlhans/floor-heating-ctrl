@@ -26,6 +26,7 @@ enum Ziel: Hashable {
     case aufzeichnung
     case aenderungen
     case lageberichte
+    case erklaerungen
     case appEinstellungen
     case analysepaket
 }
@@ -98,6 +99,7 @@ struct ZielAnsicht: View {
         case .aufzeichnung: AufzeichnungAnsicht()
         case .aenderungen: AenderungenAnsicht()
         case .lageberichte: LageberichteAnsicht()
+        case .erklaerungen: ErklaerungenAnsicht()
         case .appEinstellungen: AppEinstellungenAnsicht()
         case .analysepaket: AnalysepaketAnsicht()
         }

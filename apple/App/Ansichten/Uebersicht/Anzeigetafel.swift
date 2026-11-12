@@ -43,14 +43,15 @@ struct Anzeigetafel: View {
                     }
                     let gestoert = a.heizkreise.filter(\.relais.gestoert).count
                         + (a.kesselkreispumpe.map { $0.relais.gestoert ? 1 : 0 } ?? 0)
-                    kachel("Pumpen", wert: gestoert > 0 ? "gestört" : "in Ordnung", zahl: false,
-                           fuss: gestoert > 0 ? "\(gestoert)\u{00A0}Relais nicht erreichbar" : "Relais erreichbar",
-                           farbe: gestoert > 0 ? Farbe.stoerung : Farbe.gut) {
+                    let erklaert = gestoert > 0 && modell.befundIstErklaert("relais")
+                    kachel("Pumpen", wert: gestoert > 0 ? (erklaert ? "stromlos" : "gestört") : "in Ordnung", zahl: false,
+                           fuss: gestoert > 0 ? "\(gestoert)\u{00A0}Relais nicht erreichbar\(erklaert ? ", erklärt" : "")" : "Relais erreichbar",
+                           farbe: erklaert ? Farbe.gedaempft : gestoert > 0 ? Farbe.stoerung : Farbe.gut) {
                         modell.bereich = .heizung
                     }
                     ZielLink(.befunde) {
-                        tafelkachel("Befunde", wert: "\(a.befunde.count)", einheit: "", zahl: true,
-                                    fuss: befundzeile(a.befunde), farbe: Farbe.tinte)
+                        tafelkachel("Befunde", wert: "\(modell.offeneBefunde.count)", einheit: "", zahl: true,
+                                    fuss: befundzeile(modell.offeneBefunde), farbe: Farbe.tinte)
                     }
                     .buttonStyle(.plain)
                 }

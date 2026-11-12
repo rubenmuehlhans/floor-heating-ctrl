@@ -32,6 +32,7 @@ enum Aufnahme {
 actor Testanlage: Vorschlagsausfuehrung {
     var staendeWert: [Geraetestand]
     var vorschlaege: [Vorschlag] = []
+    var erklaerungen: [Erklaerung] = []
     var protokoll: [Aenderung] = []
     var geschrieben: [(geraet: String, neu: Bool)] = []
     var gesichert: [String] = []
@@ -101,6 +102,7 @@ actor Testanlage: Vorschlagsausfuehrung {
     func verlauf(von: Date, bis: Date, schritt: TimeInterval, schluessel: Set<String>?) async -> Verlaufsauszug? { verlaufWert }
     func aenderungen() async -> [Aenderung] { aenderungenWert + protokoll }
     func vorschlagAnlegen(_ vorschlag: Vorschlag) async { vorschlaege.append(vorschlag) }
+    func erklaerungAnlegen(_ erklaerung: Erklaerung) async { erklaerungen.append(erklaerung) }
     func ereignisse(von: Date, bis: Date) async -> [Ereignis] { ereignisseWert.filter { $0.zeit >= von && $0.zeit <= bis } }
     func leitstandKennung() async -> String? { "lst_c0ffee" }
     func feinverlauf(geraet: String, schluessel: [String], von: Date, bis: Date, raster: Int) async throws -> Leitstand.Protokollreihe {

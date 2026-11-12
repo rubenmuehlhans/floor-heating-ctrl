@@ -264,6 +264,9 @@ final class AppModell {
 
     /// Seit wann Befunde anstehen, was gemeldet und was stumm geschaltet ist
     let befundgedaechtnis = Befundgedaechtnis.standard()
+    /// Erklärungen des Betreibers zu Befunden; die Beispielanlage hat eigene im Speicher.
+    let erklaerungsliste = Erklaerungsliste.standard()
+    let beispielerklaerungen = Erklaerungsliste(datei: nil)
     let mitteilungen = Mitteilungsdienst()
     var mitteilungsstatus: UNAuthorizationStatus?
     /// Nach dem Antippen einer Mitteilung
@@ -295,7 +298,10 @@ final class AppModell {
             lageberichtPruefen()
             wirkungskontrollenPruefen()
         }
-        let ergebnis = befundgedaechtnis.abgleichen(bild.befunde, jetzt: .now, vollstaendig: betrieb.vollstaendigAbgefragt, melden: meldeSchweren)
+        let jetzt = Date.now
+        let ergebnis = befundgedaechtnis.abgleichen(bild.befunde, jetzt: jetzt, vollstaendig: betrieb.vollstaendigAbgefragt, melden: meldeSchweren) {
+            self.erklaerungDeckt($0, seit: $1, jetzt: jetzt)
+        }
         mitteilungen.senden(ergebnis.mitteilungen)
         mitteilungen.zuruecknehmen(ergebnis.erledigt)
     }
@@ -510,11 +516,14 @@ final class AppModell {
         #endif
     }
 
-    /// Der Lagebericht der KI, solange er zu den sichtbaren Befunden passt und nicht älter als
-    /// einen Tag ist; sonst der Bericht aus den Befunden, bis die KI einen neuen liefert.
+    /// Der Lagebericht der KI, solange er zu den offenen Befunden passt und nicht älter als
+    /// einen Tag ist; sonst der Bericht aus den Befunden, bis die KI einen neuen liefert. Erklärte
+    /// Befunde zählen nicht.
     var aktuellerLagebericht: Lagebericht {
-        if istBeispiel { return lagebericht }
-        let befunde = anlage.befundeNachSchwere
+        if istBeispiel {
+            return erklaerteBefunde.isEmpty ? lagebericht : Lagebericht.ausBefunden(offeneBefunde, stand: anlage.stand)
+        }
+        let befunde = offeneBefunde
         if let ki = ablage.letzterLagebericht, ki.modell != KIModell.geraet.rawValue, Set(befunde.map(\.id)) == Set(ki.befunde),
            Date.now.timeIntervalSince(ki.erstellt) < 86_400 {
             return ki

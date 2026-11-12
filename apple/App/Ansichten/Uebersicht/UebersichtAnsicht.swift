@@ -18,6 +18,14 @@ struct UebersichtAnsicht: View {
     private var raumspalten: [GridItem] {
         [GridItem(.adaptive(minimum: raumbreite, maximum: raumbreiteHoechstens), spacing: 12)]
     }
+    /// „Alle 3 Befunde“, mit erklärten: „Alle Befunde: 3 offen, 1 erklärt“
+    private var befundzusammenfassung: String {
+        let offen = modell.offeneBefunde.count
+        let erklaert = modell.erklaerteBefunde.count
+        if erklaert > 0 { return "Alle Befunde: \(offen) offen, \(erklaert) erklärt" }
+        return offen == 1 ? "Ein Befund" : "Alle \(offen) Befunde"
+    }
+
     private var kennzahlspalten: [GridItem] {
         [GridItem(.adaptive(minimum: kennzahlbreite), spacing: 10)]
     }
@@ -92,9 +100,11 @@ struct UebersichtAnsicht: View {
                         }
                         if pumpenzahl(anlage) > 0 {
                             let gestoert = pumpenGestoert(anlage)
-                            Kennzahl(titel: "Pumpen", wert: gestoert > 0 ? "\(gestoert) gestört" : "in Ordnung",
-                                     fuss: gestoert > 0 ? "Relais nicht erreichbar" : "\(pumpenzahl(anlage)) Relais erreichbar",
-                                     farbe: gestoert > 0 ? Farbe.stoerung : Farbe.gut)
+                            // Hat der Betreiber die Relais erklärt, etwa als nachts stromlos, ist das keine Störung.
+                            let erklaert = gestoert > 0 && modell.befundIstErklaert("relais")
+                            Kennzahl(titel: "Pumpen", wert: gestoert > 0 ? "\(gestoert) \(erklaert ? "stromlos" : "gestört")" : "in Ordnung",
+                                     fuss: erklaert ? "von Ihnen erklärt" : gestoert > 0 ? "Relais nicht erreichbar" : "\(pumpenzahl(anlage)) Relais erreichbar",
+                                     farbe: erklaert ? Farbe.gedaempft : gestoert > 0 ? Farbe.stoerung : Farbe.gut)
                         }
                     }
                     .padding(14)
@@ -103,9 +113,9 @@ struct UebersichtAnsicht: View {
                 .buttonStyle(.plain)
             }
 
-            Abschnitt(titel: "Befunde", zusatz: "\(anlage.befunde.count)")
+            Abschnitt(titel: "Befunde", zusatz: "\(modell.offeneBefunde.count)")
             VStack(spacing: 0) {
-                ForEach(Array(anlage.befundeNachSchwere.prefix(3).enumerated()), id: \.element.id) { i, befund in
+                ForEach(Array(modell.offeneBefunde.prefix(3).enumerated()), id: \.element.id) { i, befund in
                     if i > 0 { Divider().overlay(Farbe.linie).padding(.leading, 46) }
                     ZielLink(Ziel.befund(befund.id)) {
                         BefundZeile(befund: befund)
@@ -117,7 +127,7 @@ struct UebersichtAnsicht: View {
                 Divider().overlay(Farbe.linie)
                 ZielLink(Ziel.befunde) {
                     HStack {
-                        Text("Alle \(anlage.befunde.count) Befunde").font(.subheadline.weight(.medium))
+                        Text(befundzusammenfassung).font(.subheadline.weight(.medium))
                         Spacer()
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(Farbe.blass)
                     }
@@ -462,16 +472,32 @@ struct RaumKachel: View {
 struct BefundZeile: View {
     @Environment(AppModell.self) private var modell
     let befund: Befund
+    /// Die Erklärung des Betreibers; die Zeile erscheint dann gedämpft.
+    var erklaerung: String?
 
     var body: some View {
         let seit = modell.befundSeit(befund.id)
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            SchwereSymbol(schwere: befund.schwere)
-                .frame(width: 20)
+            Group {
+                if erklaerung != nil {
+                    Image(systemName: "text.badge.checkmark").foregroundStyle(Farbe.gedaempft)
+                } else {
+                    SchwereSymbol(schwere: befund.schwere)
+                }
+            }
+            .frame(width: 20)
             VStack(alignment: .leading, spacing: 3) {
                 Text(befund.titel)
                     .font(.subheadline.weight(.medium))
+                    .foregroundStyle(erklaerung == nil ? Color.primary : Color.secondary)
                     .multilineTextAlignment(.leading)
+                if let erklaerung {
+                    Text("„\(erklaerung)“")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
                 Text(([befund.ort, befund.quelle] + (seit.map { ["seit \(Format.seit($0))"] } ?? [])).joined(separator: " · "))
                     .font(Schrift.datenKlein)
                     .foregroundStyle(Farbe.gedaempft)
@@ -496,7 +522,7 @@ struct BefundeAnsicht: View {
 
     var body: some View {
         // Zweispaltig rechts der gewählte Befund, ohne Auswahl der schwerste
-        ListeUndEintrag(vorgabe: modell.anlage.befundeNachSchwere.first.map { Ziel.befund($0.id) }) {
+        ListeUndEintrag(vorgabe: modell.offeneBefunde.first.map { Ziel.befund($0.id) }) {
             liste
         }
         .seitentitel("Befunde")
@@ -506,7 +532,7 @@ struct BefundeAnsicht: View {
     private var liste: some View {
         Form {
             ForEach([Befund.Schwere.stoerung, .warnung, .hinweis], id: \.self) { schwere in
-                let liste = modell.anlage.befunde.filter { $0.schwere == schwere }
+                let liste = modell.offeneBefunde.filter { $0.schwere == schwere }
                 if !liste.isEmpty {
                     Section(schwere == .hinweis ? "Hinweise" : schwere == .warnung ? "Warnungen" : "Störungen") {
                         ForEach(liste) { befund in
@@ -523,10 +549,24 @@ struct BefundeAnsicht: View {
                     }
                 }
             }
-            if modell.anlage.befunde.isEmpty {
+            if modell.offeneBefunde.isEmpty {
                 Section {
-                    Label("Zurzeit liegt kein Befund vor.", systemImage: "checkmark.circle")
+                    Label(modell.erklaerteBefunde.isEmpty ? "Zurzeit liegt kein Befund vor." : "Zurzeit liegt kein offener Befund vor.",
+                          systemImage: "checkmark.circle")
                         .foregroundStyle(Farbe.gut)
+                }
+            }
+            if !modell.erklaerteBefunde.isEmpty {
+                Section {
+                    ForEach(modell.erklaerteBefunde) { x in
+                        ZielLink(Ziel.befund(x.id)) {
+                            BefundZeile(befund: x.stand.befund, erklaerung: x.erklaerung.text)
+                        }
+                    }
+                } header: {
+                    Text("Von Ihnen erklärt")
+                } footer: {
+                    Text("Diese Befunde erscheinen nicht im Lagebericht und lösen keine Mitteilung aus. Die Erklärungen stehen im Assistenten unter „Erklärungen zu Befunden“.")
                 }
             }
             let erledigt = modell.istBeispiel ? [] : modell.befundgedaechtnis.erledigte
@@ -585,6 +625,9 @@ struct BefundAnsicht: View {
                                 }
                             }
                         }
+                        Divider().overlay(Farbe.linie)
+                        BefundErklaerungsabschnitt(befund: befund)
+                        Divider().overlay(Farbe.linie)
                         if !modell.istBeispiel {
                             let stumm = modell.befundIstStumm(befund.id)
                             Toggle(isOn: Binding(get: { !stumm }, set: { modell.befundStumm(befund.id, !$0) })) {

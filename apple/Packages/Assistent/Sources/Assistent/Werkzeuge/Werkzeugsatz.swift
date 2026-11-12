@@ -16,6 +16,7 @@ public enum Werkzeugsatz {
             EinstellungenWerkzeug(zugriff: zugriff),
             AenderungVorschlagenWerkzeug(zugriff: zugriff),
             AktionVorschlagenWerkzeug(zugriff: zugriff),
+            BefundErklaerenWerkzeug(zugriff: zugriff),
         ]
     }
 
@@ -31,6 +32,7 @@ public enum Werkzeugsatz {
             EinstellungenWerkzeug(zugriff: zugriff),
             AenderungVorschlagenWerkzeug(zugriff: zugriff),
             AktionVorschlagenWerkzeug(zugriff: zugriff),
+            BefundErklaerenWerkzeug(zugriff: zugriff),
             WissenWerkzeug(wissen: wissen, laenge: 900),
         ]
     }

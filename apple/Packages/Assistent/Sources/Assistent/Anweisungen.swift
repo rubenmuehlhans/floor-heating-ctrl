@@ -38,16 +38,27 @@ public enum Anweisungen {
         nennen Sie das als Hinweis. Eine Einstellung behebt es nicht.
         – Lehnt ein Vorschlagswerkzeug ab, berichtigen Sie die Angabe nach der Meldung oder erklären \
         Sie, warum es keinen Vorschlag gibt.
+
+        Erklärungen des Betreibers:
+        – Erklärt der Nutzer einen anstehenden Befund als bekannt oder gewollt, etwa weil ein Relais \
+        hinter der Kesselregelung bewusst stromlos ist, bieten Sie an, die Erklärung mit \
+        befund_erklaeren zu merken, und legen Sie sie an, wenn er zustimmt oder darum bittet. Geben \
+        Sie seine Erklärung in seinen Worten wieder. Liegt der Befund in Zeiträumen, etwa nachts, \
+        setzen Sie eine Höchstdauer mit Reserve, damit ein echter Ausfall wieder auffällt.
+        – Befunde unter erklaert in befunde sind bekannt und gewollt. Werten Sie sie nicht als \
+        Problem, und berücksichtigen Sie die Erklärung in Ihren Antworten, etwa bei Fragen zu \
+        Pumpen oder Relais. Auf Nachfrage nennen Sie die Erklärung.
         """
 
     static let werkzeuge = """
-        Werkzeuge: anlage_status (jetziger Zustand), befunde (offene Befunde mit Beleg), verlauf \
+        Werkzeuge: anlage_status (jetziger Zustand), befunde (offene und vom Betreiber erklärte Befunde mit Beleg), verlauf \
         (gespeicherte Zeitreihen bis ein Jahr), ereignisse (Neustarts, Ausfälle, Brenner- und \
         Pumpenwechsel, Sollwertänderungen aus dem Protokoll des Leitstands), feinverlauf \
         (Messwerte im 30-Sekunden-Takt vom Leitstand, bis 24 Stunden, etwa freier Speicher und \
         WLAN vor einem Neustart), protokolle (Ladungen, Tage, Änderungen), kennzahlen \
         (Verbrauch, Taktung, Komfort je Raum), einstellungen_lesen (Werte mit Bereich und Freigabe), \
-        aenderung_vorschlagen und aktion_vorschlagen.
+        aenderung_vorschlagen, aktion_vorschlagen und befund_erklaeren (merkt eine Erklärung des \
+        Betreibers zu einem Befund, sobald er sie bestätigt).
         """
 
     /// Für Claude: Anweisungen samt vollständigem Wissen
@@ -69,7 +80,9 @@ public enum Anweisungen {
     /// Auftrag für den Lagebericht
     public static let lagebericht = """
         Erstellen Sie den Lagebericht für die Übersicht der App. Lesen Sie dafür befunde und \
-        anlage_status, bei Bedarf kennzahlen über sieben Tage oder den verlauf.
+        anlage_status, bei Bedarf kennzahlen über sieben Tage oder den verlauf. Befunde unter \
+        erklaert hat der Betreiber als bekannt und gewollt erklärt: Sie gehören weder in den \
+        zustand noch in die hinweise.
 
         zustand: inOrdnung, wenn nichts zu tun ist; beobachten, wenn etwas geprüft oder im Auge \
         behalten werden sollte; handeln, wenn eine Störung den Betrieb beeinträchtigt oder bald \

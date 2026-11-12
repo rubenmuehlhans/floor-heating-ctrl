@@ -23,10 +23,12 @@
 		3821287EDCF30F0CE6C9AB65 /* VerlaufAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C71DB56C95C0A31B0DF2CA /* VerlaufAnsichten.swift */; };
 		392EACE46FEABBCDFEF2C8BB /* Anlage in Frameworks */ = {isa = PBXBuildFile; productRef = 04DD00B2E5AC2745CD461461 /* Anlage */; };
 		3948E4E5CAE4BDF07BF0738C /* Leitstandabgleich.swift in Sources */ = {isa = PBXBuildFile; fileRef = A905B306C50D3A95E1844447 /* Leitstandabgleich.swift */; };
+		44B24085548FF8876312F028 /* ErklaerungAnsichten.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6500E7FD818AF79E63D96E93 /* ErklaerungAnsichten.swift */; };
 		451278FCE8F6B8243C59996A /* Verlaufstafeln.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */; };
 		48FB4B76FD7E8C5842E4F712 /* Diagnose in Frameworks */ = {isa = PBXBuildFile; productRef = DB0C56AD8F2221EEE75EDC69 /* Diagnose */; };
 		4AE5B281784737698A29BABA /* ClaudeZustimmung.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034866260339563010A3A262 /* ClaudeZustimmung.swift */; };
 		50FFE3038A3F332FD18C8D59 /* Hauptansicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9F3D37A01FFD46483C9E7D /* Hauptansicht.swift */; };
+		62B678BCF89CDA88FB66DD74 /* AppModell+Erklaerungen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 577D961D20A7C34DC95E0202 /* AppModell+Erklaerungen.swift */; };
 		64B0ED60F7B723A902F251EA /* AssistentAnsicht.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BAA87F46732D56EBC388FDD /* AssistentAnsicht.swift */; };
 		6712BCD7867FCB1F34803608 /* EinrichtungsAssistent.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6599950B9C36E2BEFDB955D /* EinrichtungsAssistent.swift */; };
 		697F8CD0C123FB43EB631A2D /* Schluesselbund.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48954AF714DAE13C1195D5C2 /* Schluesselbund.swift */; };
@@ -87,10 +89,12 @@
 		4CE23CDBB9E7412393163FFC /* Mitteilungen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mitteilungen.swift; sourceTree = "<group>"; };
 		525D9206D8125B514A525BF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		547D9671BA2620527B52625D /* Diagnose */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Diagnose; path = Packages/Diagnose; sourceTree = SOURCE_ROOT; };
+		577D961D20A7C34DC95E0202 /* AppModell+Erklaerungen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModell+Erklaerungen.swift"; sourceTree = "<group>"; };
 		5A34FB3CB4C98B3FE8861E37 /* Gestaltung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gestaltung.swift; sourceTree = "<group>"; };
 		5E1FA86A4F4B606F13DADDFF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5FE560CBDA7CDAA91B172940 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		611052E90F7FF74AED866E7E /* EinstellungenAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EinstellungenAnsichten.swift; sourceTree = "<group>"; };
+		6500E7FD818AF79E63D96E93 /* ErklaerungAnsichten.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErklaerungAnsichten.swift; sourceTree = "<group>"; };
 		6718DE03AF5A762784FD3A18 /* Anlagenanbindung.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anlagenanbindung.swift; sourceTree = "<group>"; };
 		6C59800489FDA7AE236208E9 /* Verlaufstafeln.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Verlaufstafeln.swift; sourceTree = "<group>"; };
 		732BA319362C0F74A32EAD3C /* WaermepumpencheckAnsicht.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaermepumpencheckAnsicht.swift; sourceTree = "<group>"; };
@@ -177,6 +181,7 @@
 				6718DE03AF5A762784FD3A18 /* Anlagenanbindung.swift */,
 				346551750D02DF77B7048826 /* AppModell.swift */,
 				7CDA3F26077EF49DA2B211C3 /* AppModell+Assistent.swift */,
+				577D961D20A7C34DC95E0202 /* AppModell+Erklaerungen.swift */,
 				73687811049CF267C3CBD540 /* Assistenzdienst.swift */,
 				44D7FDAD127593F52E81A109 /* Einrichtungsablauf.swift */,
 				A905B306C50D3A95E1844447 /* Leitstandabgleich.swift */,
@@ -226,6 +231,7 @@
 			children = (
 				4BAA87F46732D56EBC388FDD /* AssistentAnsicht.swift */,
 				034866260339563010A3A262 /* ClaudeZustimmung.swift */,
+				6500E7FD818AF79E63D96E93 /* ErklaerungAnsichten.swift */,
 			);
 			path = Assistent;
 			sourceTree = "<group>";
@@ -427,6 +433,7 @@
 				25EA68C348D6545D78A78D56 /* Anlagenschema.swift in Sources */,
 				92E6B049D7E294307B99B349 /* Anzeigetafel.swift in Sources */,
 				C94AB2870A4F0E1E3D3B635C /* AppModell+Assistent.swift in Sources */,
+				62B678BCF89CDA88FB66DD74 /* AppModell+Erklaerungen.swift in Sources */,
 				CEA54B1F64BDDD83BE2B4DBC /* AppModell.swift in Sources */,
 				64B0ED60F7B723A902F251EA /* AssistentAnsicht.swift in Sources */,
 				9AF7892986D9A987A14D7516 /* Assistenzdienst.swift in Sources */,
@@ -437,6 +444,7 @@
 				D8B7912C9D021648E0379ACC /* Einrichtungsablauf.swift in Sources */,
 				F34A820AD1B105CDA62546AB /* EinstellungenAnsichten.swift in Sources */,
 				717944602EF2491AC7A3F76F /* Ereignismarken.swift in Sources */,
+				44B24085548FF8876312F028 /* ErklaerungAnsichten.swift in Sources */,
 				82DAFB5B47F809A99A50E82E /* Format.swift in Sources */,
 				773D23435C0EEF71E64BD12B /* Funkschluessel.swift in Sources */,
 				14A30F95855BB32DC63D876B /* GeraeteAnsicht.swift in Sources */,

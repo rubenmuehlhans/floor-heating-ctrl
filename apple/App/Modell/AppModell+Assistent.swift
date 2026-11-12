@@ -2,6 +2,7 @@ import Foundation
 import FoundationModels
 import Anlage
 import Assistent
+import Diagnose
 import Geraeteschnittstelle
 import Sprachmodelle
 
@@ -113,13 +114,14 @@ extension AppModell {
     func senden(_ text: String) {
         let frage = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !frage.isEmpty, !antwortLaeuft else { return }
+        let bezug = fragebezug
         let volltext = fragebezug.map { "Zu „\($0)“: \(frage)" } ?? frage
         gespraech.beitraege.append(Beitrag(id: UUID().uuidString, rolle: .nutzer, bausteine: [.text(volltext)], zeit: .now))
         if gespraech.titel == "Neues Gespräch" { gespraech.titel = Self.titel(frage) }
         fragebezug = nil
 
         if istBeispiel {
-            beispielAntworten()
+            beispielAntworten(frage, bezug: bezug)
             return
         }
         if let hindernis = kiHindernis {
@@ -154,7 +156,15 @@ extension AppModell {
         return (kurz.lastIndex(of: " ").map { String(kurz[..<$0]) } ?? String(kurz)) + " …"
     }
 
-    private func beispielAntworten() {
+    /// Fragt man aus einem Befund heraus, legt die vorgegebene Antwort eine Erklärungskarte mit dem
+    /// Wortlaut der Frage an, damit sich das Erklären auch ohne Modell ausprobieren lässt.
+    private func beispielAntworten(_ frage: String, bezug: String?) {
+        // Der Bezug ist der Titel eines Befunds oder ein Hinweis des Lageberichts, der auf einen verweist.
+        let kennung = bezug.flatMap { b in aktuellerLagebericht.hinweise.first { $0.text == b }?.bezug }
+        if let bezug, let befund = anlage.befunde.first(where: { $0.titel == bezug || $0.id == kennung }) {
+            beispielErklaeren(befund, text: frage)
+            return
+        }
         beispielLaeuft = true
         Task {
             try? await Task.sleep(for: .seconds(1.4))
@@ -163,6 +173,25 @@ extension AppModell {
                 bausteine: [
                     .werkzeug(Werkzeugaufruf(id: UUID().uuidString, name: "anlage_status", beschreibung: "Zustand aller Geräte gelesen", ergebnis: "5 Geräte erreichbar, 3 Relais nicht")),
                     .text("In der Beispielanlage ist diese Antwort vorgegeben. Sobald Geräte eingebunden sind, beantwortet das gewählte Modell die Frage mit den Daten der Anlage und nennt, woher die Zahlen stammen."),
+                ],
+                zeit: .now))
+            beispielLaeuft = false
+        }
+    }
+
+    private func beispielErklaeren(_ befund: Befund, text: String) {
+        beispielLaeuft = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            let e = Erklaerung(befund: befund, text: text, erstellt: .now, hoechstdauer: befund.id == "relais" ? 14 * 3600 : nil)
+            beispielerklaerungen.anlegen(e)
+            gespraech.beitraege.append(Beitrag(
+                id: UUID().uuidString, rolle: .assistent,
+                bausteine: [
+                    .werkzeug(Werkzeugaufruf(id: UUID().uuidString, name: "befunde", beschreibung: "Offene Befunde gelesen", ergebnis: befund.titel)),
+                    .werkzeug(Werkzeugaufruf(id: UUID().uuidString, name: "befund_erklaeren", beschreibung: "Erklärung zum Merken angelegt", ergebnis: befund.titel)),
+                    .text("In der Beispielanlage ist diese Antwort vorgegeben. Mit „Merken“ gilt Ihre Erklärung: Der Befund erscheint nicht mehr im Lagebericht und löst keine Mitteilung aus, solange er nur an \(e.orte.count == 1 ? "diesem Ort" : "diesen Orten") und nicht schwerer ansteht."),
+                    .erklaerung(e.id),
                 ],
                 zeit: .now))
             beispielLaeuft = false
@@ -219,7 +248,7 @@ extension AppModell {
         guard lageberichtAutomatisch, lageberichtMoeglich, vordergrund, !istBeispiel, betrieb.vollstaendigAbgefragt,
               !assistenzdienst.berichtLaeuft else { return }
         if let v = letzterBerichtsversuch, jetzt.timeIntervalSince(v) < 600 { return }
-        let offen = Set(anlage.befunde.map(\.id))
+        let offen = Set(offeneBefunde.map(\.id))
         if let letzter = ablage.letzterLagebericht {
             let alter = jetzt.timeIntervalSince(letzter.erstellt)
             let neueBefunde = !offen.isSubset(of: Set(letzter.befunde))
@@ -237,7 +266,7 @@ extension AppModell {
     private func berichten() {
         letzterBerichtsversuch = .now
         let ki = kiModell
-        let befunde = anlage.befunde.map(\.id)
+        let befunde = offeneBefunde.map(\.id)
         Task {
             await claudeModelleAuffrischen()
             let modell = modellwahl(ki)
